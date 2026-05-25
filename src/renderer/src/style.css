@@ -475,6 +475,58 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* per-pane (running app) sub-rows under an expanded terminal node */
+.tab-panes {
+  margin-top: 2px;
+  padding-left: 15px;
+}
+.tab-pane-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  color: var(--text-dim);
+}
+.tab-pane-row:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.tab-pane-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* plan-file sub-rows under a terminal node (branch-matched docs/plans) */
+.tab-plans {
+  padding-left: 15px;
+  margin-top: 1px;
+}
+.tab-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.82em;
+  color: var(--text-mute);
+}
+.tab-plan-row:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.tab-plan-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+.tab-plan-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Group breadcrumb (Pinned section: which group a terminal lives in) */
 .tab-crumb {
@@ -600,13 +652,18 @@ body {
 #sidebar-footer {
   display: flex;
 }
-#notebook-footer {
+#notebook-footer,
+#database-footer {
   display: none;
 }
-#app.mode-notebook #sidebar-footer {
+#app.mode-notebook #sidebar-footer,
+#app.mode-database #sidebar-footer {
   display: none;
 }
 #app.mode-notebook #notebook-footer {
+  display: flex;
+}
+#app.mode-database #database-footer {
   display: flex;
 }
 
@@ -734,11 +791,9 @@ body {
   background: #ffd54a;
   color: #000;
 }
-/* center & cap line length like a document */
+/* fill the pane width (responsive) instead of a fixed narrow column */
 .doc-preview > * {
-  max-width: 720px;
-  margin-left: auto;
-  margin-right: auto;
+  max-width: none;
 }
 .doc-preview > *:first-child {
   margin-top: 0;
@@ -936,7 +991,8 @@ body {
 /* Layout only — `display` is owned by the mode rules above so the wrong
    footer never shows (previously this `display: flex` leaked into both). */
 #sidebar-footer,
-#notebook-footer {
+#notebook-footer,
+#database-footer {
   flex: 0 0 auto;
   padding: 6px;
   border-top: 1px solid var(--border);
@@ -946,10 +1002,13 @@ body {
 #new-tab,
 #new-claude,
 #new-folder,
+#new-project,
 #settings-btn,
 #nb-new-note,
 #nb-new-folder,
-#nb-settings-btn {
+#nb-settings-btn,
+#db-new-project,
+#db-settings-btn {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.03);
@@ -971,12 +1030,16 @@ body {
   padding: 4px 6px;
   white-space: nowrap;
 }
-#new-folder {
+#new-folder,
+#new-project,
+#db-new-project {
+  flex: 1;
   padding: 4px 8px;
   white-space: nowrap;
 }
 #settings-btn,
-#nb-settings-btn {
+#nb-settings-btn,
+#db-settings-btn {
   width: 30px;
   font-size: 13px;
 }
@@ -993,10 +1056,13 @@ body {
 #new-tab:hover,
 #new-claude:hover,
 #new-folder:hover,
+#new-project:hover,
 #settings-btn:hover,
 #nb-new-note:hover,
 #nb-new-folder:hover,
-#nb-settings-btn:hover {
+#nb-settings-btn:hover,
+#db-new-project:hover,
+#db-settings-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
   border-color: var(--border-strong);
@@ -1631,6 +1697,14 @@ body.dragging-pane .pane-term {
 .context-menu button:hover {
   background: var(--accent-soft);
   color: var(--text);
+}
+.context-menu button.danger:hover {
+  background: rgba(248, 81, 73, 0.14);
+  color: #ff7b72;
+}
+/* active swatch (current color) gets a ring */
+.color-swatches .swatch.active {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--text);
 }
 .menu-label {
   font-size: 10px;
@@ -2799,6 +2873,403 @@ body.dragging-pane .pane-term {
   letter-spacing: 0.04em;
   color: var(--text-faint);
 }
+
+/* Run applications modal */
+.run-env-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 4px;
+}
+.run-env-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.run-env-chip.active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+}
+.run-app-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.run-app-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.run-app-row.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.run-app-name {
+  font-size: 13px;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+.run-app-cmd {
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feature-app-row .run-app-cmd {
+  flex: 1;
+}
+.feature-wt {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-mute);
+  cursor: pointer;
+}
+/* feature/worktree folder icon tint */
+.folder-icon.worktree-icon {
+  color: var(--accent);
+}
+
+/* ---- Database tool ---- */
+/* per-engine accents */
+.db-eng-postgres {
+  --db-accent: #5a9fd4;
+}
+.db-eng-mysql {
+  --db-accent: #e0a45e;
+}
+.db-eng-sqlite {
+  --db-accent: #6cc0a8;
+}
+.db-icon {
+  color: var(--db-accent, var(--accent));
+}
+.db-section-icon,
+.db-obj-icon {
+  color: var(--text-faint);
+}
+.db-section {
+  font-size: 0.92em;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.db-muted {
+  color: var(--text-faint);
+}
+.db-error {
+  color: #ff7b72;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+/* engine pill on a connection row */
+.db-eng-pill {
+  flex: 0 0 auto;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--db-accent, var(--accent));
+  background: color-mix(in srgb, var(--db-accent, var(--accent)) 16%, transparent);
+  margin-left: 2px;
+}
+/* object count pill in a section row */
+.db-count-pill {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 0 6px;
+  margin-left: auto;
+}
+.db-obj-row .tab-title {
+  font-size: 0.92em;
+}
+.db-obj-run {
+  flex: 0 0 auto;
+  display: none;
+  margin-left: auto;
+  color: var(--text-faint);
+}
+.db-obj-row:hover .db-obj-run {
+  display: inline-flex;
+}
+.db-obj-row:hover .db-obj-run:hover {
+  color: var(--accent);
+}
+
+.db-queries {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.db-queries-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 10px 5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+}
+.db-query-row .tab-row {
+  font-size: 0.92em;
+}
+
+/* segmented engine selector (connection form) */
+.db-seg {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+.db-seg-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-strong);
+  color: var(--text-mute);
+  border-radius: 8px;
+  padding: 7px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.db-seg-btn:hover {
+  color: var(--text);
+}
+.db-seg-btn.active {
+  color: var(--text);
+  border-color: var(--db-accent, var(--accent));
+  background: color-mix(in srgb, var(--db-accent, var(--accent)) 14%, transparent);
+  box-shadow: inset 0 0 0 1px var(--db-accent, var(--accent));
+}
+
+/* connection form */
+.db-conn-modal {
+  width: 460px;
+  max-width: 94vw;
+}
+.db-conn-status {
+  margin-top: 12px;
+  font-size: 12px;
+  min-height: 16px;
+  color: var(--text-mute);
+}
+.db-conn-status.ok {
+  color: #3fb950;
+}
+.db-conn-status.err {
+  color: #ff7b72;
+}
+
+/* query editor (SQL workbench) */
+.db-query-modal {
+  width: min(1180px, 95vw);
+  height: min(800px, 90vh);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+.db-query-bar {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+.db-conn-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.db-conn-dot {
+  position: absolute;
+  left: 11px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--db-accent, var(--text-faint));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--db-accent, transparent) 70%, transparent);
+  pointer-events: none;
+}
+.db-conn-select .settings-select {
+  flex: 1;
+  min-width: 0;
+  padding-left: 26px;
+}
+.db-run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-weight: 600;
+}
+.db-run-btn kbd {
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.8;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.db-save-btn {
+  padding: 0 12px;
+}
+.db-query-editor {
+  flex: 0 0 38%;
+  min-height: 120px;
+  box-sizing: border-box;
+  background: var(--bg-term);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.db-query-editor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.db-query-editor .cm-editor {
+  height: 100%;
+}
+.db-result {
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.db-result-empty,
+.db-result-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+.db-result-error {
+  color: #ff7b72;
+  font-family: var(--mono, Menlo, monospace);
+  font-size: 12px;
+  word-break: break-word;
+  align-items: flex-start;
+  justify-content: flex-start;
+  white-space: pre-wrap;
+}
+.db-ok-badge {
+  background: rgba(63, 185, 80, 0.16);
+  color: #3fb950;
+  border-radius: 5px;
+  padding: 1px 7px;
+  font-weight: 600;
+  margin-right: 6px;
+}
+.db-result-status {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-mute);
+  margin-bottom: 6px;
+}
+.db-result-rows {
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.db-result-ms {
+  margin-left: auto;
+  color: var(--text-faint);
+}
+.db-grid-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.db-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  font-family: var(--mono, Menlo, monospace);
+  width: max-content;
+  min-width: 100%;
+}
+.db-grid th,
+.db-grid td {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 5px 10px;
+  text-align: left;
+  white-space: nowrap;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.db-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+  font-family: inherit;
+}
+.db-grid tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.018);
+}
+.db-grid tbody tr:hover {
+  background: var(--accent-soft);
+}
+.db-grid td {
+  color: var(--text-dim);
+}
+.db-grid td.db-num {
+  text-align: right;
+  color: var(--text);
+}
+.db-grid td.db-null {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.db-grid .db-grid-rownum {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+  color: var(--text-faint);
+  text-align: right;
+  font-weight: 600;
+  user-select: none;
+}
+.db-grid th.db-grid-rownum {
+  z-index: 2;
+}
 .shortcuts-list {
   display: flex;
   flex-direction: column;
@@ -3523,4 +3994,106 @@ body.dragging-pane .pane-term {
 }
 .track-modal .settings-select {
   margin-bottom: 4px;
+}
+
+/* ---- Self-update (Update Crafterm) ---- */
+.update-modal {
+  width: 420px;
+  max-width: 92vw;
+}
+.update-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.update-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-mute);
+}
+.update-step .update-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  box-sizing: border-box;
+}
+.update-step.active {
+  color: var(--text);
+}
+.update-step.active .update-dot {
+  border-color: var(--accent);
+  border-top-color: transparent;
+  animation: update-spin 0.7s linear infinite;
+}
+.update-step.done {
+  color: var(--text-dim);
+}
+.update-step.done .update-dot {
+  border-color: #3fb950;
+  background: #3fb950;
+}
+.update-step.failed {
+  color: #ff7b72;
+}
+.update-step.failed .update-dot {
+  border-color: #ff7b72;
+  background: #ff7b72;
+}
+.update-error {
+  margin-top: 12px;
+  font-family: var(--mono, Menlo, monospace);
+  font-size: 11px;
+  color: #ff7b72;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+
+#update-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, #0d1117);
+  transition: opacity 0.4s ease;
+}
+/* `hidden` attribute must win over the id selector's display:flex above. */
+#update-overlay[hidden] {
+  display: none;
+}
+.update-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.update-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: update-spin 0.7s linear infinite;
+}
+.update-overlay-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.update-overlay-sub {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+@keyframes update-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

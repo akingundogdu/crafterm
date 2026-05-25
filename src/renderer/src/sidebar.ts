@@ -12,7 +12,9 @@ import {
 import { paneStatus } from './pane'
 import {
   selectTab,
+  selectPane,
   selectNode,
+  openMarkdownFile,
   closeTab,
   togglePin,
   toggleCollapse,
@@ -41,10 +43,16 @@ import {
   showCommandPalette,
   showSshConnections,
   showClaudeAccountSwitcher,
-  showClaudeSessionResume
+  showClaudeSessionResume,
+  showRunApps,
+  showFeatureSetup,
+  runUpdate
 } from './pickers'
+import { findProjectByPath } from './catalog'
 import { showImproveModal } from './improve'
 import { promptText } from './dialog'
+import { renderDatabase } from './database'
+import { showContextMenu, type ContextMenuItem } from './contextmenu'
 import {
   renderNotebook,
   handleNotebookKey,
@@ -148,6 +156,7 @@ function showActionsMenu(anchor: HTMLElement): void {
   addItem('Command history', () => showCommandHistory())
   addItem('Update my zsh config', () => void openTerminalRunning(settings.commands.openMyZsh, 'zsh config'))
   addItem('Improve Crafterm', () => void showImproveModal())
+  addItem('Update Crafterm', () => void runUpdate())
   document.body.appendChild(menu)
   const onDown = (ev: MouseEvent): void => {
     if (!menu.contains(ev.target as Node)) {
@@ -204,6 +213,7 @@ export function activateRowByNumber(n: number): void {
 
 tabListEl.tabIndex = 0
 tabListEl.addEventListener('keydown', (e) => {
+  if (sidebarMode === 'database') return // database view has no key-nav (v1)
   if (sidebarMode === 'notebook') {
     handleNotebookKey(e)
     return
@@ -251,7 +261,6 @@ const STATUS_LABEL: Record<PaneStatus, string> = {
   attention: 'needs input'
 }
 
-const PALETTE = ['#f85149', '#db6d28', '#d29922', '#3fb950', '#2f81f7', '#a371f7', '#db61a2', '#8b949e']
 
 // Crisp disclosure chevron — CSS rotates it 90° when the folder is expanded.
 const CHEVRON_SVG =
@@ -263,6 +272,12 @@ const FOLDER_SVG =
 // project icon: a stack/box, distinct from the folder
 const PROJECT_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 1.5l5.5 3.1v6.8L8 14.5 2.5 11.4V4.6z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M2.6 4.7L8 7.8l5.4-3.1M8 7.8v6.5" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>'
+// plan-file glyph (document) shown on plan sub-rows under a terminal node
+const PLAN_SVG =
+  '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 1.5v3h3M6 8h4M6 10.5h4" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>'
+// feature/worktree folder icon: a git-branch glyph (marks a worktree feature)
+const WORKTREE_SVG =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="12.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 5.1v5.8M11.5 5.1v1.2c0 2.2-1.8 3.4-3.9 3.9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
 
 let isEditing = false
 let draggedId: string | null = null
@@ -340,25 +355,31 @@ function applyRowColor(row: HTMLElement, color: string | null): void {
 // Rendering
 // ---------------------------------------------------------------------------
 
-type SidebarMode = 'terminal' | 'notebook'
+type SidebarMode = 'terminal' | 'notebook' | 'database'
 let sidebarMode: SidebarMode = 'terminal'
 
 const tabTerminalEl = document.getElementById('tab-terminal')!
 const tabNotebookEl = document.getElementById('tab-notebook')!
+const tabDatabaseEl = document.getElementById('tab-database')!
 tabTerminalEl.addEventListener('click', () => setSidebarMode('terminal'))
 tabNotebookEl.addEventListener('click', () => setSidebarMode('notebook'))
+tabDatabaseEl.addEventListener('click', () => setSidebarMode('database'))
 
 export function setSidebarMode(m: SidebarMode): void {
   sidebarMode = m
   appEl.classList.toggle('mode-notebook', m === 'notebook')
+  appEl.classList.toggle('mode-database', m === 'database')
   tabTerminalEl.classList.toggle('active', m === 'terminal')
   tabNotebookEl.classList.toggle('active', m === 'notebook')
+  tabDatabaseEl.classList.toggle('active', m === 'database')
   // shared search bar: reset + relabel for the active view
   searchInputEl.value = ''
   searchQuery = ''
   nbClearQuery()
-  searchInputEl.placeholder = m === 'notebook' ? 'Search notes…' : 'Search…'
+  searchInputEl.placeholder =
+    m === 'notebook' ? 'Search notes…' : m === 'database' ? 'Search…' : 'Search…'
   if (m === 'notebook') void renderNotebook(tabListEl)
+  else if (m === 'database') void renderDatabase(tabListEl)
   else renderSidebar()
   tabListEl.focus() // enable arrow-key navigation in the chosen view
 }
@@ -367,9 +388,13 @@ export function isNotebookMode(): boolean {
   return sidebarMode === 'notebook'
 }
 
+export function isDatabaseMode(): boolean {
+  return sidebarMode === 'database'
+}
+
 export function renderSidebar(): void {
   if (isEditing) return
-  if (sidebarMode === 'notebook') return // notebook view owns the list
+  if (sidebarMode === 'notebook' || sidebarMode === 'database') return // those views own the list
   liveRows = []
   tabListEl.replaceChildren()
 
@@ -615,9 +640,13 @@ function buildTabRow(
   const top = document.createElement('div')
   top.className = 'tab-row'
   const detail = tabDetail(node)
-  // Chevron toggles the detail line; collapsed rows are as thin as a folder row.
-  // Only shown when there are details to reveal.
-  if (detail) {
+  const paneIds = panesInLayout(node.root)
+  // Optional: list each pane (running app) as a sub-row under the terminal.
+  const showPanes = settings.sidebar.details.paneList && paneIds.length > 1
+  const expandable = !!detail || showPanes
+  // Chevron toggles the expanded section; collapsed rows are as thin as a folder
+  // row. Only shown when there's something to reveal (detail line and/or panes).
+  if (expandable) {
     const tri = document.createElement('span')
     tri.className = 'tri' + (node.detailsOpen ? ' expanded' : '')
     tri.innerHTML = CHEVRON_SVG
@@ -639,11 +668,61 @@ function buildTabRow(
   row.append(top)
 
   let sub: HTMLElement | null = null
-  if (detail && node.detailsOpen) {
-    sub = document.createElement('div')
-    sub.className = 'tab-sub'
-    sub.textContent = detail
-    row.append(sub)
+  if (expandable && node.detailsOpen) {
+    if (detail) {
+      sub = document.createElement('div')
+      sub.className = 'tab-sub'
+      sub.textContent = detail
+      row.append(sub)
+    }
+    if (showPanes) {
+      const paneList = document.createElement('div')
+      paneList.className = 'tab-panes'
+      for (const id of paneIds) {
+        const p = panes.get(id)
+        const prow = document.createElement('div')
+        prow.className = 'tab-pane-row'
+        const pdot = document.createElement('span')
+        pdot.className = 'status-dot ' + (p ? paneStatus(p) : 'idle')
+        const ptitle = document.createElement('span')
+        ptitle.className = 'tab-pane-title'
+        ptitle.textContent = p?.title || 'terminal'
+        prow.append(pdot, ptitle)
+        prow.addEventListener('click', (e) => {
+          e.stopPropagation()
+          selectPane(id)
+        })
+        paneList.appendChild(prow)
+      }
+      row.append(paneList)
+    }
+  }
+
+  // Plan files for this terminal's branch (docs/plans/<branch>-*.md) — always
+  // shown as sub-rows when present; click opens the plan in the markdown viewer.
+  const firstPane = panes.get(firstPaneOf(node.root) ?? '')
+  const plans = firstPane?.plans ?? []
+  if (plans.length) {
+    const planList = document.createElement('div')
+    planList.className = 'tab-plans'
+    for (const plan of plans) {
+      const prow = document.createElement('div')
+      prow.className = 'tab-plan-row'
+      prow.title = plan.path
+      const pic = document.createElement('span')
+      pic.className = 'tab-plan-icon'
+      pic.innerHTML = PLAN_SVG
+      const ptitle = document.createElement('span')
+      ptitle.className = 'tab-plan-title'
+      ptitle.textContent = plan.name.replace(/\.(md|mdx|mdc)$/i, '')
+      prow.append(pic, ptitle)
+      prow.addEventListener('click', (e) => {
+        e.stopPropagation()
+        openMarkdownFile(plan.path)
+      })
+      planList.appendChild(prow)
+    }
+    row.append(planList)
   }
 
   row.addEventListener('click', () => selectTab(node.id))
@@ -685,8 +764,13 @@ function buildFolderRow(
     toggleCollapse(node.id)
   })
   const icon = document.createElement('span')
-  icon.className = node.kind === 'project' ? 'folder-icon project-icon' : 'folder-icon'
-  icon.innerHTML = node.kind === 'project' ? PROJECT_SVG : FOLDER_SVG
+  const isFeature = node.kind === 'folder' && !!node.feature
+  icon.className =
+    'folder-icon' +
+    (node.kind === 'project' ? ' project-icon' : '') +
+    (isFeature ? ' worktree-icon' : '')
+  icon.innerHTML = isFeature ? WORKTREE_SVG : node.kind === 'project' ? PROJECT_SVG : FOLDER_SVG
+  if (isFeature) icon.title = `worktree: ${node.feature}`
   const name = document.createElement('span')
   name.className = 'tab-title'
   name.textContent = node.name
@@ -850,87 +934,38 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
 // Context menu
 // ---------------------------------------------------------------------------
 
-let menuCleanup: (() => void) | null = null
-function closeMenu(): void {
-  document.querySelector('.context-menu')?.remove()
-  if (menuCleanup) {
-    menuCleanup()
-    menuCleanup = null
-  }
-}
-
 function showMenu(e: MouseEvent, node: SidebarNode): void {
-  e.preventDefault()
-  e.stopPropagation()
-  closeMenu()
-  const menu = document.createElement('div')
-  menu.className = 'context-menu'
-  menu.style.left = e.clientX + 'px'
-  menu.style.top = e.clientY + 'px'
-
-  const btn = (label: string, fn: () => void): void => {
-    const b = document.createElement('button')
-    b.textContent = label
-    b.addEventListener('click', () => {
-      closeMenu()
-      fn()
-    })
-    menu.appendChild(b)
-  }
-
+  const items: ContextMenuItem[] = []
   if (node.kind === 'tab') {
     const trail = ancestorFolders(state.tree, node.id)
     const parentId = trail && trail.length ? trail[trail.length - 1].id : null
-    btn('New Claude terminal', () => void newClaudeTab(parentId))
-    btn('Rename', () => startRename(node))
-    if (node.titleLocked) btn('Auto-name', () => autoNameTab(node.id))
-    btn(node.pinned ? 'Unpin' : 'Pin', () => togglePin(node.id))
-    btn('Close tab', () => closeTab(node.id))
+    items.push({ label: 'New Claude terminal', run: () => void newClaudeTab(parentId) })
+    items.push({ label: 'Rename', run: () => startRename(node) })
+    if (node.titleLocked) items.push({ label: 'Auto-name', run: () => autoNameTab(node.id) })
+    items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
+    items.push({ label: 'Close tab', run: () => closeTab(node.id), danger: true })
   } else {
-    btn('New terminal here', () => void newTab(node.id))
-    btn('New Claude terminal here', () => void newClaudeTab(node.id))
-    btn('New subfolder', () => void newFolder(node.id))
-    btn('Rename', () => startRename(node))
-    btn('Set group…', () => void promptGroup(node))
-    btn('Folder settings…', () => showFolderSettings(node))
-    btn(node.pinned ? 'Unpin' : 'Pin', () => togglePin(node.id))
-    btn('Delete folder', () => deleteFolder(node.id))
+    items.push({ label: 'New terminal here', run: () => void newTab(node.id) })
+    items.push({ label: 'New Claude terminal here', run: () => void newClaudeTab(node.id) })
+    items.push({ label: 'New subfolder', run: () => void newFolder(node.id) })
+    if (node.kind === 'project') {
+      const projPath = node.path
+      const projName = node.name
+      const tmpl = (): { name: string; path: string } =>
+        findProjectByPath(settings.projects, projPath) ?? { name: projName, path: projPath }
+      items.push({ label: 'Run applications…', run: () => showRunApps(tmpl()) })
+      items.push({ label: 'New feature…', run: () => showFeatureSetup(tmpl()) })
+    }
+    items.push({ label: 'Rename', run: () => startRename(node) })
+    items.push({ label: 'Set group…', run: () => void promptGroup(node) })
+    items.push({ label: 'Folder settings…', run: () => showFolderSettings(node) })
+    items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
+    items.push({ label: 'Delete folder', run: () => deleteFolder(node.id), danger: true })
   }
-
-  // color swatches
-  const colors = document.createElement('div')
-  colors.className = 'color-swatches'
-  const none = document.createElement('button')
-  none.className = 'swatch none'
-  none.title = 'No color'
-  none.addEventListener('click', () => {
-    closeMenu()
-    setNodeColor(node.id, null)
+  showContextMenu(e, items, {
+    current: node.color,
+    onPick: (c) => setNodeColor(node.id, c)
   })
-  colors.appendChild(none)
-  PALETTE.forEach((c) => {
-    const s = document.createElement('button')
-    s.className = 'swatch'
-    s.style.background = c
-    s.addEventListener('click', () => {
-      closeMenu()
-      setNodeColor(node.id, c)
-    })
-    colors.appendChild(s)
-  })
-  menu.appendChild(colors)
-
-  document.body.appendChild(menu)
-  // keep menu on screen
-  const r = menu.getBoundingClientRect()
-  if (r.bottom > window.innerHeight) menu.style.top = window.innerHeight - r.height - 8 + 'px'
-  if (r.right > window.innerWidth) menu.style.left = window.innerWidth - r.width - 8 + 'px'
-
-  const onDown = (ev: MouseEvent): void => {
-    if (!menu.contains(ev.target as Node)) closeMenu()
-  }
-  setTimeout(() => document.addEventListener('mousedown', onDown, true))
-  menuCleanup = () => document.removeEventListener('mousedown', onDown, true)
 }
 
 // ---------------------------------------------------------------------------

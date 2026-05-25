@@ -41,9 +41,12 @@ import {
   showAllMarkdown,
   showTerminalSwitcher,
   showStashManager,
-  showBranchCheckout
+  showBranchCheckout,
+  showRunAppsPicker,
+  showFeaturePicker
 } from './pickers'
 import { showImproveModal } from './improve'
+import { databaseNewProject } from './database'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, isRecording } from './keybindings'
 
 // New terminals: if the selected container (project or folder) has a command
@@ -164,6 +167,8 @@ document.getElementById('nb-new-note')!.addEventListener('click', () => notebook
 document.getElementById('nb-new-folder')!.addEventListener('click', () => notebookNewFolder())
 document.getElementById('nb-link-file')!.addEventListener('click', () => notebookLinkFile())
 document.getElementById('nb-settings-btn')!.addEventListener('click', () => openSettings())
+document.getElementById('db-new-project')!.addEventListener('click', () => databaseNewProject())
+document.getElementById('db-settings-btn')!.addEventListener('click', () => openSettings())
 
 // Cmd +/- zoom: markdown doc when one is active, else sidebar (if focused),
 // else the terminal font.
@@ -200,7 +205,9 @@ const KEY_HANDLERS: Record<string, () => void> = {
   equalize: () => equalizePanes(),
   settings: () => openSettings(),
   improve: () => void showImproveModal(),
-  rename: () => (isNotebookMode() ? notebookRenameSelected() : renameSelected())
+  rename: () => (isNotebookMode() ? notebookRenameSelected() : renameSelected()),
+  'run-apps': () => showRunAppsPicker(),
+  'new-feature': () => showFeaturePicker()
 }
 
 // ---- Shortcuts (Cmd = metaKey). Capture phase so xterm doesn't eat them. ----
@@ -229,6 +236,7 @@ window.addEventListener(
     else if (!e.altKey && e.key === '0') zoomFontReset()
     else if (!e.altKey && e.key === '1') setSidebarMode('terminal')
     else if (!e.altKey && e.key === '2') setSidebarMode('notebook')
+    else if (!e.altKey && e.key === '3') setSidebarMode('database')
     else {
       // editable shortcuts (Settings → Shortcuts)
       const combo = comboFromEvent(e)
@@ -318,6 +326,7 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         pinned: !!n.pinned,
         children,
         group: n.group,
+        feature: n.feature,
         startup: n.startup,
         env: n.env,
         shell: n.shell
@@ -328,6 +337,11 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
 }
 
 async function init(): Promise<void> {
+  // If we just relaunched after a self-update, cover the restore with an overlay.
+  const wasUpdating = await window.crafterm.deployWasUpdating()
+  const updateOverlay = document.getElementById('update-overlay')
+  if (wasUpdating && updateOverlay) updateOverlay.hidden = false
+
   const saved = await window.crafterm.loadState()
   if (saved) loadSettings(saved)
 
@@ -373,6 +387,19 @@ async function init(): Promise<void> {
     saveSoon()
   } else {
     await newTab()
+  }
+
+  // Update finished: flip the overlay to a brief confirmation, then dismiss.
+  if (wasUpdating && updateOverlay) {
+    const sub = updateOverlay.querySelector<HTMLElement>('.update-overlay-sub')
+    const text = updateOverlay.querySelector<HTMLElement>('.update-overlay-text')
+    updateOverlay.querySelector<HTMLElement>('.update-spinner')?.remove()
+    if (text) text.textContent = 'Updated ✓'
+    if (sub) sub.textContent = 'Sessions restored'
+    setTimeout(() => {
+      updateOverlay.classList.add('fade-out')
+      setTimeout(() => (updateOverlay.hidden = true), 400)
+    }, 900)
   }
 }
 

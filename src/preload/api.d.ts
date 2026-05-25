@@ -34,6 +34,7 @@ export interface SavedFolder {
   pinned: boolean
   children: SavedSidebarNode[]
   group?: string
+  feature?: string // worktree/feature folder marker (the branch name)
   startup?: string
   env?: string
   shell?: string
@@ -90,8 +91,32 @@ export interface SavedSidebar {
   orientation: 'left' | 'top'
   fontSize?: number
   collapsed?: boolean
-  details: { status: boolean; git: boolean; panes: boolean }
+  details: { status: boolean; git: boolean; panes: boolean; paneList?: boolean }
 }
+
+// Database tool: persisted connection tree (passwords plaintext, user's choice).
+export interface SavedDbConnection {
+  id: string
+  name: string
+  engine: 'postgres' | 'mysql' | 'sqlite'
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+  database?: string
+  ssl?: boolean
+  file?: string
+}
+export type SavedDbNode =
+  | {
+      kind: 'group'
+      id: string
+      name: string
+      collapsed: boolean
+      color?: string | null
+      children: SavedDbNode[]
+    }
+  | { kind: 'conn'; id: string; collapsed: boolean; color?: string | null; conn: SavedDbConnection }
 
 export interface SavedState {
   tree?: SavedSidebarNode[]
@@ -103,6 +128,7 @@ export interface SavedState {
   codeRoot?: string // base folder for the Cmd+P folder picker
   codeExtensions?: string[] // extensions that open via `ide` when clicked
   todoFile?: string // path to todo-list.md for the Improve Crafterm panel
+  repoPath?: string // Crafterm source repo path for the "Update Crafterm" action
   commands?: { ide?: string; openMyZsh?: string; mdFolders?: string[] } // commands + md filter folders
   projects?: SavedCatalogProject[] // catalog projects (tree)
   environments?: string[] // global environment names (dev/local/production)
@@ -145,6 +171,7 @@ export interface SavedState {
   commandHistory?: string[] // app-tracked command history
   font?: SavedFont
   sidebar?: SavedSidebar
+  dbTree?: SavedDbNode[] // Database tool: project/folder/connection tree
 }
 
 export interface PaneInfo {
@@ -187,6 +214,33 @@ export interface WorktreeListing {
   worktrees: Worktree[]
 }
 
+// ---- Database tool ----
+export type DbEngine = 'postgres' | 'mysql' | 'sqlite'
+export interface DbConfig {
+  id: string
+  engine: DbEngine
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+  database?: string
+  ssl?: boolean
+  file?: string
+}
+export interface DbResult {
+  columns: string[]
+  rows: unknown[][]
+  rowCount: number
+  command?: string
+  error?: string
+}
+export interface DbObjects {
+  tables: string[]
+  views: string[]
+  procedures: string[]
+  error?: string
+}
+
 export interface CraftermApi {
   createPty(opts: { cwd?: string; env?: Record<string, string>; shell?: string }): Promise<string>
   input(id: string, data: string): void
@@ -215,6 +269,7 @@ export interface CraftermApi {
   }>
   ideOpen(path: string, ide: string): void
   listPlans(): Promise<DirEntry[]>
+  plansForBranch(cwd: string, branch: string): Promise<{ name: string; path: string }[]>
   openMarkdown(path: string): void
   listWorktrees(cwd?: string): Promise<WorktreeListing>
   nbTree(): Promise<NbNode[]>
@@ -243,6 +298,17 @@ export interface CraftermApi {
   todoRead(path?: string): Promise<string | null>
   todoWrite(path: string, content: string): Promise<boolean>
   zshCommands(): Promise<{ name: string; value: string }[]>
+  dbConnect(config: DbConfig): Promise<{ ok: boolean; error?: string }>
+  dbObjects(config: DbConfig): Promise<DbObjects>
+  dbQuery(config: DbConfig, sql: string): Promise<DbResult>
+  dbDisconnect(id: string): Promise<boolean>
+  dbqList(connId: string): Promise<{ name: string; path: string }[]>
+  dbqRead(connId: string, name: string): Promise<string>
+  dbqWrite(connId: string, name: string, sql: string): Promise<boolean>
+  dbqDelete(connId: string, name: string): Promise<boolean>
+  deployBuild(repoPath: string): Promise<{ ok: boolean; error?: string }>
+  deploySwap(repoPath: string): Promise<boolean>
+  deployWasUpdating(): Promise<boolean>
 }
 
 declare global {

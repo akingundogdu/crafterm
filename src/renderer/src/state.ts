@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm'
-import type { Pane, BrowserPane, DocPane, SidebarNode, Font, SidebarPrefs, Project, SshConnection, PaletteCommand, AppNotification, Reminder, Feature, TimeEntry } from './types'
+import type { Pane, BrowserPane, DocPane, SidebarNode, Font, SidebarPrefs, Project, SshConnection, PaletteCommand, AppNotification, Reminder, Feature, TimeEntry, DbNode } from './types'
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from './themes'
 import { PALETTE_SEED } from './palette-seed'
 import { allTabs } from './tree'
@@ -50,6 +50,7 @@ export const settings = {
   docFontSize: 15, // markdown (notebook) doc font size; Cmd+/- when a doc is focused
   codeRoot: '', // base folder for the Cmd+P folder picker ('' = home)
   todoFile: '', // path to todo-list.md for the Improve Crafterm panel
+  repoPath: '', // Crafterm source repo path used by the "Update Crafterm" action
   // file extensions that open with `ide <path>` when clicked in the terminal
   codeExtensions: [
     'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'swift', 'py', 'go', 'rs', 'java',
@@ -70,6 +71,7 @@ export const settings = {
   explorerExclude: ['node_modules', '.git', '.DS_Store', 'dist', 'out'] as string[],
   // external files linked into the notebook tree (shown under "Linked files")
   linkedFiles: [] as { path: string; name: string }[],
+  dbTree: [] as DbNode[], // Database tool: project/folder/connection tree
   features: [] as Feature[], // time-tracking features under projects
   timeEntries: [] as TimeEntry[], // logged work intervals
   askProjectOnNew: true, // ask which project to open on a new terminal
@@ -79,7 +81,7 @@ export const settings = {
     orientation: 'left',
     fontSize: 13,
     collapsed: false,
-    details: { status: true, git: true, panes: true }
+    details: { status: true, git: true, panes: true, paneList: false }
   } as SidebarPrefs
 }
 
@@ -150,7 +152,7 @@ export const paneActions = {
   split: (_paneId: string, _dir: 'row' | 'col') => {},
   movePane: (_dragId: string, _targetId: string, _zone: string) => {},
   popOut: (_paneId: string) => {},
-  git: (_paneId: string, _action: 'pull' | 'commitPush' | 'commitPushPr' | 'stash') => {},
+  git: (_paneId: string, _action: 'pull' | 'commitPush' | 'commitPushPr' | 'stash' | 'branchPr') => {},
   stashes: (_paneId: string) => {},
   branchCheckout: (_paneId: string) => {},
   splitWithProject: (_paneId: string) => {},
@@ -255,6 +257,7 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
     pinned: node.pinned,
     children: node.children.map(serializeNode),
     ...(node.group ? { group: node.group } : {}),
+    ...(node.feature ? { feature: node.feature } : {}),
     ...(node.startup ? { startup: node.startup } : {}),
     ...(node.env ? { env: node.env } : {}),
     ...(node.shell ? { shell: node.shell } : {})
@@ -272,6 +275,7 @@ function persist(): void {
     codeRoot: settings.codeRoot,
     codeExtensions: settings.codeExtensions,
     todoFile: settings.todoFile,
+    repoPath: settings.repoPath,
     commands: settings.commands,
     projects: settings.projects,
     environments: settings.environments,
@@ -283,6 +287,7 @@ function persist(): void {
     explorerRoot: settings.explorerRoot,
     explorerExclude: settings.explorerExclude,
     linkedFiles: settings.linkedFiles,
+    dbTree: settings.dbTree,
     features: settings.features,
     timeEntries: settings.timeEntries,
     askProjectOnNew: settings.askProjectOnNew,
@@ -310,6 +315,7 @@ export function loadSettings(saved: SavedState): void {
   if (typeof saved.codeRoot === 'string') settings.codeRoot = saved.codeRoot
   if (Array.isArray(saved.codeExtensions)) settings.codeExtensions = saved.codeExtensions
   if (typeof saved.todoFile === 'string') settings.todoFile = saved.todoFile
+  if (typeof saved.repoPath === 'string') settings.repoPath = saved.repoPath
   if (saved.commands) {
     settings.commands = {
       ide: saved.commands.ide ?? settings.commands.ide,
@@ -330,6 +336,7 @@ export function loadSettings(saved: SavedState): void {
   if (typeof saved.explorerRoot === 'string') settings.explorerRoot = saved.explorerRoot
   if (Array.isArray(saved.explorerExclude)) settings.explorerExclude = saved.explorerExclude
   if (Array.isArray(saved.linkedFiles)) settings.linkedFiles = saved.linkedFiles
+  if (Array.isArray(saved.dbTree)) settings.dbTree = saved.dbTree as DbNode[]
   if (Array.isArray(saved.features)) settings.features = saved.features
   if (Array.isArray(saved.timeEntries)) settings.timeEntries = saved.timeEntries
   if (typeof saved.askProjectOnNew === 'boolean') settings.askProjectOnNew = saved.askProjectOnNew

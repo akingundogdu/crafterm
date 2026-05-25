@@ -580,13 +580,13 @@ function buildProjectsPanel(panel: HTMLElement): void {
       const opensSel = document.createElement('select')
       opensSel.className = 'settings-select'
       ;[
-        ['tab', 'New tab'],
-        ['split', 'Split right']
+        ['split', 'Split (tiled tab)'],
+        ['tab', 'Separate tab']
       ].forEach(([v, lbl]) => {
         const o = document.createElement('option')
         o.value = v
         o.textContent = lbl
-        if ((app.opensAs ?? 'tab') === v) o.selected = true
+        if ((app.opensAs ?? 'split') === v) o.selected = true
         opensSel.appendChild(o)
       })
       opensSel.addEventListener('change', () => {
@@ -927,6 +927,17 @@ function buildWorkspacePanel(panel: HTMLElement): void {
     '<div class="field-hint">Path to the markdown file shown in the Improve Crafterm panel.</div>'
   )
 
+  const repo = labeledInput(panel, 'Crafterm repo path', 'text', settings.repoPath, (v) => {
+    settings.repoPath = v.trim()
+    saveSoon()
+  })
+  repo.style.maxWidth = '280px'
+  repo.placeholder = '~/path/to/crafterm'
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Source repo built by the sidebar “Update Crafterm” action (rebuilds &amp; reinstalls the app).</div>'
+  )
+
   // File explorer (right panel → Files)
   panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">File explorer</h3>')
   const exRoot = labeledInput(panel, 'Explorer root', 'text', settings.explorerRoot, (v) => {
@@ -1010,7 +1021,8 @@ function buildSidebarPanel(panel: HTMLElement): void {
   const detailDefs: Array<[keyof typeof settings.sidebar.details, string]> = [
     ['status', 'Show status text'],
     ['git', 'Show git branch'],
-    ['panes', 'Show pane count']
+    ['panes', 'Show pane count'],
+    ['paneList', 'Show panes under terminal']
   ]
   detailDefs.forEach(([key, label]) => {
     const r = document.createElement('label')

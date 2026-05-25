@@ -20,6 +20,7 @@
         <div id="sidebar-tabs">
           <button id="tab-terminal" class="active">Terminal</button>
           <button id="tab-notebook">Notebook</button>
+          <button id="tab-database">Database</button>
         </div>
         <div id="sidebar-search">
           <div class="search-box">
@@ -66,6 +67,12 @@
             <span class="btn-label">Link</span>
           </button>
           <button id="nb-settings-btn" title="Settings (⌘,)">&#9881;</button>
+        </div>
+        <div id="database-footer">
+          <button id="db-new-project" title="New database project">
+            <span class="btn-label">+ Project</span>
+          </button>
+          <button id="db-settings-btn" title="Settings (⌘,)">&#9881;</button>
         </div>
       </aside>
       <div id="sidebar-resizer"></div>
@@ -132,6 +139,13 @@
         </div>
       </aside>
       <button id="equalize-btn" title="Distribute panes evenly (⇧⌘E)">⊞</button>
+    </div>
+    <div id="update-overlay" hidden>
+      <div class="update-overlay-card">
+        <div class="update-spinner"></div>
+        <div class="update-overlay-text">Updating Crafterm…</div>
+        <div class="update-overlay-sub">Loading sessions</div>
+      </div>
     </div>
     <script type="module" src="./src/main.ts"></script>
   </body>

@@ -28,6 +28,7 @@ export interface Pane {
   cwd: string | null
   branch: string | null
   worktree: string | null // git worktree/repo folder name (status bar)
+  plans: { name: string; path: string }[] // docs/plans files matching this branch
   claude: boolean // a Claude session — resumed on restore
   claudeSessionId: string | null // captured session id for `claude --resume <id>` on restore
   bgColor: string | null // per-pane background override (null = global default)
@@ -81,6 +82,7 @@ export interface FolderNode {
   pinned: boolean
   children: SidebarNode[]
   group?: string // optional group (workspace) label for the top-level header
+  feature?: string // when set, this is a feature/worktree folder (the branch name)
   // per-folder defaults applied to terminals opened inside this folder
   startup?: string // command run on open
   env?: string // raw "KEY=VALUE" lines
@@ -217,12 +219,47 @@ export interface AppNotification extends NotificationMeta {
   time: number
 }
 
+// ---- Database tool ----
+export type DbEngine = 'postgres' | 'mysql' | 'sqlite'
+
+// A saved database connection (password stored plaintext, the user's choice).
+export interface DbConnection {
+  id: string
+  name: string
+  engine: DbEngine
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+  database?: string
+  ssl?: boolean
+  file?: string // sqlite db file path
+}
+
+// The Database sidebar tree: nestable groups (projects/folders) + connection leaves.
+export interface DbGroup {
+  kind: 'group'
+  id: string
+  name: string
+  collapsed: boolean
+  color?: NodeColor
+  children: DbNode[]
+}
+export interface DbConnNode {
+  kind: 'conn'
+  id: string
+  collapsed: boolean
+  color?: NodeColor
+  conn: DbConnection
+}
+export type DbNode = DbGroup | DbConnNode
+
 export interface SidebarPrefs {
   size: number
   orientation: 'left' | 'top'
   fontSize: number
   collapsed: boolean
-  details: { status: boolean; git: boolean; panes: boolean }
+  details: { status: boolean; git: boolean; panes: boolean; paneList: boolean }
 }
 
 export const MAX_FOLDER_DEPTH = 4

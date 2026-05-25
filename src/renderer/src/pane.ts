@@ -188,6 +188,7 @@ export async function createPane(
     cwd: null,
     branch: null,
     worktree: null,
+    plans: [],
     claude: false,
     claudeSessionId: null,
     bgColor: null,
@@ -377,6 +378,7 @@ function showPaneMenu(
     add('Pull', () => paneActions.git(paneId, 'pull'))
     add('Commit + push…', () => paneActions.git(paneId, 'commitPush'))
     add('Commit + push + PR…', () => paneActions.git(paneId, 'commitPushPr'))
+    add('New branch + PR…', () => paneActions.git(paneId, 'branchPr'))
     add('Stash changes…', () => paneActions.git(paneId, 'stash'))
     add('Stashes…', () => paneActions.stashes(paneId))
   }
@@ -699,10 +701,21 @@ function firstPaneId(node: import('./types').LayoutNode): string {
 export async function refreshPaneInfo(pane: Pane): Promise<void> {
   const info = await window.crafterm.paneInfo(pane.id)
   const cwdChanged = info.cwd !== pane.cwd
+  const branchChanged = info.branch !== pane.branch
   pane.cwd = info.cwd
   pane.branch = info.branch
   pane.worktree = info.worktree
   updatePaneStatus(pane)
+  // Plan files for this branch (docs/plans/<branch>-*.md), shown under the node.
+  if (cwdChanged || branchChanged) {
+    const plans =
+      pane.cwd && pane.branch ? await window.crafterm.plansForBranch(pane.cwd, pane.branch) : []
+    const sig = (a: { path: string }[]): string => a.map((x) => x.path).join('|')
+    if (sig(plans) !== sig(pane.plans)) {
+      pane.plans = plans
+      requestSidebar()
+    }
+  }
   // For Claude panes, track the latest session id for this cwd so restore can
   // `claude --resume <id>` the exact conversation that was open here.
   if (pane.claude && pane.cwd) {

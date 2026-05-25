@@ -34,6 +34,7 @@ const api: CraftermApi = {
   listEntries: (path) => ipcRenderer.invoke('fs:listEntries', { path }),
   ideOpen: (path, ide) => ipcRenderer.send('ide:open', { path, ide }),
   listPlans: () => ipcRenderer.invoke('plans:list'),
+  plansForBranch: (cwd, branch) => ipcRenderer.invoke('plans:forBranch', { cwd, branch }),
   openMarkdown: (path) => ipcRenderer.send('markdown:open', { path }),
   listWorktrees: (cwd) => ipcRenderer.invoke('git:worktrees', { cwd }),
   nbTree: () => ipcRenderer.invoke('notebook:tree'),
@@ -58,7 +59,18 @@ const api: CraftermApi = {
   claudeSessions: () => ipcRenderer.invoke('claude:sessions'),
   todoRead: (path) => ipcRenderer.invoke('todo:read', { path }),
   todoWrite: (path, content) => ipcRenderer.invoke('todo:write', { path, content }),
-  zshCommands: () => ipcRenderer.invoke('zsh:commands')
+  zshCommands: () => ipcRenderer.invoke('zsh:commands'),
+  dbConnect: (config) => ipcRenderer.invoke('db:connect', { config }),
+  dbObjects: (config) => ipcRenderer.invoke('db:objects', { config }),
+  dbQuery: (config, sql) => ipcRenderer.invoke('db:query', { config, sql }),
+  dbDisconnect: (id) => ipcRenderer.invoke('db:disconnect', { id }),
+  dbqList: (connId) => ipcRenderer.invoke('dbq:list', { connId }),
+  dbqRead: (connId, name) => ipcRenderer.invoke('dbq:read', { connId, name }),
+  dbqWrite: (connId, name, sql) => ipcRenderer.invoke('dbq:write', { connId, name, sql }),
+  dbqDelete: (connId, name) => ipcRenderer.invoke('dbq:delete', { connId, name }),
+  deployBuild: (repoPath) => ipcRenderer.invoke('deploy:build', { repoPath }),
+  deploySwap: (repoPath) => ipcRenderer.invoke('deploy:swap', { repoPath }),
+  deployWasUpdating: () => ipcRenderer.invoke('deploy:wasUpdating')
 }
 
 contextBridge.exposeInMainWorld('crafterm', api)

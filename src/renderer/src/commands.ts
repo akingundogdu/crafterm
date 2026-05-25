@@ -1,4 +1,13 @@
-import type { Dir, LayoutNode, SidebarNode, TabNode, FolderNode, ProjectNode } from './types'
+import type {
+  Dir,
+  LayoutNode,
+  SidebarNode,
+  TabNode,
+  FolderNode,
+  ProjectNode,
+  Project,
+  Application
+} from './types'
 import { MAX_FOLDER_DEPTH } from './types'
 import {
   panes,
@@ -234,6 +243,224 @@ export function syncProjectGroupToTree(path: string, group: string | undefined):
   if (changed) {
     requestSidebar()
     saveSoon()
+  }
+}
+
+// Resolve an application's working directory: empty = the project path; absolute
+// (/ or ~) used as-is; otherwise relative to the project path.
+function resolveAppPath(projectPath: string, appPath?: string): string {
+  const a = (appPath ?? '').trim()
+  if (!a) return projectPath
+  if (a.startsWith('/') || a.startsWith('~')) return a
+  return projectPath.replace(/\/+$/, '') + '/' + a.replace(/^\.\//, '')
+}
+
+// Run a set of a project's applications for an environment, under the project's
+// sidebar node. Each app's `opensAs` decides placement: 'split' apps share one
+// tiled tab (a row split); 'tab' apps each open as their own tab. The
+// environment is never a node — only a label on the tab/pane title.
+export async function runApplications(
+  project: Project,
+  env: string,
+  apps: Application[]
+): Promise<void> {
+  const runnable = apps.filter((a) => (a.commands?.[env] ?? '').trim())
+  if (!runnable.length) return
+
+  // find or create the project's sidebar node (by path), like openProject
+  let parentId: string | null = null
+  const existing = state.tree.find(
+    (n): n is ProjectNode => n.kind === 'project' && n.path === project.path
+  )
+  if (existing) parentId = existing.id
+  else {
+    const proj = makeProject(uid('p'), project.name, project.path)
+    if (project.group) proj.group = project.group
+    if (project.command) proj.command = project.command
+    if (project.startup) proj.startup = project.startup
+    if (project.env) proj.env = project.env
+    if (project.shell) proj.shell = project.shell
+    state.tree.push(proj)
+    parentId = proj.id
+  }
+
+  const projEnv = project.env ? parseEnvLines(project.env) : undefined
+  const shell = project.shell?.trim() || undefined
+  const toRun: { paneId: string; cmd: string }[] = []
+  const spawn = async (app: Application): Promise<string> => {
+    const paneId = await createPane(resolveAppPath(project.path, app.path), { env: projEnv, shell })
+    const p = panes.get(paneId)
+    if (p) {
+      p.title = `${app.name} · ${env}`
+      p.titleLocked = true
+      p.htitle.textContent = p.title
+    }
+    toRun.push({ paneId, cmd: app.commands[env].trim() })
+    return paneId
+  }
+
+  const list = parentId ? folderChildren(parentId) : state.tree
+  let firstTabId: string | null = null
+  let firstPaneId: string | null = null
+  const pushTab = (title: string, root: LayoutNode): void => {
+    const tab: TabNode = {
+      kind: 'tab',
+      id: uid('t'),
+      title,
+      titleLocked: true,
+      color: null,
+      pinned: false,
+      root
+    }
+    list.push(tab)
+    if (!firstTabId) {
+      firstTabId = tab.id
+      firstPaneId = firstPaneOf(root)
+    }
+  }
+
+  // 'split' (default) apps tile into one tab; 'tab' apps each get their own tab.
+  const splitApps = runnable.filter((a) => (a.opensAs ?? 'split') !== 'tab')
+  const tabApps = runnable.filter((a) => (a.opensAs ?? 'split') === 'tab')
+
+  if (splitApps.length) {
+    const leaves: LayoutNode[] = []
+    for (const app of splitApps) leaves.push({ type: 'leaf', paneId: await spawn(app) })
+    const root: LayoutNode =
+      leaves.length === 1
+        ? leaves[0]
+        : { type: 'split', dir: 'row', sizes: leaves.map(() => 1), children: leaves }
+    pushTab(`${project.name} · ${env}`, root)
+  }
+  for (const app of tabApps) {
+    pushTab(`${app.name} · ${env}`, { type: 'leaf', paneId: await spawn(app) })
+  }
+
+  if (parentId) {
+    const r = findById(state.tree, parentId)
+    if (r && isContainer(r.node)) r.node.collapsed = false
+  }
+  if (firstTabId) {
+    state.activeTabId = firstTabId
+    state.selectedNodeId = firstTabId
+  }
+  if (firstPaneId) state.activePaneId = firstPaneId
+  requestSidebar()
+  renderContent()
+  focusActivePane()
+  saveSoon()
+  // let each login shell finish init before injecting its command
+  for (const { paneId, cmd } of toRun) {
+    setTimeout(() => window.crafterm.input(paneId, cmd + '\r'), 350)
+  }
+}
+
+// Feature-setup: create a feature folder (marked as a worktree) under the project
+// and open the selected applications inside it. Apps flagged for a worktree run
+// the user's `run-create-worktree <branch> <base>` first (chained), so the dev
+// command runs in the new worktree.
+export async function createFeature(
+  project: Project,
+  opts: { branch: string; base: string; env: string; apps: { app: Application; worktree: boolean }[] }
+): Promise<void> {
+  const env = opts.env
+  const selected = opts.apps.filter((x) => (x.app.commands?.[env] ?? '').trim())
+  if (!selected.length) return
+  const branch = opts.branch.trim() || project.name
+  const base = opts.base.trim() || 'main'
+
+  // ensure the project's sidebar node (by path)
+  let projectId: string | null = null
+  const existing = state.tree.find(
+    (n): n is ProjectNode => n.kind === 'project' && n.path === project.path
+  )
+  if (existing) projectId = existing.id
+  else {
+    const proj = makeProject(uid('p'), project.name, project.path)
+    if (project.group) proj.group = project.group
+    if (project.command) proj.command = project.command
+    if (project.startup) proj.startup = project.startup
+    if (project.env) proj.env = project.env
+    if (project.shell) proj.shell = project.shell
+    state.tree.push(proj)
+    projectId = proj.id
+  }
+  if (projectId) {
+    const r = findById(state.tree, projectId)
+    if (r && isContainer(r.node)) r.node.collapsed = false
+  }
+
+  // the feature folder (a worktree-marked folder) under the project
+  const folder = makeFolder(uid('f'), branch)
+  folder.feature = branch
+  ;(projectId ? folderChildren(projectId) : state.tree).push(folder)
+
+  const projEnv = project.env ? parseEnvLines(project.env) : undefined
+  const shell = project.shell?.trim() || undefined
+  const toRun: { paneId: string; cmd: string }[] = []
+  const spawn = async (app: Application, wantsWorktree: boolean): Promise<string> => {
+    const paneId = await createPane(resolveAppPath(project.path, app.path), { env: projEnv, shell })
+    const p = panes.get(paneId)
+    if (p) {
+      p.title = `${app.name} · ${branch}`
+      p.titleLocked = true
+      p.htitle.textContent = p.title
+    }
+    const dev = app.commands[env].trim()
+    const cmd = wantsWorktree
+      ? `run-create-worktree ${shellQuote(branch)} ${shellQuote(base)} && ${dev}`
+      : dev
+    toRun.push({ paneId, cmd })
+    return paneId
+  }
+
+  const list = folderChildren(folder.id)
+  let firstTabId: string | null = null
+  let firstPaneId: string | null = null
+  const pushTab = (title: string, root: LayoutNode): void => {
+    const tab: TabNode = {
+      kind: 'tab',
+      id: uid('t'),
+      title,
+      titleLocked: true,
+      color: null,
+      pinned: false,
+      root
+    }
+    list.push(tab)
+    if (!firstTabId) {
+      firstTabId = tab.id
+      firstPaneId = firstPaneOf(root)
+    }
+  }
+
+  const splitApps = selected.filter((x) => (x.app.opensAs ?? 'split') !== 'tab')
+  const tabApps = selected.filter((x) => (x.app.opensAs ?? 'split') === 'tab')
+
+  if (splitApps.length) {
+    const leaves: LayoutNode[] = []
+    for (const x of splitApps) leaves.push({ type: 'leaf', paneId: await spawn(x.app, x.worktree) })
+    const root: LayoutNode =
+      leaves.length === 1
+        ? leaves[0]
+        : { type: 'split', dir: 'row', sizes: leaves.map(() => 1), children: leaves }
+    pushTab(`${branch} · ${env}`, root)
+  }
+  for (const x of tabApps) {
+    pushTab(`${x.app.name} · ${branch}`, { type: 'leaf', paneId: await spawn(x.app, x.worktree) })
+  }
+
+  if (firstTabId) {
+    state.activeTabId = firstTabId
+    state.selectedNodeId = firstTabId
+  }
+  if (firstPaneId) state.activePaneId = firstPaneId
+  requestSidebar()
+  renderContent()
+  focusActivePane()
+  saveSoon()
+  for (const { paneId, cmd } of toRun) {
+    setTimeout(() => window.crafterm.input(paneId, cmd + '\r'), 350)
   }
 }
 
@@ -820,13 +1047,40 @@ export async function createWorktreeFromPane(paneId: string): Promise<void> {
 
 // Git quick-actions from the pane ⋯ menu. Each runs in a fresh split beside the
 // source pane (same cwd) so the original terminal/process is left untouched.
-export type GitAction = 'pull' | 'commitPush' | 'commitPushPr' | 'stash'
+export type GitAction = 'pull' | 'commitPush' | 'commitPushPr' | 'stash' | 'branchPr'
 
 export async function gitActionFromPane(paneId: string, action: GitAction): Promise<void> {
   if (!panes.has(paneId)) return
   let command: string
   if (action === 'pull') {
     command = 'git pull'
+  } else if (action === 'branchPr') {
+    const form = await promptForm({
+      title: 'New branch & PR',
+      fields: [
+        { key: 'branch', label: 'New branch name', placeholder: 'feat/empty-state' },
+        { key: 'message', label: 'Commit message', placeholder: 'feat: handle empty state' }
+      ],
+      confirmText: 'Create branch + PR'
+    })
+    if (!form) return
+    const branch = form.branch.trim()
+    const message = form.message.trim()
+    if (!branch || !message) return
+    // If not already on main, offer to branch off a freshly pulled main.
+    const cur = panes.get(paneId)?.branch
+    let prefix = ''
+    if (cur && cur !== 'main') {
+      const fromMain = await promptConfirm({
+        title: 'Branch off main?',
+        message: `Currently on "${cur}". Switch to main and fetch + pull before creating "${branch}"?`,
+        confirmText: 'Yes, from main'
+      })
+      if (fromMain) prefix = 'git checkout main && git fetch && git pull && '
+    }
+    command =
+      `${prefix}git checkout -b ${shellQuote(branch)} && git add -A && ` +
+      `git commit -m ${shellQuote(message)} && git push -u origin HEAD && gh pr create --fill`
   } else if (action === 'stash') {
     const name = await promptText({
       title: 'Stash changes',

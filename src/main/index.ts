@@ -15,12 +15,16 @@ import {
   readSync,
   closeSync
 } from 'fs'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import * as pty from 'node-pty'
+import { registerDbIpc } from './db'
 
 const APP_NAME = 'Crafterm'
 // macOS uses this for the app menu / notification name; set it before whenReady.
 app.setName(APP_NAME)
+
+// Database tool: Postgres/MySQL/SQLite connect + query IPC (db:*).
+registerDbIpc()
 
 let mainWindow: BrowserWindow | null = null
 let quitting = false
@@ -475,6 +479,160 @@ ipcMain.handle('plans:list', () => {
   } catch {
     return []
   }
+})
+
+// Plan files for a terminal: <repo>/docs/plans entries named "<branch>-*.md"
+// (matching the "<git-branch-name>-<plan-slug>.md" convention). Slashes in the
+// branch are also matched as dashes, since filenames can't contain "/".
+ipcMain.handle('plans:forBranch', async (_e, { cwd, branch }: { cwd?: string; branch?: string }) => {
+  if (!cwd || !branch) return [] as { name: string; path: string }[]
+  let dir = cwd.trim()
+  if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
+  const root = await run(gitBin(), ['-C', dir, 'rev-parse', '--show-toplevel'])
+  if (!root) return []
+  const plansDir = join(root.trim(), 'docs', 'plans')
+  const prefixes = [branch + '-', branch.replace(/\//g, '-') + '-']
+  try {
+    return readdirSync(plansDir)
+      .filter((f) => /\.(md|mdx|mdc)$/i.test(f) && prefixes.some((p) => f.startsWith(p)))
+      .sort()
+      .map((f) => ({ name: f, path: join(plansDir, f) }))
+  } catch {
+    return []
+  }
+})
+
+// Saved SQL queries for the Database tool: plain .sql files, namespaced per
+// connection under <stateDir>/db-queries/<connId>/.
+const dbqSlug = (s: string): string => s.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+/, '')
+function dbqDir(connId: string): string | null {
+  const slug = dbqSlug(connId)
+  return slug ? join(stateDir(), 'db-queries', slug) : null
+}
+function dbqSafe(name: string): string | null {
+  const base = dbqSlug(name)
+  if (!base) return null
+  return base.endsWith('.sql') ? base : base + '.sql'
+}
+ipcMain.handle('dbq:list', (_e, { connId }: { connId: string }) => {
+  const dir = dbqDir(connId)
+  if (!dir) return [] as { name: string; path: string }[]
+  try {
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort()
+      .map((f) => ({ name: f, path: join(dir, f) }))
+  } catch {
+    return [] as { name: string; path: string }[]
+  }
+})
+ipcMain.handle('dbq:read', (_e, { connId, name }: { connId: string; name: string }) => {
+  const dir = dbqDir(connId)
+  const safe = dbqSafe(name)
+  if (!dir || !safe) return ''
+  try {
+    return readFileSync(join(dir, safe), 'utf8')
+  } catch {
+    return ''
+  }
+})
+ipcMain.handle('dbq:write', (_e, { connId, name, sql }: { connId: string; name: string; sql: string }) => {
+  const dir = dbqDir(connId)
+  const safe = dbqSafe(name)
+  if (!dir || !safe) return false
+  try {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, safe), sql)
+    return true
+  } catch {
+    return false
+  }
+})
+ipcMain.handle('dbq:delete', (_e, { connId, name }: { connId: string; name: string }) => {
+  const dir = dbqDir(connId)
+  const safe = dbqSafe(name)
+  if (!dir || !safe) return false
+  try {
+    rmSync(join(dir, safe), { force: true })
+    return true
+  } catch {
+    return false
+  }
+})
+
+// Self-update: rebuild the app from its source repo and swap the installed
+// /Applications copy. The build runs here (app stays alive so the UI can show
+// progress); the swap + relaunch runs as a fully detached process so it
+// survives this app quitting.
+ipcMain.handle('deploy:build', async (_e, { repoPath }: { repoPath: string }) => {
+  const repo = repoPath?.trim()
+  if (!repo || !existsSync(join(repo, 'package.json'))) {
+    return { ok: false, error: 'Repo path is not a valid Crafterm checkout (no package.json).' }
+  }
+  const log = join(stateDir(), 'deploy.log')
+  return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+    execFile(
+      '/bin/zsh',
+      ['-lic', `npm run build && npx electron-builder --dir > ${shq(log)} 2>&1`],
+      { cwd: repo },
+      (err) => {
+        if (!err) return resolve({ ok: true })
+        let tail = ''
+        try {
+          tail = readFileSync(log, 'utf8').slice(-1500)
+        } catch {
+          /* ignore */
+        }
+        resolve({ ok: false, error: tail || err.message })
+      }
+    )
+  })
+})
+ipcMain.handle('deploy:swap', (_e, { repoPath }: { repoPath: string }) => {
+  const repo = repoPath?.trim()
+  if (!repo) return false
+  const dest = `/Applications/${APP_NAME}.app`
+  const log = join(stateDir(), 'deploy.log')
+  // Sentinel so the relaunched instance shows the "loading sessions" overlay.
+  try {
+    writeFileSync(join(stateDir(), '.updating'), String(Date.now()))
+  } catch {
+    /* ignore */
+  }
+  const steps = [
+    // wait for this app to actually quit before replacing its bundle
+    `for i in $(seq 1 60); do pgrep -x ${shq(APP_NAME)} >/dev/null || break; sleep 0.3; done`,
+    `APP_PATH="$(find ${shq(join(repo, 'dist'))} -maxdepth 2 -name ${shq(APP_NAME + '.app')} -type d 2>/dev/null | head -1)"`,
+    `[ -n "$APP_PATH" ] || { echo "built app not found under dist/"; exit 1; }`,
+    `rm -rf ${shq(dest)}`,
+    `cp -R "$APP_PATH" ${shq(dest)}`,
+    `open ${shq(dest)}`
+  ].join(' && ')
+  try {
+    const fd = openSync(log, 'a')
+    const child = spawn('/bin/zsh', ['-lic', steps], {
+      cwd: repo,
+      detached: true,
+      stdio: ['ignore', fd, fd]
+    })
+    child.unref()
+  } catch {
+    return false
+  }
+  // Give the detached helper a moment to start its wait loop, then quit.
+  setTimeout(() => app.quit(), 200)
+  return true
+})
+// One-shot: did we just relaunch after an update? Consumes the sentinel.
+ipcMain.handle('deploy:wasUpdating', () => {
+  const flag = join(stateDir(), '.updating')
+  if (!existsSync(flag)) return false
+  try {
+    rmSync(flag, { force: true })
+  } catch {
+    /* ignore */
+  }
+  return true
 })
 
 // Open a file in the user's Markdown app via their `markdown` (mdpp) command.
