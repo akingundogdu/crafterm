@@ -1,0 +1,9 @@
+node_modules
+out
+dist
+.DS_Store
+*.tsbuildinfo
+*.log
+
+# Local-only docs (kept on disk, not published)
+todo-list.md
