@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Notification, Menu, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage } from 'electron'
 import type { WebContents } from 'electron'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
@@ -886,6 +886,16 @@ function buildAppMenu(): void {
 }
 
 app.whenReady().then(() => {
+  // Packaged builds use the bundled .icns; set the dock icon manually in dev so
+  // the app shows the Crafterm logo while running via `npm run dev`.
+  if (!app.isPackaged && process.platform === 'darwin') {
+    try {
+      const iconPath = join(app.getAppPath(), 'resources/images/crafterm-logo.png')
+      if (existsSync(iconPath)) app.dock?.setIcon(nativeImage.createFromPath(iconPath))
+    } catch {
+      // ignore: dock icon is a dev-only nicety
+    }
+  }
   buildAppMenu()
   createWindow()
   app.on('activate', () => {
