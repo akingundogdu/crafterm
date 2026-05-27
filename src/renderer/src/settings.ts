@@ -404,6 +404,12 @@ function buildProjectsPanel(panel: HTMLElement): void {
   envBar.className = 'env-bar'
   panel.appendChild(envBar)
 
+  // ---- Global workspace groups (used as the Group dropdown) ----
+  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Groups (workspaces)</div>')
+  const groupBar = document.createElement('div')
+  groupBar.className = 'env-bar'
+  panel.appendChild(groupBar)
+
   // ---- Catalog tree (left) + selected-project editor (right) ----
   const md = document.createElement('div')
   md.className = 'projects-md'
@@ -416,14 +422,32 @@ function buildProjectsPanel(panel: HTMLElement): void {
 
   let selected: ProjectNode | null = flattenProjects(state.tree)[0] ?? null
 
+  // Union of saved group labels and the ones already in use anywhere in the
+  // tree — drives the Group field's datalist so the dropdown stays accurate
+  // even before the user touches Settings → Workspace.
+  const groupOptions = (): string[] => {
+    const used = new Set<string>()
+    const walk = (nodes: typeof state.tree): void => {
+      for (const n of nodes) {
+        if ((n.kind === 'project' || n.kind === 'folder') && n.group) used.add(n.group)
+        if (n.kind === 'project' || n.kind === 'folder') walk(n.children)
+      }
+    }
+    walk(state.tree)
+    for (const g of settings.groups) used.add(g)
+    return [...used].sort((a, b) => a.localeCompare(b))
+  }
+
   // A labeled field (input or textarea) appended to a given parent.
+  // Pass `opts.options` to render the input as a datalist-backed combobox
+  // (typed value is still free-form; the dropdown just suggests known entries).
   const field = (
     parent: HTMLElement,
     label: string,
     value: string,
     placeholder: string,
     onChange: (v: string) => void,
-    opts: { textarea?: boolean; rows?: number } = {}
+    opts: { textarea?: boolean; rows?: number; options?: string[] } = {}
   ): void => {
     const wrap = document.createElement('div')
     wrap.className = 'field'
@@ -438,6 +462,18 @@ function buildProjectsPanel(panel: HTMLElement): void {
     input.placeholder = placeholder
     input.addEventListener('change', () => onChange(input.value))
     wrap.append(lab, input)
+    if (opts.options && input instanceof HTMLInputElement) {
+      const listId = 'dl-' + Math.random().toString(36).slice(2, 9)
+      input.setAttribute('list', listId)
+      const dl = document.createElement('datalist')
+      dl.id = listId
+      for (const v of opts.options) {
+        const o = document.createElement('option')
+        o.value = v
+        dl.appendChild(o)
+      }
+      wrap.appendChild(dl)
+    }
     parent.appendChild(wrap)
   }
 
@@ -480,6 +516,49 @@ function buildProjectsPanel(panel: HTMLElement): void {
       })()
     })
     envBar.appendChild(add)
+  }
+
+  const renderGroups = (): void => {
+    groupBar.replaceChildren()
+    const known = groupOptions()
+    known.forEach((name) => {
+      const chip = document.createElement('span')
+      chip.className = 'env-chip'
+      const label = document.createElement('span')
+      label.textContent = name
+      const x = document.createElement('button')
+      x.className = 'env-chip-x'
+      x.textContent = '×'
+      x.title = 'Remove group from suggestions (does not unset on existing projects)'
+      x.addEventListener('click', () => {
+        settings.groups = settings.groups.filter((g) => g !== name)
+        saveSoon()
+        renderGroups()
+        renderDetail()
+      })
+      chip.append(label, x)
+      groupBar.appendChild(chip)
+    })
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn env-add'
+    add.textContent = '+ Group'
+    add.addEventListener('click', () => {
+      void (async () => {
+        const name = await promptText({
+          title: 'New group',
+          label: 'Name',
+          placeholder: 'work',
+          confirmText: 'Add'
+        })
+        const g = (name ?? '').trim()
+        if (!g || settings.groups.includes(g)) return
+        settings.groups.push(g)
+        saveSoon()
+        renderGroups()
+        renderDetail()
+      })()
+    })
+    groupBar.appendChild(add)
   }
 
   const renderTree = (): void => {
@@ -628,6 +707,109 @@ function buildProjectsPanel(panel: HTMLElement): void {
     parent.appendChild(addApp)
   }
 
+  // The Features section: time-tracking labels under this project (used by
+  // the Time tracker dropdown). Just name + delete; the data also drives the
+  // sidebar "New feature…" wizard.
+  const renderFeatures = (p: ProjectNode, parent: HTMLElement): void => {
+    parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Features</div>')
+    p.features = p.features ?? []
+    if (!p.features.length) {
+      parent.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">No features. Add labels to track time against, or for the New-feature wizard.</div>'
+      )
+    }
+    p.features.forEach((feat) => {
+      const row = document.createElement('div')
+      row.className = 'feat-row'
+      const input = document.createElement('input')
+      input.type = 'text'
+      input.value = feat.name
+      input.placeholder = 'feature name'
+      input.addEventListener('change', () => {
+        feat.name = input.value.trim() || feat.name
+        saveSoon()
+      })
+      input.addEventListener('keydown', (e) => e.stopPropagation())
+      const del = document.createElement('button')
+      del.className = 'feat-del'
+      del.textContent = '✕'
+      del.title = 'Remove feature'
+      del.addEventListener('click', () => {
+        p.features = (p.features ?? []).filter((f) => f !== feat)
+        saveSoon()
+        renderTree()
+        renderDetail()
+      })
+      row.append(input, del)
+      parent.appendChild(row)
+    })
+
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add feature'
+    add.addEventListener('click', () => {
+      p.features = p.features ?? []
+      p.features.push({ id: uid('ft'), name: 'feature' })
+      saveSoon()
+      renderDetail()
+    })
+    parent.appendChild(add)
+  }
+
+  // Run commands: named one-shot shell commands. Surfaced in the sidebar
+  // "Run command…" modal and executed at the project path (split or new tab).
+  const renderRunCommands = (p: ProjectNode, parent: HTMLElement): void => {
+    parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Run commands</div>')
+    p.runCommands = p.runCommands ?? []
+    if (!p.runCommands.length) {
+      parent.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">No run commands. Add named shell commands (e.g. "Deploy", "Lint") that you can fire from the sidebar.</div>'
+      )
+    }
+    p.runCommands.forEach((rc) => {
+      const card = document.createElement('div')
+      card.className = 'app-card'
+      const head = document.createElement('div')
+      head.className = 'app-card-head'
+      const title = document.createElement('span')
+      title.className = 'app-card-title'
+      title.textContent = rc.name || '(unnamed command)'
+      const del = document.createElement('button')
+      del.className = 'app-del'
+      del.textContent = '✕'
+      del.title = 'Remove command'
+      del.addEventListener('click', () => {
+        p.runCommands = (p.runCommands ?? []).filter((x) => x !== rc)
+        saveSoon()
+        renderDetail()
+      })
+      head.append(title, del)
+      card.appendChild(head)
+      field(card, 'Name', rc.name, 'Deploy', (v) => {
+        rc.name = v.trim() || rc.name
+        title.textContent = rc.name || '(unnamed command)'
+        saveSoon()
+      })
+      field(card, 'Command', rc.command, 'npm run deploy', (v) => {
+        rc.command = v.trim()
+        saveSoon()
+      })
+      parent.appendChild(card)
+    })
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add command'
+    add.addEventListener('click', () => {
+      p.runCommands = p.runCommands ?? []
+      p.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+      saveSoon()
+      renderDetail()
+    })
+    parent.appendChild(add)
+  }
+
   const renderDetail = (): void => {
     detailCol.replaceChildren()
     const p = selected
@@ -649,12 +831,23 @@ function buildProjectsPanel(panel: HTMLElement): void {
       requestSidebar()
       saveSoon()
     })
-    field(detailCol, 'Group (workspace)', p.group ?? '', 'work (optional)', (v) => {
-      p.group = v.trim() || undefined
-      renderTree()
-      requestSidebar()
-      saveSoon()
-    })
+    field(
+      detailCol,
+      'Group (workspace)',
+      p.group ?? '',
+      'work (optional)',
+      (v) => {
+        const g = v.trim()
+        p.group = g || undefined
+        // Remember new group labels so they show up in other projects' dropdowns.
+        if (g && !settings.groups.includes(g)) settings.groups.push(g)
+        renderTree()
+        renderGroups()
+        requestSidebar()
+        saveSoon()
+      },
+      { options: groupOptions() }
+    )
     field(detailCol, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
       p.command = v.trim() || undefined
       saveSoon()
@@ -686,6 +879,8 @@ function buildProjectsPanel(panel: HTMLElement): void {
     )
 
     renderApps(p, detailCol)
+    renderFeatures(p, detailCol)
+    renderRunCommands(p, detailCol)
 
     const actions = document.createElement('div')
     actions.className = 'proj-detail-actions'
@@ -717,6 +912,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
   }
 
   renderEnvs()
+  renderGroups()
   renderTree()
   renderDetail()
 }

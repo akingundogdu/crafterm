@@ -61,6 +61,7 @@ export const settings = {
   // user-editable shell commands + the folders shown as Cmd+O finder filter chips
   commands: { ide: 'ide', openMyZsh: 'openmyzsh', mdFolders: [] as string[] },
   environments: ['dev', 'local', 'production'] as string[], // global environment names
+  groups: [] as string[], // user-managed workspace group labels (chip dropdown in Projects)
   sshConnections: [] as SshConnection[], // saved ssh hosts (action menu → My SSH connections)
   // user-managed command palette entries (predefined + git/linux cheatsheets);
   // seeded on first run, edited in Settings → Command palette
@@ -263,7 +264,8 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       ...(node.env ? { env: node.env } : {}),
       ...(node.shell ? { shell: node.shell } : {}),
       ...(node.apps && node.apps.length ? { apps: node.apps } : {}),
-      ...(node.features && node.features.length ? { features: node.features } : {})
+      ...(node.features && node.features.length ? { features: node.features } : {}),
+      ...(node.runCommands && node.runCommands.length ? { runCommands: node.runCommands } : {})
     }
   }
   return {
@@ -296,6 +298,7 @@ function persist(): void {
     updateCommand: settings.updateCommand,
     commands: settings.commands,
     environments: settings.environments,
+    groups: settings.groups,
     sshConnections: settings.sshConnections,
     paletteCommands: settings.paletteCommands,
     notifPanelSize: settings.notifPanelSize,
@@ -348,6 +351,7 @@ export function loadSettings(saved: SavedState): void {
   }
   if (Array.isArray(saved.environments) && saved.environments.length)
     settings.environments = saved.environments
+  if (Array.isArray(saved.groups)) settings.groups = saved.groups.filter((s) => typeof s === 'string')
   if (Array.isArray(saved.sshConnections)) settings.sshConnections = saved.sshConnections
   if (Array.isArray(saved.paletteCommands)) settings.paletteCommands = saved.paletteCommands
   if (typeof saved.notifPanelSize === 'number') settings.notifPanelSize = saved.notifPanelSize

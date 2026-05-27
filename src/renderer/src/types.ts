@@ -133,6 +133,7 @@ export interface ProjectNode {
   shell?: string
   apps?: Application[] // runnable applications under this project
   features?: Feature[] // time-tracking features under this project
+  runCommands?: ProjectCommand[] // named one-shot shell commands (sidebar "Run command…")
 }
 
 export type SidebarNode = TabNode | FolderNode | ProjectNode
@@ -151,6 +152,15 @@ export interface Application {
   path?: string // relative to the project path, or absolute; empty = project path
   opensAs?: 'tab' | 'split' // how a launched terminal is placed (default: tab)
   commands: Record<string, string> // environment name -> command
+}
+
+// A one-shot named shell command tied to a project (e.g. "deploy", "lint").
+// Runs in a terminal opened at the project's path; the user picks split vs new
+// tab when launching from the sidebar.
+export interface ProjectCommand {
+  id: string
+  name: string
+  command: string
 }
 
 // Legacy catalog project shape. Kept only so old state files can be migrated

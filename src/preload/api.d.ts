@@ -60,6 +60,11 @@ export interface SavedFeature {
   id: string
   name: string
 }
+export interface SavedProjectCommand {
+  id: string
+  name: string
+  command: string
+}
 export interface SavedProject {
   kind: 'project'
   name: string
@@ -75,6 +80,7 @@ export interface SavedProject {
   shell?: string
   apps?: SavedApplication[]
   features?: SavedFeature[]
+  runCommands?: SavedProjectCommand[]
 }
 export type SavedSidebarNode = SavedTabNode | SavedFolder | SavedProject
 
@@ -153,6 +159,7 @@ export interface SavedState {
   commands?: { ide?: string; openMyZsh?: string; mdFolders?: string[] } // commands + md filter folders
   projects?: SavedCatalogProject[] // legacy catalog; migrated into `tree` on load
   environments?: string[] // global environment names (dev/local/production)
+  groups?: string[] // user-managed workspace group labels
   // saved ssh hosts (action menu → My SSH connections); password is plaintext
   sshConnections?: {
     id: string

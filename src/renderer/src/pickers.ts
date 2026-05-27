@@ -1037,24 +1037,93 @@ export function showFeaturePicker(): void {
   pickProjectWithApps('New feature', showFeatureSetup)
 }
 
+// Project-specific named commands: a list with two run options per row —
+// "Split" (drop into a split beside the active pane) and "New tab" (open as
+// its own terminal under the project). Both spawn at the project's path.
+export function showRunCommand(project: ProjectNode): void {
+  const cmds = project.runCommands ?? []
+  const { modal, close } = overlayModal('picker-modal')
+  const h = document.createElement('h2')
+  h.textContent = `Run command — ${project.name}`
+  modal.append(h)
+  if (!cmds.length) {
+    modal.insertAdjacentHTML(
+      'beforeend',
+      '<div class="empty-hint">No run commands. Add them in Settings → Projects.</div>'
+    )
+    return
+  }
+  const list = document.createElement('div')
+  list.className = 'pick-list picker-list'
+  modal.append(list)
+  for (const rc of cmds) {
+    const row = document.createElement('div')
+    row.className = 'pick-row project-row'
+    const main = document.createElement('div')
+    main.className = 'claude-main'
+    const title = document.createElement('span')
+    title.className = 'picker-name'
+    title.textContent = rc.name
+    const sub = document.createElement('span')
+    sub.className = 'project-sub'
+    sub.textContent = rc.command
+    main.append(title, sub)
+    const splitBtn = document.createElement('button')
+    splitBtn.className = 'wt-act'
+    splitBtn.textContent = 'Split'
+    splitBtn.title = 'Run in a split beside the active pane'
+    splitBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void splitProjectRight({
+        name: rc.name,
+        path: project.path,
+        command: rc.command,
+        env: project.env,
+        shell: project.shell
+      })
+      close()
+    })
+    const tabBtn = document.createElement('button')
+    tabBtn.className = 'wt-act'
+    tabBtn.textContent = 'New tab'
+    tabBtn.title = 'Run in a new terminal tab under the project'
+    tabBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void openProject(
+        {
+          name: rc.name,
+          path: project.path,
+          command: rc.command,
+          env: project.env,
+          shell: project.shell
+        },
+        project.id
+      )
+      close()
+    })
+    row.append(main, splitBtn, tabBtn)
+    list.appendChild(row)
+  }
+}
+
 // ---- Feature setup: feature name + branch + env + apps (+ per-app worktree) ----
 
 const sanitizeBranch = (s: string): string => s.trim().replace(/\s+/g, '-')
 
 export function showFeatureSetup(project: ProjectNode): void {
   const apps = project.apps ?? []
+  const hasApps = apps.length > 0 && settings.environments.length > 0
   const { modal, close } = overlayModal('picker-modal')
   const h = document.createElement('h2')
   h.textContent = `New feature — ${project.name}`
   modal.append(h)
-  if (!apps.length || !settings.environments.length) {
+  if (!hasApps) {
     modal.insertAdjacentHTML(
       'beforeend',
       `<div class="empty-hint">${
-        apps.length ? 'No environments.' : 'No applications.'
-      } Add them in Settings → Projects.</div>`
+        apps.length ? 'No environments configured.' : 'No applications defined for this project.'
+      } The feature folder will be created without any auto-spawned terminals. Define apps in Settings → Projects to launch them automatically.</div>`
     )
-    return
   }
 
   modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Feature name</div>')
@@ -1082,66 +1151,68 @@ export function showFeatureSetup(project: ProjectNode): void {
   baseInput.value = 'main'
   modal.append(baseInput)
 
-  let env = settings.environments[0]
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
-  const envBar = document.createElement('div')
-  envBar.className = 'run-env-bar'
-  const envBtns: HTMLButtonElement[] = []
-  settings.environments.forEach((name) => {
-    const b = document.createElement('button')
-    b.className = 'run-env-chip' + (name === env ? ' active' : '')
-    b.textContent = name
-    b.addEventListener('click', () => {
-      env = name
-      envBtns.forEach((x) => x.classList.toggle('active', x === b))
-      renderApps()
-    })
-    envBtns.push(b)
-    envBar.appendChild(b)
-  })
-  modal.append(envBar)
-
-  modal.insertAdjacentHTML(
-    'beforeend',
-    '<div class="reminder-label">Applications (✓ include · ⑂ worktree)</div>'
-  )
-  const list = document.createElement('div')
-  list.className = 'run-app-list'
-  modal.append(list)
+  let env = settings.environments[0] ?? ''
   const incl = new Map<Application, HTMLInputElement>()
   const wt = new Map<Application, HTMLInputElement>()
-  const renderApps = (): void => {
-    list.replaceChildren()
-    incl.clear()
-    wt.clear()
-    apps.forEach((app) => {
-      const cmd = (app.commands?.[env] ?? '').trim()
-      const row = document.createElement('div')
-      row.className = 'run-app-row feature-app-row' + (cmd ? '' : ' disabled')
-      const cb = document.createElement('input')
-      cb.type = 'checkbox'
-      cb.checked = !!cmd
-      cb.disabled = !cmd
-      cb.title = 'Include'
-      const name = document.createElement('span')
-      name.className = 'run-app-name'
-      name.textContent = app.name
-      const sub = document.createElement('span')
-      sub.className = 'run-app-cmd'
-      sub.textContent = cmd || `no command for ${env}`
-      const wtLabel = document.createElement('label')
-      wtLabel.className = 'feature-wt'
-      const wtCb = document.createElement('input')
-      wtCb.type = 'checkbox'
-      wtCb.disabled = !cmd
-      wtLabel.append(wtCb, document.createTextNode('worktree'))
-      row.append(cb, name, sub, wtLabel)
-      incl.set(app, cb)
-      wt.set(app, wtCb)
-      list.appendChild(row)
+  if (hasApps) {
+    modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
+    const envBar = document.createElement('div')
+    envBar.className = 'run-env-bar'
+    const envBtns: HTMLButtonElement[] = []
+    settings.environments.forEach((name) => {
+      const b = document.createElement('button')
+      b.className = 'run-env-chip' + (name === env ? ' active' : '')
+      b.textContent = name
+      b.addEventListener('click', () => {
+        env = name
+        envBtns.forEach((x) => x.classList.toggle('active', x === b))
+        renderApps()
+      })
+      envBtns.push(b)
+      envBar.appendChild(b)
     })
+    modal.append(envBar)
+
+    modal.insertAdjacentHTML(
+      'beforeend',
+      '<div class="reminder-label">Applications (✓ include · ⑂ worktree)</div>'
+    )
+    const list = document.createElement('div')
+    list.className = 'run-app-list'
+    modal.append(list)
+    const renderApps = (): void => {
+      list.replaceChildren()
+      incl.clear()
+      wt.clear()
+      apps.forEach((app) => {
+        const cmd = (app.commands?.[env] ?? '').trim()
+        const row = document.createElement('div')
+        row.className = 'run-app-row feature-app-row' + (cmd ? '' : ' disabled')
+        const cb = document.createElement('input')
+        cb.type = 'checkbox'
+        cb.checked = !!cmd
+        cb.disabled = !cmd
+        cb.title = 'Include'
+        const name = document.createElement('span')
+        name.className = 'run-app-name'
+        name.textContent = app.name
+        const sub = document.createElement('span')
+        sub.className = 'run-app-cmd'
+        sub.textContent = cmd || `no command for ${env}`
+        const wtLabel = document.createElement('label')
+        wtLabel.className = 'feature-wt'
+        const wtCb = document.createElement('input')
+        wtCb.type = 'checkbox'
+        wtCb.disabled = !cmd
+        wtLabel.append(wtCb, document.createTextNode('worktree'))
+        row.append(cb, name, sub, wtLabel)
+        incl.set(app, cb)
+        wt.set(app, wtCb)
+        list.appendChild(row)
+      })
+    }
+    renderApps()
   }
-  renderApps()
 
   const actions = document.createElement('div')
   actions.className = 'modal-actions'

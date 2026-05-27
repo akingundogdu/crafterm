@@ -342,7 +342,8 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         env: n.env,
         shell: n.shell,
         apps: n.apps ? n.apps.map((a) => ({ ...a })) : undefined,
-        features: n.features ? n.features.map((f) => ({ ...f })) : undefined
+        features: n.features ? n.features.map((f) => ({ ...f })) : undefined,
+        runCommands: n.runCommands ? n.runCommands.map((c) => ({ ...c })) : undefined
       })
     } else {
       const children = await buildSidebar(n.children)

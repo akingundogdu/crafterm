@@ -45,6 +45,7 @@ import {
   showClaudeSessionResume,
   showRunApps,
   showFeatureSetup,
+  showRunCommand,
   runUpdate
 } from './pickers'
 import { showImproveModal } from './improve'
@@ -540,6 +541,9 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
     items.push({ label: 'New subfolder', run: () => void newFolder(node.id) })
     if (node.kind === 'project') {
       items.push({ label: 'Run applications…', run: () => showRunApps(node) })
+      if (node.runCommands && node.runCommands.length) {
+        items.push({ label: 'Run command…', run: () => showRunCommand(node) })
+      }
       items.push({ label: 'New feature…', run: () => showFeatureSetup(node) })
     }
     items.push({ label: 'Rename', run: () => tree.beginRename(node.id) })

@@ -352,7 +352,8 @@ export async function createFeature(
 ): Promise<void> {
   const env = opts.env
   const selected = opts.apps.filter((x) => (x.app.commands?.[env] ?? '').trim())
-  if (!selected.length) return
+  // No apps is fine — we still create the feature folder so the user has a
+  // visible container to drop terminals into.
   const branch = opts.branch.trim() || project.name
   const base = opts.base.trim() || 'main'
 
