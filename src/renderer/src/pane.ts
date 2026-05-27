@@ -19,6 +19,7 @@ import {
   pushNotification
 } from './state'
 import { findTabByPane, ancestorFolders } from './tree'
+import { findProjectByPath, findFeature } from './catalog'
 
 type DropZoneName = 'left' | 'right' | 'top' | 'bottom'
 
@@ -55,7 +56,7 @@ function commandRunsClaude(cmd: string): boolean {
 // Drag-to-rearrange: the header is the handle. Uses pointer events (NOT HTML5
 // drag-and-drop, which is unreliable over xterm canvases) and hit-tests the
 // pane-box under the cursor each move; dropping re-lays-out the active tab.
-function setupPaneDnd(box: HTMLElement, header: HTMLElement, id: string): void {
+export function setupPaneDnd(box: HTMLElement, header: HTMLElement, id: string): void {
   const grip = document.createElement('span')
   grip.className = 'pane-grip'
   grip.textContent = '⠿'
@@ -122,9 +123,13 @@ function pushResize(pane: Pane): void {
 
 export async function createPane(
   cwd?: string,
-  opts?: { env?: Record<string, string>; shell?: string }
+  opts?: { env?: Record<string, string>; shell?: string; stableId?: string }
 ): Promise<string> {
-  const id = await window.crafterm.createPty({ cwd, env: opts?.env, shell: opts?.shell })
+  const stableId = opts?.stableId || crypto.randomUUID()
+  // Exposed to the shell as CRAFTERM_PANE_ID; the renderer-supplied value wins
+  // over anything the caller might have placed in opts.env.
+  const env = { ...(opts?.env ?? {}), CRAFTERM_PANE_ID: stableId }
+  const id = await window.crafterm.createPty({ cwd, env, shell: opts?.shell })
 
   const term = new Terminal({
     fontFamily: settings.font.family,
@@ -172,6 +177,7 @@ export async function createPane(
 
   const pane: Pane = {
     id,
+    stableId,
     term,
     fit,
     el,
@@ -382,6 +388,20 @@ function showPaneMenu(
     add('Stash changes…', () => paneActions.git(paneId, 'stash'))
     add('Stashes…', () => paneActions.stashes(paneId))
   }
+  // SSH connections (only for terminal panes — sends the ssh command into the
+  // current PTY instead of spawning a new terminal, per user request).
+  if (opts.bg !== false && settings.sshConnections.length) {
+    const sshLabel = document.createElement('div')
+    sshLabel.className = 'menu-label'
+    sshLabel.textContent = 'SSH'
+    menu.appendChild(sshLabel)
+    for (const c of settings.sshConnections) {
+      const target = c.user ? `${c.user}@${c.host}` : c.host
+      const cmd = c.port ? `ssh -p ${c.port} ${target}` : `ssh ${target}`
+      add(c.label || target, () => window.crafterm.input(paneId, cmd + '\r'))
+    }
+  }
+
   // pop-out is for plain terminal panes only (same gate as the bg swatches)
   if (opts.bg !== false) add('Pop out to window', () => paneActions.popOut(paneId))
 
@@ -698,24 +718,28 @@ function firstPaneId(node: import('./types').LayoutNode): string {
   return node.type === 'leaf' ? node.paneId : firstPaneId(node.children[0])
 }
 
+export async function refreshPanePlans(pane: Pane): Promise<void> {
+  const plans =
+    pane.cwd && pane.branch ? await window.crafterm.plansForBranch(pane.cwd, pane.branch) : []
+  const sig = (a: { path: string; ownerStableId: string | null }[]): string =>
+    a.map((x) => `${x.path}|${x.ownerStableId ?? ''}`).join('§')
+  if (sig(plans) !== sig(pane.plans)) {
+    pane.plans = plans
+    requestSidebar()
+  }
+}
+
 export async function refreshPaneInfo(pane: Pane): Promise<void> {
   const info = await window.crafterm.paneInfo(pane.id)
   const cwdChanged = info.cwd !== pane.cwd
-  const branchChanged = info.branch !== pane.branch
   pane.cwd = info.cwd
   pane.branch = info.branch
   pane.worktree = info.worktree
   updatePaneStatus(pane)
-  // Plan files for this branch (docs/plans/<branch>-*.md), shown under the node.
-  if (cwdChanged || branchChanged) {
-    const plans =
-      pane.cwd && pane.branch ? await window.crafterm.plansForBranch(pane.cwd, pane.branch) : []
-    const sig = (a: { path: string }[]): string => a.map((x) => x.path).join('|')
-    if (sig(plans) !== sig(pane.plans)) {
-      pane.plans = plans
-      requestSidebar()
-    }
-  }
+  // Plan files for this branch (docs/plans/<branch>-*.md). We fetch every tick
+  // (cheap — main reads a single directory) so new files appear without
+  // needing a cwd/branch change. The fs.watch broadcast covers the live case.
+  await refreshPanePlans(pane)
   // For Claude panes, track the latest session id for this cwd so restore can
   // `claude --resume <id>` the exact conversation that was open here.
   if (pane.claude && pane.cwd) {
@@ -750,10 +774,8 @@ export function updatePaneStatus(pane: Pane): void {
   const cwd = homeShort ? lastPathSegments(homeShort, 4) : null
   const segs: { cls: string; text: string }[] = []
   if (pane.trackProjectPath) {
-    const proj = settings.projects.find((p) => p.path === pane.trackProjectPath)
-    const feat = pane.trackFeatureId
-      ? settings.features.find((f) => f.id === pane.trackFeatureId)
-      : null
+    const proj = findProjectByPath(state.tree, pane.trackProjectPath)
+    const feat = pane.trackFeatureId ? findFeature(state.tree, pane.trackFeatureId)?.feature : null
     segs.push({ cls: 'tracking', text: feat?.name ?? proj?.name ?? 'tracking' })
   }
   if (pane.branch) segs.push({ cls: 'branch', text: pane.branch })

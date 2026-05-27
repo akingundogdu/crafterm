@@ -35,6 +35,11 @@ const api: CraftermApi = {
   ideOpen: (path, ide) => ipcRenderer.send('ide:open', { path, ide }),
   listPlans: () => ipcRenderer.invoke('plans:list'),
   plansForBranch: (cwd, branch) => ipcRenderer.invoke('plans:forBranch', { cwd, branch }),
+  onPlansChanged: (cb) => {
+    const listener = (_e: IpcRendererEvent, p: { plansDir: string }): void => cb(p.plansDir)
+    ipcRenderer.on('plans:changed', listener)
+    return () => ipcRenderer.removeListener('plans:changed', listener)
+  },
   openMarkdown: (path) => ipcRenderer.send('markdown:open', { path }),
   listWorktrees: (cwd) => ipcRenderer.invoke('git:worktrees', { cwd }),
   nbTree: () => ipcRenderer.invoke('notebook:tree'),
@@ -43,6 +48,7 @@ const api: CraftermApi = {
   nbMkdir: (path) => ipcRenderer.invoke('notebook:mkdir', { path }),
   nbCreate: (path) => ipcRenderer.invoke('notebook:create', { path }),
   nbRename: (path, name) => ipcRenderer.invoke('notebook:rename', { path, name }),
+  nbMove: (src, destDir) => ipcRenderer.invoke('notebook:move', { src, destDir }),
   nbDelete: (path) => ipcRenderer.invoke('notebook:delete', { path }),
   nbReveal: (path) => ipcRenderer.send('notebook:reveal', { path }),
   openPath: (path) => ipcRenderer.send('shell:openPath', { path }),
@@ -62,13 +68,14 @@ const api: CraftermApi = {
   zshCommands: () => ipcRenderer.invoke('zsh:commands'),
   dbConnect: (config) => ipcRenderer.invoke('db:connect', { config }),
   dbObjects: (config) => ipcRenderer.invoke('db:objects', { config }),
+  dbColumns: (config, table) => ipcRenderer.invoke('db:columns', { config, table }),
   dbQuery: (config, sql) => ipcRenderer.invoke('db:query', { config, sql }),
   dbDisconnect: (id) => ipcRenderer.invoke('db:disconnect', { id }),
   dbqList: (connId) => ipcRenderer.invoke('dbq:list', { connId }),
   dbqRead: (connId, name) => ipcRenderer.invoke('dbq:read', { connId, name }),
   dbqWrite: (connId, name, sql) => ipcRenderer.invoke('dbq:write', { connId, name, sql }),
   dbqDelete: (connId, name) => ipcRenderer.invoke('dbq:delete', { connId, name }),
-  deployBuild: (repoPath) => ipcRenderer.invoke('deploy:build', { repoPath }),
+  deployBuild: (repoPath, command) => ipcRenderer.invoke('deploy:build', { repoPath, command }),
   deploySwap: (repoPath) => ipcRenderer.invoke('deploy:swap', { repoPath }),
   deployWasUpdating: () => ipcRenderer.invoke('deploy:wasUpdating')
 }

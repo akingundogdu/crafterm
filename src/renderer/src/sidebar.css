@@ -1,0 +1,175 @@
+/* Terminal sidebar styles — the slot content injected into the shared TreeView
+   rows: status dots, detail/pane/plan sub-rows, the group breadcrumb, the child
+   count badge, per-row order numbers and the pin badge. Generic tree row visuals
+   come from treeview.css. */
+
+/* leading slot wrapper: detail chevron + status dot */
+.tab-leading {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Status indicator: idle = hollow ring, running/attention = filled + glow */
+.status-dot {
+  width: 9px;
+  height: 9px;
+  min-width: 9px;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.6px #525b6a;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.status-dot.idle {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.6px #525b6a;
+}
+.tab-item:hover .status-dot.idle {
+  box-shadow: inset 0 0 0 1.6px #6b7280;
+}
+.status-dot.running {
+  background: var(--green);
+  box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.25), 0 0 8px rgba(63, 185, 80, 0.55);
+}
+.status-dot.attention {
+  background: var(--amber);
+  box-shadow: 0 0 0 1px rgba(227, 179, 65, 0.3), 0 0 8px rgba(227, 179, 65, 0.6);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(227, 179, 65, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 8px 2px rgba(227, 179, 65, 0.55);
+  }
+}
+
+.tab-sub {
+  font-size: 0.85em;
+  color: var(--text-mute);
+  padding-left: 15px;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* per-pane (running app) sub-rows under an expanded terminal node */
+.tab-panes {
+  margin-top: 2px;
+  padding-left: 15px;
+}
+.tab-pane-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  color: var(--text-dim);
+}
+.tab-pane-row:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.tab-pane-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* plan-file sub-rows under a terminal node (branch-matched docs/plans) */
+.tab-plans {
+  padding-left: 15px;
+  margin-top: 1px;
+}
+.tab-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.82em;
+  color: var(--text-mute);
+}
+.tab-plan-row:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.tab-plan-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+.tab-plan-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Group breadcrumb (Pinned section: which group a terminal lives in) */
+.tab-crumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.77em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin-bottom: 3px;
+  overflow: hidden;
+}
+.crumb-dot {
+  width: 6px;
+  height: 6px;
+  min-width: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.crumb-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-item.active .tab-crumb {
+  color: var(--text-dim);
+}
+
+.tab-badge {
+  font-size: 0.84em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 9px;
+  padding: 1px 7px;
+  min-width: 20px;
+  text-align: center;
+}
+.tab-item.active .tab-badge {
+  color: var(--text-dim);
+}
+
+/* per-row order number (Cmd+1..9 for the first nine) */
+.order-num {
+  font-size: 0.77em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  min-width: 12px;
+  text-align: right;
+  opacity: 0.65;
+}
+.order-num.shortcut {
+  color: var(--text-mute);
+  opacity: 1;
+}
+.tab-item.active .order-num {
+  color: var(--text-dim);
+}
+
+.pin-badge {
+  color: var(--amber);
+  font-size: 9px;
+  line-height: 1;
+}

@@ -38,6 +38,22 @@ export interface DbObjects {
   error?: string
 }
 
+// Column metadata for a single table. `isPrimary` lets the UI build correct
+// WHERE clauses for UPDATE/DELETE; `isAutoIncrement` disables the column in
+// the INSERT modal (the engine fills it).
+export interface DbColumn {
+  name: string
+  type: string
+  nullable: boolean
+  isPrimary: boolean
+  isAutoIncrement: boolean
+  hasDefault: boolean
+}
+export interface DbColumns {
+  columns: DbColumn[]
+  error?: string
+}
+
 const pgPools = new Map<string, PgPool>()
 const myPools = new Map<string, mysql.Pool>()
 const sqliteDbs = new Map<string, Database.Database>()
@@ -181,6 +197,101 @@ async function listObjects(cfg: DbConfig): Promise<DbObjects> {
   }
 }
 
+// Pull column metadata for a single table. The `table` string is taken as-is
+// from the user's SELECT (we only enable this for simple SELECT * FROM <table>),
+// so it may include a "schema.name" qualifier — strip the leading schema for
+// information_schema lookups when present.
+async function listColumns(cfg: DbConfig, table: string): Promise<DbColumns> {
+  const unquote = (s: string): string => s.replace(/^["`\[]|["`\]]$/g, '')
+  const parts = table.split('.').map(unquote)
+  const schema = parts.length > 1 ? parts[0] : null
+  const name = parts[parts.length - 1]
+
+  try {
+    if (cfg.engine === 'postgres') {
+      const escape = (s: string): string => s.replace(/'/g, "''")
+      const sql = `
+        select
+          c.column_name,
+          c.data_type,
+          c.is_nullable,
+          c.column_default,
+          (case when k.column_name is not null then true else false end) as is_pk,
+          (c.column_default like 'nextval(%') as is_autoinc
+        from information_schema.columns c
+        left join (
+          select kcu.column_name
+          from information_schema.table_constraints tc
+          join information_schema.key_column_usage kcu
+            on kcu.constraint_name = tc.constraint_name
+           and kcu.table_schema = tc.table_schema
+          where tc.constraint_type = 'PRIMARY KEY'
+            and tc.table_name = '${escape(name)}'
+            ${schema ? `and tc.table_schema = '${escape(schema)}'` : ''}
+        ) k on k.column_name = c.column_name
+        where c.table_name = '${escape(name)}'
+          ${schema ? `and c.table_schema = '${escape(schema)}'` : ''}
+        order by c.ordinal_position`
+      const r = await runPg(cfg, sql)
+      const columns: DbColumn[] = r.rows.map((row) => ({
+        name: String(row[0]),
+        type: String(row[1]),
+        nullable: String(row[2]).toLowerCase() === 'yes',
+        hasDefault: row[3] !== null && row[3] !== undefined,
+        isPrimary: row[4] === true,
+        isAutoIncrement: row[5] === true
+      }))
+      return { columns }
+    }
+    if (cfg.engine === 'mysql') {
+      const escape = (s: string): string => s.replace(/'/g, "''")
+      const sql = `
+        select
+          column_name,
+          data_type,
+          is_nullable,
+          column_default,
+          column_key,
+          extra
+        from information_schema.columns
+        where table_schema = ${schema ? `'${escape(schema)}'` : 'database()'}
+          and table_name = '${escape(name)}'
+        order by ordinal_position`
+      const r = await runMy(cfg, sql)
+      const columns: DbColumn[] = r.rows.map((row) => ({
+        name: String(row[0]),
+        type: String(row[1]),
+        nullable: String(row[2]).toLowerCase() === 'yes',
+        hasDefault: row[3] !== null && row[3] !== undefined,
+        isPrimary: String(row[4]).toUpperCase() === 'PRI',
+        isAutoIncrement: String(row[5] ?? '').toLowerCase().includes('auto_increment')
+      }))
+      return { columns }
+    }
+    // sqlite: PRAGMA table_info returns cid, name, type, notnull, dflt_value, pk
+    const db = sqliteDb(cfg)
+    const rows = db.prepare(`pragma table_info(${name})`).all() as {
+      name: string
+      type: string
+      notnull: number
+      dflt_value: unknown
+      pk: number
+    }[]
+    // SQLite uses INTEGER PRIMARY KEY (with rowid alias) as auto-increment.
+    const columns: DbColumn[] = rows.map((r) => ({
+      name: r.name,
+      type: r.type,
+      nullable: r.notnull === 0,
+      hasDefault: r.dflt_value !== null && r.dflt_value !== undefined,
+      isPrimary: r.pk > 0,
+      isAutoIncrement: r.pk > 0 && /int/i.test(r.type)
+    }))
+    return { columns }
+  } catch (e) {
+    return { columns: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 async function disconnect(id: string): Promise<void> {
   const pg = pgPools.get(id)
   if (pg) {
@@ -221,6 +332,11 @@ export function registerDbIpc(): void {
   })
 
   ipcMain.handle('db:objects', async (_e, { config }: { config: DbConfig }) => listObjects(config))
+
+  ipcMain.handle(
+    'db:columns',
+    async (_e, { config, table }: { config: DbConfig; table: string }) => listColumns(config, table)
+  )
 
   ipcMain.handle('db:query', async (_e, { config, sql }: { config: DbConfig; sql: string }) =>
     runQuery(config, sql)

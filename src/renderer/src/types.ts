@@ -10,8 +10,19 @@ export type LayoutNode =
 
 export type PaneStatus = 'running' | 'idle' | 'attention'
 
+// A plan file row attached to a terminal pane. `ownerStableId` is null when the
+// filename has no --pane-<uuid> suffix (legacy plans → shown to every matching pane).
+export interface PlanEntry {
+  name: string
+  path: string
+  ownerStableId: string | null
+}
+
 export interface Pane {
   id: string
+  // Stable identity that survives app restarts; exposed to the shell as
+  // CRAFTERM_PANE_ID so Claude can encode it into plan filenames.
+  stableId: string
   term: Terminal
   fit: FitAddon
   el: HTMLElement // persistent .pane-box (header + terminal)
@@ -28,7 +39,7 @@ export interface Pane {
   cwd: string | null
   branch: string | null
   worktree: string | null // git worktree/repo folder name (status bar)
-  plans: { name: string; path: string }[] // docs/plans files matching this branch
+  plans: PlanEntry[] // docs/plans files matching this branch (filtered by ownership)
   claude: boolean // a Claude session — resumed on restore
   claudeSessionId: string | null // captured session id for `claude --resume <id>` on restore
   bgColor: string | null // per-pane background override (null = global default)
@@ -54,6 +65,17 @@ export interface DocPane {
   id: string
   el: HTMLElement
   relPath: string
+}
+
+// A SQL query editor + results, shown as a pane (replaces the old modal).
+export interface SqlPane {
+  id: string
+  el: HTMLElement
+  connId: string | null
+  fileName: string | null
+  themeName: string // CodeMirror theme name (see SQL_THEME_NAMES)
+  getCode(): string
+  focus(): void
 }
 
 export type NodeColor = string | null
@@ -92,7 +114,8 @@ export interface FolderNode {
 // A project: a top-level grouping that carries a working directory. Like a
 // folder, but with a `path` (used by cmd+T auto-select) and an optional `group`
 // label (projects sharing a group are shown under a common header). Children may
-// be folders/tabs (and, later, features).
+// be folders, terminal tabs, or sub-projects. Apps + features (time-tracking
+// labels) are owned by the project itself — the single source of truth.
 export interface ProjectNode {
   kind: 'project'
   id: string
@@ -108,6 +131,8 @@ export interface ProjectNode {
   startup?: string
   env?: string
   shell?: string
+  apps?: Application[] // runnable applications under this project
+  features?: Feature[] // time-tracking features under this project
 }
 
 export type SidebarNode = TabNode | FolderNode | ProjectNode
@@ -128,20 +153,19 @@ export interface Application {
   commands: Record<string, string> // environment name -> command
 }
 
-// A saved catalog project: open a terminal at `path`, optionally running
-// `command`. The per-node defaults (startup/env/shell) are copied onto the
-// project's sidebar node so terminals opened inside inherit them. The catalog is
-// a tree (projects can hold sub-projects) and is separate from the live sidebar.
+// Legacy catalog project shape. Kept only so old state files can be migrated
+// into the unified sidebar tree on load (see loadSettings). Not produced or
+// consumed at runtime any more — settings.projects no longer exists.
 export interface Project {
   name: string
   path: string
   command?: string
-  group?: string // optional group (workspace) label (picker chip + sidebar header)
-  startup?: string // command run in each terminal opened inside this project
-  env?: string // raw "KEY=VALUE" lines applied to terminals in this project
-  shell?: string // shell path override for terminals in this project
-  apps?: Application[] // runnable applications defined under this project
-  children?: Project[] // sub-projects (catalog tree)
+  group?: string
+  startup?: string
+  env?: string
+  shell?: string
+  apps?: Application[]
+  children?: Project[]
 }
 
 // A user-defined command shown in the command palette under a category chip
@@ -167,9 +191,10 @@ export interface SshConnection {
 }
 
 // A feature under a project (a time-tracking label; not a sidebar node).
+// The owning project is the ProjectNode that holds this Feature in its
+// `features[]` array — the parent relationship is structural, not by id.
 export interface Feature {
   id: string
-  projectPath: string // the project this feature belongs to (path = identity)
   name: string
 }
 
@@ -260,6 +285,9 @@ export interface SidebarPrefs {
   fontSize: number
   collapsed: boolean
   details: { status: boolean; git: boolean; panes: boolean; paneList: boolean }
+  // When true, the sidebar's top-level rows are bucketed by last activity
+  // (Today / Yesterday / Earlier) instead of by workspace group.
+  groupByRecency?: boolean
 }
 
 export const MAX_FOLDER_DEPTH = 4

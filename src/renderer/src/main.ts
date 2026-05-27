@@ -2,16 +2,19 @@ import '@xterm/xterm/css/xterm.css'
 import './style.css'
 import type { LayoutNode, SidebarNode } from './types'
 import type { SavedNode, SavedSidebarNode } from '../../preload/api'
-import { state, panes, docs, hooks, paneActions, loadSettings, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
+import { state, panes, docs, hooks, paneActions, loadSettings, migrateLegacyState, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
 import { firstPaneOf, allTabs, findById } from './tree'
+import { flattenProjects } from './catalog'
 import {
   createPane,
   markBusy,
   refreshPaneInfo,
+  refreshPanePlans,
   setPaneBackground,
   adjustActivePaneFontSize,
   resetActivePaneFontSize
 } from './pane'
+import { createSqlPane } from './dbPane'
 import { renderContent, updatePaneHighlight } from './content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from './notifications'
 import { openTrackModal } from './time'
@@ -29,6 +32,7 @@ import {
   applySidebarCollapsed,
   toggleSidebar,
   isNotebookMode,
+  isDatabaseMode,
   setSidebarMode,
   renameSelected
 } from './sidebar'
@@ -68,7 +72,8 @@ function newTerminal(parentFolderId: string | null): void {
     void newTab(parentFolderId, path)
     return
   }
-  if (settings.projects.length && settings.askProjectOnNew) showProjectPicker(parentFolderId)
+  const hasProjects = flattenProjects(state.tree).length > 0
+  if (hasProjects && settings.askProjectOnNew) showProjectPicker(parentFolderId)
   else void newTab(parentFolderId)
 }
 import {
@@ -80,6 +85,7 @@ import {
   createProject,
   splitActivePane,
   splitActivePaneWithClaude,
+  splitActiveWithSql,
   splitPane,
   movePaneByDrop,
   closePane,
@@ -198,7 +204,12 @@ const KEY_HANDLERS: Record<string, () => void> = {
   'focus-search': () => focusSearch(),
   'toggle-sidebar': () => toggleSidebar(),
   'new-folder': () => void newFolderInContext(),
-  'split-right': () => void splitActivePane('row'),
+  'split-right': () => {
+    // Cmd+D is context-aware: in the Database sidebar mode it opens a SQL pane
+    // (the workbench split), otherwise it splits the active terminal pane.
+    if (isDatabaseMode()) splitActiveWithSql()
+    else void splitActivePane('row')
+  },
   'split-claude': () => void splitActivePaneWithClaude(),
   'cycle-next': () => cyclePane(1),
   'cycle-prev': () => cyclePane(-1),
@@ -257,10 +268,26 @@ window.setInterval(() => {
   panes.forEach((p) => void refreshPaneInfo(p))
 }, 4000)
 
+// Live plan-file refresh: a file landed in <repo>/docs/plans → re-fetch every
+// pane's plan list. Cheap (one readdir per pane in main); the periodic poll is
+// the safety net while this is the responsive path.
+window.crafterm.onPlansChanged(() => {
+  panes.forEach((p) => void refreshPanePlans(p))
+})
+
 // ---- Rebuild live tree from saved state (re-spawns shells) ----
 async function buildLayout(n: SavedNode): Promise<LayoutNode> {
   if (n.type === 'leaf') {
-    const id = await createPane(n.cwd)
+    if (n.sqlPane) {
+      const sqlId = createSqlPane({
+        connId: n.sqlPane.connId,
+        sql: n.sqlPane.code,
+        fileName: n.sqlPane.fileName,
+        themeName: n.sqlPane.themeName
+      })
+      return { type: 'leaf', paneId: sqlId }
+    }
+    const id = await createPane(n.cwd, { stableId: n.stableId })
     const p = panes.get(id)
     if (p && n.titleLocked && n.title) {
       p.title = n.title
@@ -313,7 +340,9 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         group: n.group,
         startup: n.startup,
         env: n.env,
-        shell: n.shell
+        shell: n.shell,
+        apps: n.apps ? n.apps.map((a) => ({ ...a })) : undefined,
+        features: n.features ? n.features.map((f) => ({ ...f })) : undefined
       })
     } else {
       const children = await buildSidebar(n.children)
@@ -376,6 +405,11 @@ async function init(): Promise<void> {
   } catch (err) {
     console.error('[crafterm] session restore failed:', err)
   }
+
+  // Fold any legacy catalog/features fields from old state files into state.tree.
+  // Must run AFTER the sidebar is rebuilt so existing ProjectNodes are picked up
+  // by path-based dedup.
+  if (saved) migrateLegacyState(saved)
 
   const first = allTabs(state.tree)[0]
   if (first) {

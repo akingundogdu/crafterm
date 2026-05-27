@@ -3,6 +3,9 @@ import { openNote, openMarkdownFile } from './commands'
 import { promptText } from './dialog'
 import { showFileFinder } from './pickers'
 import { settings, saveSoon } from './state'
+import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from './treeview'
+import { type ContextMenuItem } from './contextmenu'
+import './notebook.css'
 
 const FOLDER_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1.6 4.4c0-.6.4-1 1-1h3.1l1.2 1.4H13.4c.6 0 1 .4 1 1V11.6c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1z" fill="currentColor"/></svg>'
@@ -10,102 +13,152 @@ const NOTE_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 1.5v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>'
 const LINK_SVG =
   '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6.5 9.5l3-3M5.5 7.5L4 9a2.1 2.1 0 0 0 3 3l1.5-1.5M10.5 8.5L12 7a2.1 2.1 0 0 0-3-3L7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
-// same chevron + tree-guide structure as the terminal sidebar
-const CHEVRON_SVG =
-  '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-const INDENT = 14
 
-function buildGuides(depth: number, guides: boolean[], isLast: boolean): HTMLElement | null {
-  if (depth === 0) return null
-  const wrap = document.createElement('div')
-  wrap.className = 'row-guides'
-  const guideX = (level: number): number => 10 + level * INDENT + 7
-  for (let level = 0; level < depth - 1; level++) {
-    if (!guides[level]) continue
-    const line = document.createElement('span')
-    line.className = 'guide-line'
-    line.style.left = guideX(level) + 'px'
-    wrap.appendChild(line)
-  }
-  const elbow = document.createElement('span')
-  elbow.className = 'guide-elbow' + (isLast ? ' last' : '')
-  elbow.style.left = guideX(depth - 1) + 'px'
-  wrap.appendChild(elbow)
-  return wrap
-}
+const MD_RE = /\.(md|mdx|mdc)$/i
 
 let container: HTMLElement | null = null
+let linkedHost: HTMLElement | null = null
+let treeHost: HTMLElement | null = null
+let treeview: TreeView<NbNode> | null = null
 const expanded = new Set<string>()
 let selectedPath: string | null = null
-// The currently open note — gets the same `.active` highlight as the open
-// terminal tab, while `selectedPath` is the keyboard cursor (`.selected`).
+// The currently open note — gets the `.active` highlight, like the open terminal.
 let openPath: string | null = null
-let flat: { path: string; kind: 'dir' | 'file' }[] = []
 let nbQuery = ''
 
-// Driven by the shared sidebar search bar when Notebook mode is active.
+function basename(p: string): string {
+  return p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p
+}
+function parentOf(p: string): string {
+  return p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
+}
+function joinPath(parent: string, name: string): string {
+  return parent ? `${parent}/${name}` : name
+}
+
+// ---- TreeView adapter -------------------------------------------------------
+
+const adapter: TreeAdapter<NbNode> = {
+  id: (n) => n.path,
+  label: (n) => (n.kind === 'file' ? n.name.replace(MD_RE, '') : n.name),
+  icon: (n) => (n.kind === 'dir' ? FOLDER_SVG : NOTE_SVG),
+  isContainer: (n) => n.kind === 'dir',
+  children: (n) => n.children ?? [],
+  collapsed: (n) => !expanded.has(n.path),
+  rowClass: (n) => (n.path === openPath ? 'active' : ''),
+  color: (n) => settings.notebookColors[n.path] ?? null,
+  onColor: (n, c) => {
+    if (c) settings.notebookColors[n.path] = c
+    else delete settings.notebookColors[n.path]
+    saveSoon()
+    void refresh()
+  },
+  renamable: () => true,
+  draggable: () => true,
+  onToggle: (n) => toggleDir(n.path),
+  onActivate: (n) => {
+    if (n.kind === 'file') open(n.path)
+  },
+  onSelect: (n) => {
+    selectedPath = n ? n.path : null
+  },
+  onRename: (n, name) => void doRename(n, name),
+  onMove: (dragId, targetId, pos) => void doMove(dragId, targetId, pos),
+  menu: (n) => buildMenu(n),
+  hoverActions: (n) => buildActions(n)
+}
+
+function buildMenu(n: NbNode): ContextMenuItem[] {
+  const items: ContextMenuItem[] = []
+  if (n.kind === 'dir') {
+    items.push({ label: 'New note', run: () => void addNote(n.path) })
+    items.push({ label: 'New folder', run: () => void addFolder(n.path) })
+  }
+  items.push({ label: 'Show in Finder', run: () => window.crafterm.nbReveal(n.path) })
+  items.push({ label: 'Rename', run: () => void renamePath(n.path, n.name) })
+  items.push({ label: 'Delete', run: () => void deleteNode(n), danger: true })
+  return items
+}
+
+function buildActions(n: NbNode): HTMLElement {
+  const actions = document.createElement('span')
+  actions.className = 'nb-actions'
+  if (n.kind === 'dir') {
+    actions.append(
+      actBtn('＋', 'New note', (e) => {
+        e.stopPropagation()
+        void addNote(n.path)
+      }),
+      actBtn('🗀', 'New folder', (e) => {
+        e.stopPropagation()
+        void addFolder(n.path)
+      })
+    )
+  }
+  actions.append(
+    actBtn('⤴', 'Show in Finder', (e) => {
+      e.stopPropagation()
+      window.crafterm.nbReveal(n.path)
+    }),
+    actBtn('✎', 'Rename', (e) => {
+      e.stopPropagation()
+      void renamePath(n.path, n.name)
+    }),
+    actBtn('✕', 'Delete', (e) => {
+      e.stopPropagation()
+      void deleteNode(n)
+    })
+  )
+  return actions
+}
+
+function actBtn(text: string, title: string, fn: (e: MouseEvent) => void): HTMLButtonElement {
+  const b = document.createElement('button')
+  b.className = 'nb-act'
+  b.textContent = text
+  b.title = title
+  b.addEventListener('click', fn)
+  return b
+}
+
+// ---- rendering --------------------------------------------------------------
+
+export async function renderNotebook(host: HTMLElement): Promise<void> {
+  container = host
+  host.replaceChildren()
+  linkedHost = document.createElement('div')
+  treeHost = document.createElement('div')
+  treeHost.className = 'nb-tree'
+  host.append(linkedHost, treeHost)
+  treeview = createTreeView<NbNode>(treeHost, adapter)
+  treeview.setFilter(nbQuery)
+  await refresh()
+}
+
+async function refresh(): Promise<void> {
+  if (!treeview || !linkedHost) return
+  const tree = await window.crafterm.nbTree()
+  renderLinked(linkedHost)
+  treeview.render(tree)
+  if (openPath) highlightActive()
+}
+
+// ---- search (driven by the shared sidebar search bar) -----------------------
+
 export function nbApplyQuery(q: string): void {
   nbQuery = q
-  void refresh()
+  treeview?.setFilter(q)
+  if (linkedHost) renderLinked(linkedHost)
 }
 export function nbClearQuery(): void {
   nbQuery = ''
 }
 export function notebookSelectFirst(): void {
-  if (!flat.length) return
-  selectedPath = flat[0].path
-  highlightSelected()
-  scrollSelected()
+  treeview?.selectFirst()
 }
 
-// keep only nodes matching the query (by name) plus their ancestor folders
-function pruneTree(nodes: NbNode[], q: string): NbNode[] {
-  const out: NbNode[] = []
-  for (const n of nodes) {
-    if (n.kind === 'file') {
-      if (n.name.toLowerCase().includes(q)) out.push(n)
-    } else {
-      const kids = n.children ? pruneTree(n.children, q) : []
-      if (n.name.toLowerCase().includes(q) || kids.length) out.push({ ...n, children: kids })
-    }
-  }
-  return out
-}
+// ---- "Linked files" section (external files outside the notebook folder) -----
 
-export async function renderNotebook(host: HTMLElement): Promise<void> {
-  container = host
-  await refresh()
-}
-
-async function refresh(): Promise<void> {
-  if (!container) return
-  const host = container
-  host.replaceChildren()
-
-  const tree = await window.crafterm.nbTree()
-  flat = []
-  const q = nbQuery.trim().toLowerCase()
-  renderLinkedSection(host, q)
-  const data = q ? pruneTree(tree, q) : tree
-  const treeEl = document.createElement('div')
-  treeEl.className = 'nb-tree'
-  if (!data.length) {
-    treeEl.insertAdjacentHTML(
-      'beforeend',
-      `<div class="empty-hint">${q ? 'No matches' : 'No notes yet. Add a folder or note.'}</div>`
-    )
-  } else {
-    renderNodes(data, treeEl, 0, [], !!q)
-  }
-  host.appendChild(treeEl)
-  if (selectedPath && !flat.some((f) => f.path === selectedPath)) selectedPath = null
-  if (openPath && !flat.some((f) => f.path === openPath)) openPath = null
-}
-
-const MD_RE = /\.(md|mdx|mdc)$/i
-
-// Open a linked external file: markdown in the in-app viewer, anything else in
-// the OS default app.
 function openLinked(path: string): void {
   if (MD_RE.test(path)) openMarkdownFile(path)
   else window.crafterm.openPath(path)
@@ -117,9 +170,9 @@ function unlink(path: string): void {
   void refresh()
 }
 
-// "Linked files" group at the top of the notebook tree: external files (outside
-// the notebook folder) the user pinned via the file finder.
-function renderLinkedSection(host: HTMLElement, q: string): void {
+function renderLinked(host: HTMLElement): void {
+  host.replaceChildren()
+  const q = nbQuery.trim().toLowerCase()
   const items = q
     ? settings.linkedFiles.filter((f) => f.name.toLowerCase().includes(q))
     : settings.linkedFiles
@@ -177,95 +230,7 @@ export function notebookLinkFile(): void {
   })
 }
 
-// Mirrors the terminal sidebar row structure (.tab-item / tree guides / chevron).
-function renderNodes(
-  nodes: NbNode[],
-  parent: HTMLElement,
-  depth: number,
-  guides: boolean[],
-  forceExpand: boolean
-): void {
-  nodes.forEach((node, i) => {
-    const isLast = i === nodes.length - 1
-    flat.push({ path: node.path, kind: node.kind })
-
-    const row = document.createElement('div')
-    row.className =
-      'tab-item' +
-      (node.kind === 'dir' ? ' folder' : '') +
-      (node.path === openPath ? ' active' : '') +
-      (node.path === selectedPath ? ' selected' : '')
-    row.dataset.path = node.path
-    row.style.paddingLeft = 10 + depth * INDENT + 'px'
-    const g = buildGuides(depth, guides, isLast)
-    if (g) row.appendChild(g)
-
-    const top = document.createElement('div')
-    top.className = 'tab-row'
-
-    const icon = document.createElement('span')
-    icon.className = 'folder-icon'
-    const name = document.createElement('span')
-    name.className = 'tab-title'
-    name.textContent = node.kind === 'file' ? node.name.replace(/\.(md|mdx|mdc)$/i, '') : node.name
-
-    const actions = document.createElement('span')
-    actions.className = 'nb-actions'
-
-    if (node.kind === 'dir') {
-      const open = forceExpand || expanded.has(node.path)
-      const tri = document.createElement('span')
-      tri.className = 'tri' + (open ? ' expanded' : '')
-      tri.innerHTML = CHEVRON_SVG
-      tri.addEventListener('click', (e) => {
-        e.stopPropagation()
-        selectedPath = node.path
-        toggleDir(node.path)
-      })
-      icon.innerHTML = FOLDER_SVG
-      top.append(tri, icon, name)
-      row.addEventListener('click', () => {
-        selectedPath = node.path
-        toggleDir(node.path)
-      })
-      actions.append(
-        actBtn('＋', 'New note', (e) => {
-          e.stopPropagation()
-          void addNote(node.path)
-        }),
-        actBtn('🗀', 'New folder', (e) => {
-          e.stopPropagation()
-          void addFolder(node.path)
-        })
-      )
-    } else {
-      icon.innerHTML = NOTE_SVG
-      top.append(icon, name)
-      row.addEventListener('click', () => open(node.path))
-    }
-    actions.append(
-      actBtn('⤴', 'Show in Finder', (e) => {
-        e.stopPropagation()
-        window.crafterm.nbReveal(node.path)
-      }),
-      actBtn('✎', 'Rename', (e) => {
-        e.stopPropagation()
-        void renameNode(node)
-      }),
-      actBtn('✕', 'Delete', (e) => {
-        e.stopPropagation()
-        void deleteNode(node)
-      })
-    )
-    top.append(actions)
-    row.appendChild(top)
-    parent.appendChild(row)
-
-    if (node.kind === 'dir' && (forceExpand || expanded.has(node.path)) && node.children) {
-      renderNodes(node.children, parent, depth + 1, [...guides, !isLast], forceExpand)
-    }
-  })
-}
+// ---- node operations --------------------------------------------------------
 
 function toggleDir(path: string): void {
   if (expanded.has(path)) expanded.delete(path)
@@ -273,97 +238,87 @@ function toggleDir(path: string): void {
   void refresh()
 }
 
-// Open a note and mark it active (the blue highlight, like the open terminal).
 function open(path: string): void {
   openPath = path
   selectedPath = path
-  highlightSelected()
+  treeview?.select(path)
+  highlightActive()
   openNote(path)
 }
 
-function actBtn(text: string, title: string, fn: (e: MouseEvent) => void): HTMLButtonElement {
-  const b = document.createElement('button')
-  b.className = 'nb-act'
-  b.textContent = text
-  b.title = title
-  b.addEventListener('click', fn)
-  return b
-}
-
-function highlightSelected(): void {
-  if (!container) return
-  container.querySelectorAll<HTMLElement>('.tab-item[data-path]').forEach((el) => {
-    el.classList.toggle('selected', el.dataset.path === selectedPath)
-    el.classList.toggle('active', el.dataset.path === openPath)
+function highlightActive(): void {
+  treeHost?.querySelectorAll<HTMLElement>('.tab-item[data-tree-id]').forEach((el) => {
+    el.classList.toggle('active', el.dataset.treeId === openPath)
   })
 }
 
-function scrollSelected(): void {
-  container
-    ?.querySelector<HTMLElement>(`.tab-item[data-path="${CSS.escape(selectedPath ?? '')}"]`)
-    ?.scrollIntoView({ block: 'nearest' })
+// Move the persisted color tag when a node's path changes (rename / move).
+function moveColor(from: string, to: string): void {
+  const col = settings.notebookColors[from]
+  if (!col) return
+  delete settings.notebookColors[from]
+  settings.notebookColors[to] = col
 }
 
-function parentOf(p: string): string {
-  return p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
+async function doMove(src: string, targetId: string, pos: DropPos): Promise<void> {
+  const destDir = pos === 'inside' ? targetId : parentOf(targetId)
+  if (destDir === parentOf(src) && pos !== 'inside') return // same folder, no-op
+  const ok = await window.crafterm.nbMove(src, destDir)
+  if (!ok) return
+  const newPath = joinPath(destDir, basename(src))
+  moveColor(src, newPath)
+  saveSoon()
+  if (destDir) expanded.add(destDir)
+  await refresh()
 }
 
-// Keyboard navigation (delegated from the sidebar when Notebook is active).
+async function doRename(node: NbNode, rawName: string): Promise<void> {
+  // Keep the file extension the label hides (the label is shown without it).
+  let name = rawName
+  if (node.kind === 'file' && !MD_RE.test(name)) {
+    const ext = node.name.match(MD_RE)?.[0] ?? '.md'
+    name = name + ext
+  }
+  const ok = await window.crafterm.nbRename(node.path, name)
+  if (!ok) return
+  const newPath = joinPath(parentOf(node.path), name)
+  moveColor(node.path, newPath)
+  if (openPath === node.path) openPath = newPath
+  saveSoon()
+  await refresh()
+}
+
+async function renamePath(path: string, current: string): Promise<void> {
+  const name = await promptText({ title: 'Rename', label: 'Name', value: current, confirmText: 'Rename' })
+  if (!name || name === current) return
+  const ok = await window.crafterm.nbRename(path, name)
+  if (!ok) return
+  const newPath = joinPath(parentOf(path), name)
+  moveColor(path, newPath)
+  if (openPath === path) openPath = newPath
+  saveSoon()
+  await refresh()
+}
+
+async function deleteNode(node: NbNode): Promise<void> {
+  await window.crafterm.nbDelete(node.path)
+  delete settings.notebookColors[node.path]
+  saveSoon()
+  await refresh()
+}
+
+// ---- keyboard + create shortcuts (delegated from the sidebar) ---------------
+
 export function handleNotebookKey(e: KeyboardEvent): void {
-  if (!flat.length) return
-  let idx = flat.findIndex((f) => f.path === selectedPath)
-  const cur = idx >= 0 ? flat[idx] : null
-  const move = (d: number): void => {
-    if (idx < 0) idx = d > 0 ? -1 : 0
-    const next = Math.max(0, Math.min(flat.length - 1, idx + d))
-    selectedPath = flat[next].path
-    highlightSelected()
-    scrollSelected()
-  }
-  switch (e.key) {
-    case 'ArrowDown':
-      e.preventDefault()
-      move(1)
-      break
-    case 'ArrowUp':
-      e.preventDefault()
-      move(-1)
-      break
-    case 'ArrowRight':
-      e.preventDefault()
-      if (cur?.kind === 'dir' && !expanded.has(cur.path)) {
-        expanded.add(cur.path)
-        void refresh()
-      } else move(1)
-      break
-    case 'ArrowLeft':
-      e.preventDefault()
-      if (cur?.kind === 'dir' && expanded.has(cur.path)) {
-        expanded.delete(cur.path)
-        void refresh()
-      } else if (cur && parentOf(cur.path)) {
-        selectedPath = parentOf(cur.path)
-        highlightSelected()
-        scrollSelected()
-      }
-      break
-    case 'Enter':
-      e.preventDefault()
-      if (cur?.kind === 'file') open(cur.path)
-      else if (cur?.kind === 'dir') {
-        if (expanded.has(cur.path)) expanded.delete(cur.path)
-        else expanded.add(cur.path)
-        void refresh()
-      }
-      break
-  }
+  treeview?.handleKey(e)
 }
 
-// Cmd+N / Cmd+Shift+N: create at the selected folder (or its parent / root).
 function contextDir(): string {
-  const f = selectedPath ? flat.find((x) => x.path === selectedPath) : null
-  if (!f) return ''
-  return f.kind === 'dir' ? f.path : parentOf(f.path)
+  if (!selectedPath) return ''
+  const nodes = treeview?.visibleNodes() ?? []
+  const cur = nodes.find((n) => n.path === selectedPath)
+  if (!cur) return ''
+  return cur.kind === 'dir' ? cur.path : parentOf(cur.path)
 }
 export function notebookNewNote(): void {
   void addNote(contextDir())
@@ -372,8 +327,9 @@ export function notebookNewFolder(): void {
   void addFolder(contextDir())
 }
 
-function joinPath(parent: string, name: string): string {
-  return parent ? `${parent}/${name}` : name
+export function notebookRenameSelected(): void {
+  if (!selectedPath) return
+  void renamePath(selectedPath, basename(selectedPath))
 }
 
 async function addFolder(parent: string): Promise<void> {
@@ -390,32 +346,9 @@ async function addNote(parent: string): Promise<void> {
   const rel = joinPath(parent, name)
   await window.crafterm.nbCreate(rel)
   if (parent) expanded.add(parent)
-  const notePath = /\.(md|mdx|mdc)$/i.test(rel) ? rel : rel + '.md'
+  const notePath = MD_RE.test(rel) ? rel : rel + '.md'
   openPath = notePath
   selectedPath = notePath
   await refresh()
   openNote(notePath)
-}
-
-async function renameNode(node: NbNode): Promise<void> {
-  await renamePath(node.path, node.name)
-}
-
-async function renamePath(path: string, current: string): Promise<void> {
-  const name = await promptText({ title: 'Rename', label: 'Name', value: current, confirmText: 'Rename' })
-  if (!name || name === current) return
-  await window.crafterm.nbRename(path, name)
-  await refresh()
-}
-
-// Rename the currently selected notebook node. Used by the Cmd+Shift+R shortcut.
-export function notebookRenameSelected(): void {
-  if (!selectedPath || !flat.some((x) => x.path === selectedPath)) return
-  const current = selectedPath.split('/').pop() || ''
-  void renamePath(selectedPath, current)
-}
-
-async function deleteNode(node: NbNode): Promise<void> {
-  await window.crafterm.nbDelete(node.path)
-  await refresh()
 }

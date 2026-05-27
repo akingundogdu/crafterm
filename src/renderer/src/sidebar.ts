@@ -31,8 +31,7 @@ import {
   setNodeName,
   autoNameTab,
   moveNode,
-  setNodeGroup,
-  type DropMode
+  setNodeGroup
 } from './commands'
 import {
   showPlansModal,
@@ -48,11 +47,11 @@ import {
   showFeatureSetup,
   runUpdate
 } from './pickers'
-import { findProjectByPath } from './catalog'
 import { showImproveModal } from './improve'
 import { promptText } from './dialog'
-import { renderDatabase } from './database'
-import { showContextMenu, type ContextMenuItem } from './contextmenu'
+import { renderDatabase, databaseHandleKey, dbApplyQuery } from './database'
+import { type ContextMenuItem } from './contextmenu'
+import { createTreeView, type TreeAdapter, type TreeSection, type DropPos } from './treeview'
 import {
   renderNotebook,
   handleNotebookKey,
@@ -60,6 +59,7 @@ import {
   nbClearQuery,
   notebookSelectFirst
 } from './notebook'
+import './sidebar.css'
 
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!
@@ -69,9 +69,10 @@ const searchInputEl = document.getElementById('search-input') as HTMLInputElemen
 let searchQuery = ''
 searchInputEl.addEventListener('input', () => {
   if (sidebarMode === 'notebook') nbApplyQuery(searchInputEl.value)
+  else if (sidebarMode === 'database') dbApplyQuery(searchInputEl.value)
   else {
     searchQuery = searchInputEl.value
-    renderSidebar()
+    tree.setFilter(searchQuery)
   }
 })
 searchInputEl.addEventListener('keydown', (e) => {
@@ -79,9 +80,10 @@ searchInputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     searchInputEl.value = ''
     if (sidebarMode === 'notebook') nbApplyQuery('')
+    else if (sidebarMode === 'database') dbApplyQuery('')
     else {
       searchQuery = ''
-      renderSidebar()
+      tree.setFilter('')
     }
     searchInputEl.blur()
   } else if (e.key === 'ArrowDown') {
@@ -89,10 +91,7 @@ searchInputEl.addEventListener('keydown', (e) => {
     e.preventDefault()
     focusList()
     if (sidebarMode === 'notebook') notebookSelectFirst()
-    else if (liveRows.length) {
-      selectNode(liveRows[0].node.id)
-      scrollSelectedIntoView()
-    }
+    else tree.selectFirst()
   }
 })
 
@@ -168,12 +167,8 @@ function showActionsMenu(anchor: HTMLElement): void {
 }
 
 // ---------------------------------------------------------------------------
-// Keyboard navigation (arrow keys move through the sidebar without the mouse)
+// Keyboard navigation (delegated to the active view's tree)
 // ---------------------------------------------------------------------------
-
-function selectedNode(): SidebarNode | null {
-  return liveRows.find((r) => r.node.id === state.selectedNodeId)?.node ?? null
-}
 
 function focusList(): void {
   tabListEl.focus()
@@ -182,24 +177,14 @@ function focusList(): void {
 function scrollSelectedIntoView(): void {
   if (!state.selectedNodeId) return
   tabListEl
-    .querySelector<HTMLElement>(`[data-node-id="${state.selectedNodeId}"]`)
+    .querySelector<HTMLElement>(`[data-tree-id="${CSS.escape(state.selectedNodeId)}"]`)
     ?.scrollIntoView({ block: 'nearest' })
 }
 
-function moveSelection(delta: number): void {
-  const nodes = liveRows.map((r) => r.node)
-  if (!nodes.length) return
-  let idx = nodes.findIndex((n) => n.id === state.selectedNodeId)
-  if (idx === -1) idx = delta > 0 ? -1 : 0
-  const next = Math.max(0, Math.min(nodes.length - 1, idx + delta))
-  selectNode(nodes[next].id)
-  scrollSelectedIntoView()
-}
-
-// Cmd+1..9 (and clicking a number) jump to the Nth row: focus a terminal,
+// Cmd+1..9 (and clicking a number) jump to the Nth visible row: focus a terminal,
 // or select + reveal a folder.
 export function activateRowByNumber(n: number): void {
-  const node = liveRows[n - 1]?.node
+  const node = tree.visibleNodes()[n - 1]
   if (!node) return
   if (node.kind === 'tab') {
     selectTab(node.id)
@@ -213,46 +198,15 @@ export function activateRowByNumber(n: number): void {
 
 tabListEl.tabIndex = 0
 tabListEl.addEventListener('keydown', (e) => {
-  if (sidebarMode === 'database') return // database view has no key-nav (v1)
+  if (sidebarMode === 'database') {
+    databaseHandleKey(e)
+    return
+  }
   if (sidebarMode === 'notebook') {
     handleNotebookKey(e)
     return
   }
-  const node = selectedNode()
-  switch (e.key) {
-    case 'ArrowDown':
-      e.preventDefault()
-      moveSelection(1)
-      break
-    case 'ArrowUp':
-      e.preventDefault()
-      moveSelection(-1)
-      break
-    case 'ArrowRight':
-      e.preventDefault()
-      if (node?.kind === 'folder' && node.collapsed) toggleCollapse(node.id)
-      else moveSelection(1)
-      break
-    case 'ArrowLeft': {
-      e.preventDefault()
-      if (node?.kind === 'folder' && !node.collapsed) {
-        toggleCollapse(node.id)
-        break
-      }
-      const trail = node ? ancestorFolders(state.tree, node.id) : null
-      const parent = trail && trail.length ? trail[trail.length - 1] : null
-      if (parent) {
-        selectNode(parent.id)
-        scrollSelectedIntoView()
-      }
-      break
-    }
-    case 'Enter':
-      e.preventDefault()
-      if (node?.kind === 'tab') selectTab(node.id)
-      else if (node?.kind === 'folder') toggleCollapse(node.id)
-      break
-  }
+  tree.handleKey(e)
 })
 
 const STATUS_LABEL: Record<PaneStatus, string> = {
@@ -261,11 +215,9 @@ const STATUS_LABEL: Record<PaneStatus, string> = {
   attention: 'needs input'
 }
 
-
-// Crisp disclosure chevron — CSS rotates it 90° when the folder is expanded.
+// Crisp disclosure chevron — CSS rotates it 90° when expanded.
 const CHEVRON_SVG =
   '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-
 // Folder glyph shown on group rows (file-explorer look).
 const FOLDER_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1.6 4.4c0-.6.4-1 1-1h3.1l1.2 1.4H13.4c.6 0 1 .4 1 1V11.6c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1z" fill="currentColor"/></svg>'
@@ -278,32 +230,6 @@ const PLAN_SVG =
 // feature/worktree folder icon: a git-branch glyph (marks a worktree feature)
 const WORKTREE_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="12.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 5.1v5.8M11.5 5.1v1.2c0 2.2-1.8 3.4-3.9 3.9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
-
-let isEditing = false
-let draggedId: string | null = null
-let dndMode: DropMode = 'after'
-
-interface LiveRow {
-  node: SidebarNode
-  dot: HTMLElement
-  sub: HTMLElement | null
-  numEl: HTMLElement
-}
-let liveRows: LiveRow[] = []
-
-function orderNumEl(): HTMLElement {
-  const el = document.createElement('span')
-  el.className = 'order-num'
-  return el
-}
-
-// Number every visible row top-to-bottom; the first 9 map to Cmd+1..9.
-function applyOrder(): void {
-  liveRows.forEach((r, i) => {
-    r.numEl.textContent = String(i + 1)
-    r.numEl.classList.toggle('shortcut', i < 9)
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Status / detail helpers
@@ -338,21 +264,8 @@ function tabDetail(node: TabNode): string {
   return parts.join(' · ')
 }
 
-function hexToRgba(hex: string, a: number): string {
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
-  if (!m) return 'transparent'
-  return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${a})`
-}
-
-function applyRowColor(row: HTMLElement, color: string | null): void {
-  if (!color) return
-  row.classList.add('has-color')
-  row.style.setProperty('--row-color', color)
-  row.style.setProperty('--row-tint', hexToRgba(color, 0.085))
-}
-
 // ---------------------------------------------------------------------------
-// Rendering
+// Sidebar mode (terminal / notebook / database)
 // ---------------------------------------------------------------------------
 
 type SidebarMode = 'terminal' | 'notebook' | 'database'
@@ -376,11 +289,15 @@ export function setSidebarMode(m: SidebarMode): void {
   searchInputEl.value = ''
   searchQuery = ''
   nbClearQuery()
+  dbApplyQuery('')
   searchInputEl.placeholder =
-    m === 'notebook' ? 'Search notes…' : m === 'database' ? 'Search…' : 'Search…'
+    m === 'notebook' ? 'Search notes…' : m === 'database' ? 'Search databases…' : 'Search…'
   if (m === 'notebook') void renderNotebook(tabListEl)
   else if (m === 'database') void renderDatabase(tabListEl)
-  else renderSidebar()
+  else {
+    tree.setFilter('')
+    renderSidebar()
+  }
   tabListEl.focus() // enable arrow-key navigation in the chosen view
 }
 
@@ -392,68 +309,15 @@ export function isDatabaseMode(): boolean {
   return sidebarMode === 'database'
 }
 
-export function renderSidebar(): void {
-  if (isEditing) return
-  if (sidebarMode === 'notebook' || sidebarMode === 'database') return // those views own the list
-  liveRows = []
-  tabListEl.replaceChildren()
+// ---------------------------------------------------------------------------
+// Section headers + breadcrumbs
+// ---------------------------------------------------------------------------
 
-  const q = searchQuery.trim().toLowerCase()
-  if (q) {
-    renderFiltered(state.tree, 0, [], q)
-    if (!tabListEl.childElementCount) {
-      const hint = document.createElement('div')
-      hint.className = 'empty-hint'
-      hint.textContent = 'No matches'
-      tabListEl.appendChild(hint)
-    }
-    applyOrder()
-    return
-  }
-
-  const pinned = collectPinnedRoots(state.tree)
-  if (pinned.length) {
-    tabListEl.appendChild(sectionLabel('Pinned'))
-    pinned.forEach((node, i) => {
-      renderNode(node, 0, 'all', [], i === pinned.length - 1, folderCrumb(node.id))
-    })
-    tabListEl.appendChild(sectionSep())
-  }
-  renderTopLevel()
-  applyOrder()
-}
-
-// Top level is bucketed by the `group` (workspace) label carried on containers
-// (projects + company folders): a header per group, then any ungrouped nodes
-// under an "Ungrouped" header. With no group labels at all, fall back to the
-// flat list (keeps the pre-groups look for users who don't use groups).
-function renderTopLevel(): void {
-  const top = state.tree.filter((n) => !n.pinned) // pinned shown in their own section
-  const groupOf = (n: SidebarNode): string => (isContainer(n) ? n.group || '' : '')
-  if (!top.some((n) => groupOf(n))) {
-    renderList(state.tree, 0, 'normal', [])
-    return
-  }
-  const groups = new Map<string, SidebarNode[]>()
-  const order: string[] = []
-  for (const n of top) {
-    const g = groupOf(n)
-    if (!groups.has(g)) {
-      groups.set(g, [])
-      order.push(g)
-    }
-    groups.get(g)!.push(n)
-  }
-  for (const g of order.filter((x) => x)) {
-    tabListEl.appendChild(groupHeader(g))
-    const arr = groups.get(g)!
-    arr.forEach((node, i) => renderNode(node, 0, 'normal', [], i === arr.length - 1))
-  }
-  const ungrouped = groups.get('') ?? []
-  if (ungrouped.length) {
-    tabListEl.appendChild(groupHeader('Ungrouped', true))
-    ungrouped.forEach((node, i) => renderNode(node, 0, 'normal', [], i === ungrouped.length - 1))
-  }
+function sectionLabel(text: string): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'section-label'
+  el.textContent = text
+  return el
 }
 
 // A group/workspace label that accepts a dropped container (project or company
@@ -462,9 +326,6 @@ function groupHeader(name: string, isUngrouped = false): HTMLElement {
   const el = sectionLabel(name)
   el.classList.add('group-header')
   el.addEventListener('dragover', (e) => {
-    if (!draggedId) return
-    const r = findById(state.tree, draggedId)
-    if (!r || !isContainer(r.node)) return
     e.preventDefault()
     el.classList.add('drag-over')
   })
@@ -472,22 +333,13 @@ function groupHeader(name: string, isUngrouped = false): HTMLElement {
   el.addEventListener('drop', (e) => {
     e.preventDefault()
     el.classList.remove('drag-over')
-    if (draggedId) setNodeGroup(draggedId, isUngrouped ? '' : name)
+    const dragId = e.dataTransfer?.getData('text/plain')
+    if (!dragId) return
+    const r = findById(state.tree, dragId)
+    if (!r || !isContainer(r.node)) return // only containers carry a group
+    setNodeGroup(dragId, isUngrouped ? '' : name)
   })
   return el
-}
-
-// Context-menu action: type a group/workspace label for a container. Typing a
-// new name creates that group header; to clear, drag the node onto "Ungrouped".
-async function promptGroup(node: FolderNode | ProjectNode): Promise<void> {
-  const g = await promptText({
-    title: 'Set group',
-    label: 'Group / workspace',
-    value: node.group ?? '',
-    placeholder: 'work',
-    confirmText: 'Set'
-  })
-  if (g !== null) setNodeGroup(node.id, g)
 }
 
 interface Crumb {
@@ -519,134 +371,47 @@ function buildCrumb(crumb: Crumb): HTMLElement {
   return el
 }
 
-function sectionLabel(text: string): HTMLElement {
-  const el = document.createElement('div')
-  el.className = 'section-label'
-  el.textContent = text
-  return el
-}
-function sectionSep(): HTMLElement {
-  const el = document.createElement('div')
-  el.className = 'section-sep'
-  return el
-}
-
-// `guides[level]` is true when an ancestor at that indent level still has
-// siblings below it — i.e. a vertical guide line must continue down past
-// this row at that column.
-function renderList(
-  list: SidebarNode[],
-  depth: number,
-  mode: 'normal' | 'all',
-  guides: boolean[]
-): void {
-  const visible = mode === 'normal' ? list.filter((n) => !n.pinned) : list
-  visible.forEach((node, i) => {
-    renderNode(node, depth, mode, guides, i === visible.length - 1)
+// Context-menu action: type a group/workspace label for a container.
+async function promptGroup(node: FolderNode | ProjectNode): Promise<void> {
+  const g = await promptText({
+    title: 'Set group',
+    label: 'Group / workspace',
+    value: node.group ?? '',
+    placeholder: 'work',
+    confirmText: 'Set'
   })
+  if (g !== null) setNodeGroup(node.id, g)
 }
 
-function renderNode(
-  node: SidebarNode,
-  depth: number,
-  mode: 'normal' | 'all',
-  guides: boolean[],
-  isLast: boolean,
-  crumb: Crumb | null = null
-): void {
-  if (node.kind === 'folder' || node.kind === 'project') {
-    tabListEl.appendChild(buildFolderRow(node, depth, guides, isLast, crumb))
-    if (!node.collapsed) renderList(node.children, depth + 1, mode, [...guides, !isLast])
-  } else {
-    tabListEl.appendChild(buildTabRow(node, depth, guides, isLast, crumb))
-  }
+// ---------------------------------------------------------------------------
+// Slot builders (terminal-specific row content injected into the tree rows)
+// ---------------------------------------------------------------------------
+
+function pinBadge(): HTMLElement {
+  const el = document.createElement('span')
+  el.className = 'pin-badge'
+  el.textContent = '●'
+  el.title = 'pinned'
+  return el
 }
 
-// ---- Search filter (case-insensitive "contains" on titles + folder names) ----
-
-function nodeLabel(node: SidebarNode): string {
-  return node.kind === 'tab' ? node.title : node.name
-}
-
-function subtreeMatches(node: SidebarNode, q: string): boolean {
-  if (nodeLabel(node).toLowerCase().includes(q)) return true
-  return (
-    (node.kind === 'folder' || node.kind === 'project') &&
-    node.children.some((c) => subtreeMatches(c, q))
+// Is there anything to reveal under a terminal row (detail line, panes, plans)?
+function tabExpandable(node: TabNode): boolean {
+  if (tabDetail(node)) return true
+  if (settings.sidebar.details.paneList && panesInLayout(node.root).length > 1) return true
+  const firstPane = panes.get(firstPaneOf(node.root) ?? '')
+  const plans = (firstPane?.plans ?? []).filter(
+    (p) => p.ownerStableId != null && p.ownerStableId === firstPane?.stableId
   )
+  return plans.length > 0
 }
 
-// Filtered tree: keep matching nodes plus their ancestor folders, force-expanded.
-function renderFiltered(list: SidebarNode[], depth: number, guides: boolean[], q: string): void {
-  const visible = list.filter((n) => subtreeMatches(n, q))
-  visible.forEach((node, i) => {
-    const isLast = i === visible.length - 1
-    if (node.kind === 'folder' || node.kind === 'project') {
-      tabListEl.appendChild(buildFolderRow(node, depth, guides, isLast, null))
-      renderFiltered(node.children, depth + 1, [...guides, !isLast], q)
-    } else {
-      tabListEl.appendChild(buildTabRow(node, depth, guides, isLast, null))
-    }
-  })
-}
-
-const INDENT = 14
-
-// Tree guide lines for the indentation area: continuing vertical lines for
-// ancestors plus an elbow (└ for the last child, ├ otherwise) into this row.
-function buildGuides(depth: number, guides: boolean[], isLast: boolean): HTMLElement | null {
-  if (depth === 0) return null
-  const wrap = document.createElement('div')
-  wrap.className = 'row-guides'
-  const guideX = (level: number): number => 10 + level * INDENT + 7
-
-  for (let level = 0; level < depth - 1; level++) {
-    if (!guides[level]) continue
-    const line = document.createElement('span')
-    line.className = 'guide-line'
-    line.style.left = guideX(level) + 'px'
-    wrap.appendChild(line)
-  }
-
-  const elbow = document.createElement('span')
-  elbow.className = 'guide-elbow' + (isLast ? ' last' : '')
-  elbow.style.left = guideX(depth - 1) + 'px'
-  wrap.appendChild(elbow)
-
-  return wrap
-}
-
-function buildTabRow(
-  node: TabNode,
-  depth: number,
-  guides: boolean[],
-  isLast: boolean,
-  crumb: Crumb | null
-): HTMLElement {
-  const row = document.createElement('div')
-  row.className =
-    'tab-item' +
-    (node.id === state.activeTabId ? ' active' : '') +
-    (node.id === state.selectedNodeId ? ' selected' : '')
-  row.dataset.nodeId = node.id
-  row.dataset.tabId = node.id
-  row.draggable = true
-  row.style.paddingLeft = 10 + depth * INDENT + 'px'
-  applyRowColor(row, node.color)
-  const treeGuides = buildGuides(depth, guides, isLast)
-  if (treeGuides) row.appendChild(treeGuides)
-  if (crumb) row.appendChild(buildCrumb(crumb))
-
-  const top = document.createElement('div')
-  top.className = 'tab-row'
-  const detail = tabDetail(node)
-  const paneIds = panesInLayout(node.root)
-  // Optional: list each pane (running app) as a sub-row under the terminal.
-  const showPanes = settings.sidebar.details.paneList && paneIds.length > 1
-  const expandable = !!detail || showPanes
-  // Chevron toggles the expanded section; collapsed rows are as thin as a folder
-  // row. Only shown when there's something to reveal (detail line and/or panes).
-  if (expandable) {
+// leading slot: a terminal's detail chevron (if expandable) + status dot.
+function buildLeading(node: SidebarNode): HTMLElement | null {
+  if (node.kind !== 'tab') return null
+  const wrap = document.createElement('span')
+  wrap.className = 'tab-leading'
+  if (tabExpandable(node)) {
     const tri = document.createElement('span')
     tri.className = 'tri' + (node.detailsOpen ? ' expanded' : '')
     tri.innerHTML = CHEVRON_SVG
@@ -655,25 +420,29 @@ function buildTabRow(
       e.stopPropagation()
       toggleTabDetails(node.id)
     })
-    top.append(tri)
+    wrap.appendChild(tri)
   }
   const dot = document.createElement('span')
   dot.className = 'status-dot ' + statusOfNode(node)
-  const title = document.createElement('span')
-  title.className = 'tab-title'
-  title.textContent = node.title
-  const numEl = orderNumEl()
-  top.append(dot, title, numEl)
-  if (node.pinned) top.append(pinBadge())
-  row.append(top)
+  wrap.appendChild(dot)
+  return wrap
+}
 
-  let sub: HTMLElement | null = null
-  if (expandable && node.detailsOpen) {
+// below slot: detail line + per-pane sub-rows (when expanded) + plan sub-rows.
+function buildBelow(node: SidebarNode): HTMLElement | null {
+  if (node.kind !== 'tab') return null
+  const frag = document.createElement('div')
+  frag.className = 'tab-below'
+  const detail = tabDetail(node)
+  const paneIds = panesInLayout(node.root)
+  const showPanes = settings.sidebar.details.paneList && paneIds.length > 1
+
+  if (node.detailsOpen) {
     if (detail) {
-      sub = document.createElement('div')
+      const sub = document.createElement('div')
       sub.className = 'tab-sub'
       sub.textContent = detail
-      row.append(sub)
+      frag.appendChild(sub)
     }
     if (showPanes) {
       const paneList = document.createElement('div')
@@ -694,112 +463,263 @@ function buildTabRow(
         })
         paneList.appendChild(prow)
       }
-      row.append(paneList)
+      frag.appendChild(paneList)
     }
   }
 
-  // Plan files for this terminal's branch (docs/plans/<branch>-*.md) — always
-  // shown as sub-rows when present; click opens the plan in the markdown viewer.
-  const firstPane = panes.get(firstPaneOf(node.root) ?? '')
-  const plans = firstPane?.plans ?? []
-  if (plans.length) {
-    const planList = document.createElement('div')
-    planList.className = 'tab-plans'
-    for (const plan of plans) {
-      const prow = document.createElement('div')
-      prow.className = 'tab-plan-row'
-      prow.title = plan.path
-      const pic = document.createElement('span')
-      pic.className = 'tab-plan-icon'
-      pic.innerHTML = PLAN_SVG
-      const ptitle = document.createElement('span')
-      ptitle.className = 'tab-plan-title'
-      ptitle.textContent = plan.name.replace(/\.(md|mdx|mdc)$/i, '')
-      prow.append(pic, ptitle)
-      prow.addEventListener('click', (e) => {
-        e.stopPropagation()
-        openMarkdownFile(plan.path)
-      })
-      planList.appendChild(prow)
+  // Plan files for this terminal's branch. Only shown when the user has
+  // expanded the tab's detail line, so plans don't sit between rows and get
+  // mis-clicked as a terminal. Filtered to the pane whose stableId is encoded
+  // in the filename's --pane-<uuid> suffix; legacy plans (no suffix) are ignored.
+  if (node.detailsOpen) {
+    const firstPane = panes.get(firstPaneOf(node.root) ?? '')
+    const plans = (firstPane?.plans ?? []).filter(
+      (p) => p.ownerStableId != null && p.ownerStableId === firstPane?.stableId
+    )
+    if (plans.length) {
+      const planList = document.createElement('div')
+      planList.className = 'tab-plans'
+      for (const plan of plans) {
+        const prow = document.createElement('div')
+        prow.className = 'tab-plan-row'
+        prow.title = plan.path
+        const pic = document.createElement('span')
+        pic.className = 'tab-plan-icon'
+        pic.innerHTML = PLAN_SVG
+        const ptitle = document.createElement('span')
+        ptitle.className = 'tab-plan-title'
+        ptitle.textContent = plan.name.replace(/\.(md|mdx|mdc)$/i, '')
+        prow.append(pic, ptitle)
+        prow.addEventListener('mousedown', (e) => e.stopPropagation())
+        prow.addEventListener('click', (e) => {
+          e.stopPropagation()
+          openMarkdownFile(plan.path)
+        })
+        planList.appendChild(prow)
+      }
+      frag.appendChild(planList)
     }
-    row.append(planList)
   }
 
-  row.addEventListener('click', () => selectTab(node.id))
-  row.addEventListener('dblclick', (e) => {
-    e.preventDefault()
-    startRename(node)
-  })
-  row.addEventListener('contextmenu', (e) => showMenu(e, node))
-  wireDnd(row, node)
-
-  liveRows.push({ node, dot, sub, numEl })
-  return row
+  return frag.childElementCount ? frag : null
 }
 
-function buildFolderRow(
-  node: FolderNode | ProjectNode,
-  depth: number,
-  guides: boolean[],
-  isLast: boolean,
-  crumb: Crumb | null
-): HTMLElement {
-  const row = document.createElement('div')
-  row.className = 'tab-item folder' + (node.id === state.selectedNodeId ? ' selected' : '')
-  row.dataset.nodeId = node.id
-  row.draggable = true
-  row.style.paddingLeft = 10 + depth * INDENT + 'px'
-  applyRowColor(row, node.color)
-  const treeGuides = buildGuides(depth, guides, isLast)
-  if (treeGuides) row.appendChild(treeGuides)
-  if (crumb) row.appendChild(buildCrumb(crumb))
-
-  const top = document.createElement('div')
-  top.className = 'tab-row'
-  const tri = document.createElement('span')
-  tri.className = 'tri' + (node.collapsed ? '' : ' expanded')
-  tri.innerHTML = CHEVRON_SVG
-  tri.addEventListener('click', (e) => {
-    e.stopPropagation()
-    toggleCollapse(node.id)
-  })
-  const icon = document.createElement('span')
-  const isFeature = node.kind === 'folder' && !!node.feature
-  icon.className =
-    'folder-icon' +
-    (node.kind === 'project' ? ' project-icon' : '') +
-    (isFeature ? ' worktree-icon' : '')
-  icon.innerHTML = isFeature ? WORKTREE_SVG : node.kind === 'project' ? PROJECT_SVG : FOLDER_SVG
-  if (isFeature) icon.title = `worktree: ${node.feature}`
-  const name = document.createElement('span')
-  name.className = 'tab-title'
-  name.textContent = node.name
-  const badge = document.createElement('span')
-  badge.className = 'tab-badge'
-  badge.textContent = String(allTabs([node]).length)
-  const numEl = orderNumEl()
-  top.append(tri, icon, name, numEl, badge)
-  if (node.pinned) top.append(pinBadge())
-  row.append(top)
-
-  row.addEventListener('click', () => {
-    selectNode(node.id)
-    focusList()
-    toggleCollapse(node.id)
-  })
-  row.addEventListener('contextmenu', (e) => showMenu(e, node))
-  wireDnd(row, node)
-
-  liveRows.push({ node, dot: icon, sub: null, numEl })
-  return row
+// trailing slot: folder child-count badge + pin badge.
+function buildTrailing(node: SidebarNode): HTMLElement | null {
+  const wrap = document.createElement('span')
+  if (node.kind === 'folder' || node.kind === 'project') {
+    const badge = document.createElement('span')
+    badge.className = 'tab-badge'
+    badge.textContent = String(allTabs([node]).length)
+    wrap.appendChild(badge)
+  }
+  if (node.pinned) wrap.appendChild(pinBadge())
+  return wrap.childElementCount ? wrap : null
 }
 
-function pinBadge(): HTMLElement {
-  const el = document.createElement('span')
-  el.className = 'pin-badge'
-  el.textContent = '●'
-  el.title = 'pinned'
-  return el
+// ---------------------------------------------------------------------------
+// Context menu (per-node items; color swatch is added by the tree)
+// ---------------------------------------------------------------------------
+
+function buildMenu(node: SidebarNode): ContextMenuItem[] {
+  const items: ContextMenuItem[] = []
+  if (node.kind === 'tab') {
+    const trail = ancestorFolders(state.tree, node.id)
+    const parentId = trail && trail.length ? trail[trail.length - 1].id : null
+    items.push({ label: 'New Claude terminal', run: () => void newClaudeTab(parentId) })
+    items.push({ label: 'Rename', run: () => tree.beginRename(node.id) })
+    if (node.titleLocked) items.push({ label: 'Auto-name', run: () => autoNameTab(node.id) })
+    items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
+    items.push({ label: 'Close tab', run: () => closeTab(node.id), danger: true })
+  } else {
+    // A project node opens its terminals at the project's path; folders inherit
+    // the active terminal's cwd (the legacy behaviour).
+    const cwd = node.kind === 'project' ? node.path : undefined
+    items.push({ label: 'New terminal here', run: () => void newTab(node.id, cwd) })
+    items.push({ label: 'New Claude terminal here', run: () => void newClaudeTab(node.id, cwd) })
+    items.push({ label: 'New subfolder', run: () => void newFolder(node.id) })
+    if (node.kind === 'project') {
+      items.push({ label: 'Run applications…', run: () => showRunApps(node) })
+      items.push({ label: 'New feature…', run: () => showFeatureSetup(node) })
+    }
+    items.push({ label: 'Rename', run: () => tree.beginRename(node.id) })
+    items.push({ label: 'Set group…', run: () => void promptGroup(node) })
+    items.push({ label: 'Folder settings…', run: () => showFolderSettings(node) })
+    items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
+    items.push({ label: 'Delete folder', run: () => deleteFolder(node.id), danger: true })
+  }
+  return items
+}
+
+// ---------------------------------------------------------------------------
+// The terminal TreeView
+// ---------------------------------------------------------------------------
+
+const adapter: TreeAdapter<SidebarNode> = {
+  id: (n) => n.id,
+  label: (n) => (n.kind === 'tab' ? n.title : n.name),
+  icon: (n) => {
+    if (n.kind === 'project') return PROJECT_SVG
+    if (n.kind === 'folder') return n.feature ? WORKTREE_SVG : FOLDER_SVG
+    return ''
+  },
+  iconClass: (n) =>
+    n.kind === 'project' ? 'project-icon' : n.kind === 'folder' && n.feature ? 'worktree-icon' : '',
+  leading: buildLeading,
+  trailing: buildTrailing,
+  below: buildBelow,
+  aboveRow: (n) => {
+    if (!n.pinned) return null
+    const crumb = folderCrumb(n.id)
+    return crumb ? buildCrumb(crumb) : null
+  },
+  rowClass: (n) => (n.kind === 'tab' && n.id === state.activeTabId ? 'active' : ''),
+  isContainer: (n) => n.kind === 'folder' || n.kind === 'project',
+  children: (n) => (n.kind === 'folder' || n.kind === 'project' ? n.children : []),
+  collapsed: (n) => (n.kind === 'tab' ? false : n.collapsed),
+  color: (n) => n.color,
+  onColor: (n, c) => setNodeColor(n.id, c),
+  numbered: true,
+  draggable: () => true,
+  renamable: () => true,
+  onToggle: (n) => toggleCollapse(n.id),
+  onActivate: (n) => {
+    if (n.kind === 'tab') selectTab(n.id)
+  },
+  onClick: (n) => {
+    if (n.kind !== 'tab') focusList()
+  },
+  onSelect: (n) => {
+    if (n) state.selectedNodeId = n.id
+  },
+  onRename: (n, name) => setNodeName(n.id, name),
+  onMove: (dragId, targetId, pos: DropPos) =>
+    moveNode(dragId, targetId, pos === 'inside' ? 'into' : pos),
+  menu: buildMenu
+}
+
+const tree = createTreeView<SidebarNode>(tabListEl, adapter)
+
+// Drop on empty sidebar space -> move to root.
+tabListEl.addEventListener('dragover', (e) => e.preventDefault())
+tabListEl.addEventListener('drop', (e) => {
+  const dragId = e.dataTransfer?.getData('text/plain')
+  if (dragId) moveNode(dragId, null, 'into')
+})
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+// Recursively drop pinned nodes (they render in the Pinned section instead).
+// Containers are shallow-copied so the real tree is never mutated.
+function stripPinned(nodes: SidebarNode[]): SidebarNode[] {
+  const out: SidebarNode[] = []
+  for (const n of nodes) {
+    if (n.pinned) continue
+    if (n.kind === 'folder' || n.kind === 'project') out.push({ ...n, children: stripPinned(n.children) })
+    else out.push(n)
+  }
+  return out
+}
+
+// Walk a node's subtree, returning the most recent pane activity timestamp.
+// Containers expose their last-touched moment via whatever terminal they hold.
+function maxActivityOf(node: SidebarNode): number {
+  if (node.kind === 'tab') {
+    let best = 0
+    for (const id of panesInLayout(node.root)) {
+      const p = panes.get(id)
+      if (p && p.lastActivity > best) best = p.lastActivity
+    }
+    return best
+  }
+  let best = 0
+  for (const c of node.children) {
+    const t = maxActivityOf(c)
+    if (t > best) best = t
+  }
+  return best
+}
+
+// Bucket name for an activity timestamp (today / yesterday / earlier).
+function recencyBucket(ts: number): 'today' | 'yesterday' | 'earlier' {
+  if (!ts) return 'earlier'
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const startOfYesterday = startOfToday - 86_400_000
+  if (ts >= startOfToday) return 'today'
+  if (ts >= startOfYesterday) return 'yesterday'
+  return 'earlier'
+}
+
+// Build the section list: Pinned → Free (top-level terminals not under any
+// project/folder) → group buckets (workspace headers + Ungrouped), OR when
+// Settings → Sidebar "Group by recency" is on, Today/Yesterday/Earlier buckets
+// of every top-level row.
+function buildSections(): TreeSection<SidebarNode>[] {
+  const sections: TreeSection<SidebarNode>[] = []
+
+  const pinned = collectPinnedRoots(state.tree)
+  if (pinned.length) sections.push({ header: sectionLabel('Pinned'), nodes: pinned })
+
+  const main = stripPinned(state.tree)
+
+  if (settings.sidebar.groupByRecency) {
+    // Time-based bucketing across every non-pinned row (tabs + containers).
+    const buckets: Record<'today' | 'yesterday' | 'earlier', SidebarNode[]> = {
+      today: [],
+      yesterday: [],
+      earlier: []
+    }
+    for (const n of main) buckets[recencyBucket(maxActivityOf(n))].push(n)
+    const labels: Record<'today' | 'yesterday' | 'earlier', string> = {
+      today: 'Today',
+      yesterday: 'Yesterday',
+      earlier: 'Earlier'
+    }
+    for (const key of ['today', 'yesterday', 'earlier'] as const) {
+      if (buckets[key].length) {
+        sections.push({ header: sectionLabel(labels[key]), nodes: buckets[key] })
+      }
+    }
+    return sections
+  }
+
+  const freeTabs = main.filter((n) => n.kind === 'tab')
+  const containers = main.filter((n) => n.kind !== 'tab')
+  if (freeTabs.length) {
+    sections.push({ header: sectionLabel('Free'), nodes: freeTabs })
+  }
+
+  const groupOf = (n: SidebarNode): string => (isContainer(n) ? n.group || '' : '')
+  if (!containers.some((n) => groupOf(n))) {
+    if (containers.length) sections.push({ nodes: containers })
+    return sections
+  }
+
+  const groups = new Map<string, SidebarNode[]>()
+  const order: string[] = []
+  for (const n of containers) {
+    const g = groupOf(n)
+    if (!groups.has(g)) {
+      groups.set(g, [])
+      order.push(g)
+    }
+    groups.get(g)!.push(n)
+  }
+  for (const g of order.filter((x) => x)) {
+    sections.push({ header: groupHeader(g), nodes: groups.get(g)! })
+  }
+  const ungrouped = groups.get('') ?? []
+  if (ungrouped.length) sections.push({ header: groupHeader('Ungrouped', true), nodes: ungrouped })
+  return sections
+}
+
+export function renderSidebar(): void {
+  if (sidebarMode !== 'terminal') return // those views own the list
+  tree.selectedId = state.selectedNodeId
+  tree.renderSections(buildSections())
 }
 
 // ---------------------------------------------------------------------------
@@ -807,60 +727,28 @@ function pinBadge(): HTMLElement {
 // ---------------------------------------------------------------------------
 
 export function updateStatuses(): void {
-  if (isEditing) return
-  for (const { node, dot, sub } of liveRows) {
-    if (node.kind === 'tab') dot.className = 'status-dot ' + statusOfNode(node)
-    if (sub && node.kind === 'tab') sub.textContent = tabDetail(node)
-  }
+  if (sidebarMode !== 'terminal') return
+  tree.refreshDynamic()
 }
 
 export function updateActiveTab(): void {
-  tabListEl.querySelectorAll<HTMLElement>('.tab-item').forEach((el) => {
-    el.classList.toggle('active', el.dataset.tabId === state.activeTabId)
-    el.classList.toggle(
-      'selected',
-      !!state.selectedNodeId && el.dataset.nodeId === state.selectedNodeId
-    )
+  tabListEl.querySelectorAll<HTMLElement>('.tab-item[data-tree-id]').forEach((el) => {
+    el.classList.toggle('active', el.dataset.treeId === state.activeTabId)
+    el.classList.toggle('selected', el.dataset.treeId === state.selectedNodeId)
   })
 }
 
-// ---------------------------------------------------------------------------
-// Inline rename
-// ---------------------------------------------------------------------------
-
-function startRename(node: SidebarNode): void {
-  const titleEl = tabListEl.querySelector<HTMLElement>(`[data-node-id="${node.id}"] .tab-title`)
-  if (!titleEl) return
-  const parent = titleEl.parentElement!
-  isEditing = true
-  const input = document.createElement('input')
-  input.className = 'rename-input'
-  input.value = node.kind === 'tab' ? node.title : node.name
-  parent.replaceChild(input, titleEl)
-  input.focus()
-  input.select()
-  const finish = (commit: boolean): void => {
-    isEditing = false
-    if (commit && input.value.trim()) setNodeName(node.id, input.value)
-    else renderSidebar()
-  }
-  input.addEventListener('keydown', (e) => {
-    e.stopPropagation()
-    if (e.key === 'Enter') finish(true)
-    else if (e.key === 'Escape') finish(false)
-  })
-  input.addEventListener('blur', () => finish(true))
-}
-
-// Inline-rename the currently selected sidebar node (terminal/folder). Used by
-// the Cmd+Shift+R shortcut; no-op if nothing is selected or its row is hidden.
+// Inline-rename the currently selected sidebar node. Used by Cmd+Shift+R.
 export function renameSelected(): void {
-  const node = selectedNode()
-  if (node) startRename(node)
+  if (state.selectedNodeId) tree.beginRename(state.selectedNodeId)
 }
 
-// Per-folder settings modal (startup command / env / shell).
+// ---------------------------------------------------------------------------
+// Per-folder settings modal (startup command / env / shell)
+// ---------------------------------------------------------------------------
+
 function showFolderSettings(node: FolderNode | ProjectNode): void {
+  const isProject = node.kind === 'project'
   const overlay = document.createElement('div')
   overlay.className = 'modal-overlay'
   const modal = document.createElement('div')
@@ -868,7 +756,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
   overlay.appendChild(modal)
 
   const h = document.createElement('h2')
-  h.textContent = 'Folder settings — ' + node.name
+  h.textContent = (isProject ? 'Project settings — ' : 'Folder settings — ') + node.name
   modal.appendChild(h)
 
   const textField = (label: string, value: string, ph: string): HTMLInputElement => {
@@ -884,6 +772,13 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
     modal.appendChild(f)
     return i
   }
+  // Projects expose name/path/command (the bits unique to a project); folders
+  // don't have those — just the per-terminal defaults below.
+  const nameInput = isProject ? textField('Name', node.name, 'Movve') : null
+  const pathInput = isProject ? textField('Path', node.path, '~/code/movve') : null
+  const commandInput = isProject
+    ? textField('Command', node.command ?? '', 'claude (run on open, optional)')
+    : null
   const startup = textField('Startup command', node.startup ?? '', 'e.g. claude')
   const shell = textField('Shell', node.shell ?? '', '(default)')
 
@@ -915,6 +810,13 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
     if (e.target === overlay) close()
   })
   save.addEventListener('click', () => {
+    if (isProject && nameInput && pathInput && commandInput) {
+      const projNode = node as ProjectNode
+      const newName = nameInput.value.trim()
+      if (newName) projNode.name = newName
+      projNode.path = pathInput.value.trim()
+      projNode.command = commandInput.value.trim() || undefined
+    }
     node.startup = startup.value.trim() || undefined
     node.shell = shell.value.trim() || undefined
     node.env = env.value.trim() || undefined
@@ -927,103 +829,8 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
   )
 
   document.body.appendChild(overlay)
-  startup.focus()
+  ;(nameInput ?? startup).focus()
 }
-
-// ---------------------------------------------------------------------------
-// Context menu
-// ---------------------------------------------------------------------------
-
-function showMenu(e: MouseEvent, node: SidebarNode): void {
-  const items: ContextMenuItem[] = []
-  if (node.kind === 'tab') {
-    const trail = ancestorFolders(state.tree, node.id)
-    const parentId = trail && trail.length ? trail[trail.length - 1].id : null
-    items.push({ label: 'New Claude terminal', run: () => void newClaudeTab(parentId) })
-    items.push({ label: 'Rename', run: () => startRename(node) })
-    if (node.titleLocked) items.push({ label: 'Auto-name', run: () => autoNameTab(node.id) })
-    items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
-    items.push({ label: 'Close tab', run: () => closeTab(node.id), danger: true })
-  } else {
-    items.push({ label: 'New terminal here', run: () => void newTab(node.id) })
-    items.push({ label: 'New Claude terminal here', run: () => void newClaudeTab(node.id) })
-    items.push({ label: 'New subfolder', run: () => void newFolder(node.id) })
-    if (node.kind === 'project') {
-      const projPath = node.path
-      const projName = node.name
-      const tmpl = (): { name: string; path: string } =>
-        findProjectByPath(settings.projects, projPath) ?? { name: projName, path: projPath }
-      items.push({ label: 'Run applications…', run: () => showRunApps(tmpl()) })
-      items.push({ label: 'New feature…', run: () => showFeatureSetup(tmpl()) })
-    }
-    items.push({ label: 'Rename', run: () => startRename(node) })
-    items.push({ label: 'Set group…', run: () => void promptGroup(node) })
-    items.push({ label: 'Folder settings…', run: () => showFolderSettings(node) })
-    items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
-    items.push({ label: 'Delete folder', run: () => deleteFolder(node.id), danger: true })
-  }
-  showContextMenu(e, items, {
-    current: node.color,
-    onPick: (c) => setNodeColor(node.id, c)
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Drag & drop
-// ---------------------------------------------------------------------------
-
-function clearDndIndicators(): void {
-  tabListEl
-    .querySelectorAll('.drag-before, .drag-after, .drag-into')
-    .forEach((el) => el.classList.remove('drag-before', 'drag-after', 'drag-into'))
-}
-
-function wireDnd(row: HTMLElement, node: SidebarNode): void {
-  row.addEventListener('dragstart', (e) => {
-    draggedId = node.id
-    e.dataTransfer?.setData('text/plain', node.id)
-    e.stopPropagation()
-  })
-  row.addEventListener('dragend', () => {
-    draggedId = null
-    clearDndIndicators()
-  })
-  row.addEventListener('dragover', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!draggedId || draggedId === node.id) return
-    const rect = row.getBoundingClientRect()
-    const y = e.clientY - rect.top
-    if (node.kind === 'folder') {
-      if (y < rect.height * 0.25) dndMode = 'before'
-      else if (y > rect.height * 0.75) dndMode = 'after'
-      else dndMode = 'into'
-    } else {
-      dndMode = y < rect.height * 0.5 ? 'before' : 'after'
-    }
-    clearDndIndicators()
-    row.classList.add('drag-' + dndMode)
-  })
-  row.addEventListener('dragleave', () => {
-    row.classList.remove('drag-before', 'drag-after', 'drag-into')
-  })
-  row.addEventListener('drop', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    clearDndIndicators()
-    if (draggedId) moveNode(draggedId, node.id, dndMode)
-    draggedId = null
-  })
-}
-
-// Drop on empty sidebar space -> move to root
-tabListEl.addEventListener('dragover', (e) => e.preventDefault())
-tabListEl.addEventListener('drop', (e) => {
-  e.preventDefault()
-  if (draggedId) moveNode(draggedId, null, 'into')
-  draggedId = null
-  clearDndIndicators()
-})
 
 // ---------------------------------------------------------------------------
 // Orientation + resize

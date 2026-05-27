@@ -1,0 +1,310 @@
+/* SQL pane shell. Toolbar + editor + result grid layout. The pane body uses
+   the theme surface (--elev) so only the code editor stays "terminal dark";
+   the result grid + toolbar live on the regular UI surface. */
+
+.pane-box.sql-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--elev);
+}
+
+.sql-pane .sql-pane-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 12px;
+  gap: 0;
+  overflow: hidden;
+  background: var(--elev);
+}
+
+.sql-pane .db-query-bar {
+  margin-bottom: 10px;
+}
+
+/* the editor stays a fixed-height band; the result fills the rest */
+.sql-pane .db-query-editor {
+  flex: 0 0 38%;
+  min-height: 120px;
+  /* keep the code area visually distinct (terminal-dark) */
+  background: var(--bg-term);
+}
+
+.sql-pane .db-result {
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+}
+
+/* Result grid uses the panel surface, not the user's terminal background, so
+   tables stay readable even when --bg is set to pure black. */
+.sql-pane .db-grid-wrap {
+  background: var(--elev);
+}
+.sql-pane .db-grid th,
+.sql-pane .db-grid .db-grid-rownum {
+  background: var(--elev-2);
+}
+
+/* ---- Toolbar buttons: match the app's button look (theme accent) ---- */
+
+.sql-pane .db-query-bar button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 14px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  transition: background 0.13s ease, border-color 0.13s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sql-pane .db-query-bar button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-strong);
+}
+.sql-pane .db-query-bar button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sql-pane .db-query-bar button.primary:hover {
+  background: #5b97ff;
+  border-color: #5b97ff;
+}
+.sql-pane .db-query-bar .db-run-btn kbd {
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.85;
+  background: rgba(0, 0, 0, 0.22);
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+/* Connection select uses the existing settings-select rules; ensure the
+   surrounding wrap and the dot align with the new 32px button height. */
+.sql-pane .db-query-bar .db-conn-select .settings-select {
+  height: 32px;
+}
+
+/* Theme picker (right-aligned to the toolbar) */
+.sql-pane .db-query-bar .db-theme-select {
+  height: 32px;
+  margin-left: auto;
+  min-width: 130px;
+  max-width: 170px;
+}
+
+/* ---- Result grid: action bar + sort + row icons ---- */
+
+.sql-pane .db-grid-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sql-pane .db-grid-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.13s ease, border-color 0.13s ease;
+}
+.sql-pane .db-grid-action-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.sql-pane .db-grid-action-glyph {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.sql-pane .db-grid th.db-grid-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sql-pane .db-grid th.db-grid-sortable:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.sql-pane .db-grid th.db-grid-sortable.active {
+  color: var(--accent);
+}
+.sql-pane .db-grid-sort-arrow {
+  display: inline-block;
+  margin-left: 6px;
+  width: 9px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.sql-pane .db-grid th.db-grid-row-actions-th {
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  background: var(--elev-2);
+}
+.sql-pane .db-grid td.db-grid-row-actions {
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  padding: 2px 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+.sql-pane .db-row-action {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background 0.13s ease, color 0.13s ease, border-color 0.13s ease;
+}
+.sql-pane .db-row-action:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sql-pane .db-row-action.db-row-action-del:hover:not(:disabled) {
+  background: rgba(255, 123, 114, 0.14);
+  border-color: #ff7b72;
+  color: #ff7b72;
+}
+.sql-pane .db-row-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sql-pane .db-row-action + .db-row-action {
+  margin-left: 2px;
+}
+
+/* ---- Row edit/insert modal ---- */
+
+.modal.db-row-modal {
+  width: min(620px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 22px 18px;
+}
+.db-row-modal h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text);
+}
+.db-row-modal-fields {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+.db-row-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.db-row-modal-field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.db-row-modal-field-label {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+.db-row-modal-col {
+  color: var(--text);
+  font-weight: 600;
+  font-family: var(--mono, Menlo, monospace);
+}
+.db-row-modal-type {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-family: var(--mono, Menlo, monospace);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.db-row-modal-type .db-row-modal-pk,
+.db-row-modal-type .db-row-modal-auto,
+.db-row-modal-type .db-row-modal-req {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.db-row-modal-pk {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.db-row-modal-auto {
+  background: rgba(63, 185, 80, 0.14);
+  color: #3fb950;
+}
+.db-row-modal-req {
+  background: rgba(255, 123, 114, 0.14);
+  color: #ff7b72;
+}
+.db-row-modal-null {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+  cursor: pointer;
+  user-select: none;
+}
+.db-row-modal-null input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+.db-row-modal-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: var(--mono, Menlo, monospace);
+  outline: none;
+  transition: border-color 0.13s ease;
+  resize: vertical;
+}
+.db-row-modal-input:focus {
+  border-color: var(--accent);
+}
+.db-row-modal-input.db-row-modal-locked {
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: not-allowed;
+}

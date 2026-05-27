@@ -1,12 +1,22 @@
 // ---- Pane layout (split tree) ----
 export interface SavedLeaf {
   type: 'leaf'
+  // Stable per-pane identity that survives restarts (UUID v4). Generated on
+  // first creation; reused on restore so plan-file ownership stays attached.
+  stableId?: string
   title?: string // only persisted when the pane name was set manually
   titleLocked?: boolean
   cwd?: string // restore the terminal in its last working directory
   claude?: boolean // a Claude session — resumed on restore
   claudeSessionId?: string // exact session to `claude --resume <id>` on restore
   bgColor?: string // per-pane background override
+  // When set, this leaf is a SQL pane (not a terminal); restore creates a SqlPane.
+  sqlPane?: {
+    connId: string | null
+    code: string
+    fileName: string | null
+    themeName?: string // CodeMirror theme name (defaults to "Default")
+  }
 }
 export interface SavedSplit {
   type: 'split'
@@ -39,6 +49,17 @@ export interface SavedFolder {
   env?: string
   shell?: string
 }
+export interface SavedApplication {
+  id: string
+  name: string
+  path?: string
+  opensAs?: 'tab' | 'split'
+  commands: Record<string, string>
+}
+export interface SavedFeature {
+  id: string
+  name: string
+}
 export interface SavedProject {
   kind: 'project'
   name: string
@@ -52,6 +73,8 @@ export interface SavedProject {
   startup?: string
   env?: string
   shell?: string
+  apps?: SavedApplication[]
+  features?: SavedFeature[]
 }
 export type SavedSidebarNode = SavedTabNode | SavedFolder | SavedProject
 
@@ -62,14 +85,10 @@ export interface SavedTab {
   root: SavedNode
 }
 
-// ---- Catalog (Settings → Projects): a tree of projects + their applications ----
-export interface SavedApplication {
-  id: string
-  name: string
-  path?: string
-  opensAs?: 'tab' | 'split'
-  commands: Record<string, string>
-}
+// ---- Legacy catalog (pre-unified-tree): kept ONLY so old state files migrate ----
+// settings.projects[] used to live alongside state.tree[]. On load, the values
+// here are merged into the sidebar tree and the catalog field is dropped. This
+// shape stays around until we know everyone has migrated.
 export interface SavedCatalogProject {
   name: string
   path: string
@@ -92,6 +111,7 @@ export interface SavedSidebar {
   fontSize?: number
   collapsed?: boolean
   details: { status: boolean; git: boolean; panes: boolean; paneList?: boolean }
+  groupByRecency?: boolean
 }
 
 // Database tool: persisted connection tree (passwords plaintext, user's choice).
@@ -129,8 +149,9 @@ export interface SavedState {
   codeExtensions?: string[] // extensions that open via `ide` when clicked
   todoFile?: string // path to todo-list.md for the Improve Crafterm panel
   repoPath?: string // Crafterm source repo path for the "Update Crafterm" action
+  updateCommand?: string // shell command run in repoPath to rebuild the app
   commands?: { ide?: string; openMyZsh?: string; mdFolders?: string[] } // commands + md filter folders
-  projects?: SavedCatalogProject[] // catalog projects (tree)
+  projects?: SavedCatalogProject[] // legacy catalog; migrated into `tree` on load
   environments?: string[] // global environment names (dev/local/production)
   // saved ssh hosts (action menu → My SSH connections); password is plaintext
   sshConnections?: {
@@ -157,6 +178,9 @@ export interface SavedState {
   explorerRoot?: string // file explorer root path
   explorerExclude?: string[] // names hidden in the file explorer
   linkedFiles?: { path: string; name: string }[] // external files linked into the notebook
+  notebookColors?: Record<string, string> // notebook node path -> color tag
+  // legacy time-tracking features (had a projectPath); migrated onto the
+  // matching ProjectNode.features[] on load.
   features?: { id: string; projectPath: string; name: string }[]
   timeEntries?: {
     id: string
@@ -241,6 +265,19 @@ export interface DbObjects {
   error?: string
 }
 
+export interface DbColumn {
+  name: string
+  type: string
+  nullable: boolean
+  isPrimary: boolean
+  isAutoIncrement: boolean
+  hasDefault: boolean
+}
+export interface DbColumns {
+  columns: DbColumn[]
+  error?: string
+}
+
 export interface CraftermApi {
   createPty(opts: { cwd?: string; env?: Record<string, string>; shell?: string }): Promise<string>
   input(id: string, data: string): void
@@ -269,7 +306,14 @@ export interface CraftermApi {
   }>
   ideOpen(path: string, ide: string): void
   listPlans(): Promise<DirEntry[]>
-  plansForBranch(cwd: string, branch: string): Promise<{ name: string; path: string }[]>
+  plansForBranch(
+    cwd: string,
+    branch: string
+  ): Promise<{ name: string; path: string; ownerStableId: string | null }[]>
+  // Subscribe to plan-folder changes detected by the main-process fs.watch. The
+  // payload is the absolute plans directory that changed; the renderer should
+  // refresh the plan list of every pane whose cwd resolves to that dir.
+  onPlansChanged(cb: (plansDir: string) => void): () => void
   openMarkdown(path: string): void
   listWorktrees(cwd?: string): Promise<WorktreeListing>
   nbTree(): Promise<NbNode[]>
@@ -278,6 +322,7 @@ export interface CraftermApi {
   nbMkdir(path: string): Promise<boolean>
   nbCreate(path: string): Promise<boolean>
   nbRename(path: string, name: string): Promise<boolean>
+  nbMove(src: string, destDir: string): Promise<boolean>
   nbDelete(path: string): Promise<boolean>
   nbReveal(path: string): void
   openPath(path: string): void
@@ -300,13 +345,14 @@ export interface CraftermApi {
   zshCommands(): Promise<{ name: string; value: string }[]>
   dbConnect(config: DbConfig): Promise<{ ok: boolean; error?: string }>
   dbObjects(config: DbConfig): Promise<DbObjects>
+  dbColumns(config: DbConfig, table: string): Promise<DbColumns>
   dbQuery(config: DbConfig, sql: string): Promise<DbResult>
   dbDisconnect(id: string): Promise<boolean>
   dbqList(connId: string): Promise<{ name: string; path: string }[]>
   dbqRead(connId: string, name: string): Promise<string>
   dbqWrite(connId: string, name: string, sql: string): Promise<boolean>
   dbqDelete(connId: string, name: string): Promise<boolean>
-  deployBuild(repoPath: string): Promise<{ ok: boolean; error?: string }>
+  deployBuild(repoPath: string, command: string): Promise<{ ok: boolean; error?: string }>
   deploySwap(repoPath: string): Promise<boolean>
   deployWasUpdating(): Promise<boolean>
 }

@@ -83,6 +83,37 @@ function splitOrder(text: string): { num: string | null; body: string } {
   return { num: null, body: text }
 }
 
+// Open a read-only detail modal that shows a single backlog/ready/done entry
+// in full — used when a one-line row gets truncated and the user needs to
+// read the whole thing.
+function showDetail(fullText: string): void {
+  const overlay = document.createElement('div')
+  overlay.className = 'modal-overlay'
+  const modal = document.createElement('div')
+  modal.className = 'modal improve-detail-modal'
+  overlay.appendChild(modal)
+  const close = (): void => {
+    document.removeEventListener('keydown', onKey, true)
+    overlay.remove()
+  }
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') close()
+  }
+  overlay.addEventListener('mousedown', (e) => {
+    if (e.target === overlay) close()
+  })
+  document.addEventListener('keydown', onKey, true)
+  modal.appendChild(makeCloseButton(close))
+  const h = document.createElement('h2')
+  h.textContent = 'Item detail'
+  modal.appendChild(h)
+  const body = document.createElement('div')
+  body.className = 'improve-detail-body'
+  body.textContent = fullText
+  modal.appendChild(body)
+  document.body.appendChild(overlay)
+}
+
 // ---- Improve Crafterm panel -----------------------------------------
 
 export async function showImproveModal(): Promise<void> {
@@ -106,6 +137,18 @@ export async function showImproveModal(): Promise<void> {
       e.preventDefault()
       e.stopPropagation()
       openFeatureForm()
+      return
+    }
+    // Cmd/Ctrl+1/2/3 switch between Todo / Ready to test / Done tabs.
+    if (e.metaKey || e.ctrlKey) {
+      const map: Record<string, 'todo' | 'ready' | 'done'> = { '1': 'todo', '2': 'ready', '3': 'done' }
+      const next = map[e.key]
+      if (next) {
+        e.preventDefault()
+        e.stopPropagation()
+        activeTab = next
+        render()
+      }
     }
   }
   overlay.addEventListener('mousedown', (e) => {
@@ -178,6 +221,20 @@ export async function showImproveModal(): Promise<void> {
   const cols = document.createElement('div')
   cols.className = 'improve-cols'
   modal.appendChild(cols)
+
+  // Footer status bar: show the path of the todo file so the user can see
+  // which file is being edited (and copy it out if needed).
+  const foot = document.createElement('div')
+  foot.className = 'improve-foot'
+  const footLabel = document.createElement('span')
+  footLabel.className = 'improve-foot-label'
+  footLabel.textContent = 'todo file'
+  const footPath = document.createElement('span')
+  footPath.className = 'improve-foot-path'
+  footPath.textContent = settings.todoFile
+  footPath.title = settings.todoFile
+  foot.append(footLabel, footPath)
+  modal.appendChild(foot)
 
   const save = (): Promise<boolean> => window.crafterm.todoWrite(settings.todoFile, serializeTodo(doc))
 
@@ -260,6 +317,11 @@ export async function showImproveModal(): Promise<void> {
       text.appendChild(badge)
     }
     text.appendChild(document.createTextNode(body))
+    text.title = 'Click to read full text'
+    text.addEventListener('click', (e) => {
+      e.stopPropagation()
+      showDetail(entry.text)
+    })
 
     const acts = document.createElement('div')
     acts.className = 'improve-item-actions'

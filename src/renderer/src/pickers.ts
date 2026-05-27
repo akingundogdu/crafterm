@@ -1,5 +1,5 @@
 import type { DirEntry } from '../../preload/api'
-import type { SshConnection, Project, Application } from './types'
+import type { SshConnection, ProjectNode, Application } from './types'
 import { settings, commandHistory, panes, state, saveSoon, persistNow, uid } from './state'
 import {
   openTerminalInDir,
@@ -518,14 +518,14 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
       openTab: () => void newTab(parentFolderId),
       openSplit: () => void splitActivePane('row')
     },
-    ...flattenProjects(settings.projects).map((p) => ({
+    ...flattenProjects(state.tree).map((p) => ({
       label: p.name,
       sub: p.command ? `${p.path} · ${p.command}` : p.path,
       openTab: () => void openProject(p, parentFolderId),
       openSplit: () => void splitProjectRight(p)
     })),
     // run-apps entries for projects that define applications
-    ...flattenProjects(settings.projects)
+    ...flattenProjects(state.tree)
       .filter((p) => p.apps?.length)
       .map((p) => ({
         label: `▷ ${p.name} — run apps`,
@@ -870,7 +870,7 @@ export async function showAllMarkdown(): Promise<void> {
 // ---- Run applications: pick environment + apps, open a tiled tab ----
 
 // Modal for one project: choose an environment, tick apps, run them together.
-export function showRunApps(project: Project): void {
+export function showRunApps(project: ProjectNode): void {
   const apps = project.apps ?? []
   const { modal, close } = overlayModal('picker-modal')
   const h = document.createElement('h2')
@@ -954,8 +954,8 @@ export function showRunApps(project: Project): void {
 
 // Pick a project that has applications, then open its run modal.
 // Shared: pick a project that has applications, then run `onPick`.
-function pickProjectWithApps(title: string, onPick: (p: Project) => void): void {
-  const projects = flattenProjects(settings.projects).filter((p) => p.apps?.length)
+function pickProjectWithApps(title: string, onPick: (p: ProjectNode) => void): void {
+  const projects = flattenProjects(state.tree).filter((p) => p.apps?.length)
   const { modal, close } = overlayModal('picker-modal')
   const h = document.createElement('h2')
   h.textContent = title
@@ -972,11 +972,11 @@ function pickProjectWithApps(title: string, onPick: (p: Project) => void): void 
   list.className = 'pick-list picker-list'
   modal.append(h, input, list)
   let sel = 0
-  const filtered = (): Project[] => {
+  const filtered = (): ProjectNode[] => {
     const q = input.value.trim().toLowerCase()
     return q ? projects.filter((p) => `${p.name} ${p.path}`.toLowerCase().includes(q)) : projects
   }
-  const choose = (p: Project): void => {
+  const choose = (p: ProjectNode): void => {
     close()
     onPick(p)
   }
@@ -1041,7 +1041,7 @@ export function showFeaturePicker(): void {
 
 const sanitizeBranch = (s: string): string => s.trim().replace(/\s+/g, '-')
 
-export function showFeatureSetup(project: Project): void {
+export function showFeatureSetup(project: ProjectNode): void {
   const apps = project.apps ?? []
   const { modal, close } = overlayModal('picker-modal')
   const h = document.createElement('h2')
@@ -1996,7 +1996,36 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   const { modal, close } = overlayModal('picker-modal')
 
   const h = document.createElement('h2')
-  h.textContent = 'Checkout branch'
+  h.textContent = 'Branch'
+  modal.append(h)
+
+  // Quick chips: fire common git commands into the pane without leaving the modal.
+  const actions = document.createElement('div')
+  actions.className = 'git-quick-actions'
+  const runInPane = (cmd: string): void => {
+    selectPane(paneId)
+    window.crafterm.input(paneId, cmd + '\r')
+    close()
+  }
+  const addChip = (label: string, cmd: string, title: string): void => {
+    const b = document.createElement('button')
+    b.className = 'git-quick-chip'
+    b.type = 'button'
+    b.textContent = label
+    b.title = title
+    b.addEventListener('click', () => runInPane(cmd))
+    actions.appendChild(b)
+  }
+  addChip('Fetch', 'git fetch --all --prune', 'git fetch --all --prune')
+  addChip('Pull', 'git pull', 'git pull')
+  addChip('Status', 'git status', 'git status')
+  modal.append(actions)
+
+  const sub = document.createElement('div')
+  sub.className = 'git-quick-sub'
+  sub.textContent = 'Checkout'
+  modal.append(sub)
+
   const input = document.createElement('input')
   input.className = 'picker-input'
   input.type = 'text'
@@ -2004,7 +2033,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   input.spellcheck = false
   const list = document.createElement('div')
   list.className = 'pick-list picker-list'
-  modal.append(h, input, list)
+  modal.append(input, list)
 
   if (!branches.length) {
     list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No branches (not a git repo?)</div>')
@@ -2150,7 +2179,8 @@ export async function runUpdate(): Promise<void> {
 
   // Build the new bundle (runs in main; can take a while).
   const s2 = step('Building new bundle…')
-  const res = await window.crafterm.deployBuild(repo)
+  const cmd = settings.updateCommand.trim() || 'run-crafterm-deploy'
+  const res = await window.crafterm.deployBuild(repo, cmd)
   if (!res.ok) {
     s2.fail(res.error || 'Build failed. See ~/.crafterm/deploy.log for details.')
     return

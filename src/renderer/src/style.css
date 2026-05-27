@@ -232,394 +232,15 @@ body {
   background-clip: padding-box;
 }
 
-/* ---- Section labels ---- */
-.section-label {
-  font-size: 0.77em;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  padding: 10px 14px 4px;
-}
-.section-label.group-header.drag-over {
-  background: var(--accent-soft);
-  color: var(--text);
-  border-radius: 6px;
-  outline: 1px dashed var(--accent);
-}
-.section-sep {
-  height: 1px;
-  background: var(--border);
-  margin: 7px 12px 5px;
-}
+/* Tree row visuals (.section-label, .tab-item, guides, .tri, .folder-icon,
+   .tab-title, drag indicators, .rename-input) live in treeview.css — the shared
+   TreeView component stylesheet. Terminal-specific slot styles stay here. */
 
-/* ---- Rows (tabs + folders) ---- */
-.tab-item {
-  position: relative;
-  margin: 1px 6px;
-  padding: 6px 10px 6px 14px;
-  border-radius: var(--row-radius);
-  color: var(--text-dim);
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.13s ease;
-}
-.orient-top .tab-item {
-  margin: 0;
-  min-width: 172px;
-  max-width: 220px;
-}
-
-/* left accent bar */
-.tab-item::before {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 7px;
-  bottom: 7px;
-  width: 2.5px;
-  border-radius: 2px;
-  background: transparent;
-  transition: background 0.15s ease;
-}
-
-.tab-item.has-color {
-  background: var(--row-tint);
-}
-.tab-item.has-color::before {
-  background: var(--row-color);
-}
-
-.tab-item:hover:not(.active) {
-  background: var(--row-hover);
-}
-
-.tab-item.active {
-  background: var(--accent-soft);
-  color: var(--text);
-}
-.tab-item.active::before {
-  background: var(--accent);
-}
-.tab-item.active.has-color::before {
-  background: var(--row-color);
-}
-
-/* selection context (e.g. clicked folder) — where the next new terminal lands */
-.tab-item.selected:not(.active) {
-  background: var(--row-hover);
-  box-shadow: inset 0 0 0 1px var(--accent-soft);
-}
-
-.tab-item.folder {
-  color: var(--text);
-}
-
-/* ---- Tree guide lines (parent → child) ---- */
-.row-guides {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-/* continuing vertical line for an ancestor with siblings below */
-.guide-line {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 1px;
-  background: var(--guide-line);
-}
-/* elbow into this row: vertical stem + horizontal connector */
-.guide-elbow {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 11px;
-}
-.guide-elbow::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--guide-line);
-}
-.guide-elbow.last::before {
-  bottom: auto;
-  height: 17px;
-}
-.guide-elbow::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 17px;
-  width: 11px;
-  height: 1px;
-  background: var(--guide-line);
-}
-
-.tab-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Disclosure chevron (crisp SVG, rotates on expand) */
-.tri {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  min-width: 15px;
-  height: 15px;
-  margin-left: -2px;
-  color: var(--text-dim);
-  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease;
-}
-.tri svg {
-  display: block;
-}
-.tri.expanded {
-  transform: rotate(90deg);
-}
-.tab-item:hover .tri,
-.tab-item.active .tri {
-  color: var(--text);
-}
-
-/* Folder glyph on group rows */
-.folder-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  min-width: 14px;
-  height: 14px;
-  color: var(--text-mute);
-}
-.folder-icon svg {
-  display: block;
-}
-.folder-icon.project-icon {
-  color: var(--accent);
-}
-.tab-item.folder.has-color .folder-icon {
-  color: var(--row-color);
-}
-.tab-item.folder:hover .folder-icon,
-.tab-item.folder.active .folder-icon {
-  color: var(--text-dim);
-}
-
-/* Status indicator: idle = hollow ring, running/attention = filled + glow */
-.status-dot {
-  width: 9px;
-  height: 9px;
-  min-width: 9px;
-  border-radius: 50%;
-  background: transparent;
-  box-shadow: inset 0 0 0 1.6px #525b6a;
-  transition: background 0.2s ease, box-shadow 0.2s ease;
-}
-.status-dot.idle {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.6px #525b6a;
-}
-.tab-item:hover .status-dot.idle {
-  box-shadow: inset 0 0 0 1.6px #6b7280;
-}
-.status-dot.running {
-  background: var(--green);
-  box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.25), 0 0 8px rgba(63, 185, 80, 0.55);
-}
-.status-dot.attention {
-  background: var(--amber);
-  box-shadow: 0 0 0 1px rgba(227, 179, 65, 0.3), 0 0 8px rgba(227, 179, 65, 0.6);
-  animation: pulse 1.6s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(227, 179, 65, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 8px 2px rgba(227, 179, 65, 0.55);
-  }
-}
-
-.tab-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 1em;
-  font-weight: 450;
-  letter-spacing: -0.006em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tab-item.active .tab-title {
-  color: #fff;
-}
-.tab-item.folder .tab-title {
-  font-weight: 560;
-  letter-spacing: -0.01em;
-}
-
-.tab-sub {
-  font-size: 0.85em;
-  color: var(--text-mute);
-  padding-left: 15px;
-  margin-top: 1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* per-pane (running app) sub-rows under an expanded terminal node */
-.tab-panes {
-  margin-top: 2px;
-  padding-left: 15px;
-}
-.tab-pane-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85em;
-  color: var(--text-dim);
-}
-.tab-pane-row:hover {
-  background: var(--row-hover);
-  color: var(--text);
-}
-.tab-pane-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* plan-file sub-rows under a terminal node (branch-matched docs/plans) */
-.tab-plans {
-  padding-left: 15px;
-  margin-top: 1px;
-}
-.tab-plan-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.82em;
-  color: var(--text-mute);
-}
-.tab-plan-row:hover {
-  background: var(--row-hover);
-  color: var(--text);
-}
-.tab-plan-icon {
-  display: inline-flex;
-  color: var(--text-faint);
-}
-.tab-plan-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Group breadcrumb (Pinned section: which group a terminal lives in) */
-.tab-crumb {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.77em;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-  margin-bottom: 3px;
-  overflow: hidden;
-}
-.crumb-dot {
-  width: 6px;
-  height: 6px;
-  min-width: 6px;
-  border-radius: 50%;
-  background: var(--text-faint);
-}
-.crumb-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tab-item.active .tab-crumb {
-  color: var(--text-dim);
-}
-
-.tab-badge {
-  font-size: 0.84em;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-mute);
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 9px;
-  padding: 1px 7px;
-  min-width: 20px;
-  text-align: center;
-}
-.tab-item.active .tab-badge {
-  color: var(--text-dim);
-}
-
-/* per-row order number (Cmd+1..9 for the first nine) */
-.order-num {
-  font-size: 0.77em;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
-  min-width: 12px;
-  text-align: right;
-  opacity: 0.65;
-}
-.order-num.shortcut {
-  color: var(--text-mute);
-  opacity: 1;
-}
-.tab-item.active .order-num {
-  color: var(--text-dim);
-}
+/* Terminal sidebar slot styles (.status-dot, .tab-sub, .tab-panes, .tab-plans,
+   .tab-crumb, .tab-badge, .order-num, .pin-badge) moved to sidebar.css
+   (imported by sidebar.ts). */
 
 #tab-list:focus {
-  outline: none;
-}
-
-.pin-badge {
-  color: var(--amber);
-  font-size: 9px;
-  line-height: 1;
-}
-
-/* Drag indicators */
-.tab-item.drag-before {
-  box-shadow: inset 0 2px 0 0 var(--accent);
-}
-.tab-item.drag-after {
-  box-shadow: inset 0 -2px 0 0 var(--accent);
-}
-.tab-item.drag-into {
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.rename-input {
-  flex: 1;
-  min-width: 0;
-  background: var(--bg-term);
-  border: 1px solid var(--accent);
-  border-radius: 5px;
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  padding: 1px 5px;
   outline: none;
 }
 
@@ -667,111 +288,7 @@ body {
   display: flex;
 }
 
-/* ---- Notebook tree ---- */
-/* Rows must lay out exactly like the terminal list: direct flex children of
-   #tab-list so vertical margins don't collapse (matches row spacing/height). */
-.nb-tree {
-  display: contents;
-}
-/* "Linked files" group at the top of the notebook tree */
-.nb-linked {
-  margin-bottom: 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-}
-.nb-linked-head {
-  padding: 2px 10px 4px;
-  font-size: 9.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-mute);
-}
-.nb-linked-row {
-  padding-left: 10px;
-}
-.nb-toolbar {
-  display: flex;
-  gap: 6px;
-  padding: 4px 8px 8px;
-}
-.nb-tool {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 6px;
-  font-size: 11px;
-  padding: 4px;
-  cursor: pointer;
-}
-.nb-tool:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.08);
-}
-.nb-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 8px;
-  margin: 0 4px;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--text-dim);
-  font-size: 13px;
-}
-.nb-row:hover {
-  background: var(--row-hover);
-  color: var(--text);
-}
-.nb-row.active {
-  background: var(--accent-soft);
-  color: var(--text);
-}
-.nb-icon {
-  display: inline-flex;
-  color: var(--text-mute);
-}
-.nb-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Hover actions float over the row's right edge (absolute + opacity) so
-   revealing them never reflows the row — prevents hover jitter. */
-.nb-actions {
-  position: absolute;
-  right: 5px;
-  top: 1px;
-  bottom: 1px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding-left: 16px;
-  opacity: 0;
-  pointer-events: none;
-  border-radius: 0 var(--row-radius) var(--row-radius) 0;
-  background: linear-gradient(to right, transparent, var(--sidebar-bg) 16px);
-  transition: opacity 0.1s ease;
-}
-.tab-item:hover .nb-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-.nb-act {
-  background: transparent;
-  border: none;
-  color: var(--text-mute);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-.nb-act:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.1);
-}
+/* Notebook tree styles moved to notebook.css (imported by notebook.ts). */
 
 /* ---- Markdown (notebook) doc pane — prose-style typography ---- */
 .doc-preview {
@@ -1246,16 +763,18 @@ body {
 }
 .notif-card {
   position: relative;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 9px 10px;
+  border-radius: 10px;
+  padding: 11px 12px 10px;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
 }
 .notif-card:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.065);
   border-color: var(--accent);
+  transform: translateY(-1px);
 }
 /* State-based accent: a colored left edge + faint tint per notification kind. */
 .notif-card.notif-question {
@@ -1284,26 +803,29 @@ body {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 3px;
-  padding-right: 16px;
+  margin-bottom: 4px;
+  padding-right: 18px;
 }
 .notif-card-title {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 .notif-card-time {
   flex: 0 0 auto;
   font-size: 10px;
   color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 .notif-card-msg {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-dim);
   word-break: break-word;
+  line-height: 1.45;
 }
 .notif-card-close {
   position: absolute;
@@ -1321,10 +843,88 @@ body {
   color: var(--text);
 }
 .notif-card-detail {
-  margin-top: 4px;
-  font-size: 10.5px;
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.notif-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notif-chip-project {
+  background: rgba(125, 200, 255, 0.1);
+  border-color: rgba(125, 200, 255, 0.25);
+  color: #9ed1ff;
+}
+.notif-chip-branch::before {
+  content: '⎇';
+  font-size: 11px;
+  opacity: 0.85;
+}
+.notif-chip-branch {
+  background: rgba(168, 138, 255, 0.1);
+  border-color: rgba(168, 138, 255, 0.25);
+  color: #c7b3ff;
+}
+.notif-chip-worktree::before {
+  content: '⌥';
+  font-size: 10px;
+  opacity: 0.7;
+}
+.notif-chip-worktree {
+  background: rgba(255, 196, 130, 0.08);
+  border-color: rgba(255, 196, 130, 0.22);
+  color: #ffd49a;
+}
+.notif-chip-cwd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
   color: var(--text-faint);
-  word-break: break-word;
+}
+
+/* branch picker quick actions (fetch / pull / status chips) */
+.git-quick-actions {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 12px;
+  flex-wrap: wrap;
+}
+.git-quick-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-strong, var(--border));
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.git-quick-chip:hover {
+  background: rgba(125, 200, 255, 0.12);
+  border-color: var(--accent, #58a6ff);
+  color: var(--text);
+}
+.git-quick-sub {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+  margin: 0 0 6px;
 }
 /* section header inside the reminders / notifications list (e.g. "Past reminders") */
 .notif-section {
@@ -1953,6 +1553,35 @@ body.dragging-pane .pane-term {
   margin: 0;
   flex: 0 0 auto;
 }
+.improve-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-mute);
+  font-family: var(--mono, Menlo, monospace);
+  min-width: 0;
+}
+.improve-foot-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 9px;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+.improve-foot-path {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+}
 .improve-form {
   margin-top: 12px;
 }
@@ -2114,7 +1743,27 @@ body.dragging-pane .pane-term {
 .improve-item-text {
   min-width: 0;
   flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.improve-item-text:hover {
+  color: var(--accent, #58a6ff);
+}
+.improve-detail-modal {
+  max-width: min(720px, 90vw);
+  width: 720px;
+}
+.improve-detail-body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
   word-break: break-word;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 4px 2px;
 }
 .improve-badge {
   display: inline-block;
@@ -2945,331 +2594,8 @@ body.dragging-pane .pane-term {
   color: var(--accent);
 }
 
-/* ---- Database tool ---- */
-/* per-engine accents */
-.db-eng-postgres {
-  --db-accent: #5a9fd4;
-}
-.db-eng-mysql {
-  --db-accent: #e0a45e;
-}
-.db-eng-sqlite {
-  --db-accent: #6cc0a8;
-}
-.db-icon {
-  color: var(--db-accent, var(--accent));
-}
-.db-section-icon,
-.db-obj-icon {
-  color: var(--text-faint);
-}
-.db-section {
-  font-size: 0.92em;
-  color: var(--text-dim);
-  font-weight: 500;
-}
-.db-muted {
-  color: var(--text-faint);
-}
-.db-error {
-  color: #ff7b72;
-  font-size: 12px;
-  word-break: break-word;
-}
+/* Database tool styles moved to database.css (imported by database.ts). */
 
-/* engine pill on a connection row */
-.db-eng-pill {
-  flex: 0 0 auto;
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 1px 5px;
-  border-radius: 4px;
-  color: var(--db-accent, var(--accent));
-  background: color-mix(in srgb, var(--db-accent, var(--accent)) 16%, transparent);
-  margin-left: 2px;
-}
-/* object count pill in a section row */
-.db-count-pill {
-  flex: 0 0 auto;
-  font-size: 9.5px;
-  font-weight: 600;
-  color: var(--text-faint);
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
-  padding: 0 6px;
-  margin-left: auto;
-}
-.db-obj-row .tab-title {
-  font-size: 0.92em;
-}
-.db-obj-run {
-  flex: 0 0 auto;
-  display: none;
-  margin-left: auto;
-  color: var(--text-faint);
-}
-.db-obj-row:hover .db-obj-run {
-  display: inline-flex;
-}
-.db-obj-row:hover .db-obj-run:hover {
-  color: var(--accent);
-}
-
-.db-queries {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-.db-queries-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2px 10px 5px;
-  font-size: 9.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-mute);
-}
-.db-query-row .tab-row {
-  font-size: 0.92em;
-}
-
-/* segmented engine selector (connection form) */
-.db-seg {
-  display: flex;
-  gap: 6px;
-  margin-top: 2px;
-}
-.db-seg-btn {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-strong);
-  color: var(--text-mute);
-  border-radius: 8px;
-  padding: 7px 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-.db-seg-btn:hover {
-  color: var(--text);
-}
-.db-seg-btn.active {
-  color: var(--text);
-  border-color: var(--db-accent, var(--accent));
-  background: color-mix(in srgb, var(--db-accent, var(--accent)) 14%, transparent);
-  box-shadow: inset 0 0 0 1px var(--db-accent, var(--accent));
-}
-
-/* connection form */
-.db-conn-modal {
-  width: 460px;
-  max-width: 94vw;
-}
-.db-conn-status {
-  margin-top: 12px;
-  font-size: 12px;
-  min-height: 16px;
-  color: var(--text-mute);
-}
-.db-conn-status.ok {
-  color: #3fb950;
-}
-.db-conn-status.err {
-  color: #ff7b72;
-}
-
-/* query editor (SQL workbench) */
-.db-query-modal {
-  width: min(1180px, 95vw);
-  height: min(800px, 90vh);
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-}
-.db-query-bar {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-  margin-bottom: 10px;
-}
-.db-conn-select {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-.db-conn-dot {
-  position: absolute;
-  left: 11px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--db-accent, var(--text-faint));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--db-accent, transparent) 70%, transparent);
-  pointer-events: none;
-}
-.db-conn-select .settings-select {
-  flex: 1;
-  min-width: 0;
-  padding-left: 26px;
-}
-.db-run-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px;
-  font-weight: 600;
-}
-.db-run-btn kbd {
-  font-size: 9px;
-  font-weight: 600;
-  opacity: 0.8;
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 4px;
-  padding: 1px 4px;
-}
-.db-save-btn {
-  padding: 0 12px;
-}
-.db-query-editor {
-  flex: 0 0 38%;
-  min-height: 120px;
-  box-sizing: border-box;
-  background: var(--bg-term);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  overflow: hidden;
-}
-.db-query-editor:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-.db-query-editor .cm-editor {
-  height: 100%;
-}
-.db-result {
-  flex: 1;
-  min-height: 0;
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.db-result-empty,
-.db-result-error {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-faint);
-  font-size: 13px;
-  text-align: center;
-  padding: 20px;
-}
-.db-result-error {
-  color: #ff7b72;
-  font-family: var(--mono, Menlo, monospace);
-  font-size: 12px;
-  word-break: break-word;
-  align-items: flex-start;
-  justify-content: flex-start;
-  white-space: pre-wrap;
-}
-.db-ok-badge {
-  background: rgba(63, 185, 80, 0.16);
-  color: #3fb950;
-  border-radius: 5px;
-  padding: 1px 7px;
-  font-weight: 600;
-  margin-right: 6px;
-}
-.db-result-status {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-mute);
-  margin-bottom: 6px;
-}
-.db-result-rows {
-  font-weight: 600;
-  color: var(--text-dim);
-}
-.db-result-ms {
-  margin-left: auto;
-  color: var(--text-faint);
-}
-.db-grid-wrap {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.db-grid {
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 12px;
-  font-family: var(--mono, Menlo, monospace);
-  width: max-content;
-  min-width: 100%;
-}
-.db-grid th,
-.db-grid td {
-  border-bottom: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  padding: 5px 10px;
-  text-align: left;
-  white-space: nowrap;
-  max-width: 400px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.db-grid th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--bg);
-  color: var(--text);
-  font-weight: 600;
-  font-family: inherit;
-}
-.db-grid tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.018);
-}
-.db-grid tbody tr:hover {
-  background: var(--accent-soft);
-}
-.db-grid td {
-  color: var(--text-dim);
-}
-.db-grid td.db-num {
-  text-align: right;
-  color: var(--text);
-}
-.db-grid td.db-null {
-  color: var(--text-faint);
-  font-style: italic;
-}
-.db-grid .db-grid-rownum {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  background: var(--bg);
-  color: var(--text-faint);
-  text-align: right;
-  font-weight: 600;
-  user-select: none;
-}
-.db-grid th.db-grid-rownum {
-  z-index: 2;
-}
 .shortcuts-list {
   display: flex;
   flex-direction: column;
@@ -3758,6 +3084,30 @@ body.dragging-pane .pane-term {
   font-size: 11px;
   color: var(--text-faint);
   padding: 2px 8px;
+}
+.explorer-search {
+  flex: 0 0 auto;
+  margin: 6px 8px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+.explorer-search:focus {
+  border-color: var(--accent, #4a9eff);
+}
+.explorer-sub {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+  padding-left: 8px;
 }
 
 /* time tracking (right panel → Time tab) */

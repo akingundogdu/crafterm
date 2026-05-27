@@ -178,3 +178,9 @@ framework is a new dependency — propose it and get approval first.
 - Use the `<git-branch-name>-<plan-slug>.md` naming format. Ask the user for the
   branch name and the plan slug before writing the file; do not auto-generate
   either.
+- **When running inside a Crafterm terminal**, the filename **must** include the
+  pane suffix so the sidebar attributes the plan to the producing session:
+  `<git-branch-name>-<plan-slug>--pane-${CRAFTERM_PANE_ID}.md`. The env var is
+  injected by Crafterm at pty spawn (`echo $CRAFTERM_PANE_ID` to confirm). A
+  plan written without this suffix is **ignored by the sidebar** — it will not
+  appear under any pane.

@@ -7,6 +7,9 @@ function treeEl(): HTMLElement {
 function rootEl(): HTMLElement {
   return document.getElementById('explorer-root')!
 }
+function searchEl(): HTMLInputElement {
+  return document.getElementById('explorer-search') as HTMLInputElement
+}
 
 // Root: the Settings value, else the active terminal's cwd.
 function explorerRoot(): string {
@@ -109,6 +112,35 @@ async function renderInto(path: string, container: HTMLElement, depth: number): 
   for (const e of visible) container.appendChild(buildRow(e, depth))
 }
 
+// Flat "search results" view: contains-match on file/dir name across the root.
+async function renderSearch(root: string, query: string): Promise<void> {
+  const el = treeEl()
+  el.replaceChildren()
+  const q = query.toLowerCase()
+  const res = await window.crafterm.findFiles(root, settings.explorerExclude)
+  const matches = res.files.filter((f) => f.name.toLowerCase().includes(q)).slice(0, 500)
+  if (!matches.length) {
+    el.insertAdjacentHTML('beforeend', '<div class="explorer-empty" style="padding-left:6px">no matches</div>')
+    return
+  }
+  for (const m of matches) {
+    const row = document.createElement('div')
+    row.className = 'explorer-row file'
+    row.style.paddingLeft = '6px'
+    const tri = document.createElement('span')
+    tri.className = 'explorer-tri'
+    const name = document.createElement('span')
+    name.className = 'explorer-name'
+    name.textContent = m.name
+    const sub = document.createElement('span')
+    sub.className = 'explorer-sub'
+    sub.textContent = shortPath(m.path.replace(/\/[^/]+$/, ''))
+    row.append(tri, name, sub)
+    row.addEventListener('click', () => openFile(m.path))
+    el.appendChild(row)
+  }
+}
+
 export async function renderExplorer(): Promise<void> {
   const root = explorerRoot()
   rootEl().textContent = root ? shortPath(root) : ''
@@ -122,9 +154,21 @@ export async function renderExplorer(): Promise<void> {
     )
     return
   }
+  const q = (searchEl()?.value ?? '').trim()
+  if (q) {
+    await renderSearch(root, q)
+    return
+  }
   await renderInto(root, el, 0)
 }
 
 export function initExplorer(): void {
   document.getElementById('explorer-refresh')!.addEventListener('click', () => void renderExplorer())
+  // Debounced search: every keystroke schedules a re-render; cancel pending.
+  let timer: number | null = null
+  searchEl()?.addEventListener('input', () => {
+    if (timer) clearTimeout(timer)
+    timer = window.setTimeout(() => void renderExplorer(), 200)
+  })
+  searchEl()?.addEventListener('keydown', (e) => e.stopPropagation())
 }

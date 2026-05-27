@@ -127,17 +127,26 @@ export function renderNotifications(): void {
 
     card.append(close, top, msg)
 
-    // Detail line: where the notification came from — folder crumb + git/cwd,
-    // mirroring the detail the sidebar shows when a terminal is pinned.
-    const detailParts: string[] = []
-    if (n.group) detailParts.push(n.group)
-    if (n.branch) detailParts.push('⎇ ' + n.branch)
-    if (n.worktree && n.worktree !== n.branch) detailParts.push(n.worktree)
-    if (n.cwd) detailParts.push(pathTail(n.cwd))
-    if (detailParts.length) {
+    // Detail line: rendered as small categorical chips so the source info
+    // (project · branch · worktree · cwd) reads at a glance instead of a
+    // long bullet-separated string.
+    const chips: { cls: string; text: string; title?: string }[] = []
+    if (n.group) chips.push({ cls: 'project', text: n.group, title: n.group })
+    if (n.branch) chips.push({ cls: 'branch', text: n.branch, title: 'branch: ' + n.branch })
+    if (n.worktree && n.worktree !== n.branch) {
+      chips.push({ cls: 'worktree', text: n.worktree, title: 'worktree: ' + n.worktree })
+    }
+    if (n.cwd) chips.push({ cls: 'cwd', text: pathTail(n.cwd), title: n.cwd })
+    if (chips.length) {
       const detail = document.createElement('div')
       detail.className = 'notif-card-detail'
-      detail.textContent = detailParts.join(' · ')
+      for (const c of chips) {
+        const el = document.createElement('span')
+        el.className = 'notif-chip notif-chip-' + c.cls
+        el.textContent = c.text
+        if (c.title) el.title = c.title
+        detail.appendChild(el)
+      }
       card.append(detail)
     }
 

@@ -13,8 +13,11 @@ import {
   statSync,
   openSync,
   readSync,
-  closeSync
+  closeSync,
+  watch as fsWatch,
+  type FSWatcher
 } from 'fs'
+import { parsePlanFilename } from './planFilename'
 import { execFile, spawn } from 'child_process'
 import * as pty from 'node-pty'
 import { registerDbIpc } from './db'
@@ -102,7 +105,10 @@ ipcMain.handle(
     let cwd = opts?.cwd || homedir()
     if (cwd.startsWith('~')) cwd = join(homedir(), cwd.slice(1))
     if (!existsSync(cwd)) cwd = homedir() // fall back if the saved path is gone
+    // Renderer-supplied env wins over the inherited environment so that
+    // CRAFTERM_PANE_ID always reflects the pane that owns this PTY.
     const env = { ...process.env, ...(opts?.env ?? {}) }
+    if (opts?.env?.CRAFTERM_PANE_ID) env.CRAFTERM_PANE_ID = opts.env.CRAFTERM_PANE_ID
     const p = pty.spawn(shell, ['-l'], {
       name: 'xterm-256color',
       cols: 80,
@@ -481,24 +487,67 @@ ipcMain.handle('plans:list', () => {
   }
 })
 
-// Plan files for a terminal: <repo>/docs/plans entries named "<branch>-*.md"
-// (matching the "<git-branch-name>-<plan-slug>.md" convention). Slashes in the
-// branch are also matched as dashes, since filenames can't contain "/".
+// Live watchers per plans directory; each fires `plans:changed` so the
+// renderer can re-fetch without waiting on its 4-second polling loop.
+const plansWatchers = new Map<string, FSWatcher>()
+const plansBroadcastTimers = new Map<string, NodeJS.Timeout>()
+
+function broadcastPlansChanged(plansDir: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+      win.webContents.send('plans:changed', { plansDir })
+    }
+  }
+}
+
+function ensurePlansWatcher(plansDir: string): void {
+  if (plansWatchers.has(plansDir)) return
+  try {
+    mkdirSync(plansDir, { recursive: true })
+    const watcher = fsWatch(plansDir, { persistent: false }, () => {
+      // Debounce: a single rename/create can fire 2+ events on macOS.
+      const prev = plansBroadcastTimers.get(plansDir)
+      if (prev) clearTimeout(prev)
+      const t = setTimeout(() => {
+        plansBroadcastTimers.delete(plansDir)
+        broadcastPlansChanged(plansDir)
+      }, 150)
+      plansBroadcastTimers.set(plansDir, t)
+    })
+    watcher.on('error', () => {
+      watcher.close()
+      plansWatchers.delete(plansDir)
+    })
+    plansWatchers.set(plansDir, watcher)
+  } catch {
+    // ignore: the directory may not be creatable (read-only fs); we just skip live updates
+  }
+}
+
+// Plan files for a terminal: <repo>/docs/plans entries that match
+// "<branch>-<slug>--pane-<stableId>.<ext>". Files without the --pane-<uuid>
+// suffix are ignored — the sidebar only attributes plans to their producing
+// session. Slashes in the branch are matched as dashes since filenames can't
+// contain "/".
 ipcMain.handle('plans:forBranch', async (_e, { cwd, branch }: { cwd?: string; branch?: string }) => {
-  if (!cwd || !branch) return [] as { name: string; path: string }[]
+  type PlanRow = { name: string; path: string; ownerStableId: string | null }
+  if (!cwd || !branch) return [] as PlanRow[]
   let dir = cwd.trim()
   if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
   const root = await run(gitBin(), ['-C', dir, 'rev-parse', '--show-toplevel'])
-  if (!root) return []
+  if (!root) return [] as PlanRow[]
   const plansDir = join(root.trim(), 'docs', 'plans')
-  const prefixes = [branch + '-', branch.replace(/\//g, '-') + '-']
+  ensurePlansWatcher(plansDir)
   try {
-    return readdirSync(plansDir)
-      .filter((f) => /\.(md|mdx|mdc)$/i.test(f) && prefixes.some((p) => f.startsWith(p)))
-      .sort()
-      .map((f) => ({ name: f, path: join(plansDir, f) }))
+    const rows: PlanRow[] = []
+    for (const f of readdirSync(plansDir).sort()) {
+      const parsed = parsePlanFilename(f, branch)
+      if (!parsed || !parsed.ownerStableId) continue
+      rows.push({ name: f, path: join(plansDir, f), ownerStableId: parsed.ownerStableId })
+    }
+    return rows
   } catch {
-    return []
+    return [] as PlanRow[]
   }
 })
 
@@ -564,30 +613,34 @@ ipcMain.handle('dbq:delete', (_e, { connId, name }: { connId: string; name: stri
 // /Applications copy. The build runs here (app stays alive so the UI can show
 // progress); the swap + relaunch runs as a fully detached process so it
 // survives this app quitting.
-ipcMain.handle('deploy:build', async (_e, { repoPath }: { repoPath: string }) => {
-  const repo = repoPath?.trim()
-  if (!repo || !existsSync(join(repo, 'package.json'))) {
-    return { ok: false, error: 'Repo path is not a valid Crafterm checkout (no package.json).' }
-  }
-  const log = join(stateDir(), 'deploy.log')
-  return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
-    execFile(
-      '/bin/zsh',
-      ['-lic', `npm run build && npx electron-builder --dir > ${shq(log)} 2>&1`],
-      { cwd: repo },
-      (err) => {
-        if (!err) return resolve({ ok: true })
-        let tail = ''
-        try {
-          tail = readFileSync(log, 'utf8').slice(-1500)
-        } catch {
-          /* ignore */
+ipcMain.handle(
+  'deploy:build',
+  async (_e, { repoPath, command }: { repoPath: string; command?: string }) => {
+    const repo = repoPath?.trim()
+    if (!repo || !existsSync(join(repo, 'package.json'))) {
+      return { ok: false, error: 'Repo path is not a valid Crafterm checkout (no package.json).' }
+    }
+    const cmd = (command ?? '').trim() || 'run-crafterm-deploy'
+    const log = join(stateDir(), 'deploy.log')
+    return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      execFile(
+        '/bin/zsh',
+        ['-lic', `${cmd} > ${shq(log)} 2>&1`],
+        { cwd: repo },
+        (err) => {
+          if (!err) return resolve({ ok: true })
+          let tail = ''
+          try {
+            tail = readFileSync(log, 'utf8').slice(-1500)
+          } catch {
+            /* ignore */
+          }
+          resolve({ ok: false, error: tail || err.message })
         }
-        resolve({ ok: false, error: tail || err.message })
-      }
-    )
-  })
-})
+      )
+    })
+  }
+)
 ipcMain.handle('deploy:swap', (_e, { repoPath }: { repoPath: string }) => {
   const repo = repoPath?.trim()
   if (!repo) return false
@@ -909,6 +962,26 @@ ipcMain.handle('notebook:rename', (_e, { path, name }: { path: string; name: str
     return false
   }
 })
+// Move a note/folder into another folder (drag-drop). `destDir` is the target
+// directory relative path ('' = notebooks root). Rejects collisions and moving a
+// folder into itself or a descendant.
+ipcMain.handle('notebook:move', (_e, { src, destDir }: { src: string; destDir: string }) => {
+  const sp = nbResolve(src)
+  if (!sp || !existsSync(sp)) return false
+  const dDir = nbResolve(destDir)
+  if (!dDir) return false
+  if (dDir === sp || dDir.startsWith(sp + '/')) return false
+  const name = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src
+  const np = join(dDir, name)
+  if (np === sp || existsSync(np)) return false
+  try {
+    mkdirSync(dDir, { recursive: true })
+    renameSync(sp, np)
+    return true
+  } catch {
+    return false
+  }
+})
 ipcMain.on('notebook:reveal', (_e, { path }: { path: string }) => {
   const p = nbResolve(path)
   if (p && existsSync(p)) shell.showItemInFolder(p)
@@ -979,6 +1052,10 @@ ipcMain.on(
       console.warn('[notify] native notifications are not supported here')
       return
     }
+    // When the app window is in the foreground the user is already looking at
+    // it — show only the in-app card (the renderer surfaces that itself) and
+    // skip the OS notification so it doesn't double-notify.
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return
     try {
       const n = new Notification({ title, body, silent: false })
       n.on('click', () => {
@@ -1068,6 +1145,16 @@ app.on('window-all-closed', () => {
 let didFlushState = false
 app.on('before-quit', (e) => {
   quitting = true
+  for (const w of plansWatchers.values()) {
+    try {
+      w.close()
+    } catch {
+      // ignore: watcher may already be closed
+    }
+  }
+  plansWatchers.clear()
+  for (const t of plansBroadcastTimers.values()) clearTimeout(t)
+  plansBroadcastTimers.clear()
   // First pass: let the renderer persist its CURRENT (correct) tree before any
   // PTY is killed. Killing PTYs makes the renderer close panes, which would
   // otherwise overwrite the saved state with an empty tree — breaking restore.

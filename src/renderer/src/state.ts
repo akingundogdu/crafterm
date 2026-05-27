@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm'
-import type { Pane, BrowserPane, DocPane, SidebarNode, Font, SidebarPrefs, Project, SshConnection, PaletteCommand, AppNotification, Reminder, Feature, TimeEntry, DbNode } from './types'
+import type { Pane, BrowserPane, DocPane, SqlPane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, TimeEntry, DbNode } from './types'
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from './themes'
 import { PALETTE_SEED } from './palette-seed'
 import { allTabs } from './tree'
@@ -10,6 +10,7 @@ import type { SavedState, SavedSidebarNode, SavedNode } from '../../preload/api'
 export const panes = new Map<string, Pane>()
 export const browsers = new Map<string, BrowserPane>()
 export const docs = new Map<string, DocPane>() // markdown note panes
+export const sqlPanes = new Map<string, SqlPane>() // SQL editor panes (db tool)
 export const opened = new Set<string>()
 // Pane ids currently shown in a separate pop-out window (rendered as a
 // placeholder in the main layout; runtime only, never persisted).
@@ -51,6 +52,7 @@ export const settings = {
   codeRoot: '', // base folder for the Cmd+P folder picker ('' = home)
   todoFile: '', // path to todo-list.md for the Improve Crafterm panel
   repoPath: '', // Crafterm source repo path used by the "Update Crafterm" action
+  updateCommand: 'run-crafterm-deploy', // shell command run in repoPath to rebuild the app
   // file extensions that open with `ide <path>` when clicked in the terminal
   codeExtensions: [
     'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'swift', 'py', 'go', 'rs', 'java',
@@ -58,7 +60,6 @@ export const settings = {
   ] as string[],
   // user-editable shell commands + the folders shown as Cmd+O finder filter chips
   commands: { ide: 'ide', openMyZsh: 'openmyzsh', mdFolders: [] as string[] },
-  projects: [] as Project[], // catalog projects (tree) for the picker + apps
   environments: ['dev', 'local', 'production'] as string[], // global environment names
   sshConnections: [] as SshConnection[], // saved ssh hosts (action menu → My SSH connections)
   // user-managed command palette entries (predefined + git/linux cheatsheets);
@@ -71,8 +72,8 @@ export const settings = {
   explorerExclude: ['node_modules', '.git', '.DS_Store', 'dist', 'out'] as string[],
   // external files linked into the notebook tree (shown under "Linked files")
   linkedFiles: [] as { path: string; name: string }[],
+  notebookColors: {} as Record<string, string>, // notebook node path -> color tag
   dbTree: [] as DbNode[], // Database tool: project/folder/connection tree
-  features: [] as Feature[], // time-tracking features under projects
   timeEntries: [] as TimeEntry[], // logged work intervals
   askProjectOnNew: true, // ask which project to open on a new terminal
   bindings: {} as Record<string, string>, // keybinding overrides (action id -> combo)
@@ -81,7 +82,8 @@ export const settings = {
     orientation: 'left',
     fontSize: 13,
     collapsed: false,
-    details: { status: true, git: true, panes: true, paneList: false }
+    details: { status: true, git: true, panes: true, paneList: false },
+    groupByRecency: false
   } as SidebarPrefs
 }
 
@@ -201,8 +203,21 @@ export function persistNow(): void {
 
 function serializeLayout(node: import('./types').LayoutNode): SavedNode {
   if (node.type === 'leaf') {
+    const sp = sqlPanes.get(node.paneId)
+    if (sp) {
+      return {
+        type: 'leaf',
+        sqlPane: {
+          connId: sp.connId,
+          code: sp.getCode(),
+          fileName: sp.fileName,
+          themeName: sp.themeName
+        }
+      }
+    }
     const p = panes.get(node.paneId)
     const leaf: SavedNode = { type: 'leaf' }
+    if (p?.stableId) leaf.stableId = p.stableId // keep plan-file ownership across restarts
     if (p?.titleLocked) {
       leaf.title = p.title
       leaf.titleLocked = true
@@ -246,7 +261,9 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       ...(node.group ? { group: node.group } : {}),
       ...(node.startup ? { startup: node.startup } : {}),
       ...(node.env ? { env: node.env } : {}),
-      ...(node.shell ? { shell: node.shell } : {})
+      ...(node.shell ? { shell: node.shell } : {}),
+      ...(node.apps && node.apps.length ? { apps: node.apps } : {}),
+      ...(node.features && node.features.length ? { features: node.features } : {})
     }
   }
   return {
@@ -276,8 +293,8 @@ function persist(): void {
     codeExtensions: settings.codeExtensions,
     todoFile: settings.todoFile,
     repoPath: settings.repoPath,
+    updateCommand: settings.updateCommand,
     commands: settings.commands,
-    projects: settings.projects,
     environments: settings.environments,
     sshConnections: settings.sshConnections,
     paletteCommands: settings.paletteCommands,
@@ -287,8 +304,8 @@ function persist(): void {
     explorerRoot: settings.explorerRoot,
     explorerExclude: settings.explorerExclude,
     linkedFiles: settings.linkedFiles,
+    notebookColors: settings.notebookColors,
     dbTree: settings.dbTree,
-    features: settings.features,
     timeEntries: settings.timeEntries,
     askProjectOnNew: settings.askProjectOnNew,
     bindings: settings.bindings,
@@ -306,7 +323,8 @@ export function loadSettings(saved: SavedState): void {
       orientation: saved.sidebar.orientation ?? settings.sidebar.orientation,
       fontSize: saved.sidebar.fontSize ?? settings.sidebar.fontSize,
       collapsed: saved.sidebar.collapsed ?? settings.sidebar.collapsed,
-      details: { ...settings.sidebar.details, ...(saved.sidebar.details ?? {}) }
+      details: { ...settings.sidebar.details, ...(saved.sidebar.details ?? {}) },
+      groupByRecency: saved.sidebar.groupByRecency ?? settings.sidebar.groupByRecency
     }
   }
   if (saved.customTheme) settings.customTheme = saved.customTheme
@@ -316,6 +334,9 @@ export function loadSettings(saved: SavedState): void {
   if (Array.isArray(saved.codeExtensions)) settings.codeExtensions = saved.codeExtensions
   if (typeof saved.todoFile === 'string') settings.todoFile = saved.todoFile
   if (typeof saved.repoPath === 'string') settings.repoPath = saved.repoPath
+  if (typeof saved.updateCommand === 'string' && saved.updateCommand.trim()) {
+    settings.updateCommand = saved.updateCommand
+  }
   if (saved.commands) {
     settings.commands = {
       ide: saved.commands.ide ?? settings.commands.ide,
@@ -325,7 +346,6 @@ export function loadSettings(saved: SavedState): void {
         : settings.commands.mdFolders
     }
   }
-  if (Array.isArray(saved.projects)) settings.projects = saved.projects as Project[]
   if (Array.isArray(saved.environments) && saved.environments.length)
     settings.environments = saved.environments
   if (Array.isArray(saved.sshConnections)) settings.sshConnections = saved.sshConnections
@@ -336,8 +356,9 @@ export function loadSettings(saved: SavedState): void {
   if (typeof saved.explorerRoot === 'string') settings.explorerRoot = saved.explorerRoot
   if (Array.isArray(saved.explorerExclude)) settings.explorerExclude = saved.explorerExclude
   if (Array.isArray(saved.linkedFiles)) settings.linkedFiles = saved.linkedFiles
+  if (saved.notebookColors && typeof saved.notebookColors === 'object')
+    settings.notebookColors = saved.notebookColors
   if (Array.isArray(saved.dbTree)) settings.dbTree = saved.dbTree as DbNode[]
-  if (Array.isArray(saved.features)) settings.features = saved.features
   if (Array.isArray(saved.timeEntries)) settings.timeEntries = saved.timeEntries
   if (typeof saved.askProjectOnNew === 'boolean') settings.askProjectOnNew = saved.askProjectOnNew
   if (saved.bindings) settings.bindings = saved.bindings
@@ -347,4 +368,74 @@ export function loadSettings(saved: SavedState): void {
 
 export function activeTabsCount(): number {
   return allTabs(state.tree).length
+}
+
+// One-time migration of pre-unified-tree state. settings.projects and
+// settings.features no longer exist at runtime; older state files still have
+// them, so we fold those entries into state.tree once after restore. The next
+// persist() drops the legacy fields from the JSON.
+export function migrateLegacyState(saved: SavedState): void {
+  if (Array.isArray(saved.projects) && saved.projects.length) {
+    mergeLegacyProjects(state.tree, saved.projects)
+  }
+  if (Array.isArray(saved.features) && saved.features.length) {
+    for (const f of saved.features) {
+      const owner = findProjectByPathInTree(state.tree, f.projectPath)
+      if (!owner) continue
+      owner.features = owner.features ?? []
+      if (!owner.features.find((x) => x.id === f.id)) {
+        owner.features.push({ id: f.id, name: f.name })
+      }
+    }
+  }
+}
+
+// Merge a legacy catalog (Project[]) into the live sidebar tree at the given
+// level. Path-based dedup: an existing ProjectNode at the same path gets the
+// catalog's missing fields filled in (apps, startup, env, shell, command, group)
+// and its sub-projects merged recursively. Catalog projects with no match are
+// pushed as new ProjectNodes.
+function mergeLegacyProjects(
+  list: SidebarNode[],
+  catalog: import('./types').Project[]
+): void {
+  for (const c of catalog) {
+    let node = list.find((n): n is ProjectNode => n.kind === 'project' && n.path === c.path)
+    if (!node) {
+      node = {
+        kind: 'project',
+        id: uid('p'),
+        name: c.name,
+        color: null,
+        collapsed: false,
+        pinned: false,
+        children: [],
+        path: c.path
+      }
+      list.push(node)
+    }
+    if (c.command && !node.command) node.command = c.command
+    if (c.group && !node.group) node.group = c.group
+    if (c.startup && !node.startup) node.startup = c.startup
+    if (c.env && !node.env) node.env = c.env
+    if (c.shell && !node.shell) node.shell = c.shell
+    if (c.apps && c.apps.length) {
+      const existing = node.apps ?? []
+      const byId = new Set(existing.map((a) => a.id))
+      for (const a of c.apps) if (!byId.has(a.id)) existing.push(a)
+      node.apps = existing
+    }
+    if (c.children && c.children.length) mergeLegacyProjects(node.children, c.children)
+  }
+}
+
+function findProjectByPathInTree(nodes: SidebarNode[], path: string): ProjectNode | null {
+  for (const n of nodes) {
+    if (n.kind === 'project' && n.path === path) return n
+    if (n.kind === 'project' || n.kind === 'folder') {
+      const r = findProjectByPathInTree(n.children, path)
+      if (r) return r
+    }
+  }
+  return null
 }

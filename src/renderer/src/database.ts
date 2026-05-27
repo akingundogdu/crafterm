@@ -2,8 +2,9 @@ import { settings, saveSoon, uid } from './state'
 import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from './types'
 import type { DbObjects } from '../../preload/api'
 import { makeCloseButton, promptText } from './dialog'
-import { createSqlEditor } from './sqlEditor'
+import { openSqlInSplit } from './commands'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from './treeview'
+import './database.css'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object
 // introspection under each connection, a Queries section of saved .sql files,
@@ -20,8 +21,6 @@ const VIEW_SVG =
   '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="1.9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'
 const PROC_SVG =
   '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M9.5 3.2c-1.3 0-2 .8-2.2 2L7 6.2H5.4M5 12.8c1.3 0 2-.8 2.2-2l.9-6.1M4.6 8.2h4.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'
-const PLAY_SVG =
-  '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M5 3.5l7 4.5-7 4.5z" fill="currentColor"/></svg>'
 
 // Per-engine accent (drives the connection dot + engine pill colors).
 function engineClass(e: DbEngine): string {
@@ -37,20 +36,7 @@ const subOpen = new Set<string>() // "<connId>:tables|views|procedures|queries"
 const objCache = new Map<string, DbObjects>()
 const queriesCache = new Map<string, { name: string; path: string }[]>()
 
-function engineLabel(e: DbEngine): string {
-  return e === 'postgres' ? 'PostgreSQL' : e === 'mysql' ? 'MySQL' : 'SQLite'
-}
-
 // ---- tree helpers (operate on settings.dbTree) ----
-
-function flattenConns(nodes: DbNode[] = settings.dbTree): DbConnNode[] {
-  const out: DbConnNode[] = []
-  for (const n of nodes) {
-    if (n.kind === 'conn') out.push(n)
-    else out.push(...flattenConns(n.children))
-  }
-  return out
-}
 
 function findGroup(id: string, nodes: DbNode[] = settings.dbTree): DbGroup | null {
   for (const n of nodes) {
@@ -80,6 +66,11 @@ function removeNode(id: string, nodes: DbNode[] = settings.dbTree): boolean {
 export async function renderDatabase(host: HTMLElement): Promise<void> {
   container = host
   await refresh()
+}
+
+// Keyboard navigation, delegated from the sidebar when Database mode is active.
+export function databaseHandleKey(e: KeyboardEvent): void {
+  treeview?.handleKey(e)
 }
 
 // ---- unified tree node (real groups/connections + dynamic objects/queries) ----
@@ -147,7 +138,7 @@ function deleteQuery(conn: DbConnection, fileName: string): void {
 function openQueryFile(conn: DbConnection, fileName: string): void {
   void (async () => {
     const sql = await window.crafterm.dbqRead(conn.id, fileName)
-    openQueryEditor({ connId: conn.id, sql, fileName })
+    openSqlInSplit({ connId: conn.id, sql, fileName })
   })()
 }
 
@@ -281,7 +272,7 @@ const adapter: TreeAdapter<DbTreeNode> = {
   },
   onActivate: (n) => {
     if (n.t === 'object') {
-      openQueryEditor({ connId: n.conn.id, sql: `SELECT * FROM ${n.name} LIMIT 100;`, run: true })
+      openSqlInSplit({ connId: n.conn.id, sql: `SELECT * FROM ${n.name} LIMIT 100;`, autoRun: true })
     } else if (n.t === 'query') {
       openQueryFile(n.conn, n.file.name)
     }
@@ -313,7 +304,7 @@ const adapter: TreeAdapter<DbTreeNode> = {
     }
     if (n.t === 'conn') {
       return [
-        { label: 'New query', run: () => openQueryEditor({ connId: n.c.conn.id }) },
+        { label: 'New query', run: () => openSqlInSplit({ connId: n.c.conn.id }) },
         { label: 'Edit connection…', run: () => openConnForm(null, n.c) },
         { label: 'Rename…', run: () => void renameConn(n.c) },
         {
@@ -329,14 +320,14 @@ const adapter: TreeAdapter<DbTreeNode> = {
       ]
     }
     if (n.t === 'section' && n.kind === 'Queries') {
-      return [{ label: 'New query', run: () => openQueryEditor({ connId: n.conn.id }) }]
+      return [{ label: 'New query', run: () => openSqlInSplit({ connId: n.conn.id }) }]
     }
     if (n.t === 'object') {
       return [
         {
           label: 'Preview (SELECT *)',
           run: () =>
-            openQueryEditor({ connId: n.conn.id, sql: `SELECT * FROM ${n.name} LIMIT 100;`, run: true })
+            openSqlInSplit({ connId: n.conn.id, sql: `SELECT * FROM ${n.name} LIMIT 100;`, autoRun: true })
         }
       ]
     }
@@ -568,222 +559,20 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
   name.focus()
 }
 
-// ---- query editor (run SQL → results grid, save as .sql) ----
-
-function openQueryEditor(opts: { connId?: string; sql?: string; fileName?: string; run?: boolean }): void {
-  const conns = flattenConns()
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
-  const modal = document.createElement('div')
-  modal.className = 'modal db-query-modal'
-  overlay.appendChild(modal)
-  const close = (): void => overlay.remove()
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
-  modal.appendChild(makeCloseButton(close))
-
-  // toolbar: connection picker (with engine dot) + Run + Save
-  const bar = document.createElement('div')
-  bar.className = 'db-query-bar'
-  const connWrap = document.createElement('div')
-  connWrap.className = 'db-conn-select'
-  const dot = document.createElement('span')
-  dot.className = 'db-conn-dot'
-  const connSel = document.createElement('select')
-  connSel.className = 'settings-select'
-  if (!conns.length) connSel.insertAdjacentHTML('beforeend', '<option value="">(no connections)</option>')
-  for (const cn of conns) {
-    const o = document.createElement('option')
-    o.value = cn.conn.id
-    o.textContent = `${cn.conn.name}  ·  ${engineLabel(cn.conn.engine)}`
-    if (cn.conn.id === opts.connId) o.selected = true
-    connSel.appendChild(o)
-  }
-  connWrap.append(dot, connSel)
-  const runBtn = document.createElement('button')
-  runBtn.className = 'primary db-run-btn'
-  runBtn.innerHTML = PLAY_SVG + '<span>Run</span><kbd>⌘↵</kbd>'
-  const saveBtn = document.createElement('button')
-  saveBtn.className = 'db-save-btn'
-  saveBtn.textContent = 'Save .sql'
-  bar.append(connWrap, runBtn, saveBtn)
-  modal.appendChild(bar)
-
-  // editor (CodeMirror) host
-  const editorHost = document.createElement('div')
-  editorHost.className = 'db-query-editor'
-  modal.appendChild(editorHost)
-
-  // result: status bar + grid
-  const result = document.createElement('div')
-  result.className = 'db-result'
-  modal.appendChild(result)
-  result.innerHTML = '<div class="db-result-empty">Run a query to see results.</div>'
-
-  let fileName = opts.fileName ?? ''
-  const connOf = (): DbConnection | null => conns.find((c) => c.conn.id === connSel.value)?.conn ?? null
-
-  const schemaFor = (conn: DbConnection): Record<string, string[]> => {
-    const o = objCache.get(conn.id)
-    const s: Record<string, string[]> = {}
-    if (o) for (const t of [...o.tables, ...o.views]) s[t] = []
-    return s
-  }
-
-  const initialConn = connOf()
-  const editor = createSqlEditor({
-    parent: editorHost,
-    doc: opts.sql ?? '',
-    engine: initialConn?.engine ?? 'postgres',
-    onRun: () => void run()
-  })
-  if (initialConn) editor.setSchema(initialConn.engine, schemaFor(initialConn))
-
-  const dotClass = (conn: DbConnection | null): void => {
-    dot.className = 'db-conn-dot' + (conn ? ' ' + engineClass(conn.engine) : '')
-  }
-  dotClass(initialConn)
-
-  // refresh dialect + autocomplete schema when the connection changes (fetch
-  // objects lazily so table names show up in IntelliSense).
-  const syncEditorTo = (conn: DbConnection): void => {
-    dotClass(conn)
-    editor.setSchema(conn.engine, schemaFor(conn))
-    if (!objCache.has(conn.id)) {
-      void (async () => {
-        const o = await window.crafterm.dbObjects(conn)
-        objCache.set(conn.id, o)
-        editor.setSchema(conn.engine, schemaFor(conn))
-      })()
-    }
-  }
-  if (initialConn) syncEditorTo(initialConn)
-  connSel.addEventListener('change', () => {
-    const conn = connOf()
-    if (conn) syncEditorTo(conn)
-  })
-
-  const run = async (): Promise<void> => {
-    const conn = connOf()
-    if (!conn) {
-      result.innerHTML = '<div class="db-error">Pick a connection first.</div>'
-      return
-    }
-    const sql = editor.getValue().trim()
-    if (!sql) return
-    result.innerHTML = '<div class="db-muted db-result-empty">Running…</div>'
-    const t0 = performance.now()
-    const res = await window.crafterm.dbQuery(conn, sql)
-    const ms = Math.round(performance.now() - t0)
-    if (res.error) {
-      result.replaceChildren()
-      const e = document.createElement('div')
-      e.className = 'db-error db-result-error'
-      e.textContent = res.error
-      result.appendChild(e)
-      return
-    }
-    if (!res.columns.length) {
-      result.replaceChildren()
-      const ok = document.createElement('div')
-      ok.className = 'db-result-empty'
-      ok.innerHTML = `<span class="db-ok-badge">OK</span> ${res.rowCount} row(s) affected · ${ms}ms`
-      result.appendChild(ok)
-      return
-    }
-    renderGrid(result, res.columns, res.rows, ms)
-  }
-
-  runBtn.addEventListener('click', () => void run())
-  saveBtn.addEventListener('click', () => {
-    void (async () => {
-      const conn = connOf()
-      if (!conn) {
-        result.innerHTML =
-          '<div class="db-result-empty">Pick a connection — queries are saved under it.</div>'
-        return
-      }
-      const nm = await promptText({
-        title: 'Save query',
-        label: 'File name',
-        value: fileName.replace(/\.sql$/i, ''),
-        placeholder: 'daily-report',
-        confirmText: 'Save'
-      })
-      if (!nm) return
-      fileName = nm.endsWith('.sql') ? nm : nm + '.sql'
-      await window.crafterm.dbqWrite(conn.id, fileName, editor.getValue())
-      expanded.add(conn.id)
-      subOpen.add(conn.id + ':Queries')
-      await reloadQueries(conn.id)
-    })()
-  })
-
-  document.body.appendChild(overlay)
-  setTimeout(() => editor.focus(), 30)
-  if (opts.run) void run()
-}
-
-function renderGrid(host: HTMLElement, columns: string[], rows: unknown[][], ms: number): void {
-  host.replaceChildren()
-  const status = document.createElement('div')
-  status.className = 'db-result-status'
-  const shown = Math.min(rows.length, 1000)
-  status.innerHTML =
-    `<span class="db-result-rows">${rows.length} row${rows.length === 1 ? '' : 's'}</span>` +
-    (rows.length > shown ? `<span class="db-muted"> (showing ${shown})</span>` : '') +
-    `<span class="db-result-ms">${ms}ms</span>`
-  host.appendChild(status)
-
-  const wrap = document.createElement('div')
-  wrap.className = 'db-grid-wrap'
-  const table = document.createElement('table')
-  table.className = 'db-grid'
-  const thead = document.createElement('thead')
-  const htr = document.createElement('tr')
-  const corner = document.createElement('th')
-  corner.className = 'db-grid-rownum'
-  corner.textContent = '#'
-  htr.appendChild(corner)
-  for (const col of columns) {
-    const th = document.createElement('th')
-    th.textContent = col
-    htr.appendChild(th)
-  }
-  thead.appendChild(htr)
-  table.appendChild(thead)
-  const tbody = document.createElement('tbody')
-  rows.slice(0, 1000).forEach((row, i) => {
-    const tr = document.createElement('tr')
-    const num = document.createElement('td')
-    num.className = 'db-grid-rownum'
-    num.textContent = String(i + 1)
-    tr.appendChild(num)
-    for (const cell of row) {
-      const td = document.createElement('td')
-      if (cell === null || cell === undefined) {
-        td.textContent = 'NULL'
-        td.className = 'db-null'
-      } else if (typeof cell === 'number') {
-        td.textContent = String(cell)
-        td.className = 'db-num'
-      } else if (typeof cell === 'object') {
-        td.textContent = JSON.stringify(cell)
-      } else {
-        td.textContent = String(cell)
-      }
-      tr.appendChild(td)
-    }
-    tbody.appendChild(tr)
-  })
-  table.appendChild(tbody)
-  wrap.appendChild(table)
-  host.appendChild(wrap)
-}
+// Listen for save events from SQL panes so the connection's "Queries" list
+// stays in sync with newly saved .sql files.
+window.addEventListener('crafterm:dbq-changed', (ev) => {
+  const detail = (ev as CustomEvent<{ connId: string }>).detail
+  if (!detail?.connId) return
+  expanded.add(detail.connId)
+  subOpen.add(detail.connId + ':Queries')
+  void reloadQueries(detail.connId)
+})
 
 // Driven by the shared sidebar search bar when Database mode is active.
+// Forwards to the underlying treeview's contains-filter, which matches against
+// every label currently in the tree — group/connection names plus any already-
+// loaded objects (tables/views/queries) under expanded connections.
 export function dbApplyQuery(q: string): void {
-  // simple: expand all matching groups/conns is out of scope; filter top-level by name
-  void q
+  treeview?.setFilter(q)
 }

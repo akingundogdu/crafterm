@@ -1,7 +1,8 @@
 import { themes } from './themes'
-import { settings, saveSoon, requestSidebar, resolveTheme, applyBgColor, uid } from './state'
-import type { PaletteCommand, Project, Application } from './types'
+import { settings, state, saveSoon, requestSidebar, resolveTheme, applyBgColor, uid } from './state'
+import type { PaletteCommand, ProjectNode, Application } from './types'
 import { flattenProjects, removeProject } from './catalog'
+import { makeProject } from './tree'
 import { applyAppearance } from './pane'
 import { applyOrientation, applySidebarFont } from './sidebar'
 import { pickFolderPath } from './pickers'
@@ -16,7 +17,6 @@ import {
   setRecording,
   isModifierKey
 } from './keybindings'
-import { syncProjectGroupToTree } from './commands'
 
 // Quick background presets (black default + a few dark tones); a custom color
 // picker covers anything else.
@@ -131,7 +131,8 @@ export function openSettings(): void {
     'Workspace',
     'Projects',
     'Commands',
-    'Shortcuts'
+    'Shortcuts',
+    'System update'
   ] as const
   const panels: Record<string, HTMLElement> = {}
   const navButtons: Record<string, HTMLButtonElement> = {}
@@ -163,6 +164,7 @@ export function openSettings(): void {
   buildProjectsPanel(panels['Projects'])
   buildCommandsPanel(panels['Commands'])
   buildShortcutsPanel(panels['Shortcuts'])
+  buildSystemUpdatePanel(panels['System update'])
 
   show('Appearance')
   document.body.appendChild(overlay)
@@ -412,7 +414,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
   md.append(listCol, detailCol)
   panel.appendChild(md)
 
-  let selected: Project | null = flattenProjects(settings.projects)[0] ?? null
+  let selected: ProjectNode | null = flattenProjects(state.tree)[0] ?? null
 
   // A labeled field (input or textarea) appended to a given parent.
   const field = (
@@ -482,10 +484,11 @@ function buildProjectsPanel(panel: HTMLElement): void {
 
   const renderTree = (): void => {
     listCol.replaceChildren()
-    if (!settings.projects.length) {
+    const topProjects = state.tree.filter((n): n is ProjectNode => n.kind === 'project')
+    if (!topProjects.length) {
       listCol.insertAdjacentHTML('beforeend', '<div class="field-hint">No projects yet.</div>')
     }
-    const renderRows = (projects: Project[], depth: number): void => {
+    const renderRows = (projects: ProjectNode[], depth: number): void => {
       projects.forEach((p) => {
         const row = document.createElement('div')
         row.className = 'proj-li' + (p === selected ? ' active' : '')
@@ -512,19 +515,21 @@ function buildProjectsPanel(panel: HTMLElement): void {
           renderDetail()
         })
         listCol.appendChild(row)
-        if (p.children?.length) renderRows(p.children, depth + 1)
+        const subProjects = p.children.filter((c): c is ProjectNode => c.kind === 'project')
+        if (subProjects.length) renderRows(subProjects, depth + 1)
       })
     }
-    renderRows(settings.projects, 0)
+    renderRows(topProjects, 0)
 
     const addBtn = document.createElement('button')
     addBtn.className = 'settings-inline-btn'
     addBtn.textContent = '+ Add project'
     addBtn.addEventListener('click', () => {
-      const proj: Project = { name: 'New project', path: '' }
-      settings.projects.push(proj)
+      const proj = makeProject(uid('p'), 'New project', '')
+      state.tree.push(proj)
       selected = proj
       saveSoon()
+      requestSidebar()
       renderTree()
       renderDetail()
     })
@@ -532,7 +537,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
   }
 
   // The Applications section of the selected project's editor.
-  const renderApps = (p: Project, parent: HTMLElement): void => {
+  const renderApps = (p: ProjectNode, parent: HTMLElement): void => {
     parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Applications</div>')
     p.apps = p.apps ?? []
     if (!p.apps.length) {
@@ -636,16 +641,18 @@ function buildProjectsPanel(panel: HTMLElement): void {
     field(detailCol, 'Name', p.name, 'Movve', (v) => {
       p.name = v.trim()
       renderTree()
+      requestSidebar()
       saveSoon()
     })
     field(detailCol, 'Path', p.path, '~/code/movve', (v) => {
       p.path = v.trim()
+      requestSidebar()
       saveSoon()
     })
     field(detailCol, 'Group (workspace)', p.group ?? '', 'work (optional)', (v) => {
       p.group = v.trim() || undefined
       renderTree()
-      syncProjectGroupToTree(p.path, p.group)
+      requestSidebar()
       saveSoon()
     })
     field(detailCol, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
@@ -686,11 +693,11 @@ function buildProjectsPanel(panel: HTMLElement): void {
     addSub.className = 'settings-inline-btn'
     addSub.textContent = '+ Add sub-project'
     addSub.addEventListener('click', () => {
-      p.children = p.children ?? []
-      const child: Project = { name: 'New sub-project', path: '' }
+      const child = makeProject(uid('p'), 'New sub-project', '')
       p.children.push(child)
       selected = child
       saveSoon()
+      requestSidebar()
       renderTree()
       renderDetail()
     })
@@ -698,9 +705,10 @@ function buildProjectsPanel(panel: HTMLElement): void {
     del.className = 'settings-inline-btn project-del-btn'
     del.textContent = 'Delete project'
     del.addEventListener('click', () => {
-      removeProject(settings.projects, p)
-      selected = flattenProjects(settings.projects)[0] ?? null
+      removeProject(state.tree, p)
+      selected = flattenProjects(state.tree)[0] ?? null
       saveSoon()
+      requestSidebar()
       renderTree()
       renderDetail()
     })
@@ -927,17 +935,6 @@ function buildWorkspacePanel(panel: HTMLElement): void {
     '<div class="field-hint">Path to the markdown file shown in the Improve Crafterm panel.</div>'
   )
 
-  const repo = labeledInput(panel, 'Crafterm repo path', 'text', settings.repoPath, (v) => {
-    settings.repoPath = v.trim()
-    saveSoon()
-  })
-  repo.style.maxWidth = '280px'
-  repo.placeholder = '~/path/to/crafterm'
-  panel.insertAdjacentHTML(
-    'beforeend',
-    '<div class="field-hint">Source repo built by the sidebar “Update Crafterm” action (rebuilds &amp; reinstalls the app).</div>'
-  )
-
   // File explorer (right panel → Files)
   panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">File explorer</h3>')
   const exRoot = labeledInput(panel, 'Explorer root', 'text', settings.explorerRoot, (v) => {
@@ -1038,4 +1035,47 @@ function buildSidebarPanel(panel: HTMLElement): void {
     r.append(cb, document.createTextNode(label))
     panel.appendChild(r)
   })
+
+  const recRow = document.createElement('label')
+  recRow.className = 'checkbox-row'
+  const recCb = document.createElement('input')
+  recCb.type = 'checkbox'
+  recCb.checked = !!settings.sidebar.groupByRecency
+  recCb.addEventListener('change', () => {
+    settings.sidebar.groupByRecency = recCb.checked
+    requestSidebar()
+    saveSoon()
+  })
+  recRow.append(recCb, document.createTextNode('Group by recency (Today / Yesterday / Earlier)'))
+  panel.appendChild(recRow)
+}
+
+function buildSystemUpdatePanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>System update</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">The sidebar “Update Crafterm” action runs this command in your Crafterm source checkout, then swaps the built app into /Applications and relaunches.</div>'
+  )
+
+  const repo = labeledInput(panel, 'Codebase path', 'text', settings.repoPath, (v) => {
+    settings.repoPath = v.trim()
+    saveSoon()
+  })
+  repo.style.maxWidth = '320px'
+  repo.placeholder = '~/path/to/crafterm'
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Local clone of the Crafterm source repo (must contain package.json).</div>'
+  )
+
+  const cmd = labeledInput(panel, 'Update command', 'text', settings.updateCommand, (v) => {
+    settings.updateCommand = v.trim() || 'run-crafterm-deploy'
+    saveSoon()
+  })
+  cmd.style.maxWidth = '320px'
+  cmd.placeholder = 'run-crafterm-deploy'
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Shell command run in the codebase path. Must produce <code>dist/Crafterm.app</code>. Defaults to <code>run-crafterm-deploy</code>.</div>'
+  )
 }

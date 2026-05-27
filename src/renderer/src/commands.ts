@@ -5,7 +5,6 @@ import type {
   TabNode,
   FolderNode,
   ProjectNode,
-  Project,
   Application
 } from './types'
 import { MAX_FOLDER_DEPTH } from './types'
@@ -13,6 +12,7 @@ import {
   panes,
   browsers,
   docs,
+  sqlPanes,
   poppedOut,
   state,
   settings,
@@ -54,6 +54,7 @@ import {
   applyAppearance,
   paneStatus
 } from './pane'
+import { createSqlPane, destroySqlPane } from './dbPane'
 import { promptText, promptForm, promptConfirm } from './dialog'
 
 function focusActivePane(): void {
@@ -92,12 +93,13 @@ export async function newTab(parentFolderId?: string | null, cwd?: string): Prom
 }
 
 // A terminal that auto-runs the Claude Code CLI in its starting directory.
-export async function newClaudeTab(parentFolderId?: string | null): Promise<void> {
+export async function newClaudeTab(parentFolderId?: string | null, cwd?: string): Promise<void> {
   await createTab(parentFolderId, {
     title: 'Claude',
     titleLocked: true,
     command: 'claude',
-    claude: true
+    claude: true,
+    cwd
   })
 }
 
@@ -137,12 +139,13 @@ async function createTab(
   renderContent()
   focusActivePane()
   saveSoon()
-  // explicit command wins; otherwise the container's command — a project's
-  // `command` (falling back to its startup), or a folder's startup.
-  const containerCmd =
-    folder?.kind === 'project'
-      ? folder.command?.trim() || folder.startup?.trim() || undefined
-      : folder?.startup?.trim() || undefined
+  // explicit command wins; otherwise only the container's *startup* — a small
+  // shell init the user wants on every new terminal in this group. The project's
+  // `command` (e.g. "claude") is NOT auto-applied here: it should fire only via
+  // `openProject` (the project picker), which passes it as opts.command. Plain
+  // cmd+T inside a project must give a vanilla terminal; cmd+shift+T opens
+  // claude explicitly.
+  const containerCmd = folder?.startup?.trim() || undefined
   const command = opts.command ?? containerCmd
   // Let the login shell finish its init before injecting the command.
   if (command) setTimeout(() => window.crafterm.input(paneId, command + '\r'), 350)
@@ -186,9 +189,11 @@ export function contextFolderId(): string | null {
   return folderIdOfList(r.parent)
 }
 
-// Open a saved project as a new terminal: cwd = project.path, runs its command.
+// Open a project as a new terminal: cwd = project.path, runs its command.
+// Accepts either an existing ProjectNode (picker, sidebar) or a path-based spec
+// (worktree picker — the path may not yet have a node, so one is created).
 export async function openProject(
-  p: {
+  p: ProjectNode | {
     name: string
     path: string
     command?: string
@@ -199,51 +204,44 @@ export async function openProject(
   },
   parentFolderId?: string | null
 ): Promise<void> {
-  // Open inside an explicit parent if given; otherwise find/create a project node
-  // for this path so the terminal lands under its project.
-  let parentId = parentFolderId ?? null
-  if (!parentId) {
-    const existing = state.tree.find(
-      (n): n is ProjectNode => n.kind === 'project' && n.path === p.path
-    )
-    if (existing) parentId = existing.id
-    else {
-      const proj = makeProject(uid('p'), p.name, p.path)
-      if (p.command) proj.command = p.command
-      if (p.group) proj.group = p.group
-      if (p.startup) proj.startup = p.startup
-      if (p.env) proj.env = p.env
-      if (p.shell) proj.shell = p.shell
-      state.tree.push(proj)
-      parentId = proj.id
-    }
-  }
+  const proj = resolveProjectNode(p)
+  const parentId = parentFolderId ?? proj.id
   await createTab(parentId, {
-    title: p.name,
-    cwd: p.path,
-    command: p.command && p.command.trim() ? p.command.trim() : undefined
+    title: proj.name,
+    cwd: proj.path,
+    command: proj.command && proj.command.trim() ? proj.command.trim() : undefined
   })
 }
 
-// Settings → Projects edited a template's group: push it to any matching open
-// project node (by path) and re-render the sidebar, so the change shows without
-// reopening. (Settings holds the catalog; the sidebar shows the open projects.)
-export function syncProjectGroupToTree(path: string, group: string | undefined): void {
-  let changed = false
-  const visit = (nodes: SidebarNode[]): void => {
-    for (const n of nodes) {
-      if (n.kind === 'project' && n.path === path && n.group !== group) {
-        n.group = group
-        changed = true
+// Return the existing ProjectNode for this input, or create+attach a new one at
+// the tree root. Used by openProject + run/feature flows that can be entered
+// from a path-only context (worktree picker).
+function resolveProjectNode(
+  p:
+    | ProjectNode
+    | {
+        name: string
+        path: string
+        command?: string
+        group?: string
+        startup?: string
+        env?: string
+        shell?: string
+        apps?: Application[]
       }
-      if (isContainer(n)) visit(n.children)
-    }
-  }
-  visit(state.tree)
-  if (changed) {
-    requestSidebar()
-    saveSoon()
-  }
+): ProjectNode {
+  if ('kind' in p && p.kind === 'project') return p
+  const existing = findProjectByPath(state.tree, p.path)
+  if (existing) return existing
+  const proj = makeProject(uid('p'), p.name, p.path)
+  if (p.command) proj.command = p.command
+  if (p.group) proj.group = p.group
+  if (p.startup) proj.startup = p.startup
+  if (p.env) proj.env = p.env
+  if (p.shell) proj.shell = p.shell
+  if (p.apps && p.apps.length) proj.apps = p.apps.map((a) => ({ ...a }))
+  state.tree.push(proj)
+  return proj
 }
 
 // Resolve an application's working directory: empty = the project path; absolute
@@ -260,32 +258,18 @@ function resolveAppPath(projectPath: string, appPath?: string): string {
 // tiled tab (a row split); 'tab' apps each open as their own tab. The
 // environment is never a node — only a label on the tab/pane title.
 export async function runApplications(
-  project: Project,
+  project: ProjectNode,
   env: string,
   apps: Application[]
 ): Promise<void> {
   const runnable = apps.filter((a) => (a.commands?.[env] ?? '').trim())
   if (!runnable.length) return
 
-  // find or create the project's sidebar node (by path), like openProject
-  let parentId: string | null = null
-  const existing = state.tree.find(
-    (n): n is ProjectNode => n.kind === 'project' && n.path === project.path
-  )
-  if (existing) parentId = existing.id
-  else {
-    const proj = makeProject(uid('p'), project.name, project.path)
-    if (project.group) proj.group = project.group
-    if (project.command) proj.command = project.command
-    if (project.startup) proj.startup = project.startup
-    if (project.env) proj.env = project.env
-    if (project.shell) proj.shell = project.shell
-    state.tree.push(proj)
-    parentId = proj.id
-  }
+  const parentId: string = project.id
 
   const projEnv = project.env ? parseEnvLines(project.env) : undefined
   const shell = project.shell?.trim() || undefined
+  const startup = project.startup?.trim()
   const toRun: { paneId: string; cmd: string }[] = []
   const spawn = async (app: Application): Promise<string> => {
     const paneId = await createPane(resolveAppPath(project.path, app.path), { env: projEnv, shell })
@@ -295,7 +279,10 @@ export async function runApplications(
       p.titleLocked = true
       p.htitle.textContent = p.title
     }
-    toRun.push({ paneId, cmd: app.commands[env].trim() })
+    // Run the project's startup (e.g. `nvm use`) first, chained with the app's
+    // dev command so both run in order in the same shell.
+    const dev = app.commands[env].trim()
+    toRun.push({ paneId, cmd: startup ? `${startup} && ${dev}` : dev })
     return paneId
   }
 
@@ -360,7 +347,7 @@ export async function runApplications(
 // the user's `run-create-worktree <branch> <base>` first (chained), so the dev
 // command runs in the new worktree.
 export async function createFeature(
-  project: Project,
+  project: ProjectNode,
   opts: { branch: string; base: string; env: string; apps: { app: Application; worktree: boolean }[] }
 ): Promise<void> {
   const env = opts.env
@@ -369,26 +356,8 @@ export async function createFeature(
   const branch = opts.branch.trim() || project.name
   const base = opts.base.trim() || 'main'
 
-  // ensure the project's sidebar node (by path)
-  let projectId: string | null = null
-  const existing = state.tree.find(
-    (n): n is ProjectNode => n.kind === 'project' && n.path === project.path
-  )
-  if (existing) projectId = existing.id
-  else {
-    const proj = makeProject(uid('p'), project.name, project.path)
-    if (project.group) proj.group = project.group
-    if (project.command) proj.command = project.command
-    if (project.startup) proj.startup = project.startup
-    if (project.env) proj.env = project.env
-    if (project.shell) proj.shell = project.shell
-    state.tree.push(proj)
-    projectId = proj.id
-  }
-  if (projectId) {
-    const r = findById(state.tree, projectId)
-    if (r && isContainer(r.node)) r.node.collapsed = false
-  }
+  const projectId: string = project.id
+  project.collapsed = false
 
   // the feature folder (a worktree-marked folder) under the project
   const folder = makeFolder(uid('f'), branch)
@@ -397,6 +366,7 @@ export async function createFeature(
 
   const projEnv = project.env ? parseEnvLines(project.env) : undefined
   const shell = project.shell?.trim() || undefined
+  const startup = project.startup?.trim()
   const toRun: { paneId: string; cmd: string }[] = []
   const spawn = async (app: Application, wantsWorktree: boolean): Promise<string> => {
     const paneId = await createPane(resolveAppPath(project.path, app.path), { env: projEnv, shell })
@@ -406,11 +376,14 @@ export async function createFeature(
       p.titleLocked = true
       p.htitle.textContent = p.title
     }
+    // Chain: create the worktree (if requested) → project startup → dev command,
+    // so each runs in order in the same shell.
     const dev = app.commands[env].trim()
-    const cmd = wantsWorktree
-      ? `run-create-worktree ${shellQuote(branch)} ${shellQuote(base)} && ${dev}`
-      : dev
-    toRun.push({ paneId, cmd })
+    const parts: string[] = []
+    if (wantsWorktree) parts.push(`run-create-worktree ${shellQuote(branch)} ${shellQuote(base)}`)
+    if (startup) parts.push(startup)
+    parts.push(dev)
+    toRun.push({ paneId, cmd: parts.join(' && ') })
     return paneId
   }
 
@@ -465,23 +438,18 @@ export async function createFeature(
 }
 
 // Move a container (project or company folder) into a group/workspace by dragging
-// it onto a group header. Empty group clears it ("Ungrouped"). For projects, keeps
-// the picker template's group in sync.
+// it onto a group header. Empty group clears it ("Ungrouped").
 export function setNodeGroup(id: string, group: string): void {
   const r = findById(state.tree, id)
   if (!r || !isContainer(r.node)) return
   const g = group.trim()
   r.node.group = g || undefined
-  if (r.node.kind === 'project') {
-    const tmpl = findProjectByPath(settings.projects, (r.node as ProjectNode).path)
-    if (tmpl) tmpl.group = g || undefined
-  }
   requestSidebar()
   saveSoon()
 }
 
-// Create a new project node (and register it as a picker template). Optional
-// `parentId` nests it under another container; otherwise it's top-level.
+// Create a new project node. Optional `parentId` nests it under another
+// container; otherwise it lands at the tree root.
 export async function createProject(parentId?: string | null): Promise<void> {
   const values = await promptForm({
     title: 'New project',
@@ -504,15 +472,6 @@ export async function createProject(parentId?: string | null): Promise<void> {
   if (group) proj.group = group
   const list = parentId ? folderChildren(parentId) : state.tree
   list.push(proj)
-  // keep a picker template in sync (sidebar ↔ Settings → Projects catalog)
-  if (!findProjectByPath(settings.projects, path)) {
-    settings.projects.push({
-      name,
-      path,
-      command: command || undefined,
-      group: group || undefined
-    })
-  }
   state.selectedNodeId = proj.id
   requestSidebar()
   saveSoon()
@@ -596,13 +555,11 @@ export async function splitPane(paneId: string, dir: Dir): Promise<void> {
 
 // Open a project (path + optional command) as a split to the right of the active
 // pane — the openProject behaviour, but inside the current tab instead of a new one.
-export async function splitProjectRight(p: {
-  name: string
-  path: string
-  command?: string
-  env?: string
-  shell?: string
-}): Promise<void> {
+export async function splitProjectRight(
+  p:
+    | ProjectNode
+    | { name: string; path: string; command?: string; env?: string; shell?: string }
+): Promise<void> {
   if (!state.activeTabId || !state.activePaneId) return
   const newPaneId = await createPane(p.path, {
     env: p.env ? parseEnvLines(p.env) : undefined,
@@ -749,6 +706,22 @@ export function openNote(relPath: string): void {
   hostDoc(createDocPane(relPath), relPath.split('/').pop() || 'note')
 }
 
+// Open a SQL query pane next to the active pane (or in a fresh tab if none).
+export function openSqlInSplit(opts: {
+  connId?: string | null
+  sql?: string
+  fileName?: string | null
+  autoRun?: boolean
+} = {}): void {
+  const id = createSqlPane(opts)
+  hostDoc(id, 'SQL')
+}
+
+// Cmd+D in Database sidebar mode: opens an empty SQL pane.
+export function splitActiveWithSql(): void {
+  openSqlInSplit({})
+}
+
 // Open any markdown file on disk (read-only) — used by the Cmd+O finder.
 export function openMarkdownFile(absPath: string): void {
   hostDoc(createDocPane(absPath, { absolute: true }), absPath.split('/').pop() || 'note')
@@ -806,6 +779,8 @@ export function closePane(paneId: string): void {
     destroyBrowserPane(paneId)
   } else if (docs.has(paneId)) {
     destroyDocPane(paneId)
+  } else if (sqlPanes.has(paneId)) {
+    destroySqlPane(paneId)
   } else {
     destroyPane(paneId)
     window.crafterm.kill(paneId)
@@ -901,6 +876,7 @@ export function selectPane(paneId: string): void {
   updatePaneActive() // move the active-pane border so focus is visible
   requestStatuses()
   p?.term.focus()
+  sqlPanes.get(paneId)?.focus()
 }
 
 export function switchTabByIndex(index: number): void {
@@ -1163,7 +1139,7 @@ export function togglePin(id: string): void {
 
 export function toggleCollapse(folderId: string): void {
   const r = findById(state.tree, folderId)
-  if (r && r.node.kind === 'folder') {
+  if (r && isContainer(r.node)) {
     r.node.collapsed = !r.node.collapsed
     requestSidebar()
     saveSoon()
@@ -1171,11 +1147,12 @@ export function toggleCollapse(folderId: string): void {
 }
 
 // Recursively expand (collapsed=false) or collapse (collapsed=true) every
-// folder in the sidebar tree. Backs the expand/collapse-all toolbar button.
+// container (folder or project) in the sidebar tree. Backs the expand/
+// collapse-all toolbar button.
 export function setAllFoldersCollapsed(collapsed: boolean): void {
   const walk = (nodes: SidebarNode[]): void => {
     for (const node of nodes) {
-      if (node.kind === 'folder') {
+      if (isContainer(node)) {
         node.collapsed = collapsed
         walk(node.children)
       }
@@ -1186,11 +1163,11 @@ export function setAllFoldersCollapsed(collapsed: boolean): void {
   saveSoon()
 }
 
-// True when at least one folder in the tree is currently expanded.
+// True when at least one container in the tree is currently expanded.
 export function anyFolderExpanded(): boolean {
   const walk = (nodes: SidebarNode[]): boolean => {
     for (const node of nodes) {
-      if (node.kind === 'folder') {
+      if (isContainer(node)) {
         if (!node.collapsed) return true
         if (walk(node.children)) return true
       }
