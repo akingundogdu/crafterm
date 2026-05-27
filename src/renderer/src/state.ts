@@ -227,6 +227,8 @@ function serializeLayout(node: import('./types').LayoutNode): SavedNode {
     if (p?.claude) leaf.claude = true // resume the Claude session on restore
     if (p?.claudeSessionId) leaf.claudeSessionId = p.claudeSessionId // exact session for --resume
     if (p?.bgColor) leaf.bgColor = p.bgColor // per-pane background
+    if (p?.projectId) leaf.projectId = p.projectId
+    if (p?.appId) leaf.appId = p.appId
     return leaf
   }
   return {

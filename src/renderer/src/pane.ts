@@ -19,7 +19,7 @@ import {
   pushNotification
 } from './state'
 import { findTabByPane, ancestorFolders } from './tree'
-import { findProjectByPath, findFeature } from './catalog'
+import { findProjectByPath, findFeature, findProjectById, findApp } from './catalog'
 
 type DropZoneName = 'left' | 'right' | 'top' | 'bottom'
 
@@ -201,6 +201,8 @@ export async function createPane(
     fontSize: null,
     trackProjectPath: null,
     trackFeatureId: null,
+    projectId: null,
+    appId: null,
     lastActivity: Date.now(),
     lastNotify: 0,
     lastCols: 0,
@@ -388,6 +390,40 @@ function showPaneMenu(
     add('Stash changes…', () => paneActions.git(paneId, 'stash'))
     add('Stashes…', () => paneActions.stashes(paneId))
   }
+  // Project / application "run commands": each command tied to this pane's
+  // owning project/app gets a menu entry that types the command into the PTY.
+  if (opts.bg !== false) {
+    const pane = panes.get(paneId)
+    if (pane?.projectId) {
+      const proj = findProjectById(state.tree, pane.projectId)
+      if (proj && proj.runCommands && proj.runCommands.length) {
+        const label = document.createElement('div')
+        label.className = 'menu-label'
+        label.textContent = `Commands — ${proj.name}`
+        menu.appendChild(label)
+        for (const rc of proj.runCommands) {
+          const cmdStr = rc.command.trim()
+          if (!cmdStr) continue
+          add(rc.name || cmdStr, () => window.crafterm.input(paneId, cmdStr + '\r'))
+        }
+      }
+    }
+    if (pane?.appId) {
+      const r = findApp(state.tree, pane.appId)
+      if (r && r.app.runCommands && r.app.runCommands.length) {
+        const label = document.createElement('div')
+        label.className = 'menu-label'
+        label.textContent = `Commands — ${r.app.name}`
+        menu.appendChild(label)
+        for (const rc of r.app.runCommands) {
+          const cmdStr = rc.command.trim()
+          if (!cmdStr) continue
+          add(rc.name || cmdStr, () => window.crafterm.input(paneId, cmdStr + '\r'))
+        }
+      }
+    }
+  }
+
   // SSH connections (only for terminal panes — sends the ssh command into the
   // current PTY instead of spawning a new terminal, per user request).
   if (opts.bg !== false && settings.sshConnections.length) {

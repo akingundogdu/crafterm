@@ -113,6 +113,13 @@ async function createTab(
     env,
     shell: folder?.shell?.trim() || undefined
   })
+  // If the new tab is nested inside (or directly under) a ProjectNode, tag the
+  // pane so the action menu can surface that project's run commands.
+  const ownerProject = parentFolderId ? projectOf(state.tree, parentFolderId) : null
+  if (ownerProject) {
+    const p = panes.get(paneId)
+    if (p) p.projectId = ownerProject.id
+  }
   if (opts.claude) {
     const p = panes.get(paneId)
     if (p) p.claude = true
@@ -278,6 +285,8 @@ export async function runApplications(
       p.title = `${app.name} · ${env}`
       p.titleLocked = true
       p.htitle.textContent = p.title
+      p.projectId = project.id
+      p.appId = app.id
     }
     // Run the project's startup (e.g. `nvm use`) first, chained with the app's
     // dev command so both run in order in the same shell.
@@ -376,6 +385,8 @@ export async function createFeature(
       p.title = `${app.name} · ${branch}`
       p.titleLocked = true
       p.htitle.textContent = p.title
+      p.projectId = project.id
+      p.appId = app.id
     }
     // Chain: create the worktree (if requested) → project startup → dev command,
     // so each runs in order in the same shell.
@@ -569,6 +580,7 @@ export async function splitProjectRight(
   const command = p.command && p.command.trim() ? p.command.trim() : undefined
   const pane = panes.get(newPaneId)
   if (pane && command && /\bclaude\b/.test(command)) pane.claude = true
+  if (pane && 'kind' in p && p.kind === 'project') pane.projectId = p.id
   if (placeSplit(newPaneId, 'row')) {
     focusActivePane()
     if (command) setTimeout(() => window.crafterm.input(newPaneId, command + '\r'), 350)

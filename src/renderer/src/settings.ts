@@ -691,6 +691,55 @@ function buildProjectsPanel(panel: HTMLElement): void {
           saveSoon()
         })
       }
+
+      // Optional named menu commands surfaced in the pane action menu of any
+      // terminal spawned from this application.
+      card.insertAdjacentHTML('beforeend', '<div class="app-cmd-head">Run commands</div>')
+      app.runCommands = app.runCommands ?? []
+      app.runCommands.forEach((rc) => {
+        const row = document.createElement('div')
+        row.className = 'app-rc-row'
+        const nameI = document.createElement('input')
+        nameI.type = 'text'
+        nameI.value = rc.name
+        nameI.placeholder = 'name'
+        nameI.addEventListener('change', () => {
+          rc.name = nameI.value.trim() || rc.name
+          saveSoon()
+        })
+        nameI.addEventListener('keydown', (e) => e.stopPropagation())
+        const cmdI = document.createElement('input')
+        cmdI.type = 'text'
+        cmdI.value = rc.command
+        cmdI.placeholder = 'shell command'
+        cmdI.addEventListener('change', () => {
+          rc.command = cmdI.value.trim()
+          saveSoon()
+        })
+        cmdI.addEventListener('keydown', (e) => e.stopPropagation())
+        const delRc = document.createElement('button')
+        delRc.className = 'app-del'
+        delRc.textContent = '✕'
+        delRc.title = 'Remove command'
+        delRc.addEventListener('click', () => {
+          app.runCommands = (app.runCommands ?? []).filter((x) => x !== rc)
+          saveSoon()
+          renderDetail()
+        })
+        row.append(nameI, cmdI, delRc)
+        card.appendChild(row)
+      })
+      const addRc = document.createElement('button')
+      addRc.className = 'settings-inline-btn app-rc-add'
+      addRc.textContent = '+ Add run command'
+      addRc.addEventListener('click', () => {
+        app.runCommands = app.runCommands ?? []
+        app.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+        saveSoon()
+        renderDetail()
+      })
+      card.appendChild(addRc)
+
       parent.appendChild(card)
     })
 

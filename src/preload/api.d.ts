@@ -10,6 +10,10 @@ export interface SavedLeaf {
   claude?: boolean // a Claude session — resumed on restore
   claudeSessionId?: string // exact session to `claude --resume <id>` on restore
   bgColor?: string // per-pane background override
+  // Project / application this terminal was spawned from (drives the pane
+  // action menu's "Commands — …" sections after restore).
+  projectId?: string
+  appId?: string
   // When set, this leaf is a SQL pane (not a terminal); restore creates a SqlPane.
   sqlPane?: {
     connId: string | null
@@ -55,6 +59,7 @@ export interface SavedApplication {
   path?: string
   opensAs?: 'tab' | 'split'
   commands: Record<string, string>
+  runCommands?: SavedProjectCommand[]
 }
 export interface SavedFeature {
   id: string

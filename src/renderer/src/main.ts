@@ -302,6 +302,10 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
       setTimeout(() => window.crafterm.input(id, cmd + '\r'), 500)
     }
     if (n.bgColor) setPaneBackground(id, n.bgColor)
+    if (p) {
+      if (n.projectId) p.projectId = n.projectId
+      if (n.appId) p.appId = n.appId
+    }
     return { type: 'leaf', paneId: id }
   }
   const children: LayoutNode[] = []

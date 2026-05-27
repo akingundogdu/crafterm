@@ -46,6 +46,11 @@ export interface Pane {
   fontSize: number | null // per-pane font-size override (null = global default)
   trackProjectPath: string | null // time-tracking: project this terminal logs to
   trackFeatureId: string | null // time-tracking: feature this terminal logs to
+  // Pane provenance: which sidebar project / application opened this terminal.
+  // Drives the "Commands — <project>" and "Commands — <app>" sections in the
+  // pane action menu. Null when the terminal was opened from a plain cwd flow.
+  projectId: string | null
+  appId: string | null
   lastActivity: number // ms of last terminal output/input (idle detection)
   lastNotify: number
   lastCols: number // last cols/rows pushed to the PTY; lets us skip no-op resizes
@@ -151,7 +156,10 @@ export interface Application {
   name: string
   path?: string // relative to the project path, or absolute; empty = project path
   opensAs?: 'tab' | 'split' // how a launched terminal is placed (default: tab)
-  commands: Record<string, string> // environment name -> command
+  commands: Record<string, string> // environment name -> command (the dev command)
+  // Optional named menu commands; surfaced in the pane action menu of any
+  // terminal spawned from this application.
+  runCommands?: ProjectCommand[]
 }
 
 // A one-shot named shell command tied to a project (e.g. "deploy", "lint").
