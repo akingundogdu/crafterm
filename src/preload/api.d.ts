@@ -165,6 +165,15 @@ export interface SavedState {
   projects?: SavedCatalogProject[] // legacy catalog; migrated into `tree` on load
   environments?: string[] // global environment names (dev/local/production)
   groups?: string[] // user-managed workspace group labels
+  actionMenu?: {
+    id: string
+    title: string
+    kind: 'builtin' | 'command'
+    builtinId?: string
+    command?: string
+    opensAs?: 'split' | 'tab'
+    hidden?: boolean
+  }[]
   // saved ssh hosts (action menu → My SSH connections); password is plaintext
   sshConnections?: {
     id: string

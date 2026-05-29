@@ -143,6 +143,37 @@ export interface ProjectNode {
 
 export type SidebarNode = TabNode | FolderNode | ProjectNode
 
+// One row of the sidebar "actions" (⋯) menu. A `builtin` item invokes a
+// registered in-app action (modal/dashboard); a `command` item runs a shell
+// command in a terminal (split beside the active pane, or a new tab).
+export interface ActionMenuItem {
+  id: string
+  title: string
+  kind: 'builtin' | 'command'
+  builtinId?: string // key into BUILTIN_ACTIONS when kind === 'builtin'
+  command?: string // shell command when kind === 'command'
+  opensAs?: 'split' | 'tab' // placement for command items (default: tab)
+  hidden?: boolean // kept in the list but not rendered in the menu
+}
+
+// The set of built-in actions selectable in the action-menu editor. The actual
+// handlers live in sidebar.ts (they need the picker/modal imports); this is the
+// id↔label catalog shared with the Settings editor + the default seed.
+export const BUILTIN_ACTIONS: { id: string; label: string }[] = [
+  { id: 'openProject', label: 'Open project…' },
+  { id: 'commandPalette', label: 'Commands palette' },
+  { id: 'claudeSessions', label: 'Claude sessions' },
+  { id: 'resumeClaude', label: 'Resume Claude session' },
+  { id: 'switchClaude', label: 'Switch Claude account' },
+  { id: 'worktrees', label: 'Worktrees' },
+  { id: 'sshConnections', label: 'My SSH connections' },
+  { id: 'showPlans', label: 'Show all plans' },
+  { id: 'commandHistory', label: 'Command history' },
+  { id: 'updateZsh', label: 'Update my zsh config' },
+  { id: 'improve', label: 'Improve Crafterm' },
+  { id: 'updateCrafterm', label: 'Update Crafterm' }
+]
+
 export interface Font {
   family: string
   size: number

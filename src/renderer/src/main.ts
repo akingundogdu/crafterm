@@ -2,7 +2,7 @@ import '@xterm/xterm/css/xterm.css'
 import './style.css'
 import type { LayoutNode, SidebarNode } from './types'
 import type { SavedNode, SavedSidebarNode } from '../../preload/api'
-import { state, panes, docs, hooks, paneActions, loadSettings, migrateLegacyState, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
+import { state, panes, docs, hooks, paneActions, loadSettings, migrateLegacyState, seedActionMenu, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
 import { firstPaneOf, allTabs, findById } from './tree'
 import { flattenProjects } from './catalog'
 import {
@@ -378,6 +378,7 @@ async function init(): Promise<void> {
 
   const saved = await window.crafterm.loadState()
   if (saved) loadSettings(saved)
+  if (!settings.actionMenu.length) settings.actionMenu = seedActionMenu()
 
   applyBgColor()
   applyDocFont()

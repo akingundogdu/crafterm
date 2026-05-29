@@ -31,7 +31,8 @@ import {
   setNodeName,
   autoNameTab,
   moveNode,
-  setNodeGroup
+  setNodeGroup,
+  runInSplit
 } from './commands'
 import {
   showPlansModal,
@@ -129,6 +130,34 @@ sidebarActionsEl.addEventListener('click', (e) => {
   showActionsMenu(sidebarActionsEl)
 })
 
+// Registry of built-in actions, keyed by the id stored in settings.actionMenu.
+// The Settings editor picks from these; the menu invokes them here.
+const BUILTIN_ACTION_RUN: Record<string, () => void> = {
+  openProject: () => showProjectPicker(contextFolderId()),
+  commandPalette: () => void showCommandPalette(),
+  claudeSessions: () => showClaudeDashboard(),
+  resumeClaude: () => void showClaudeSessionResume(),
+  switchClaude: () => void showClaudeAccountSwitcher(),
+  worktrees: () => void showWorktreeDashboard(),
+  sshConnections: () => showSshConnections(),
+  showPlans: () => void showPlansModal(),
+  commandHistory: () => showCommandHistory(),
+  updateZsh: () => void openTerminalRunning(settings.commands.openMyZsh, 'zsh config'),
+  improve: () => void showImproveModal(),
+  updateCrafterm: () => void runUpdate()
+}
+
+function runActionItem(item: import('./types').ActionMenuItem): void {
+  if (item.kind === 'builtin') {
+    BUILTIN_ACTION_RUN[item.builtinId ?? '']?.()
+    return
+  }
+  const cmd = (item.command ?? '').trim()
+  if (!cmd) return
+  if (item.opensAs === 'split') void runInSplit(cmd)
+  else void openTerminalRunning(cmd, item.title)
+}
+
 function showActionsMenu(anchor: HTMLElement): void {
   document.querySelector('.context-menu')?.remove()
   const menu = document.createElement('div')
@@ -145,18 +174,12 @@ function showActionsMenu(anchor: HTMLElement): void {
     })
     menu.appendChild(b)
   }
-  addItem('Open project…', () => showProjectPicker(contextFolderId()))
-  addItem('Commands palette', () => void showCommandPalette())
-  addItem('Claude sessions', () => showClaudeDashboard())
-  addItem('Resume Claude session', () => void showClaudeSessionResume())
-  addItem('Switch Claude account', () => void showClaudeAccountSwitcher())
-  addItem('Worktrees', () => void showWorktreeDashboard())
-  addItem('My SSH connections', () => showSshConnections())
-  addItem('Show all plans', () => void showPlansModal())
-  addItem('Command history', () => showCommandHistory())
-  addItem('Update my zsh config', () => void openTerminalRunning(settings.commands.openMyZsh, 'zsh config'))
-  addItem('Improve Crafterm', () => void showImproveModal())
-  addItem('Update Crafterm', () => void runUpdate())
+  for (const item of settings.actionMenu) {
+    if (item.hidden) continue
+    // Skip builtins whose id is no longer known (e.g. after a downgrade).
+    if (item.kind === 'builtin' && !BUILTIN_ACTION_RUN[item.builtinId ?? '']) continue
+    addItem(item.title, () => runActionItem(item))
+  }
   document.body.appendChild(menu)
   const onDown = (ev: MouseEvent): void => {
     if (!menu.contains(ev.target as Node)) {

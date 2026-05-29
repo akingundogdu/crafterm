@@ -367,6 +367,25 @@ function readHead(path: string, bytes = 16384): string {
   }
 }
 
+// Read the last `bytes` of a file — Claude appends custom-title / last-prompt
+// records near the end of each session jsonl, so the tail is where they live.
+function readTail(path: string, bytes = 16384): string {
+  let fd: number | null = null
+  try {
+    fd = openSync(path, 'r')
+    const size = statSync(path).size
+    const start = Math.max(0, size - bytes)
+    const len = size - start
+    const buf = Buffer.alloc(len)
+    const n = readSync(fd, buf, 0, len, start)
+    return buf.toString('utf8', 0, n)
+  } catch {
+    return ''
+  } finally {
+    if (fd !== null) closeSync(fd)
+  }
+}
+
 // All Claude sessions across projects, newest first, with a short summary + cwd.
 ipcMain.handle('claude:sessions', () => {
   const root = claudeProjectsDir()
@@ -394,9 +413,16 @@ ipcMain.handle('claude:sessions', () => {
       } catch {
         continue
       }
+      // Claude writes the /rename title (custom-title) near the file head and the
+      // most recent prompt (last-prompt) typically near the tail — scan both
+      // windows so we capture whichever is present without reading the whole file.
       let cwd: string | null = null
-      let summary = ''
-      for (const line of readHead(full).split('\n')) {
+      let firstPrompt = ''
+      let customTitle = ''
+      let lastPrompt = ''
+      const head = readHead(full)
+      const tail = readTail(full)
+      for (const line of (head + '\n' + tail).split('\n')) {
         if (!line.trim()) continue
         let o: Record<string, unknown>
         try {
@@ -405,16 +431,19 @@ ipcMain.handle('claude:sessions', () => {
           continue
         }
         if (!cwd && typeof o.cwd === 'string') cwd = o.cwd
-        if (!summary && o.type === 'user' && o.message) {
+        if (o.type === 'custom-title' && typeof o.customTitle === 'string') customTitle = o.customTitle
+        else if (o.type === 'last-prompt' && typeof o.lastPrompt === 'string') lastPrompt = o.lastPrompt
+        else if (!firstPrompt && o.type === 'user' && o.message) {
           const c = (o.message as { content?: unknown }).content
-          if (typeof c === 'string') summary = c
+          if (typeof c === 'string') firstPrompt = c
           else if (Array.isArray(c)) {
             const t = c.find((x) => x && typeof x === 'object' && (x as { type?: string }).type === 'text')
-            if (t) summary = String((t as { text?: string }).text ?? '')
+            if (t) firstPrompt = String((t as { text?: string }).text ?? '')
           }
         }
-        if (cwd && summary) break
       }
+      // priority: user-set title → last prompt → first prompt (noisy fallback)
+      let summary = customTitle || lastPrompt || firstPrompt
       // strip system-reminder/command XML wrappers so the prompt reads cleanly
       summary = summary
         .replace(/<[^>]*>/g, ' ')

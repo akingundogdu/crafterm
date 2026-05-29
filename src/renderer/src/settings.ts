@@ -1,6 +1,7 @@
 import { themes } from './themes'
 import { settings, state, saveSoon, requestSidebar, resolveTheme, applyBgColor, uid } from './state'
-import type { PaletteCommand, ProjectNode, Application } from './types'
+import type { PaletteCommand, ProjectNode, Application, ActionMenuItem } from './types'
+import { BUILTIN_ACTIONS } from './types'
 import { flattenProjects, removeProject } from './catalog'
 import { makeProject } from './tree'
 import { applyAppearance } from './pane'
@@ -54,6 +55,45 @@ function toHex6(v: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(v)) return v
   if (/^#[0-9a-fA-F]{3}$/.test(v)) return '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3]
   return '#000000'
+}
+
+// Render a horizontal sub-tab strip with one body panel shown at a time.
+// Each tab's `build` runs once, lazily, the first time its tab is shown.
+function buildSubTabs(
+  parent: HTMLElement,
+  tabs: { label: string; build: (el: HTMLElement) => void }[]
+): void {
+  const bar = document.createElement('div')
+  bar.className = 'settings-subtabs'
+  const body = document.createElement('div')
+  body.className = 'settings-subtab-body'
+  parent.append(bar, body)
+  const btns: HTMLButtonElement[] = []
+  const panels: HTMLElement[] = []
+  const built: boolean[] = []
+  const show = (i: number): void => {
+    btns.forEach((b, j) => b.classList.toggle('active', j === i))
+    panels.forEach((p, j) => (p.style.display = j === i ? 'block' : 'none'))
+    if (!built[i]) {
+      tabs[i].build(panels[i])
+      built[i] = true
+    }
+  }
+  tabs.forEach((t, i) => {
+    const b = document.createElement('button')
+    b.className = 'settings-subtab'
+    b.textContent = t.label
+    b.addEventListener('click', () => show(i))
+    const p = document.createElement('div')
+    p.className = 'settings-subtab-panel'
+    p.style.display = 'none'
+    btns.push(b)
+    panels.push(p)
+    built.push(false)
+    bar.appendChild(b)
+    body.appendChild(p)
+  })
+  if (tabs.length) show(0)
 }
 
 function labeledInput(
@@ -131,6 +171,7 @@ export function openSettings(): void {
     'Workspace',
     'Projects',
     'Commands',
+    'Action menu',
     'Shortcuts',
     'System update'
   ] as const
@@ -164,6 +205,7 @@ export function openSettings(): void {
   buildProjectsPanel(panels['Projects'])
   buildCommandsPanel(panels['Commands'])
   buildShortcutsPanel(panels['Shortcuts'])
+  buildActionMenuPanel(panels['Action menu'])
   buildSystemUpdatePanel(panels['System update'])
 
   show('Appearance')
@@ -869,67 +911,77 @@ function buildProjectsPanel(panel: HTMLElement): void {
       )
       return
     }
-    field(detailCol, 'Name', p.name, 'Movve', (v) => {
-      p.name = v.trim()
-      renderTree()
-      requestSidebar()
-      saveSoon()
-    })
-    field(detailCol, 'Path', p.path, '~/code/movve', (v) => {
-      p.path = v.trim()
-      requestSidebar()
-      saveSoon()
-    })
-    field(
-      detailCol,
-      'Group (workspace)',
-      p.group ?? '',
-      'work (optional)',
-      (v) => {
-        const g = v.trim()
-        p.group = g || undefined
-        // Remember new group labels so they show up in other projects' dropdowns.
-        if (g && !settings.groups.includes(g)) settings.groups.push(g)
-        renderTree()
-        renderGroups()
-        requestSidebar()
-        saveSoon()
+    buildSubTabs(detailCol, [
+      {
+        label: 'General',
+        build: (el) => {
+          field(el, 'Name', p.name, 'Movve', (v) => {
+            p.name = v.trim()
+            renderTree()
+            requestSidebar()
+            saveSoon()
+          })
+          field(el, 'Path', p.path, '~/code/movve', (v) => {
+            p.path = v.trim()
+            requestSidebar()
+            saveSoon()
+          })
+          field(
+            el,
+            'Group (workspace)',
+            p.group ?? '',
+            'work (optional)',
+            (v) => {
+              const g = v.trim()
+              p.group = g || undefined
+              if (g && !settings.groups.includes(g)) settings.groups.push(g)
+              renderTree()
+              renderGroups()
+              requestSidebar()
+              saveSoon()
+            },
+            { options: groupOptions() }
+          )
+          field(el, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
+            p.command = v.trim() || undefined
+            saveSoon()
+          })
+          field(
+            el,
+            'Startup command',
+            p.startup ?? '',
+            'run in every terminal opened inside (optional)',
+            (v) => {
+              p.startup = v.trim() || undefined
+              saveSoon()
+            }
+          )
+          field(el, 'Shell', p.shell ?? '', '/bin/zsh (override, optional)', (v) => {
+            p.shell = v.trim() || undefined
+            saveSoon()
+          })
+        }
       },
-      { options: groupOptions() }
-    )
-    field(detailCol, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
-      p.command = v.trim() || undefined
-      saveSoon()
-    })
-    field(
-      detailCol,
-      'Startup command',
-      p.startup ?? '',
-      'run in every terminal opened inside (optional)',
-      (v) => {
-        p.startup = v.trim() || undefined
-        saveSoon()
-      }
-    )
-    field(detailCol, 'Shell', p.shell ?? '', '/bin/zsh (override, optional)', (v) => {
-      p.shell = v.trim() || undefined
-      saveSoon()
-    })
-    field(
-      detailCol,
-      'Environment vars',
-      p.env ?? '',
-      'KEY=VALUE (one per line, optional)',
-      (v) => {
-        p.env = v.trim() || undefined
-        saveSoon()
+      {
+        label: 'Environment',
+        build: (el) => {
+          field(
+            el,
+            'Environment vars',
+            p.env ?? '',
+            'KEY=VALUE (one per line, optional)',
+            (v) => {
+              p.env = v.trim() || undefined
+              saveSoon()
+            },
+            { textarea: true, rows: 4 }
+          )
+        }
       },
-      { textarea: true, rows: 3 }
-    )
-
-    renderApps(p, detailCol)
-    renderFeatures(p, detailCol)
-    renderRunCommands(p, detailCol)
+      { label: 'Apps', build: (el) => renderApps(p, el) },
+      { label: 'Features', build: (el) => renderFeatures(p, el) },
+      { label: 'Run commands', build: (el) => renderRunCommands(p, el) }
+    ])
 
     const actions = document.createElement('div')
     actions.className = 'proj-detail-actions'
@@ -968,23 +1020,29 @@ function buildProjectsPanel(panel: HTMLElement): void {
 
 function buildCommandsPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', '<h3>Commands</h3>')
-  const ide = labeledInput(panel, 'Open code file (ide)', 'text', settings.commands.ide, (v) => {
-    settings.commands.ide = v.trim() || 'ide'
-    saveSoon()
-  })
-  ide.style.maxWidth = '280px'
-  const zsh = labeledInput(panel, 'Update zsh config', 'text', settings.commands.openMyZsh, (v) => {
-    settings.commands.openMyZsh = v.trim() || 'openmyzsh'
-    saveSoon()
-  })
-  zsh.style.maxWidth = '280px'
-  panel.insertAdjacentHTML(
-    'beforeend',
-    '<div class="field-hint">Shell commands run in a new terminal.</div>'
-  )
-
-  buildMarkdownFoldersControl(panel)
-  buildPaletteCommandsControl(panel)
+  buildSubTabs(panel, [
+    {
+      label: 'General',
+      build: (el) => {
+        const ide = labeledInput(el, 'Open code file (ide)', 'text', settings.commands.ide, (v) => {
+          settings.commands.ide = v.trim() || 'ide'
+          saveSoon()
+        })
+        ide.style.maxWidth = '280px'
+        const zsh = labeledInput(el, 'Update zsh config', 'text', settings.commands.openMyZsh, (v) => {
+          settings.commands.openMyZsh = v.trim() || 'openmyzsh'
+          saveSoon()
+        })
+        zsh.style.maxWidth = '280px'
+        el.insertAdjacentHTML(
+          'beforeend',
+          '<div class="field-hint">Shell commands run in a new terminal.</div>'
+        )
+      }
+    },
+    { label: 'Markdown folders', build: (el) => buildMarkdownFoldersControl(el) },
+    { label: 'Command palette', build: (el) => buildPaletteCommandsControl(el) }
+  ])
 }
 
 // Manage the Cmd+Shift+P palette entries (predefined + git/linux cheatsheets).
@@ -1293,6 +1351,160 @@ function buildSidebarPanel(panel: HTMLElement): void {
   })
   recRow.append(recCb, document.createTextNode('Group by recency (Today / Yesterday / Earlier)'))
   panel.appendChild(recRow)
+}
+
+function buildActionMenuPanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>Action menu</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Rows shown in the sidebar ⋯ menu. Builtin rows trigger an in-app action; command rows run a shell command (split beside the active pane, or a new tab). Reorder, hide, edit, or add your own.</div>'
+  )
+
+  const list = document.createElement('div')
+  list.className = 'action-menu-admin'
+  panel.appendChild(list)
+
+  const builtinLabel = (id?: string): string =>
+    BUILTIN_ACTIONS.find((a) => a.id === id)?.label ?? '(unknown builtin)'
+
+  const move = (i: number, delta: number): void => {
+    const j = i + delta
+    if (j < 0 || j >= settings.actionMenu.length) return
+    const arr = settings.actionMenu
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    saveSoon()
+    render()
+  }
+
+  const render = (): void => {
+    list.replaceChildren()
+    if (!settings.actionMenu.length) {
+      list.insertAdjacentHTML('beforeend', '<div class="field-hint">No items.</div>')
+    }
+    settings.actionMenu.forEach((item, i) => {
+      const row = document.createElement('div')
+      row.className = 'action-menu-row' + (item.hidden ? ' hidden' : '')
+
+      const up = document.createElement('button')
+      up.className = 'wt-act'
+      up.textContent = '↑'
+      up.disabled = i === 0
+      up.addEventListener('click', () => move(i, -1))
+      const down = document.createElement('button')
+      down.className = 'wt-act'
+      down.textContent = '↓'
+      down.disabled = i === settings.actionMenu.length - 1
+      down.addEventListener('click', () => move(i, 1))
+
+      const txt = document.createElement('div')
+      txt.className = 'action-menu-text'
+      const nm = document.createElement('span')
+      nm.className = 'action-menu-name'
+      nm.textContent = item.title
+      const sub = document.createElement('span')
+      sub.className = 'action-menu-sub'
+      sub.textContent =
+        item.kind === 'builtin'
+          ? `builtin · ${builtinLabel(item.builtinId)}`
+          : `command (${item.opensAs ?? 'tab'}) · ${item.command || '—'}`
+      txt.append(nm, sub)
+
+      const hideBtn = document.createElement('button')
+      hideBtn.className = 'wt-act'
+      hideBtn.textContent = item.hidden ? 'Show' : 'Hide'
+      hideBtn.addEventListener('click', () => {
+        item.hidden = !item.hidden
+        saveSoon()
+        render()
+      })
+      const edit = document.createElement('button')
+      edit.className = 'wt-act'
+      edit.textContent = 'Edit'
+      edit.addEventListener('click', () => void editActionItem(item).then(render))
+      const del = document.createElement('button')
+      del.className = 'wt-act wt-remove'
+      del.textContent = 'Delete'
+      del.addEventListener('click', () => {
+        settings.actionMenu = settings.actionMenu.filter((x) => x !== item)
+        saveSoon()
+        render()
+      })
+
+      row.append(up, down, txt, hideBtn, edit, del)
+      list.appendChild(row)
+    })
+  }
+
+  const actions = document.createElement('div')
+  actions.className = 'proj-detail-actions'
+  const addCmd = document.createElement('button')
+  addCmd.className = 'settings-inline-btn'
+  addCmd.textContent = '+ Add command'
+  addCmd.addEventListener('click', () => {
+    void editActionItem().then((added) => {
+      if (added) {
+        settings.actionMenu.push(added)
+        saveSoon()
+        render()
+      }
+    })
+  })
+  const reset = document.createElement('button')
+  reset.className = 'settings-inline-btn'
+  reset.textContent = 'Reset to defaults'
+  reset.addEventListener('click', () => {
+    settings.actionMenu = BUILTIN_ACTIONS.map((a) => ({
+      id: uid('am'),
+      title: a.label,
+      kind: 'builtin' as const,
+      builtinId: a.id
+    }))
+    saveSoon()
+    render()
+  })
+  actions.append(addCmd, reset)
+  panel.appendChild(actions)
+
+  render()
+}
+
+// Edit an existing action item in place (returns null), or create a new command
+// item (returns it). Builtin items only allow renaming; command items get a
+// command + placement.
+async function editActionItem(existing?: ActionMenuItem): Promise<ActionMenuItem | null> {
+  const isBuiltin = existing?.kind === 'builtin'
+  const values = await promptForm({
+    title: existing ? 'Edit action' : 'New command action',
+    fields: isBuiltin
+      ? [{ key: 'title', label: 'Title', value: existing?.title, placeholder: 'menu label' }]
+      : [
+          { key: 'title', label: 'Title', value: existing?.title, placeholder: 'Deploy' },
+          { key: 'command', label: 'Command', value: existing?.command, placeholder: 'npm run deploy' },
+          { key: 'opensAs', label: 'Opens as (split/tab)', value: existing?.opensAs ?? 'tab', placeholder: 'tab' }
+        ],
+    confirmText: existing ? 'Save' : 'Add'
+  })
+  if (!values) return null
+  const title = (values.title || '').trim()
+  if (!title) return null
+  if (existing) {
+    existing.title = title
+    if (!isBuiltin) {
+      existing.command = (values.command || '').trim()
+      existing.opensAs = (values.opensAs || '').trim() === 'split' ? 'split' : 'tab'
+    }
+    saveSoon()
+    return null
+  }
+  const command = (values.command || '').trim()
+  if (!command) return null
+  return {
+    id: uid('am'),
+    title,
+    kind: 'command',
+    command,
+    opensAs: (values.opensAs || '').trim() === 'split' ? 'split' : 'tab'
+  }
 }
 
 function buildSystemUpdatePanel(panel: HTMLElement): void {

@@ -741,7 +741,7 @@ export function openMarkdownFile(absPath: string): void {
 }
 
 // Run a one-off command in a new split terminal beside the active pane.
-async function runInSplit(command: string): Promise<void> {
+export async function runInSplit(command: string): Promise<void> {
   const paneId = await createPane(activeCwd())
   if (placeSplit(paneId, 'row')) {
     focusActivePane()

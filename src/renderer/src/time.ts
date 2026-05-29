@@ -13,6 +13,7 @@ let active: {
   featureId: string | null
   start: number
   pomodoroMs?: number
+  repeat?: boolean // when a pomodoro finishes, auto-start another of the same length
 } | null = null
 let ticker: number | null = null
 
@@ -194,24 +195,39 @@ function toggle(): void {
   renderSummary()
 }
 
-// Start a countdown pomodoro for `ms`.
-function startPomodoro(ms: number): void {
+// Start a countdown pomodoro for `ms`. `repeat` re-arms it after each finish.
+function startPomodoro(ms: number, repeat = false): void {
   if (active) return
   const projectPath = projectSel().value
   if (!projectPath) return
-  active = { projectPath, featureId: featureSel().value || null, start: Date.now(), pomodoroMs: ms }
+  active = {
+    projectPath,
+    featureId: featureSel().value || null,
+    start: Date.now(),
+    pomodoroMs: ms,
+    repeat
+  }
   ticker = window.setInterval(onTick, 1000)
   updateToggle()
   tickElapsed()
   renderSummary()
 }
 
-// Pomodoro reached its end: log it, then alert + sound.
+// Pomodoro reached its end: log it, alert + sound, then re-arm if repeating.
 function finishPomodoro(): void {
   const proj = active ? findProjectByPath(state.tree, active.projectPath) : null
+  const ms = active?.pomodoroMs
+  const repeat = active?.repeat
+  const projectPath = active?.projectPath
+  const featureId = active?.featureId ?? null
   stopActive()
   window.crafterm.notify('Pomodoro done', `${proj?.name ?? 'Session'} · time logged`)
   if (settings.notifSound) window.crafterm.playSound(settings.notifSound)
+  // Re-arm the same countdown for repeating pomodoros (no project select needed).
+  if (repeat && ms && projectPath) {
+    active = { projectPath, featureId, start: Date.now(), pomodoroMs: ms, repeat: true }
+    ticker = window.setInterval(onTick, 1000)
+  }
   updateToggle()
   tickElapsed()
   renderSummary()
@@ -278,6 +294,12 @@ function showReport(): void {
   body.className = 'report-body'
   modal.append(chipsRow, body)
 
+  // Plain-text version of the current report, rebuilt on every render so the
+  // "Copy" button can hand the user a paste-ready summary for clients.
+  let reportText = ''
+  const rangeLabel = (): string =>
+    range === 'today' ? 'Today' : range === 'week' ? 'Last 7 days' : range === 'month' ? 'Last 30 days' : 'All time'
+
   const render = (): void => {
     chipsRow.replaceChildren()
     ;(['today', 'week', 'month', 'all'] as Range[]).forEach((r) => {
@@ -309,8 +331,10 @@ function showReport(): void {
     body.replaceChildren()
     if (!byProj.size) {
       body.insertAdjacentHTML('beforeend', '<div class="notif-empty">No time logged in this range</div>')
+      reportText = `Time report — ${rangeLabel()}\nNo time logged in this range`
       return
     }
+    const lines: string[] = [`Time report — ${rangeLabel()}`, '']
     let grand = 0
     for (const [path, info] of [...byProj].sort((a, b) => b[1].total - a[1].total)) {
       grand += info.total
@@ -319,20 +343,38 @@ function showReport(): void {
       pr.className = 'report-row report-proj'
       pr.innerHTML = `<span class="report-name">${proj?.name ?? path}</span><span class="report-dur">${fmtHM(info.total)}</span>`
       body.appendChild(pr)
+      lines.push(`${proj?.name ?? path}: ${fmtHM(info.total)}`)
       for (const [fid, ms] of [...info.feats].sort((a, b) => b[1] - a[1])) {
         const feat = fid ? findFeature(state.tree, fid)?.feature : null
         const fr = document.createElement('div')
         fr.className = 'report-row report-feat'
         fr.innerHTML = `<span class="report-name">${feat?.name ?? '(no feature)'}</span><span class="report-dur">${fmtHM(ms)}</span>`
         body.appendChild(fr)
+        lines.push(`  - ${feat?.name ?? '(no feature)'}: ${fmtHM(ms)}`)
       }
     }
     const tot = document.createElement('div')
     tot.className = 'report-row report-total'
     tot.innerHTML = `<span class="report-name">Total</span><span class="report-dur">${fmtHM(grand)}</span>`
     body.appendChild(tot)
+    lines.push('', `Total: ${fmtHM(grand)}`)
+    reportText = lines.join('\n')
   }
   render()
+
+  const foot = document.createElement('div')
+  foot.className = 'report-foot'
+  const copyBtn = document.createElement('button')
+  copyBtn.className = 'settings-inline-btn'
+  copyBtn.textContent = 'Copy report'
+  copyBtn.addEventListener('click', () => {
+    void navigator.clipboard.writeText(reportText)
+    copyBtn.textContent = 'Copied'
+    setTimeout(() => (copyBtn.textContent = 'Copy report'), 1200)
+  })
+  foot.appendChild(copyBtn)
+  modal.appendChild(foot)
+
   document.body.appendChild(overlay)
 }
 
@@ -474,8 +516,19 @@ export function initTime(): void {
   projectSel().addEventListener('change', renderFeatures)
   el('time-toggle').addEventListener('click', toggle)
   el('time-add-feature').addEventListener('click', () => void addFeature())
+  const repeatOf = (): boolean => el<HTMLInputElement>('time-pom-repeat').checked
   document.querySelectorAll<HTMLButtonElement>('.time-pom-preset').forEach((b) => {
-    b.addEventListener('click', () => startPomodoro(Number(b.dataset.min) * 60_000))
+    b.addEventListener('click', () => startPomodoro(Number(b.dataset.min) * 60_000, repeatOf()))
+  })
+  // Custom-length countdown timer with optional repeat.
+  el('time-pom-start').addEventListener('click', () => {
+    const min = Number(el<HTMLInputElement>('time-pom-min').value)
+    if (!Number.isFinite(min) || min <= 0) return
+    startPomodoro(min * 60_000, repeatOf())
+  })
+  el<HTMLInputElement>('time-pom-min').addEventListener('keydown', (e) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') el('time-pom-start').click()
   })
   el('time-report-btn').addEventListener('click', showReport)
 }

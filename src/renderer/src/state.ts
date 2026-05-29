@@ -1,5 +1,6 @@
 import type { ITheme } from '@xterm/xterm'
-import type { Pane, BrowserPane, DocPane, SqlPane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, TimeEntry, DbNode } from './types'
+import type { Pane, BrowserPane, DocPane, SqlPane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, TimeEntry, DbNode, ActionMenuItem } from './types'
+import { BUILTIN_ACTIONS } from './types'
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from './themes'
 import { PALETTE_SEED } from './palette-seed'
 import { allTabs } from './tree'
@@ -62,6 +63,7 @@ export const settings = {
   commands: { ide: 'ide', openMyZsh: 'openmyzsh', mdFolders: [] as string[] },
   environments: ['dev', 'local', 'production'] as string[], // global environment names
   groups: [] as string[], // user-managed workspace group labels (chip dropdown in Projects)
+  actionMenu: [] as ActionMenuItem[], // sidebar ⋯ menu rows (seeded from builtins on first run)
   sshConnections: [] as SshConnection[], // saved ssh hosts (action menu → My SSH connections)
   // user-managed command palette entries (predefined + git/linux cheatsheets);
   // seeded on first run, edited in Settings → Command palette
@@ -301,6 +303,7 @@ function persist(): void {
     commands: settings.commands,
     environments: settings.environments,
     groups: settings.groups,
+    actionMenu: settings.actionMenu,
     sshConnections: settings.sshConnections,
     paletteCommands: settings.paletteCommands,
     notifPanelSize: settings.notifPanelSize,
@@ -354,6 +357,11 @@ export function loadSettings(saved: SavedState): void {
   if (Array.isArray(saved.environments) && saved.environments.length)
     settings.environments = saved.environments
   if (Array.isArray(saved.groups)) settings.groups = saved.groups.filter((s) => typeof s === 'string')
+  if (Array.isArray(saved.actionMenu) && saved.actionMenu.length) {
+    settings.actionMenu = saved.actionMenu as ActionMenuItem[]
+  } else {
+    settings.actionMenu = seedActionMenu()
+  }
   if (Array.isArray(saved.sshConnections)) settings.sshConnections = saved.sshConnections
   if (Array.isArray(saved.paletteCommands)) settings.paletteCommands = saved.paletteCommands
   if (typeof saved.notifPanelSize === 'number') settings.notifPanelSize = saved.notifPanelSize
@@ -374,6 +382,17 @@ export function loadSettings(saved: SavedState): void {
 
 export function activeTabsCount(): number {
   return allTabs(state.tree).length
+}
+
+// Default action-menu rows: one builtin entry per registered action, in the
+// historical order. Used on first run and when no saved menu exists.
+export function seedActionMenu(): ActionMenuItem[] {
+  return BUILTIN_ACTIONS.map((a) => ({
+    id: uid('am'),
+    title: a.label,
+    kind: 'builtin' as const,
+    builtinId: a.id
+  }))
 }
 
 // One-time migration of pre-unified-tree state. settings.projects and
