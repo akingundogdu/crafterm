@@ -1,5 +1,5 @@
 import { settings, state, panes, saveSoon } from './state'
-import { openMarkdownFile } from './commands'
+import { openMarkdownFile, openFileViewer, splitWithIde } from './commands'
 
 function treeEl(): HTMLElement {
   return document.getElementById('explorer-tree')!
@@ -27,29 +27,51 @@ function shortPath(p: string): string {
   return p.replace(/^\/(Users|home)\/[^/]+/, '~')
 }
 
-// markdown → in-app viewer; everything else → the user's `ide` command.
+// markdown → in-app markdown viewer; everything else → a read-only, line-
+// selectable file viewer pane (select lines and send a `path:line` reference to
+// a terminal to ask Claude about that spot).
 function openFile(path: string): void {
   if (/\.(md|mdx|mdc)$/i.test(path)) openMarkdownFile(path)
-  else window.crafterm.ideOpen(path, settings.commands.ide)
+  else openFileViewer(path)
 }
 
 const CHEVRON = '▸'
 
-function showExcludeMenu(e: MouseEvent, name: string): void {
+function showFileContextMenu(e: MouseEvent, entry: Entry): void {
   document.querySelector('.context-menu')?.remove()
   const menu = document.createElement('div')
   menu.className = 'context-menu'
   menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px'
   menu.style.top = e.clientY + 'px'
-  const b = document.createElement('button')
-  b.textContent = `Exclude “${name}”`
-  b.addEventListener('click', () => {
+
+  if (!entry.isDir) {
+    const editor = document.createElement('button')
+    editor.textContent = 'Open in editor'
+    editor.addEventListener('click', () => {
+      menu.remove()
+      void splitWithIde(entry.path)
+    })
+    menu.appendChild(editor)
+  }
+
+  const reveal = document.createElement('button')
+  reveal.textContent = 'Open in Finder'
+  reveal.addEventListener('click', () => {
     menu.remove()
-    if (!settings.explorerExclude.includes(name)) settings.explorerExclude.push(name)
+    window.crafterm.revealPath(entry.path)
+  })
+  menu.appendChild(reveal)
+
+  const exclude = document.createElement('button')
+  exclude.textContent = `Exclude “${entry.name}”`
+  exclude.addEventListener('click', () => {
+    menu.remove()
+    if (!settings.explorerExclude.includes(entry.name)) settings.explorerExclude.push(entry.name)
     saveSoon()
     void renderExplorer()
   })
-  menu.appendChild(b)
+  menu.appendChild(exclude)
+
   document.body.appendChild(menu)
   const onDown = (ev: MouseEvent): void => {
     if (!menu.contains(ev.target as Node)) {
@@ -98,7 +120,10 @@ function buildRow(entry: Entry, depth: number): HTMLElement {
   } else {
     row.addEventListener('click', () => openFile(entry.path))
   }
-  row.addEventListener('contextmenu', (e) => showExcludeMenu(e, entry.name))
+  row.addEventListener('contextmenu', (e) => {
+    e.preventDefault()
+    showFileContextMenu(e, entry)
+  })
   return row
 }
 

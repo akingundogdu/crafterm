@@ -1,11 +1,22 @@
 import { themes } from './themes'
-import { settings, state, saveSoon, requestSidebar, resolveTheme, applyBgColor, uid } from './state'
-import type { PaletteCommand, ProjectNode, Application, ActionMenuItem } from './types'
+import {
+  settings,
+  state,
+  saveSoon,
+  persistNow,
+  saveStatus,
+  subscribeSaveStatus,
+  requestSidebar,
+  resolveTheme,
+  applyBgColor,
+  uid
+} from './state'
+import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from './types'
 import { BUILTIN_ACTIONS } from './types'
 import { flattenProjects, removeProject } from './catalog'
 import { makeProject } from './tree'
 import { applyAppearance } from './pane'
-import { applyOrientation, applySidebarFont } from './sidebar'
+import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from './sidebar'
 import { pickFolderPath } from './pickers'
 import { makeCloseButton, promptForm, promptText } from './dialog'
 import {
@@ -61,7 +72,8 @@ function toHex6(v: string): string {
 // Each tab's `build` runs once, lazily, the first time its tab is shown.
 function buildSubTabs(
   parent: HTMLElement,
-  tabs: { label: string; build: (el: HTMLElement) => void }[]
+  tabs: { label: string; build: (el: HTMLElement) => void }[],
+  opts?: { initialIndex?: number; onTabChange?: (idx: number) => void }
 ): void {
   const bar = document.createElement('div')
   bar.className = 'settings-subtabs'
@@ -78,6 +90,7 @@ function buildSubTabs(
       tabs[i].build(panels[i])
       built[i] = true
     }
+    opts?.onTabChange?.(i)
   }
   tabs.forEach((t, i) => {
     const b = document.createElement('button')
@@ -93,7 +106,10 @@ function buildSubTabs(
     bar.appendChild(b)
     body.appendChild(p)
   })
-  if (tabs.length) show(0)
+  if (tabs.length) {
+    const start = opts?.initialIndex ?? 0
+    show(start >= 0 && start < tabs.length ? start : 0)
+  }
 }
 
 function labeledInput(
@@ -168,9 +184,11 @@ export function openSettings(): void {
     'Appearance',
     'Theme',
     'Sidebar',
+    'Tabs',
     'Workspace',
     'Projects',
     'Commands',
+    'Reminders',
     'Action menu',
     'Shortcuts',
     'System update'
@@ -201,15 +219,219 @@ export function openSettings(): void {
   buildAppearancePanel(panels['Appearance'])
   buildThemePanel(panels['Theme'])
   buildSidebarPanel(panels['Sidebar'])
+  buildTabsPanel(panels['Tabs'])
   buildWorkspacePanel(panels['Workspace'])
   buildProjectsPanel(panels['Projects'])
   buildCommandsPanel(panels['Commands'])
+  buildRemindersPanel(panels['Reminders'])
   buildShortcutsPanel(panels['Shortcuts'])
   buildActionMenuPanel(panels['Action menu'])
   buildSystemUpdatePanel(panels['System update'])
 
+  // Save status footer: shows Unsaved / Saving… / Saved HH:MM:SS + a manual flush.
+  const footer = document.createElement('div')
+  footer.className = 'settings-save-footer'
+  const chip = document.createElement('span')
+  chip.className = 'settings-save-chip'
+  const saveBtn = document.createElement('button')
+  saveBtn.className = 'settings-inline-btn'
+  saveBtn.textContent = 'Save now'
+  saveBtn.addEventListener('click', () => persistNow())
+  footer.append(chip, saveBtn)
+  modal.appendChild(footer)
+  const formatTime = (ms: number): string => {
+    const d = new Date(ms)
+    const pad = (n: number): string => (n < 10 ? '0' + n : String(n))
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }
+  const refreshChip = (): void => {
+    if (saveStatus.pending) {
+      chip.textContent = 'Saving…'
+      chip.dataset.state = 'pending'
+    } else if (saveStatus.lastSavedAt) {
+      chip.textContent = `Saved · ${formatTime(saveStatus.lastSavedAt)}`
+      chip.dataset.state = 'saved'
+    } else {
+      chip.textContent = 'No changes yet'
+      chip.dataset.state = 'idle'
+    }
+  }
+  refreshChip()
+  const unsubscribe = subscribeSaveStatus(refreshChip)
+  settingsCleanups.push(unsubscribe)
+
   show('Appearance')
   document.body.appendChild(overlay)
+}
+
+function buildTabsPanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>Tabs</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Controls the sidebar and right-panel tab strips. In icon-only mode, hover a tab to see its name and shortcut.</div>'
+  )
+
+  labeledSelect(
+    panel,
+    'Display',
+    [
+      ['icon', 'Icon only'],
+      ['text', 'Text only'],
+      ['both', 'Icon + text']
+    ],
+    settings.tabDisplay.mode,
+    (v) => {
+      settings.tabDisplay.mode = v as 'icon' | 'text' | 'both'
+      applyTabDisplay()
+      saveSoon()
+    }
+  )
+
+  const renderHideGroup = (strip: 'left' | 'right', title: string): void => {
+    panel.insertAdjacentHTML('beforeend', `<div class="settings-subhead">${title}</div>`)
+    for (const t of tabMeta().filter((m) => m.strip === strip)) {
+      const row = document.createElement('label')
+      row.style.display = 'flex'
+      row.style.alignItems = 'center'
+      row.style.gap = '6px'
+      row.style.padding = '2px 0'
+      const cb = document.createElement('input')
+      cb.type = 'checkbox'
+      cb.checked = !settings.tabDisplay.hidden[strip].includes(t.id)
+      cb.addEventListener('change', () => {
+        const list = settings.tabDisplay.hidden[strip]
+        const idx = list.indexOf(t.id)
+        if (cb.checked) {
+          if (idx >= 0) list.splice(idx, 1)
+        } else if (idx < 0) {
+          list.push(t.id)
+        }
+        applyTabDisplay()
+        saveSoon()
+      })
+      row.append(cb, document.createTextNode(' ' + t.label))
+      panel.appendChild(row)
+    }
+  }
+  renderHideGroup('left', 'Sidebar tabs (show)')
+  renderHideGroup('right', 'Right panel tabs (show)')
+}
+
+function buildRemindersPanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>Reminders</h3>')
+
+  labeledInput(
+    panel,
+    'Default hour (for "Tomorrow"-style presets)',
+    'number',
+    String(settings.reminderDefaults.defaultHour),
+    (v) => {
+      const n = parseInt(v, 10)
+      if (Number.isInteger(n) && n >= 0 && n <= 23) {
+        settings.reminderDefaults.defaultHour = n
+        saveSoon()
+      }
+    }
+  )
+
+  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Quick-time presets</div>')
+  const list = document.createElement('div')
+  panel.appendChild(list)
+
+  const renderList = (): void => {
+    list.innerHTML = ''
+    settings.reminderDefaults.presets.forEach((p, idx) => {
+      const card = document.createElement('div')
+      card.className = 'app-card'
+
+      const labelI = document.createElement('input')
+      labelI.type = 'text'
+      labelI.value = p.label
+      labelI.placeholder = 'Label'
+      labelI.addEventListener('change', () => {
+        p.label = labelI.value.trim() || p.label
+        labelI.value = p.label
+        saveSoon()
+      })
+
+      // kind: relative offset (minutes) vs day-based jump
+      const kindSel = document.createElement('select')
+      kindSel.className = 'settings-select'
+      ;[
+        ['offset', 'Offset (minutes)'],
+        ['days', 'Days ahead']
+      ].forEach(([val, text]) => {
+        const o = document.createElement('option')
+        o.value = val
+        o.textContent = text
+        kindSel.appendChild(o)
+      })
+      kindSel.value = typeof p.days === 'number' ? 'days' : 'offset'
+
+      const valueI = document.createElement('input')
+      valueI.type = 'number'
+      valueI.min = '0'
+      valueI.value = String(typeof p.days === 'number' ? p.days : (p.offsetMin ?? 0))
+
+      const snapWrap = document.createElement('label')
+      snapWrap.style.display = 'flex'
+      snapWrap.style.alignItems = 'center'
+      snapWrap.style.gap = '6px'
+      const snap = document.createElement('input')
+      snap.type = 'checkbox'
+      snap.checked = p.snapHour === true
+      snapWrap.append(snap, document.createTextNode(' Snap to default hour'))
+
+      const syncSnapVisibility = (): void => {
+        snapWrap.style.display = kindSel.value === 'days' ? '' : 'none'
+      }
+      syncSnapVisibility()
+
+      const applyValue = (): void => {
+        const n = Math.max(0, parseInt(valueI.value, 10) || 0)
+        if (kindSel.value === 'days') {
+          p.days = n
+          p.offsetMin = undefined
+          p.snapHour = snap.checked ? true : undefined
+        } else {
+          p.offsetMin = n
+          p.days = undefined
+          p.snapHour = undefined
+        }
+        saveSoon()
+      }
+      kindSel.addEventListener('change', () => {
+        syncSnapVisibility()
+        applyValue()
+      })
+      valueI.addEventListener('change', applyValue)
+      snap.addEventListener('change', applyValue)
+
+      const del = document.createElement('button')
+      del.className = 'app-del'
+      del.textContent = '✕'
+      del.title = 'Remove preset'
+      del.addEventListener('click', () => {
+        settings.reminderDefaults.presets.splice(idx, 1)
+        saveSoon()
+        renderList()
+      })
+
+      card.append(labelI, kindSel, valueI, snapWrap, del)
+      list.appendChild(card)
+    })
+
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add preset'
+    add.addEventListener('click', () => {
+      settings.reminderDefaults.presets.push({ label: '+1h', offsetMin: 60 })
+      saveSoon()
+      renderList()
+    })
+    list.appendChild(add)
+  }
+  renderList()
 }
 
 function buildAppearancePanel(panel: HTMLElement): void {
@@ -464,6 +686,10 @@ function buildProjectsPanel(panel: HTMLElement): void {
 
   let selected: ProjectNode | null = flattenProjects(state.tree)[0] ?? null
 
+  // Persist the active sub-tab index per project so re-renders (e.g. after
+  // "Add command") don't kick the user back to the first sub-tab.
+  const activeSubTabIdx = new Map<string, number>()
+
   // Union of saved group labels and the ones already in use anywhere in the
   // tree — drives the Group field's datalist so the dropdown stays accurate
   // even before the user touches Settings → Workspace.
@@ -516,6 +742,39 @@ function buildProjectsPanel(panel: HTMLElement): void {
       }
       wrap.appendChild(dl)
     }
+    parent.appendChild(wrap)
+  }
+
+  // A real dropdown field. `options` are the selectable values; the current
+  // value is always present (legacy labels stay selectable). The empty option
+  // (label `emptyLabel`) clears the value.
+  const selectField = (
+    parent: HTMLElement,
+    label: string,
+    value: string,
+    emptyLabel: string,
+    options: string[],
+    onChange: (v: string) => void
+  ): void => {
+    const wrap = document.createElement('div')
+    wrap.className = 'field'
+    const lab = document.createElement('label')
+    lab.textContent = label
+    const sel = document.createElement('select')
+    const empty = document.createElement('option')
+    empty.value = ''
+    empty.textContent = emptyLabel
+    sel.appendChild(empty)
+    const all = [...new Set([...options, ...(value ? [value] : [])])]
+    for (const v of all) {
+      const o = document.createElement('option')
+      o.value = v
+      o.textContent = v
+      sel.appendChild(o)
+    }
+    sel.value = value
+    sel.addEventListener('change', () => onChange(sel.value))
+    wrap.append(lab, sel)
     parent.appendChild(wrap)
   }
 
@@ -911,6 +1170,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       )
       return
     }
+    const subTabKey = p.id
     buildSubTabs(detailCol, [
       {
         label: 'General',
@@ -926,11 +1186,12 @@ function buildProjectsPanel(panel: HTMLElement): void {
             requestSidebar()
             saveSoon()
           })
-          field(
+          selectField(
             el,
             'Group (workspace)',
             p.group ?? '',
-            'work (optional)',
+            '(Ungrouped)',
+            groupOptions(),
             (v) => {
               const g = v.trim()
               p.group = g || undefined
@@ -939,8 +1200,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
               renderGroups()
               requestSidebar()
               saveSoon()
-            },
-            { options: groupOptions() }
+            }
           )
           field(el, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
             p.command = v.trim() || undefined
@@ -960,6 +1220,16 @@ function buildProjectsPanel(panel: HTMLElement): void {
             p.shell = v.trim() || undefined
             saveSoon()
           })
+          field(
+            el,
+            'Issue key prefix',
+            p.issueKeyPrefix ?? '',
+            'CRF (for CRF-12 task keys, optional)',
+            (v) => {
+              p.issueKeyPrefix = v.trim().toUpperCase() || undefined
+              saveSoon()
+            }
+          )
         }
       },
       {
@@ -980,8 +1250,12 @@ function buildProjectsPanel(panel: HTMLElement): void {
       },
       { label: 'Apps', build: (el) => renderApps(p, el) },
       { label: 'Features', build: (el) => renderFeatures(p, el) },
-      { label: 'Run commands', build: (el) => renderRunCommands(p, el) }
-    ])
+      { label: 'Run commands', build: (el) => renderRunCommands(p, el) },
+      { label: 'iOS', build: (el) => renderIosConfig(p, el) }
+    ], {
+      initialIndex: activeSubTabIdx.get(subTabKey) ?? 0,
+      onTabChange: (i) => activeSubTabIdx.set(subTabKey, i)
+    })
 
     const actions = document.createElement('div')
     actions.className = 'proj-detail-actions'
@@ -1043,6 +1317,144 @@ function buildCommandsPanel(panel: HTMLElement): void {
     { label: 'Markdown folders', build: (el) => buildMarkdownFoldersControl(el) },
     { label: 'Command palette', build: (el) => buildPaletteCommandsControl(el) }
   ])
+}
+
+// Per-project iOS worktree config (Settings → Projects → [project] → iOS). The
+// repo root is the project's own path. Every field is optional: empty values are
+// auto-detected by the bundled ios-worktree.sh, so each iOS project is independent.
+function defaultIosConfig(): IosDevConfig {
+  return {
+    project: '',
+    scheme: '',
+    baseBundleId: '',
+    displayPrefix: '',
+    defaultSimulator: '',
+    copyFiles: [],
+    worktreesDir: ''
+  }
+}
+
+function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
+  panel.replaceChildren()
+
+  // "iOS app" toggle: reveals the config + the sidebar worktree manager.
+  const toggleField = document.createElement('div')
+  toggleField.className = 'field'
+  const toggleLabel = document.createElement('label')
+  toggleLabel.style.cursor = 'pointer'
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = !!p.iosApp
+  checkbox.style.marginRight = '8px'
+  const labelText = document.createElement('span')
+  labelText.textContent = 'iOS app (show the worktree manager under this project)'
+  toggleLabel.append(checkbox, labelText)
+  toggleField.appendChild(toggleLabel)
+  panel.appendChild(toggleField)
+
+  const body = document.createElement('div')
+  panel.appendChild(body)
+
+  const renderBody = (): void => {
+    body.replaceChildren()
+    if (!p.iosApp) {
+      body.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">Enable to manage this app’s git worktrees (build / run / status) from the sidebar.</div>'
+      )
+      return
+    }
+    if (!p.iosConfig) p.iosConfig = defaultIosConfig()
+    const cfg = p.iosConfig
+
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field-hint">Repo root is this project’s path. Leave a field empty to auto-detect it from the Xcode project.</div>'
+    )
+    const field = (
+      label: string,
+      key: 'project' | 'scheme' | 'baseBundleId' | 'displayPrefix' | 'defaultSimulator' | 'worktreesDir',
+      placeholder: string
+    ): void => {
+      const input = labeledInput(body, label, 'text', cfg[key], (v) => {
+        cfg[key] = v.trim()
+        saveSoon()
+      })
+      input.placeholder = placeholder
+      input.style.maxWidth = '420px'
+    }
+    field('Xcode project / workspace', 'project', 'auto: discovered (.xcworkspace/.xcodeproj)')
+    field('Scheme', 'scheme', 'auto: xcodebuild -list')
+    field('Base bundle identifier', 'baseBundleId', 'auto: from build settings, e.g. com.acme.app')
+    field('Display name prefix', 'displayPrefix', 'auto: scheme name')
+    field('Default simulator', 'defaultSimulator', 'auto: booted, else first iPhone')
+    field('Worktrees directory', 'worktreesDir', 'auto: <repo parent>/worktrees')
+
+    // Files-to-copy list: gitignored local files seeded into a fresh worktree.
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field" style="margin-top:14px"><label>Copy into new worktrees</label></div>'
+    )
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field-hint">Gitignored local files (paths relative to the repo root) copied from the main checkout, e.g. Secrets.xcconfig.</div>'
+    )
+    const addBtn = document.createElement('button')
+    addBtn.className = 'settings-inline-btn'
+    addBtn.textContent = '+ Add file'
+    body.appendChild(addBtn)
+    const list = document.createElement('div')
+    list.className = 'palette-admin-list'
+    body.appendChild(list)
+
+    const renderFiles = (): void => {
+      list.replaceChildren()
+      if (!cfg.copyFiles.length) {
+        list.insertAdjacentHTML('beforeend', '<div class="field-hint">No files yet.</div>')
+        return
+      }
+      cfg.copyFiles.forEach((rel, i) => {
+        const row = document.createElement('div')
+        row.className = 'palette-admin-row'
+        const txt = document.createElement('span')
+        txt.className = 'palette-admin-cmd'
+        txt.textContent = rel
+        const del = document.createElement('button')
+        del.className = 'wt-act wt-remove'
+        del.textContent = 'Delete'
+        del.addEventListener('click', () => {
+          cfg.copyFiles.splice(i, 1)
+          saveSoon()
+          renderFiles()
+        })
+        row.append(txt, del)
+        list.appendChild(row)
+      })
+    }
+    addBtn.addEventListener('click', () => {
+      void promptForm({
+        title: 'Add file to copy',
+        fields: [{ key: 'path', label: 'Path (relative to repo root)', placeholder: 'Secrets.xcconfig' }],
+        confirmText: 'Add'
+      }).then((values) => {
+        const rel = (values?.path || '').trim()
+        if (!rel || cfg.copyFiles.includes(rel)) return
+        cfg.copyFiles.push(rel)
+        saveSoon()
+        renderFiles()
+      })
+    })
+    renderFiles()
+  }
+
+  checkbox.addEventListener('change', () => {
+    p.iosApp = checkbox.checked
+    if (p.iosApp && !p.iosConfig) p.iosConfig = defaultIosConfig()
+    saveSoon()
+    requestSidebar() // toggle the sidebar worktree group immediately
+    renderBody()
+  })
+  renderBody()
 }
 
 // Manage the Cmd+Shift+P palette entries (predefined + git/linux cheatsheets).
@@ -1291,6 +1703,49 @@ function buildWorkspacePanel(panel: HTMLElement): void {
     'beforeend',
     '<div class="field-hint">Played when a terminal finishes or Claude needs you. Pick one to preview.</div>'
   )
+
+  // Claude usage — token source for the real `/api/oauth/usage` percentages.
+  panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">Claude usage</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">The status-bar chip shows Anthropic\'s real session/week limits, read with the OAuth token Claude Code stores in the macOS keychain. Override the keychain service or point at a saved secret as a fallback.</div>'
+  )
+  const svc = labeledInput(
+    panel,
+    'Keychain service',
+    'text',
+    settings.claudeUsageAuth.keychainService,
+    (v) => {
+      settings.claudeUsageAuth.keychainService = v.trim() || 'Claude Code-credentials'
+      saveSoon()
+    }
+  )
+  svc.style.maxWidth = '260px'
+  svc.placeholder = 'Claude Code-credentials'
+
+  // Fallback secret: any secret-typed field stored under Accounts. Value is the
+  // (entryId :: fieldKey) pair; the renderer decrypts it at fetch time.
+  const secretOptions: [string, string][] = [['', 'None']]
+  for (const a of settings.accounts) {
+    for (const f of a.fields ?? []) {
+      if (f.secret) secretOptions.push([`${a.id}::${f.key}`, `${a.label} / ${f.key}`])
+    }
+  }
+  const current =
+    settings.claudeUsageAuth.fallbackSecretId && settings.claudeUsageAuth.fallbackSecretKey
+      ? `${settings.claudeUsageAuth.fallbackSecretId}::${settings.claudeUsageAuth.fallbackSecretKey}`
+      : ''
+  labeledSelect(panel, 'Fallback secret', secretOptions, current, (v) => {
+    if (!v) {
+      settings.claudeUsageAuth.fallbackSecretId = ''
+      settings.claudeUsageAuth.fallbackSecretKey = ''
+    } else {
+      const [id, key] = v.split('::')
+      settings.claudeUsageAuth.fallbackSecretId = id
+      settings.claudeUsageAuth.fallbackSecretKey = key
+    }
+    saveSoon()
+  })
 }
 
 function buildSidebarPanel(panel: HTMLElement): void {

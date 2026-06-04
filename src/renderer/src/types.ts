@@ -10,12 +10,15 @@ export type LayoutNode =
 
 export type PaneStatus = 'running' | 'idle' | 'attention'
 
-// A plan file row attached to a terminal pane. `ownerStableId` is null when the
-// filename has no --pane-<uuid> suffix (legacy plans → shown to every matching pane).
+// A plan file row attached to a terminal pane. Ownership comes from either a
+// `--pane-<uuid>` tag (`ownerStableId`, matched to pane.stableId) or a trailing
+// `-<uuid>` Claude session id (`ownerSessionId`, matched to pane.claudeSessionId).
+// Both null means a legacy/shared plan with no owner tag.
 export interface PlanEntry {
   name: string
   path: string
   ownerStableId: string | null
+  ownerSessionId: string | null
 }
 
 export interface Pane {
@@ -42,6 +45,15 @@ export interface Pane {
   plans: PlanEntry[] // docs/plans files matching this branch (filtered by ownership)
   claude: boolean // a Claude session — resumed on restore
   claudeSessionId: string | null // captured session id for `claude --resume <id>` on restore
+  // ms timestamp captured just before `claude` is launched in this pane; used to
+  // filter `claudeLatestSession(cwd, since)` so we only adopt session ids that
+  // appeared after we spawned. Prevents picking up a sibling pane's session
+  // (or a stale one) when multiple Claude panes share a cwd.
+  claudeSpawnedAt: number | null
+  // Once we've captured this pane's own session id, freeze it. The periodic
+  // refresh would otherwise overwrite it with whichever jsonl is newest in the
+  // shared cwd dir — the root of the cross-pane session-mixup bug.
+  claudeSessionLocked: boolean
   bgColor: string | null // per-pane background override (null = global default)
   fontSize: number | null // per-pane font-size override (null = global default)
   trackProjectPath: string | null // time-tracking: project this terminal logs to
@@ -51,10 +63,27 @@ export interface Pane {
   // pane action menu. Null when the terminal was opened from a plain cwd flow.
   projectId: string | null
   appId: string | null
+  // Daily-task this terminal is working on (assigned via the pane menu, or set
+  // automatically by "Open in terminal"). Drives the header chip + the
+  // "mark done on close?" prompt.
+  dailyTaskId: string | null
   lastActivity: number // ms of last terminal output/input (idle detection)
   lastNotify: number
   lastCols: number // last cols/rows pushed to the PTY; lets us skip no-op resizes
   lastRows: number //   (a tab-switch reattach must not fire a spurious SIGWINCH)
+  // Rolling tail of recent terminal output (ANSI-stripped). Only retained for
+  // Claude panes; used to distinguish "task done" from "Claude is waiting on a
+  // question" when the idle-timer fires.
+  outputTail: string
+  // True once refreshPanePlans has populated `plans` at least once — guards the
+  // auto-open so existing plans aren't re-opened on every launch.
+  plansSynced?: boolean
+  // True once a plan this pane owns has been auto-opened; surfaces the "Clarify"
+  // action in the pane menu (plan-mode workflow).
+  planMode?: boolean
+  // Claude session state derived from the session JSONL (sidebar status dot):
+  // 'in-progress' (assistant working), 'question' (awaiting the user), 'idle'.
+  claudeStatus?: 'in-progress' | 'question' | 'idle'
 }
 
 // An embedded browser shown as a pane (a terminal link opened in-app).
@@ -81,6 +110,35 @@ export interface SqlPane {
   themeName: string // CodeMirror theme name (see SQL_THEME_NAMES)
   getCode(): string
   focus(): void
+}
+
+// A read-only PR diff (from `gh pr diff`) shown as a pane. Selecting a line
+// range and sending it pastes a `path:line` reference into a terminal so the
+// user can ask Claude about that exact location. Transient — never persisted.
+export interface DiffPane {
+  id: string
+  el: HTMLElement
+  cwd: string
+  prNumber: number
+  // The terminal pane the selection is pasted into (captured at open time).
+  targetPaneId: string | null
+  // Cmd +/- font zoom for this pane (mirrors the terminal/doc pane behavior).
+  setFont(delta: number): void
+  resetFont(): void
+}
+
+// A read-only file viewer pane opened from the Files panel. Mirrors DiffPane's
+// line-selection → terminal-reference flow, but shows a single plain file.
+export interface FilePane {
+  id: string
+  el: HTMLElement
+  // Absolute path of the file being viewed.
+  path: string
+  // The terminal pane the selection is pasted into (captured at open time).
+  targetPaneId: string | null
+  // Cmd +/- font zoom for this pane (mirrors the terminal/doc/diff pane behavior).
+  setFont(delta: number): void
+  resetFont(): void
 }
 
 export type NodeColor = string | null
@@ -139,6 +197,9 @@ export interface ProjectNode {
   apps?: Application[] // runnable applications under this project
   features?: Feature[] // time-tracking features under this project
   runCommands?: ProjectCommand[] // named one-shot shell commands (sidebar "Run command…")
+  iosApp?: boolean // when true, show the iOS worktree manager under this project
+  iosConfig?: IosDevConfig // per-project iOS build config (repo root = this node's path)
+  issueKeyPrefix?: string // prefix for generated daily-task issue keys (e.g. CRF → CRF-12)
 }
 
 export type SidebarNode = TabNode | FolderNode | ProjectNode
@@ -171,12 +232,68 @@ export const BUILTIN_ACTIONS: { id: string; label: string }[] = [
   { id: 'commandHistory', label: 'Command history' },
   { id: 'updateZsh', label: 'Update my zsh config' },
   { id: 'improve', label: 'Improve Crafterm' },
-  { id: 'updateCrafterm', label: 'Update Crafterm' }
+  { id: 'updateCrafterm', label: 'Update Crafterm' },
+  { id: 'dailyPlan', label: 'Daily plan' }
 ]
+
+export type DailyPlanStatus = 'backlog' | 'todo' | 'wip' | 'done'
+export type DailyPlanPriority = 'low' | 'medium' | 'high'
+
+export interface DailyPlanTask {
+  id: string
+  title: string
+  description?: string // optional free-text notes
+  date: string // YYYY-MM-DD; the day this card belongs to
+  status: DailyPlanStatus
+  priority: DailyPlanPriority
+  tagIds: string[]
+  order: number // position within (date, status) for drag-drop ordering
+  projectId?: string // owning ProjectNode id (gives cwd + issue-key prefix)
+  issueKey?: string // generated once on "Open in terminal" (e.g. CRF-12)
+  createdAt: number
+  updatedAt: number
+}
+
+export interface DailyPlanTag {
+  id: string
+  name: string
+  color: string // hex
+}
+
+export interface DailyPlanData {
+  tasks: DailyPlanTask[]
+  tags: DailyPlanTag[]
+}
+
+// A structured meeting note (Notebook → Meeting Notes sub-tab).
+export interface MeetingNote {
+  id: string
+  title: string
+  date: string // YYYY-MM-DD
+  attendees: string[]
+  notes: string // free-text body
+  projectId?: string // optional owning ProjectNode id
+  createdAt: number
+  updatedAt: number
+}
 
 export interface Font {
   family: string
   size: number
+}
+
+// Per-project iOS worktree configuration (a project node's Settings → iOS tab).
+// The repo root is the owning ProjectNode's `path`. Every field is optional: an
+// empty value means "auto-detect" inside the bundled ios-worktree.sh script, so
+// each iOS project is fully independent.
+export interface IosDevConfig {
+  project: string // .xcodeproj/.xcworkspace name or path ('' = discover in repo)
+  scheme: string // build scheme ('' = xcodebuild -list)
+  baseBundleId: string // e.g. com.musicpal.pianopal ('' = read from build settings)
+  displayPrefix: string // home-screen name prefix ('' = scheme name)
+  defaultSimulator: string // simulator name ('' = booted, else first iPhone)
+  copyFiles: string[] // gitignored local files copied into a fresh worktree (e.g. Secrets.xcconfig)
+  worktreesDir: string // worktrees directory ('' = <repoParent>/worktrees)
 }
 
 // A runnable application under a catalog project: a per-environment launch
@@ -258,16 +375,79 @@ export interface TimeEntry {
 }
 
 // A user reminder that fires (OS + panel notification + sound) at `time`.
+// What a reminder/notification points to so its click handler can open the
+// right thing. `kind` is the discriminator; each variant carries the minimum
+// needed to resolve the target later (an id, an absolute path, etc.).
+export type ReminderPayload =
+  | { kind: 'bookmark'; bookmarkId: string }
+  | { kind: 'pane'; paneId: string }
+  | { kind: 'notebook'; path: string }
+  | { kind: 'dailyTask'; taskId: string }
+  | { kind: 'plan'; path: string }
+
+// A configurable quick-time chip in the reminder form. `offsetMin` is a relative
+// offset from now; `days` jumps that many days ahead and, when `snapHour` is set,
+// snaps to the user's default reminder hour at :00.
+export interface ReminderPreset {
+  label: string
+  offsetMin?: number
+  days?: number
+  snapHour?: boolean
+}
+
+export interface ReminderDefaults {
+  defaultHour: number // hour-of-day used by "Tomorrow"-style presets (0–23)
+  presets: ReminderPreset[]
+}
+
 // Repeating reminders re-schedule `time` after firing; one-shots stay in the
 // list as "past" (enabled=false, firedAt set) so they can be re-armed.
 export interface Reminder {
   id: string
   text: string
   time: number // next fire timestamp (ms since epoch)
-  repeat: 'none' | 'daily' | 'weekly' | 'interval'
+  repeat: 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'interval'
   intervalMin?: number // minutes, when repeat === 'interval'
   enabled: boolean
   firedAt?: number // when a one-shot last fired (shown under "Past reminders")
+  payload?: ReminderPayload // what the reminder is about (drives the card's Open action)
+  category?: 'normal' | 'bookmark' | 'link' | 'dailyTask' // type chosen in the form
+}
+
+// One row in the Accounts sidebar mode. `kind` separates a full credential
+// ledger entry ('account', with multiple fields) from a quick env-var-style
+// 'secret' that's mainly a single value. Secret-flagged fields' values live in
+// Electron safeStorage, NOT in this object — the renderer must resolve them via
+// `secretGet(entryId, fieldKey)` when needed.
+export interface AccountField {
+  key: string
+  value?: string // only present for non-secret fields
+  secret?: boolean // true → value resolved at access time via IPC, not stored here
+}
+export interface AccountEntry {
+  id: string
+  kind: 'account' | 'secret'
+  service?: string // e.g. "GitHub", "AWS"
+  label: string // user-visible name (account alias, secret name)
+  login?: string
+  url?: string
+  notes?: string
+  tags: string[] // free-form labels (often project names)
+  fields: AccountField[]
+  createdAt: number
+  updatedAt: number
+}
+
+// A saved bookmark in the right-panel "Bookmarks" tab. `content` is the URL for
+// links and the body for text/code/snippet. `tags` drive the filter chips.
+export interface Bookmark {
+  id: string
+  type: 'link' | 'text' | 'code' | 'snippet'
+  title: string
+  content: string
+  tags: string[]
+  language?: string // optional hint for code/snippet
+  createdAt: number
 }
 
 // Extra context attached to a notification card (folder/git/cwd detail, or the
@@ -281,6 +461,8 @@ export interface NotificationMeta {
   worktree?: string | null
   cwd?: string | null
   reminderText?: string // present on reminder cards (used by snooze)
+  projectColor?: string // optional hex tag color from the producing pane's project
+  payload?: ReminderPayload // forwarded from the reminder; drives the card's Open action
 }
 
 // A notification card shown in the right notification panel.

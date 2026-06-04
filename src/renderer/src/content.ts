@@ -1,5 +1,5 @@
 import type { LayoutNode } from './types'
-import { panes, browsers, docs, sqlPanes, state, saveSoon, poppedOut } from './state'
+import { panes, browsers, docs, sqlPanes, diffPanes, filePanes, state, saveSoon, poppedOut } from './state'
 import { findTab } from './tree'
 import { mountPanes } from './pane'
 
@@ -36,7 +36,9 @@ function buildNode(node: LayoutNode): HTMLElement {
       panes.get(node.paneId)?.el ??
       browsers.get(node.paneId)?.el ??
       docs.get(node.paneId)?.el ??
-      sqlPanes.get(node.paneId)?.el
+      sqlPanes.get(node.paneId)?.el ??
+      diffPanes.get(node.paneId)?.el ??
+      filePanes.get(node.paneId)?.el
     if (!el) {
       el = document.createElement('div')
       el.className = 'pane-box'
@@ -97,6 +99,13 @@ function attachResizer(
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
+      // The drag mutated node.sizes and the DOM directly without a rebuild, so
+      // the cached layout signature is now stale. Refresh it — otherwise a later
+      // equalize/render that computes the same sig string is skipped and the
+      // dragged flex sizes stay stuck on screen.
+      const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
+      const entry = tab ? tabContainers.get(tab.id) : null
+      if (tab && entry) entry.sig = layoutSig(tab.root)
       saveSoon()
     }
     document.addEventListener('mousemove', onMove)

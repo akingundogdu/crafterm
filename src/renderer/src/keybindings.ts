@@ -21,12 +21,15 @@ export const KEYBINDINGS: KeyAction[] = [
   { id: 'new-folder', label: 'New folder', default: 'cmd+shift+n' },
   { id: 'split-right', label: 'Split pane (right)', default: 'cmd+d' },
   { id: 'split-claude', label: 'Split pane with Claude', default: 'cmd+shift+d' },
+  { id: 'split-picker', label: 'Split pane with project picker', default: 'cmd+alt+t' },
+  { id: 'global-search', label: 'Global search (Spotlight)', default: 'cmd+j' },
   { id: 'cycle-next', label: 'Next pane', default: 'cmd+]' },
   { id: 'cycle-prev', label: 'Previous pane', default: 'cmd+[' },
   { id: 'equalize', label: 'Distribute panes evenly', default: 'cmd+shift+e' },
   { id: 'settings', label: 'Open settings', default: 'cmd+,' },
   { id: 'improve', label: 'Open Improve Crafterm', default: 'cmd+shift+l' },
-  { id: 'rename', label: 'Rename selected item', default: 'cmd+shift+r' }
+  { id: 'daily-board', label: 'Open Daily Plan board', default: 'cmd+shift+k' },
+  { id: 'rename', label: 'Rename selected item / New reminder (in a terminal)', default: 'cmd+shift+r' }
 ]
 
 export function effectiveCombo(id: string): string {
@@ -56,13 +59,20 @@ export function isModifierKey(key: string): boolean {
 }
 
 // Canonical combo string from a keydown event (only meaningful with Cmd held).
+// macOS remaps `e.key` when Option is held (e.g. Option+T → "†"); fall back to
+// `e.code` (KeyT/Digit1/…) so Cmd+Alt+letter bindings stay layout-stable.
 export function comboFromEvent(e: KeyboardEvent): string {
   if (!e.metaKey) return ''
   const parts = ['cmd']
   if (e.ctrlKey) parts.push('ctrl')
   if (e.altKey) parts.push('alt')
   if (e.shiftKey) parts.push('shift')
-  parts.push(e.key.toLowerCase())
+  let key = e.key.toLowerCase()
+  if (e.altKey) {
+    if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase()
+    else if (/^Digit[0-9]$/.test(e.code)) key = e.code.slice(5)
+  }
+  parts.push(key)
   return parts.join('+')
 }
 

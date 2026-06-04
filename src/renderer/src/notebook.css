@@ -1,6 +1,86 @@
 /* Notebook tree styles — the "Linked files" section, hover action buttons and
    footer toolbar. Generic tree row visuals come from treeview.css. */
 
+/* Sub-tab strip (Notes / Daily Plan / Meeting Notes) at the top of the notebook. */
+.nb-subtabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.nb-subtab {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-mute);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.nb-subtab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.nb-subtab.active {
+  background: var(--bg-term);
+  color: var(--accent);
+}
+.nb-subtab-body {
+  flex: 1;
+  min-height: 0;
+}
+/* Notes tree must lay out as direct flex children of #tab-list (margin collapse,
+   scroll behaviour) — so the Notes body collapses its own box. */
+.nb-body-notes {
+  display: contents;
+}
+/* Shared in-page search box for the Plans / Daily Plan sub-tabs. */
+.nb-subtab-search {
+  margin: 8px 8px 4px;
+  padding: 6px 9px;
+  font-size: 12px;
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  outline: none;
+}
+.nb-subtab-search:focus {
+  border-color: var(--accent);
+}
+/* Plans tab: grouped-by-project list. */
+.nb-plans-tab {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.nb-plans-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+.nb-plans-group {
+  margin-bottom: 4px;
+}
+.nb-plans-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-mute);
+}
+/* When a non-Notes sub-tab is active, hide the notes-only search + footer. */
+#app.mode-notebook.nb-sub-other #sidebar-search,
+#app.mode-notebook.nb-sub-other #notebook-footer {
+  display: none;
+}
+
 /* The treeview host must lay out exactly like the terminal list: its rows are
    direct flex children of #tab-list so vertical margins don't collapse. */
 .nb-tree {
@@ -22,6 +102,16 @@
 }
 .nb-linked-row {
   padding-left: 10px;
+}
+.nb-plan-project {
+  margin-left: auto;
+  padding-right: 6px;
+  font-size: 10px;
+  color: var(--text-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
 }
 .nb-toolbar {
   display: flex;

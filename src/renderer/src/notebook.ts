@@ -2,9 +2,13 @@ import type { NbNode } from '../../preload/api'
 import { openNote, openMarkdownFile } from './commands'
 import { promptText } from './dialog'
 import { showFileFinder } from './pickers'
-import { settings, saveSoon } from './state'
+import { settings, saveSoon, state } from './state'
+import { flattenProjects } from './catalog'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from './treeview'
 import { type ContextMenuItem } from './contextmenu'
+import { showRemindModal } from './reminders'
+import { renderDailyCompact } from './dailyPlan'
+import { renderMeetingNotes } from './meetingNotes'
 import './notebook.css'
 
 const FOLDER_SVG =
@@ -17,6 +21,7 @@ const LINK_SVG =
 const MD_RE = /\.(md|mdx|mdc)$/i
 
 let container: HTMLElement | null = null
+let planItems: { project: string; name: string; path: string; mtime: number }[] = []
 let linkedHost: HTMLElement | null = null
 let treeHost: HTMLElement | null = null
 let treeview: TreeView<NbNode> | null = null
@@ -75,6 +80,15 @@ function buildMenu(n: NbNode): ContextMenuItem[] {
     items.push({ label: 'New folder', run: () => void addFolder(n.path) })
   }
   items.push({ label: 'Show in Finder', run: () => window.crafterm.nbReveal(n.path) })
+  items.push({
+    label: 'Remind me…',
+    run: () =>
+      showRemindModal(
+        n.kind === 'file' ? n.name.replace(MD_RE, '') : n.name,
+        `Notebook: ${n.kind === 'file' ? n.name.replace(MD_RE, '') : n.name}`,
+        { kind: 'notebook', path: n.path }
+      )
+  })
   items.push({ label: 'Rename', run: () => void renamePath(n.path, n.name) })
   items.push({ label: 'Delete', run: () => void deleteNode(n), danger: true })
   return items
@@ -123,13 +137,66 @@ function actBtn(text: string, title: string, fn: (e: MouseEvent) => void): HTMLB
 
 // ---- rendering --------------------------------------------------------------
 
+export type NbSubTab = 'notes' | 'plans' | 'daily' | 'meeting'
+let nbSubTab: NbSubTab = 'notes'
+export function notebookSubTab(): NbSubTab {
+  return nbSubTab
+}
+
+// Hide the notes-only chrome (search box + footer) when the Daily Plan or
+// Meeting Notes sub-tab is active.
+function applySubTabChrome(): void {
+  const app = document.getElementById('app')
+  if (!app) return
+  app.classList.toggle('nb-sub-notes', nbSubTab === 'notes')
+  app.classList.toggle('nb-sub-other', nbSubTab !== 'notes')
+}
+
 export async function renderNotebook(host: HTMLElement): Promise<void> {
   container = host
   host.replaceChildren()
+
+  const subtabs = document.createElement('div')
+  subtabs.className = 'nb-subtabs'
+  const mk = (key: NbSubTab, label: string): void => {
+    const b = document.createElement('button')
+    b.className = 'nb-subtab' + (nbSubTab === key ? ' active' : '')
+    b.textContent = label
+    b.addEventListener('click', () => {
+      if (nbSubTab === key) return
+      nbSubTab = key
+      void renderNotebook(host)
+    })
+    subtabs.appendChild(b)
+  }
+  mk('notes', 'Notes')
+  mk('plans', 'Plans')
+  mk('daily', 'Daily Plan')
+  mk('meeting', 'Meeting Notes')
+  host.appendChild(subtabs)
+
+  const body = document.createElement('div')
+  body.className = 'nb-subtab-body' + (nbSubTab === 'notes' ? ' nb-body-notes' : '')
+  host.appendChild(body)
+  applySubTabChrome()
+
+  if (nbSubTab === 'plans') {
+    await renderPlansTab(body)
+    return
+  }
+  if (nbSubTab === 'daily') {
+    renderDailyCompact(body)
+    return
+  }
+  if (nbSubTab === 'meeting') {
+    renderMeetingNotes(body)
+    return
+  }
+
   linkedHost = document.createElement('div')
   treeHost = document.createElement('div')
   treeHost.className = 'nb-tree'
-  host.append(linkedHost, treeHost)
+  body.append(linkedHost, treeHost)
   treeview = createTreeView<NbNode>(treeHost, adapter)
   treeview.setFilter(nbQuery)
   await refresh()
@@ -143,10 +210,118 @@ async function refresh(): Promise<void> {
   if (openPath) highlightActive()
 }
 
+// ---- "Plans" tab: every docs/plans markdown, grouped by project ---------------
+
+// Dedicated in-page search query for the Plans tab (independent of the Notes
+// shared search box).
+let plansQuery = ''
+
+async function renderPlansTab(host: HTMLElement): Promise<void> {
+  host.replaceChildren()
+  host.classList.add('nb-plans-tab')
+
+  const search = document.createElement('input')
+  search.type = 'text'
+  search.className = 'nb-subtab-search'
+  search.placeholder = 'Search plans…'
+  search.value = plansQuery
+  search.addEventListener('keydown', (e) => e.stopPropagation())
+  host.appendChild(search)
+
+  const listHost = document.createElement('div')
+  listHost.className = 'nb-plans-list'
+  host.appendChild(listHost)
+
+  // Scan once per render; the file watcher (onPlansChanged) drives refreshes.
+  const paths = flattenProjects(state.tree)
+    .map((p) => p.path)
+    .filter((p): p is string => !!p && p.trim().length > 0)
+  try {
+    planItems = await window.crafterm.scanPlans(paths)
+  } catch {
+    planItems = []
+  }
+
+  search.addEventListener('input', () => {
+    plansQuery = search.value
+    renderPlansGroups(listHost)
+  })
+  renderPlansGroups(listHost)
+}
+
+// Render the plans grouped by project (newest-first within each group).
+function renderPlansGroups(host: HTMLElement): void {
+  host.replaceChildren()
+  const q = plansQuery.trim().toLowerCase()
+  const items = q
+    ? planItems.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.project.toLowerCase().includes(q)
+      )
+    : planItems
+
+  if (!items.length) {
+    const empty = document.createElement('div')
+    empty.className = 'nb-plans-empty'
+    empty.textContent = q ? 'No matching plans' : 'No plans yet'
+    host.appendChild(empty)
+    return
+  }
+
+  // Group by project, preserving first-seen (newest-first) order.
+  const groups = new Map<string, typeof planItems>()
+  for (const p of items) {
+    const g = groups.get(p.project) ?? []
+    g.push(p)
+    groups.set(p.project, g)
+  }
+
+  for (const [project, plans] of groups) {
+    const section = document.createElement('div')
+    section.className = 'nb-plans-group'
+    const head = document.createElement('div')
+    head.className = 'nb-linked-head'
+    head.textContent = `${project} · ${plans.length}`
+    section.appendChild(head)
+    for (const p of plans) section.appendChild(renderPlanRow(p))
+    host.appendChild(section)
+  }
+}
+
+function renderPlanRow(p: { project: string; name: string; path: string; mtime: number }): HTMLElement {
+  const row = document.createElement('div')
+  row.className = 'tab-item nb-linked-row'
+  row.title = p.path
+  const top = document.createElement('div')
+  top.className = 'tab-row'
+  const icon = document.createElement('span')
+  icon.className = 'folder-icon'
+  icon.innerHTML = NOTE_SVG
+  const name = document.createElement('span')
+  name.className = 'tab-title'
+  name.textContent = p.name.replace(MD_RE, '')
+  const actions = document.createElement('span')
+  actions.className = 'nb-actions'
+  actions.append(
+    actBtn('⏰', 'Remind me', (e) => {
+      e.stopPropagation()
+      showRemindModal(p.name.replace(MD_RE, ''), `Plan: ${p.name}`, { kind: 'plan', path: p.path })
+    }),
+    actBtn('⤴', 'Show in Finder', (e) => {
+      e.stopPropagation()
+      window.crafterm.revealPath(p.path)
+    })
+  )
+  top.append(icon, name, actions)
+  row.appendChild(top)
+  row.addEventListener('click', () => openMarkdownFile(p.path))
+  return row
+}
+
 // ---- search (driven by the shared sidebar search bar) -----------------------
 
 export function nbApplyQuery(q: string): void {
   nbQuery = q
+  if (nbSubTab !== 'notes') return // shared search box only applies to the Notes tree
   treeview?.setFilter(q)
   if (linkedHost) renderLinked(linkedHost)
 }

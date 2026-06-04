@@ -11,6 +11,13 @@ DEST="/Applications/${APP_NAME}.app"
 echo "▸ Building renderer/main/preload…"
 npm run build
 
+# Stamp the build with the git state it was packaged from so the running app can
+# tell when the repo has moved ahead (drives the "redeploy needed" version chip).
+echo "▸ Stamping build info…"
+COMMIT="$(git rev-parse HEAD 2>/dev/null || echo '')"
+COMMIT_COUNT="$(git rev-list --count HEAD 2>/dev/null || echo 0)"
+printf '{"commit":"%s","commitCount":%s}\n' "${COMMIT}" "${COMMIT_COUNT}" > out/build-info.json
+
 echo "▸ Packaging app (.app)…"
 npx electron-builder --dir
 

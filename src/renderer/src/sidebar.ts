@@ -9,7 +9,7 @@ import {
   findById,
   isContainer
 } from './tree'
-import { paneStatus } from './pane'
+import { paneStatus, isPlanOwnedByPane } from './pane'
 import {
   selectTab,
   selectPane,
@@ -50,9 +50,13 @@ import {
   runUpdate
 } from './pickers'
 import { showImproveModal } from './improve'
-import { promptText } from './dialog'
+import { showDailyPlanModal } from './dailyPlan'
+import { promptText, promptSelect } from './dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from './database'
+import { renderDocker, dockerHandleKey, dockerApplyQuery } from './docker'
+import { renderAccounts, accountsApplyQuery, initAccounts } from './accounts'
 import { type ContextMenuItem } from './contextmenu'
+import { renderIosWorktrees } from './ios-worktree'
 import { createTreeView, type TreeAdapter, type TreeSection, type DropPos } from './treeview'
 import {
   renderNotebook,
@@ -72,6 +76,8 @@ let searchQuery = ''
 searchInputEl.addEventListener('input', () => {
   if (sidebarMode === 'notebook') nbApplyQuery(searchInputEl.value)
   else if (sidebarMode === 'database') dbApplyQuery(searchInputEl.value)
+  else if (sidebarMode === 'docker') dockerApplyQuery(searchInputEl.value)
+  else if (sidebarMode === 'accounts') accountsApplyQuery(searchInputEl.value)
   else {
     searchQuery = searchInputEl.value
     tree.setFilter(searchQuery)
@@ -83,6 +89,8 @@ searchInputEl.addEventListener('keydown', (e) => {
     searchInputEl.value = ''
     if (sidebarMode === 'notebook') nbApplyQuery('')
     else if (sidebarMode === 'database') dbApplyQuery('')
+    else if (sidebarMode === 'docker') dockerApplyQuery('')
+    else if (sidebarMode === 'accounts') accountsApplyQuery('')
     else {
       searchQuery = ''
       tree.setFilter('')
@@ -116,8 +124,8 @@ export function toggleSidebar(): void {
   saveSoon()
 }
 
-document.getElementById('sidebar-hide')!.addEventListener('click', toggleSidebar)
 document.getElementById('sidebar-show')!.addEventListener('click', toggleSidebar)
+document.getElementById('statusbar-sidebar-toggle')!.addEventListener('click', toggleSidebar)
 
 // One button toggles every folder: if any is open, collapse all; else expand all.
 document.getElementById('toggle-all-folders')!.addEventListener('click', () => {
@@ -144,7 +152,20 @@ const BUILTIN_ACTION_RUN: Record<string, () => void> = {
   commandHistory: () => showCommandHistory(),
   updateZsh: () => void openTerminalRunning(settings.commands.openMyZsh, 'zsh config'),
   improve: () => void showImproveModal(),
-  updateCrafterm: () => void runUpdate()
+  updateCrafterm: () => void runUpdate(),
+  dailyPlan: () => showDailyPlanModal()
+}
+
+// Flattened sidebar ⋯ action-menu entries for the global search (Cmd+J). Skips
+// hidden rows and builtins whose id is no longer registered, mirroring the menu.
+export function actionMenuSearchEntries(): { label: string; run: () => void }[] {
+  const out: { label: string; run: () => void }[] = []
+  for (const item of settings.actionMenu) {
+    if (item.hidden) continue
+    if (item.kind === 'builtin' && !BUILTIN_ACTION_RUN[item.builtinId ?? '']) continue
+    out.push({ label: item.title, run: () => runActionItem(item) })
+  }
+  return out
 }
 
 function runActionItem(item: import('./types').ActionMenuItem): void {
@@ -226,6 +247,10 @@ tabListEl.addEventListener('keydown', (e) => {
     databaseHandleKey(e)
     return
   }
+  if (sidebarMode === 'docker') {
+    dockerHandleKey(e)
+    return
+  }
   if (sidebarMode === 'notebook') {
     handleNotebookKey(e)
     return
@@ -292,32 +317,53 @@ function tabDetail(node: TabNode): string {
 // Sidebar mode (terminal / notebook / database)
 // ---------------------------------------------------------------------------
 
-type SidebarMode = 'terminal' | 'notebook' | 'database'
+type SidebarMode = 'terminal' | 'notebook' | 'database' | 'docker' | 'accounts'
 let sidebarMode: SidebarMode = 'terminal'
 
 const tabTerminalEl = document.getElementById('tab-terminal')!
 const tabNotebookEl = document.getElementById('tab-notebook')!
 const tabDatabaseEl = document.getElementById('tab-database')!
+const tabDockerEl = document.getElementById('tab-docker')!
+const tabAccountsEl = document.getElementById('tab-accounts')!
 tabTerminalEl.addEventListener('click', () => setSidebarMode('terminal'))
 tabNotebookEl.addEventListener('click', () => setSidebarMode('notebook'))
 tabDatabaseEl.addEventListener('click', () => setSidebarMode('database'))
+tabDockerEl.addEventListener('click', () => setSidebarMode('docker'))
+tabAccountsEl.addEventListener('click', () => setSidebarMode('accounts'))
+initAccounts()
 
 export function setSidebarMode(m: SidebarMode): void {
   sidebarMode = m
   appEl.classList.toggle('mode-notebook', m === 'notebook')
   appEl.classList.toggle('mode-database', m === 'database')
+  appEl.classList.toggle('mode-docker', m === 'docker')
+  appEl.classList.toggle('mode-accounts', m === 'accounts')
   tabTerminalEl.classList.toggle('active', m === 'terminal')
   tabNotebookEl.classList.toggle('active', m === 'notebook')
   tabDatabaseEl.classList.toggle('active', m === 'database')
+  tabDockerEl.classList.toggle('active', m === 'docker')
+  tabAccountsEl.classList.toggle('active', m === 'accounts')
   // shared search bar: reset + relabel for the active view
   searchInputEl.value = ''
   searchQuery = ''
   nbClearQuery()
   dbApplyQuery('')
+  dockerApplyQuery('')
+  accountsApplyQuery('')
   searchInputEl.placeholder =
-    m === 'notebook' ? 'Search notes…' : m === 'database' ? 'Search databases…' : 'Search…'
+    m === 'notebook'
+      ? 'Search notes…'
+      : m === 'database'
+        ? 'Search databases…'
+        : m === 'docker'
+          ? 'Search docker…'
+          : m === 'accounts'
+            ? 'Search accounts…'
+            : 'Search…'
   if (m === 'notebook') void renderNotebook(tabListEl)
   else if (m === 'database') void renderDatabase(tabListEl)
+  else if (m === 'docker') void renderDocker(tabListEl)
+  else if (m === 'accounts') renderAccounts()
   else {
     tree.setFilter('')
     renderSidebar()
@@ -395,16 +441,37 @@ function buildCrumb(crumb: Crumb): HTMLElement {
   return el
 }
 
-// Context-menu action: type a group/workspace label for a container.
+// Union of registered groups (settings.groups) and any group already in use on
+// a container in the tree — keeps the dropdown accurate even for legacy labels.
+function knownGroups(): string[] {
+  const set = new Set<string>(settings.groups)
+  const walk = (n: SidebarNode): void => {
+    if ((n.kind === 'project' || n.kind === 'folder') && n.group) set.add(n.group)
+    if (n.kind !== 'tab') n.children.forEach(walk)
+  }
+  state.tree.forEach(walk)
+  return [...set].sort((a, b) => a.localeCompare(b))
+}
+
+// Context-menu action: pick a group/workspace for a container from a dropdown
+// (or create a new one). Groups are managed in Settings → Projects → Groups.
 async function promptGroup(node: FolderNode | ProjectNode): Promise<void> {
-  const g = await promptText({
+  const g = await promptSelect({
     title: 'Set group',
     label: 'Group / workspace',
     value: node.group ?? '',
-    placeholder: 'work',
+    options: knownGroups(),
+    emptyLabel: '(Ungrouped)',
+    allowCreate: true,
     confirmText: 'Set'
   })
-  if (g !== null) setNodeGroup(node.id, g)
+  if (g === null) return
+  const group = g.trim()
+  if (group && !settings.groups.includes(group)) {
+    settings.groups.push(group)
+    saveSoon()
+  }
+  setNodeGroup(node.id, group)
 }
 
 // ---------------------------------------------------------------------------
@@ -419,15 +486,32 @@ function pinBadge(): HTMLElement {
   return el
 }
 
+// Plans owned by any pane in this tab, deduped by path. A plan is owned by the
+// pane whose stableId matches the filename's --pane-<uuid> tag, or whose captured
+// Claude session id matches a trailing -<uuid> (see isPlanOwnedByPane). That pane
+// is not necessarily the tab's first pane (the Claude session may live in any
+// split), so we have to scan every pane in the layout, not just firstPaneOf.
+function plansForTab(node: TabNode): import('./types').PlanEntry[] {
+  const seen = new Set<string>()
+  const out: import('./types').PlanEntry[] = []
+  for (const id of panesInLayout(node.root)) {
+    const pane = panes.get(id)
+    if (!pane) continue
+    for (const plan of pane.plans) {
+      if (!isPlanOwnedByPane(plan, pane)) continue
+      if (seen.has(plan.path)) continue
+      seen.add(plan.path)
+      out.push(plan)
+    }
+  }
+  return out
+}
+
 // Is there anything to reveal under a terminal row (detail line, panes, plans)?
 function tabExpandable(node: TabNode): boolean {
   if (tabDetail(node)) return true
   if (settings.sidebar.details.paneList && panesInLayout(node.root).length > 1) return true
-  const firstPane = panes.get(firstPaneOf(node.root) ?? '')
-  const plans = (firstPane?.plans ?? []).filter(
-    (p) => p.ownerStableId != null && p.ownerStableId === firstPane?.stableId
-  )
-  return plans.length > 0
+  return plansForTab(node).length > 0
 }
 
 // leading slot: a terminal's detail chevron (if expandable) + status dot.
@@ -454,6 +538,12 @@ function buildLeading(node: SidebarNode): HTMLElement | null {
 
 // below slot: detail line + per-pane sub-rows (when expanded) + plan sub-rows.
 function buildBelow(node: SidebarNode): HTMLElement | null {
+  if (node.kind === 'project' && node.iosApp && !node.collapsed) {
+    const frag = document.createElement('div')
+    frag.className = 'tab-below'
+    renderIosWorktrees(node, frag)
+    return frag
+  }
   if (node.kind !== 'tab') return null
   const frag = document.createElement('div')
   frag.className = 'tab-below'
@@ -493,13 +583,10 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
 
   // Plan files for this terminal's branch. Only shown when the user has
   // expanded the tab's detail line, so plans don't sit between rows and get
-  // mis-clicked as a terminal. Filtered to the pane whose stableId is encoded
-  // in the filename's --pane-<uuid> suffix; legacy plans (no suffix) are ignored.
+  // mis-clicked as a terminal. A plan is attributed to whichever pane in the
+  // tab owns its --pane-<uuid> suffix; legacy plans (no suffix) are ignored.
   if (node.detailsOpen) {
-    const firstPane = panes.get(firstPaneOf(node.root) ?? '')
-    const plans = (firstPane?.plans ?? []).filter(
-      (p) => p.ownerStableId != null && p.ownerStableId === firstPane?.stableId
-    )
+    const plans = plansForTab(node)
     if (plans.length) {
       const planList = document.createElement('div')
       planList.className = 'tab-plans'
@@ -528,9 +615,126 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
   return frag.childElementCount ? frag : null
 }
 
-// trailing slot: folder child-count badge + pin badge.
+// ---------------------------------------------------------------------------
+// Tab strips display mode (icon / text / both) + per-tab hide (Settings → Tabs)
+// ---------------------------------------------------------------------------
+
+const TAB_ICON: Record<string, string> = {
+  'tab-terminal':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 4l3 3-3 3M8.5 11H13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  'tab-notebook':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 2.5H12v11H4.5zM4.5 2.5a1.5 1.5 0 0 0 0 11M7 5.5h3M7 8h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  'tab-database':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><ellipse cx="8" cy="4" rx="5" ry="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
+  'tab-docker':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 9h12v1.5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 10.5z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 6h1.6v2H3.5zM6.2 6h1.6v2H6.2zM8.9 6h1.6v2H8.9zM6.2 3.4h1.6v2H6.2z" fill="currentColor"/></svg>',
+  'tab-accounts':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="5.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.4 13c0-2.5 2-4.2 4.6-4.2s4.6 1.7 4.6 4.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  'notif-tab-notifs':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2.5a3.4 3.4 0 0 0-3.4 3.4V8L3.2 10h9.6L11.4 8V5.9A3.4 3.4 0 0 0 8 2.5zM6.6 12a1.5 1.5 0 0 0 2.8 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+  'notif-tab-reminders':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8.5" r="5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 5.8V8.5l2 1.4M5.5 2.5L3 4.3M10.5 2.5L13 4.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  'notif-tab-files':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 4.2c0-.6.4-1 1-1h3.1l1.2 1.4H13c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
+  'notif-tab-time':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 2.5h7M4.5 13.5h7M5.3 2.5c0 2.8 5.4 3.2 5.4 5.5s-5.4 2.7-5.4 5.5M10.7 2.5c0 2.8-5.4 3.2-5.4 5.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  'notif-tab-pr':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="4.5" cy="4" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="12" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="12" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 5.7v4.6M11.5 10.3V7.5a2 2 0 0 0-2-2H7.5l1.4-1.4M8.9 5.5L7.5 4.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  'notif-tab-bm':
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M5 2.7h6v10.6l-3-2.3-3 2.3z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
+}
+
+// Every tab in the two strips, with the shortcut shown in its hover tooltip.
+const TAB_META: { id: string; strip: 'left' | 'right'; label: string; shortcut?: string }[] = [
+  { id: 'tab-terminal', strip: 'left', label: 'Terminal', shortcut: '⌘1' },
+  { id: 'tab-notebook', strip: 'left', label: 'Notebook', shortcut: '⌘2' },
+  { id: 'tab-database', strip: 'left', label: 'Database', shortcut: '⌘3' },
+  { id: 'tab-docker', strip: 'left', label: 'Docker' },
+  { id: 'tab-accounts', strip: 'left', label: 'Accounts' },
+  { id: 'notif-tab-notifs', strip: 'right', label: 'Alerts' },
+  { id: 'notif-tab-reminders', strip: 'right', label: 'Reminders' },
+  { id: 'notif-tab-files', strip: 'right', label: 'Files' },
+  { id: 'notif-tab-time', strip: 'right', label: 'Time' },
+  { id: 'notif-tab-pr', strip: 'right', label: 'PR' },
+  { id: 'notif-tab-bm', strip: 'right', label: 'Bookmarks' }
+]
+
+export function tabMeta(): typeof TAB_META {
+  return TAB_META
+}
+
+// Apply the icon/text/both mode + per-tab hide to both strips. Idempotent: the
+// first call also wraps each button's text in an icon + label span.
+export function applyTabDisplay(): void {
+  const { mode, hidden } = settings.tabDisplay
+  const strips: Record<'left' | 'right', HTMLElement | null> = {
+    left: document.getElementById('sidebar-tabs'),
+    right: document.querySelector('.notif-tabs')
+  }
+  for (const key of ['left', 'right'] as const) {
+    const strip = strips[key]
+    if (!strip) continue
+    strip.classList.remove('tabs-mode-icon', 'tabs-mode-text', 'tabs-mode-both')
+    strip.classList.add('tabs-mode-' + mode)
+  }
+  for (const t of TAB_META) {
+    const btn = document.getElementById(t.id)
+    if (!btn) continue
+    if (!btn.querySelector('.tab-label')) {
+      const label = (btn.textContent || t.label).trim()
+      btn.textContent = ''
+      const icon = document.createElement('span')
+      icon.className = 'tab-icon'
+      icon.innerHTML = TAB_ICON[t.id] ?? ''
+      const lab = document.createElement('span')
+      lab.className = 'tab-label'
+      lab.textContent = label
+      btn.append(icon, lab)
+    }
+    btn.title = t.shortcut ? `${t.label} · ${t.shortcut}` : t.label
+    btn.style.display = hidden[t.strip].includes(t.id) ? 'none' : ''
+  }
+}
+
+// Claude session state for a tab: the most "active" status among its Claude
+// panes (in-progress > question > idle). Null when no Claude pane reports one.
+function claudeStatusOfTab(node: TabNode): 'in-progress' | 'question' | 'idle' | null {
+  let result: 'in-progress' | 'question' | 'idle' | null = null
+  for (const id of panesInLayout(node.root)) {
+    const p = panes.get(id)
+    const s = p?.claudeStatus
+    if (!s) continue
+    if (s === 'in-progress') return 'in-progress'
+    if (s === 'question') result = 'question'
+    else if (!result) result = 'idle'
+  }
+  return result
+}
+
+const CLAUDE_STATUS_LABEL: Record<'in-progress' | 'question' | 'idle', string> = {
+  'in-progress': 'working',
+  question: 'ask',
+  idle: 'idle'
+}
+const CLAUDE_STATUS_TITLE: Record<'in-progress' | 'question' | 'idle', string> = {
+  'in-progress': 'Claude is working',
+  question: 'Claude is waiting on you',
+  idle: 'Claude is idle'
+}
+
+// trailing slot: Claude status pill + folder child-count badge + pin badge.
 function buildTrailing(node: SidebarNode): HTMLElement | null {
   const wrap = document.createElement('span')
+  if (node.kind === 'tab') {
+    const cs = claudeStatusOfTab(node)
+    if (cs) {
+      const chip = document.createElement('span')
+      chip.className = 'claude-status claude-' + cs
+      chip.textContent = CLAUDE_STATUS_LABEL[cs]
+      chip.title = CLAUDE_STATUS_TITLE[cs]
+      wrap.appendChild(chip)
+    }
+  }
   if (node.kind === 'folder' || node.kind === 'project') {
     const badge = document.createElement('span')
     badge.className = 'tab-badge'

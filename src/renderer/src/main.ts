@@ -1,18 +1,21 @@
 import '@xterm/xterm/css/xterm.css'
 import './style.css'
-import type { LayoutNode, SidebarNode } from './types'
+import type { LayoutNode, SidebarNode, DiffPane } from './types'
 import type { SavedNode, SavedSidebarNode } from '../../preload/api'
-import { state, panes, docs, hooks, paneActions, loadSettings, migrateLegacyState, seedActionMenu, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
+import { state, panes, docs, diffPanes, hooks, paneActions, loadSettings, migrateLegacyState, seedActionMenu, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
 import { firstPaneOf, allTabs, findById } from './tree'
 import { flattenProjects } from './catalog'
 import {
   createPane,
   markBusy,
   refreshPaneInfo,
+  applyClaudeSessionTitle,
   refreshPanePlans,
+  refreshClaudeStatus,
   setPaneBackground,
   adjustActivePaneFontSize,
-  resetActivePaneFontSize
+  resetActivePaneFontSize,
+  refreshPaneDailyTask
 } from './pane'
 import { createSqlPane } from './dbPane'
 import { renderContent, updatePaneHighlight } from './content'
@@ -34,9 +37,13 @@ import {
   isNotebookMode,
   isDatabaseMode,
   setSidebarMode,
+  applyTabDisplay,
   renameSelected
 } from './sidebar'
-import { notebookNewNote, notebookNewFolder, notebookRenameSelected, notebookLinkFile } from './notebook'
+import { notebookNewNote, notebookNewFolder, notebookRenameSelected, notebookLinkFile, notebookSubTab } from './notebook'
+import { openNewDailyTask, showDailyPlanModal, assignPaneToTask, dailyTaskLabel } from './dailyPlan'
+import { openNewMeeting } from './meetingNotes'
+import { openReminderForm } from './reminders'
 import { openSettings } from './settings'
 import {
   showFolderPicker,
@@ -47,10 +54,13 @@ import {
   showStashManager,
   showBranchCheckout,
   showRunAppsPicker,
-  showFeaturePicker
+  showRunApp,
+  showFeaturePicker,
+  showGlobalSearch
 } from './pickers'
 import { showImproveModal } from './improve'
 import { databaseNewProject } from './database'
+import { renderDocker } from './docker'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, isRecording } from './keybindings'
 
 // New terminals: if the selected container (project or folder) has a command
@@ -102,6 +112,7 @@ import {
   focusPaneInDirection,
   createWorktreeFromPane,
   gitActionFromPane,
+  openMarkdownInGroup,
   contextFolderId
 } from './commands'
 
@@ -128,12 +139,24 @@ paneActions.splitWithProject = (id) => {
   selectPane(id)
   showProjectPicker(null, { split: true })
 }
+paneActions.runApp = (project, app) => showRunApp(project, app)
+paneActions.openPlanInGroup = (originPaneId, absPath) => openMarkdownInGroup(originPaneId, absPath)
+paneActions.clarify = (paneId) => window.crafterm.input(paneId, '/run-clarify\r')
+paneActions.assignDailyTask = (paneId) => assignPaneToTask(paneId)
+paneActions.dailyTaskLabel = (taskId) => dailyTaskLabel(taskId)
 
 // ---- PTY stream wiring ----
 window.crafterm.onData((id, data) => {
   const p = panes.get(id)
   if (!p) return
   p.term.write(data)
+  // Keep a rolling ANSI-stripped tail of recent output for Claude panes only —
+  // used to tell "task done" apart from "Claude is waiting on a question" when
+  // the idle timer fires. Capped at a few KB to keep memory predictable.
+  if (p.claude) {
+    const stripped = data.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
+    p.outputTail = (p.outputTail + stripped).slice(-4096)
+  }
   markBusy(p)
 })
 // While quitting, the main process kills every PTY; ignore those exits so we
@@ -142,6 +165,11 @@ let quitting = false
 window.crafterm.onAppQuitting(() => {
   quitting = true
   persistNow() // flush the current (still-intact) tree before any pane closes
+})
+// macOS hides the traffic lights while fullscreen — reflect that on the body so
+// the content-statusbar can drop its left clearance when not needed.
+window.crafterm.onFullscreenChange((isFull) => {
+  document.body.classList.toggle('window-fullscreen', isFull)
 })
 window.crafterm.onExit((id) => {
   if (!quitting) closePane(id)
@@ -175,19 +203,28 @@ document.getElementById('nb-link-file')!.addEventListener('click', () => noteboo
 document.getElementById('nb-settings-btn')!.addEventListener('click', () => openSettings())
 document.getElementById('db-new-project')!.addEventListener('click', () => databaseNewProject())
 document.getElementById('db-settings-btn')!.addEventListener('click', () => openSettings())
+document.getElementById('docker-refresh')!.addEventListener('click', () => void renderDocker(document.getElementById('tab-list')!))
+document.getElementById('docker-settings-btn')!.addEventListener('click', () => openSettings())
 
 // Cmd +/- zoom: markdown doc when one is active, else sidebar (if focused),
 // else the terminal font.
 function activeIsDoc(): boolean {
   return !!state.activePaneId && docs.has(state.activePaneId)
 }
+function activeDiffPane(): DiffPane | null {
+  return state.activePaneId ? diffPanes.get(state.activePaneId) ?? null : null
+}
 function zoomFont(delta: number): void {
-  if (activeIsDoc()) adjustDocFontSize(delta)
+  const dp = activeDiffPane()
+  if (dp) dp.setFont(delta)
+  else if (activeIsDoc()) adjustDocFontSize(delta)
   else if (sidebarHasFocus()) adjustSidebarFontSize(delta)
   else adjustActivePaneFontSize(delta) // only the focused terminal, not all
 }
 function zoomFontReset(): void {
-  if (activeIsDoc()) resetDocFontSize()
+  const dp = activeDiffPane()
+  if (dp) dp.resetFont()
+  else if (activeIsDoc()) resetDocFontSize()
   else if (sidebarHasFocus()) resetSidebarFontSize()
   else resetActivePaneFontSize()
 }
@@ -211,15 +248,38 @@ const KEY_HANDLERS: Record<string, () => void> = {
     else void splitActivePane('row')
   },
   'split-claude': () => void splitActivePaneWithClaude(),
+  'split-picker': () => showProjectPicker(null, { split: true }),
+  'global-search': () => void showGlobalSearch(),
   'cycle-next': () => cyclePane(1),
   'cycle-prev': () => cyclePane(-1),
   equalize: () => equalizePanes(),
   settings: () => openSettings(),
   improve: () => void showImproveModal(),
-  rename: () => (isNotebookMode() ? notebookRenameSelected() : renameSelected()),
+  'daily-board': () => showDailyPlanModal(),
+  // Context-sensitive: rename the selected item when the left sidebar holds
+  // focus, otherwise (working in a terminal) open the New reminder form.
+  rename: () =>
+    sidebarHasFocus()
+      ? isNotebookMode()
+        ? notebookRenameSelected()
+        : renameSelected()
+      : openReminderForm(),
   'run-apps': () => showRunAppsPicker(),
   'new-feature': () => showFeaturePicker()
 }
+
+// True while any modal overlay (settings, improve, picker, dialog…) is mounted.
+// Used by the global keydown handler to suppress shortcuts that would otherwise
+// fire in the wrong context (e.g. Cmd+N in Improve dispatching notebook-new-note).
+function isModalActive(): boolean {
+  return !!document.querySelector('.modal-overlay')
+}
+// Reflect the modal state on <body> so CSS / debug tooling can target it.
+const modalObserver = new MutationObserver(() => {
+  document.body.dataset.scope = isModalActive() ? 'modal' : 'global'
+})
+modalObserver.observe(document.body, { childList: true, subtree: false })
+document.body.dataset.scope = 'global'
 
 // ---- Shortcuts (Cmd = metaKey). Capture phase so xterm doesn't eat them. ----
 window.addEventListener(
@@ -227,10 +287,24 @@ window.addEventListener(
   (e) => {
     if (isRecording()) return // settings is capturing a new shortcut
     if (!e.metaKey) return
-    // Notebook-mode shortcuts: Cmd+N new note, Cmd+Shift+N new folder
+    // Whenever a modal is open, surrender the global shortcut grid to it. The
+    // modal mounts its own keydown listener for its scoped shortcuts (Improve
+    // handles Cmd+1/2/3 + Cmd+N internally); anything else would be a global
+    // shortcut firing in the wrong context.
+    if (isModalActive()) return
+    // Notebook-mode shortcuts: Cmd+N new note, Cmd+Shift+N new folder. The
+    // active sub-tab decides what Cmd+N creates (note / daily task / meeting).
     if (isNotebookMode() && !e.altKey && e.key.toLowerCase() === 'n') {
-      if (e.shiftKey) notebookNewFolder()
-      else notebookNewNote()
+      const sub = notebookSubTab()
+      if (sub === 'daily') {
+        if (!e.shiftKey) openNewDailyTask()
+      } else if (sub === 'meeting') {
+        if (!e.shiftKey) openNewMeeting()
+      } else if (e.shiftKey) {
+        notebookNewFolder()
+      } else {
+        notebookNewNote()
+      }
       e.preventDefault()
       e.stopPropagation()
       return
@@ -268,6 +342,22 @@ window.setInterval(() => {
   panes.forEach((p) => void refreshPaneInfo(p))
 }, 4000)
 
+// ---- Periodic Claude session-status refresh (sidebar status dot) ----
+window.setInterval(() => {
+  panes.forEach((p) => void refreshClaudeStatus(p))
+}, 3000)
+
+// A session jsonl under this cwd changed (most importantly a /rename): re-read
+// the title for every Claude pane on that cwd so the sidebar reflects it
+// instantly, without waiting for the 4s poll.
+window.crafterm.onClaudeSessionsChanged((cwd) => {
+  panes.forEach((p) => {
+    if (p.claude && p.cwd === cwd && p.claudeSessionId && !p.titleLocked) {
+      void applyClaudeSessionTitle(p)
+    }
+  })
+})
+
 // Live plan-file refresh: a file landed in <repo>/docs/plans → re-fetch every
 // pane's plan list. Cheap (one readdir per pane in main); the periodic poll is
 // the safety net while this is the responsive path.
@@ -297,6 +387,16 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
     if (p && n.claude) {
       p.claude = true
       p.claudeSessionId = n.claudeSessionId ?? null
+      if (n.claudeSessionId) {
+        // we already have the exact id from the saved state — freeze it so the
+        // periodic refresh can't replace it with a newer sibling session
+        p.claudeSessionLocked = true
+      } else {
+        // no id captured yet; baseline so future captures only adopt sessions
+        // appearing after this restore (not pre-existing jsonls in the cwd)
+        p.claudeSpawnedAt = Date.now()
+        p.claudeSessionLocked = false
+      }
       // Resume the exact session if we captured its id, else the latest in this cwd.
       const cmd = n.claudeSessionId ? `claude --resume ${n.claudeSessionId}` : 'claude --continue'
       setTimeout(() => window.crafterm.input(id, cmd + '\r'), 500)
@@ -305,6 +405,10 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
     if (p) {
       if (n.projectId) p.projectId = n.projectId
       if (n.appId) p.appId = n.appId
+      if (n.dailyTaskId) {
+        p.dailyTaskId = n.dailyTaskId
+        refreshPaneDailyTask(id)
+      }
     }
     return { type: 'leaf', paneId: id }
   }
@@ -347,7 +451,20 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         shell: n.shell,
         apps: n.apps ? n.apps.map((a) => ({ ...a })) : undefined,
         features: n.features ? n.features.map((f) => ({ ...f })) : undefined,
-        runCommands: n.runCommands ? n.runCommands.map((c) => ({ ...c })) : undefined
+        runCommands: n.runCommands ? n.runCommands.map((c) => ({ ...c })) : undefined,
+        iosApp: n.iosApp,
+        iosConfig: n.iosConfig
+          ? {
+              project: n.iosConfig.project ?? '',
+              scheme: n.iosConfig.scheme ?? '',
+              baseBundleId: n.iosConfig.baseBundleId ?? '',
+              displayPrefix: n.iosConfig.displayPrefix ?? '',
+              defaultSimulator: n.iosConfig.defaultSimulator ?? '',
+              copyFiles: [...(n.iosConfig.copyFiles ?? [])],
+              worktreesDir: n.iosConfig.worktreesDir ?? ''
+            }
+          : undefined,
+        issueKeyPrefix: n.issueKeyPrefix
       })
     } else {
       const children = await buildSidebar(n.children)
@@ -386,6 +503,7 @@ async function init(): Promise<void> {
   applySidebarFont()
   applySidebarCollapsed()
   initNotifications()
+  applyTabDisplay()
   wireSidebarResizer(saveSoon)
 
   // Restore the saved session tree. Guard it so a single failure can't leave the

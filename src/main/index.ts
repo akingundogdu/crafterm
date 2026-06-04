@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage, safeStorage } from 'electron'
 import type { WebContents } from 'electron'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
@@ -10,6 +10,7 @@ import {
   readdirSync,
   renameSync,
   rmSync,
+  unlinkSync,
   statSync,
   openSync,
   readSync,
@@ -21,6 +22,8 @@ import { parsePlanFilename } from './planFilename'
 import { execFile, spawn } from 'child_process'
 import * as pty from 'node-pty'
 import { registerDbIpc } from './db'
+import { registerDockerIpc } from './docker'
+import { registerPrIpc } from './pr'
 
 const APP_NAME = 'Crafterm'
 // macOS uses this for the app menu / notification name; set it before whenReady.
@@ -28,6 +31,12 @@ app.setName(APP_NAME)
 
 // Database tool: Postgres/MySQL/SQLite connect + query IPC (db:*).
 registerDbIpc()
+
+// Docker tool: containers/images/volumes/networks/compose + actions (docker:*).
+registerDockerIpc()
+
+// PR panel: GitHub PR list + CI checks + merge via the gh CLI (pr:*).
+registerPrIpc()
 
 let mainWindow: BrowserWindow | null = null
 let quitting = false
@@ -38,6 +47,8 @@ const ptys = new Map<string, pty.IPty>()
 const owners = new Map<string, WebContents>()
 // Open pop-out windows, keyed by the pane id they host.
 const popouts = new Map<string, BrowserWindow>()
+// The single detached "Improve Crafterm" window, if open.
+let improveWin: BrowserWindow | null = null
 // Pane ids whose pop-out window is allowed to actually close (kill confirmed).
 const allowClose = new Set<string>()
 let seq = 0
@@ -58,6 +69,18 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+
+  // Tell the renderer about fullscreen state — macOS hides the traffic lights
+  // while fullscreen, so the renderer can drop the left-side padding reserved
+  // for them. Re-broadcast on every transition and once on initial load.
+  const broadcastFullscreen = (): void => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('window:fullscreen', mainWindow.isFullScreen())
+    }
+  }
+  mainWindow.on('enter-full-screen', broadcastFullscreen)
+  mainWindow.on('leave-full-screen', broadcastFullscreen)
+  mainWindow.webContents.once('did-finish-load', broadcastFullscreen)
 
   // Drop the reference once the window is gone, so the guards in the PTY
   // callbacks short-circuit instead of touching a destroyed object.
@@ -117,9 +140,24 @@ ipcMain.handle(
       env: env as { [key: string]: string }
     })
 
-  p.onData((data) => sendToOwner(id, 'pty:data', { id, data }))
+  // Both callbacks are invoked by node-pty through a native ThreadSafeFunction.
+  // A throw escaping here (e.g. webContents.send() on a disposed frame during
+  // shutdown) is turned into an uncatchable C++ exception by node-pty and
+  // aborts the whole process — it does NOT route through `uncaughtException`.
+  // So every callback body must be wrapped to never throw back into native code.
+  p.onData((data) => {
+    try {
+      sendToOwner(id, 'pty:data', { id, data })
+    } catch {
+      /* renderer gone / frame disposed — never let it reach node-pty */
+    }
+  })
   p.onExit(() => {
-    sendToOwner(id, 'pty:exit', { id })
+    try {
+      sendToOwner(id, 'pty:exit', { id })
+    } catch {
+      /* ignore: same teardown race as above */
+    }
     ptys.delete(id)
     owners.delete(id)
   })
@@ -206,6 +244,38 @@ ipcMain.on('popout:close-confirmed', (_e, { id }: { id: string }) => {
 ipcMain.on('popout:focus', (_e, { id }: { id: string }) => {
   const win = popouts.get(id)
   if (win && !win.isDestroyed()) win.focus()
+})
+
+// --- Improve Crafterm detached window: a standalone Improve panel window ---
+
+ipcMain.handle('improve-window:open', () => {
+  if (improveWin && !improveWin.isDestroyed()) {
+    improveWin.focus()
+    return
+  }
+  improveWin = new BrowserWindow({
+    width: 760,
+    height: 900,
+    backgroundColor: '#0d1117',
+    title: 'Improve Crafterm',
+    titleBarStyle: 'hiddenInset',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    improveWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/improve-window.html`)
+  } else {
+    improveWin.loadFile(join(__dirname, '../renderer/improve-window.html'))
+  }
+  improveWin.on('closed', () => {
+    improveWin = null
+  })
+})
+
+ipcMain.on('improve-window:set-always-on-top', (_e, { value }: { value: boolean }) => {
+  if (improveWin && !improveWin.isDestroyed()) improveWin.setAlwaysOnTop(!!value)
 })
 
 // --- Tiny JSON store (saved layout + theme) in a dot-dir under $HOME ---
@@ -334,23 +404,484 @@ function encodeClaudeCwd(cwd: string): string {
 }
 const claudeProjectsDir = (): string => join(homedir(), '.claude', 'projects')
 
-// Newest session id for a cwd (the one an open Claude session is writing to).
-ipcMain.handle('claude:latestSession', (_e, { cwd }: { cwd?: string }) => {
-  if (!cwd) return null
-  const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))
-  if (!existsSync(dir)) return null
-  let best: { id: string; mtimeMs: number } | null = null
+// Newest session id for a cwd, optionally restricted to sessions modified after
+// `since` (ms epoch). The pane that spawned `claude` passes its spawn timestamp
+// so the resulting id always belongs to *this* pane — never to an older sibling
+// session in the same cwd. Without `since` the call returns whatever's newest
+// (legacy behavior, still used by readers that just want "any session here").
+// ---- Secrets (Accounts) ----
+// safeStorage-encrypted blobs stored under <stateDir>/secrets/<id>/<key>.bin.
+// The JSON state file only references the (id, key) pair; the secret value
+// itself never lives in plaintext on disk. macOS uses Keychain under the hood.
+function secretsDir(): string {
+  return join(stateDir(), 'secrets')
+}
+function secretSafeName(s: string): string {
+  return s.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80)
+}
+function secretFilePath(entryId: string, key: string): string | null {
+  const id = secretSafeName(entryId)
+  const k = secretSafeName(key)
+  if (!id || !k) return null
+  return join(secretsDir(), id, k + '.bin')
+}
+ipcMain.handle('secrets:set', (_e, { entryId, key, value }: { entryId: string; key: string; value: string }) => {
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'safeStorage unavailable' }
+  const p = secretFilePath(entryId, key)
+  if (!p) return { ok: false, error: 'invalid id/key' }
   try {
-    for (const f of readdirSync(dir)) {
-      if (!f.endsWith('.jsonl')) continue
-      const m = statSync(join(dir, f)).mtimeMs
-      if (!best || m > best.mtimeMs) best = { id: f.replace(/\.jsonl$/, ''), mtimeMs: m }
-    }
+    mkdirSync(join(p, '..'), { recursive: true })
+    const enc = safeStorage.encryptString(value ?? '')
+    writeFileSync(p, enc)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String((err as Error).message) }
+  }
+})
+ipcMain.handle('secrets:get', (_e, { entryId, key }: { entryId: string; key: string }) => {
+  if (!safeStorage.isEncryptionAvailable()) return null
+  const p = secretFilePath(entryId, key)
+  if (!p || !existsSync(p)) return null
+  try {
+    return safeStorage.decryptString(readFileSync(p))
   } catch {
     return null
   }
-  return best ? best.id : null
 })
+ipcMain.handle('secrets:delete', (_e, { entryId, key }: { entryId: string; key?: string }) => {
+  try {
+    const dir = join(secretsDir(), secretSafeName(entryId))
+    if (!key) {
+      if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+      return { ok: true }
+    }
+    const p = secretFilePath(entryId, key)
+    if (p && existsSync(p)) unlinkSync(p)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String((err as Error).message) }
+  }
+})
+ipcMain.handle('secrets:available', () => safeStorage.isEncryptionAvailable())
+
+// Aggregate Claude token usage across every session under
+// `~/.claude/projects/**/*.jsonl` for three periods (today, this week, this
+// month) so the top status bar can show quota-style percentages. The "cap" used
+// for percentages is configurable per-period (passed in from the renderer);
+// without one we still return the raw totals. Cached for 30s.
+interface ClaudePeriodTotals {
+  inputTokens: number
+  outputTokens: number
+  cachedTokens: number
+  totalTokens: number
+}
+interface ClaudeUsageSummary {
+  today: ClaudePeriodTotals
+  thisWeek: ClaudePeriodTotals
+  thisMonth: ClaudePeriodTotals
+  sessions: number // sessions touched today
+  lastModel: string | null
+  lastSpeed: string | null // 'standard' | 'fast' — from message.usage.speed
+  thinkingDetected: boolean // was a `thinking` content block seen this week
+  resetTimes: { day: number; week: number; month: number } // next reset (ms epoch)
+}
+let claudeUsageCache: { expiresAt: number; data: ClaudeUsageSummary } | null = null
+function startOfDayMs(now: Date): number {
+  const d = new Date(now)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+function startOfWeekMs(now: Date): number {
+  // Week starts Monday 00:00 local. (Most Claude plans reset on a fixed
+  // weekday — Monday is the closest universal anchor; users can correct via
+  // configurable caps.)
+  const d = new Date(now)
+  const day = d.getDay() // 0 = Sun
+  const back = (day + 6) % 7 // days since Monday
+  d.setDate(d.getDate() - back)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+function startOfMonthMs(now: Date): number {
+  const d = new Date(now)
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+function emptyTotals(): ClaudePeriodTotals {
+  return { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0 }
+}
+function addToPeriod(p: ClaudePeriodTotals, u: Record<string, unknown>): void {
+  const ino = Number(u.input_tokens) || 0
+  const outo = Number(u.output_tokens) || 0
+  const cc = Number(u.cache_creation_input_tokens) || 0
+  const cr = Number(u.cache_read_input_tokens) || 0
+  p.inputTokens += ino
+  p.outputTokens += outo
+  p.cachedTokens += cc + cr
+  p.totalTokens += ino + outo + cc + cr
+}
+ipcMain.handle('claude:usageSummary', () => {
+  const now = Date.now()
+  if (claudeUsageCache && claudeUsageCache.expiresAt > now) return claudeUsageCache.data
+  const root = claudeProjectsDir()
+  const nowDate = new Date(now)
+  const dayStart = startOfDayMs(nowDate)
+  const weekStart = startOfWeekMs(nowDate)
+  const monthStart = startOfMonthMs(nowDate)
+  const summary: ClaudeUsageSummary = {
+    today: emptyTotals(),
+    thisWeek: emptyTotals(),
+    thisMonth: emptyTotals(),
+    sessions: 0,
+    lastModel: null,
+    lastSpeed: null,
+    thinkingDetected: false,
+    resetTimes: {
+      day: dayStart + 24 * 3600_000,
+      week: weekStart + 7 * 24 * 3600_000,
+      month: (() => {
+        const d = new Date(monthStart)
+        d.setMonth(d.getMonth() + 1)
+        return d.getTime()
+      })()
+    }
+  }
+  if (!existsSync(root)) {
+    claudeUsageCache = { expiresAt: now + 30_000, data: summary }
+    return summary
+  }
+  let projDirs: string[] = []
+  try {
+    projDirs = readdirSync(root)
+  } catch {
+    claudeUsageCache = { expiresAt: now + 30_000, data: summary }
+    return summary
+  }
+  for (const proj of projDirs) {
+    const dir = join(root, proj)
+    let files: string[]
+    try {
+      files = readdirSync(dir).filter((f) => f.endsWith('.jsonl'))
+    } catch {
+      continue
+    }
+    for (const f of files) {
+      const full = join(dir, f)
+      let mtimeMs: number
+      try {
+        mtimeMs = statSync(full).mtimeMs
+      } catch {
+        continue
+      }
+      // Skip files untouched this month entirely.
+      if (mtimeMs < monthStart) continue
+      let touchedToday = false
+      // Read enough of the tail to capture this month's records on hot files.
+      // For older monthly data the tail is fine; for very large weekly files we
+      // may miss earliest entries — acceptable for a rolling indicator.
+      const text = readTail(full, 256 * 1024)
+      for (const line of text.split('\n')) {
+        if (!line.trim()) continue
+        let o: Record<string, unknown>
+        try {
+          o = JSON.parse(line)
+        } catch {
+          continue
+        }
+        const ts =
+          typeof o.timestamp === 'string' ? new Date(o.timestamp as string).getTime() : 0
+        if (!ts || ts < monthStart) continue
+        const msg = o.message as Record<string, unknown> | undefined
+        if (!msg || typeof msg !== 'object') continue
+        if (typeof msg.model === 'string') summary.lastModel = msg.model as string
+        const u = msg.usage as Record<string, unknown> | undefined
+        if (u && typeof u === 'object') {
+          if (typeof u.speed === 'string') summary.lastSpeed = u.speed as string
+          // Period bucketing (monthly is the outer guard above).
+          addToPeriod(summary.thisMonth, u)
+          if (ts >= weekStart) addToPeriod(summary.thisWeek, u)
+          if (ts >= dayStart) {
+            addToPeriod(summary.today, u)
+            touchedToday = true
+          }
+        }
+        const content = msg.content as unknown[] | undefined
+        if (Array.isArray(content)) {
+          for (const c of content) {
+            if (c && typeof c === 'object' && (c as { type?: string }).type === 'thinking') {
+              summary.thinkingDetected = true
+              break
+            }
+          }
+        }
+      }
+      if (touchedToday) summary.sessions++
+    }
+  }
+  claudeUsageCache = { expiresAt: now + 30_000, data: summary }
+  return summary
+})
+
+// --- Real Claude usage (official server-side limits) ---
+// The token-count summary above is a rough local estimate against guessed caps.
+// This pulls the SAME percentages the `/usage` command shows, straight from
+// Anthropic's `GET /api/oauth/usage` endpoint, using the OAuth token Claude Code
+// stores in the macOS keychain (or a user-provided fallback secret). `utilization`
+// is already a server-computed 0-100 percentage — no local math, no caps.
+interface RealUsageWindow {
+  utilization: number // 0-100
+  resetsAt: number // ms epoch
+}
+interface RealUsage {
+  fiveHour: RealUsageWindow | null
+  sevenDay: RealUsageWindow | null
+  sevenDaySonnet: RealUsageWindow | null
+  modelName: string | null
+  fetchedAt: number
+  error?: 'no-token' | 'auth-expired' | 'network' | 'unavailable'
+}
+interface OAuthToken {
+  accessToken: string | null
+  refreshToken: string | null
+  expiresAt: number // ms epoch, 0 if unknown
+}
+const CLAUDE_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
+const CLAUDE_OAUTH_TOKEN_URL = 'https://platform.claude.com/v1/oauth/token'
+const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
+let realUsageCache: { expiresAt: number; data: RealUsage } | null = null
+
+// Parse a stored credential blob. Claude's keychain entry is JSON
+// (`{ claudeAiOauth: { accessToken, refreshToken, expiresAt } }`); a user
+// fallback secret may be that same shape, a bare `{ accessToken }`, or a raw token.
+function parseTokenBlob(raw: string | null): OAuthToken {
+  if (!raw) return { accessToken: null, refreshToken: null, expiresAt: 0 }
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith('{')) return { accessToken: trimmed, refreshToken: null, expiresAt: 0 }
+  try {
+    const o = JSON.parse(trimmed) as Record<string, unknown>
+    const oauth = (o.claudeAiOauth as Record<string, unknown>) ?? o
+    return {
+      accessToken: typeof oauth.accessToken === 'string' ? oauth.accessToken : null,
+      refreshToken: typeof oauth.refreshToken === 'string' ? oauth.refreshToken : null,
+      expiresAt: Number(oauth.expiresAt) || 0
+    }
+  } catch {
+    return { accessToken: trimmed, refreshToken: null, expiresAt: 0 }
+  }
+}
+
+function readKeychainBlob(service: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (!service) return resolve(null)
+    execFile(
+      '/usr/bin/security',
+      ['find-generic-password', '-s', service, '-w'],
+      { timeout: 3000 },
+      (err, stdout) => resolve(err ? null : (stdout || '').trim() || null)
+    )
+  })
+}
+
+// Best-effort refresh: only used when the stored access token is expired/rejected.
+// Kept in memory — we deliberately do NOT write back to the keychain so Claude
+// Code stays the single owner of the credential.
+async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: CLAUDE_OAUTH_CLIENT_ID
+      }),
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!res.ok) return null
+    const j = (await res.json()) as Record<string, unknown>
+    return typeof j.access_token === 'string' ? j.access_token : null
+  } catch {
+    return null
+  }
+}
+
+function toWindow(o: unknown): RealUsageWindow | null {
+  if (!o || typeof o !== 'object') return null
+  const r = o as Record<string, unknown>
+  const util = Number(r.utilization)
+  if (!Number.isFinite(util)) return null
+  // `utilization` is already a 0-100 percentage. `resets_at` is an ISO-8601
+  // string (or null); an older shape used a Unix-seconds number — handle both.
+  let resetsAt = 0
+  if (typeof r.resets_at === 'string') resetsAt = new Date(r.resets_at).getTime() || 0
+  else if (typeof r.resets_at === 'number' && Number.isFinite(r.resets_at))
+    resetsAt = r.resets_at < 1e12 ? r.resets_at * 1000 : r.resets_at
+  return { utilization: util, resetsAt }
+}
+
+async function fetchUsage(accessToken: string): Promise<RealUsage | { status: number }> {
+  const res = await fetch(CLAUDE_USAGE_URL, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`
+    },
+    signal: AbortSignal.timeout(5000)
+  })
+  if (!res.ok) return { status: res.status }
+  const j = (await res.json()) as Record<string, unknown>
+  const model = j.model as Record<string, unknown> | undefined
+  return {
+    fiveHour: toWindow(j.five_hour),
+    sevenDay: toWindow(j.seven_day),
+    sevenDaySonnet: toWindow(j.seven_day_sonnet),
+    modelName:
+      model && typeof model.display_name === 'string' ? (model.display_name as string) : null,
+    fetchedAt: Date.now()
+  }
+}
+
+ipcMain.handle(
+  'claude:realUsage',
+  async (
+    _e,
+    opts: { keychainService?: string; fallbackToken?: string | null; force?: boolean }
+  ): Promise<RealUsage> => {
+    const now = Date.now()
+    if (!opts?.force && realUsageCache && realUsageCache.expiresAt > now)
+      return realUsageCache.data
+    const fail = (error: RealUsage['error']): RealUsage => {
+      const data: RealUsage = {
+        fiveHour: null,
+        sevenDay: null,
+        sevenDaySonnet: null,
+        modelName: null,
+        fetchedAt: now,
+        error
+      }
+      realUsageCache = { expiresAt: now + 60_000, data }
+      return data
+    }
+
+    const service = opts?.keychainService || 'Claude Code-credentials'
+    let token = parseTokenBlob(await readKeychainBlob(service))
+    if (!token.accessToken && opts?.fallbackToken) token = parseTokenBlob(opts.fallbackToken)
+    if (!token.accessToken) return fail('no-token')
+
+    try {
+      let result = await fetchUsage(token.accessToken)
+      if ('status' in result && result.status === 401 && token.refreshToken) {
+        const fresh = await refreshAccessToken(token.refreshToken)
+        if (fresh) result = await fetchUsage(fresh)
+      }
+      if ('status' in result) return fail(result.status === 401 ? 'auth-expired' : 'unavailable')
+      realUsageCache = { expiresAt: now + 60_000, data: result }
+      return result
+    } catch {
+      return fail('network')
+    }
+  }
+)
+
+// Pull the user-set "custom-title" out of a session's jsonl head — used by
+// pane.ts to reflect a /rename'd title into the sidebar pane title without
+// having to wait for the next xterm OSC repaint. Cached briefly so the renderer
+// can poll at 0s/1s/3s after session lock without thrashing the disk.
+const claudeTitleCache = new Map<string, { title: string | null; expiresAt: number }>()
+ipcMain.handle('claude:sessionTitle', (_e, { cwd, sessionId }: { cwd?: string; sessionId?: string }) => {
+  if (!cwd || !sessionId) return null
+  const key = `${cwd}::${sessionId}`
+  const cached = claudeTitleCache.get(key)
+  const now = Date.now()
+  if (cached && cached.expiresAt > now) return cached.title
+  const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
+  if (!existsSync(file)) return null
+  let title: string | null = null
+  const text = readHead(file) + '\n' + readTail(file)
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    let o: Record<string, unknown>
+    try {
+      o = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (o.type === 'custom-title' && typeof o.customTitle === 'string') {
+      title = o.customTitle.trim() || null
+      // Don't break — a later /rename overrides an earlier one; take the last.
+    }
+  }
+  claudeTitleCache.set(key, { title, expiresAt: now + 1500 })
+  return title
+})
+
+// Derive a coarse Claude session state from the session JSONL tail:
+//   'in-progress' — last turn is a user/tool message (Claude will respond) or an
+//                   assistant turn still holding an unresolved tool_use;
+//   'question'    — assistant turn ended on a question to the user;
+//   'idle'        — assistant turn ended normally (waiting on the user).
+ipcMain.handle(
+  'claude:sessionStatus',
+  (_e, { cwd, sessionId }: { cwd?: string; sessionId?: string }) => {
+    if (!cwd || !sessionId) return null
+    const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
+    if (!existsSync(file)) return null
+    const lines = readTail(file)
+      .split('\n')
+      .filter((l) => l.trim())
+    let last: Record<string, unknown> | null = null
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const o = JSON.parse(lines[i]) as Record<string, unknown>
+        if (o.type === 'user' || o.type === 'assistant') {
+          last = o
+          break
+        }
+      } catch {
+        // truncated/partial line at the tail boundary — skip
+      }
+    }
+    if (!last) return 'idle'
+    if (last.type === 'user') return 'in-progress'
+    const msg = (last.message as Record<string, unknown>) ?? last
+    const content = msg.content
+    let hasToolUse = false
+    let lastText = ''
+    if (Array.isArray(content)) {
+      for (const c of content as Record<string, unknown>[]) {
+        if (c.type === 'tool_use') hasToolUse = true
+        if (c.type === 'text' && typeof c.text === 'string') lastText = c.text
+      }
+    } else if (typeof content === 'string') {
+      lastText = content
+    }
+    if (hasToolUse || msg.stop_reason === 'tool_use') return 'in-progress'
+    if (lastText.trim().endsWith('?')) return 'question'
+    return 'idle'
+  }
+)
+
+ipcMain.handle(
+  'claude:latestSession',
+  (_e, { cwd, since }: { cwd?: string; since?: number }) => {
+    if (!cwd) return null
+    const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))
+    if (!existsSync(dir)) return null
+    let best: { id: string; mtimeMs: number } | null = null
+    try {
+      for (const f of readdirSync(dir)) {
+        if (!f.endsWith('.jsonl')) continue
+        const m = statSync(join(dir, f)).mtimeMs
+        if (typeof since === 'number' && m <= since) continue
+        if (!best || m > best.mtimeMs) best = { id: f.replace(/\.jsonl$/, ''), mtimeMs: m }
+      }
+    } catch {
+      return null
+    }
+    return best ? best.id : null
+  }
+)
 
 // Read just the head of a file (session prompts/cwd live near the top).
 function readHead(path: string, bytes = 16384): string {
@@ -516,6 +1047,39 @@ ipcMain.handle('plans:list', () => {
   }
 })
 
+// Aggregate every plan markdown file across the given project paths (each
+// project's <path>/docs/plans dir). Used by the Notebook "Plans" section. Returns
+// newest-first; missing dirs are skipped.
+ipcMain.handle('plans:scan', (_e, { paths }: { paths?: string[] }) => {
+  const out: { project: string; name: string; path: string; mtime: number }[] = []
+  const seen = new Set<string>()
+  for (const p of paths ?? []) {
+    if (!p || seen.has(p)) continue
+    seen.add(p)
+    const dir = join(p, 'docs', 'plans')
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      continue
+    }
+    const project = p.replace(/\/+$/, '').split('/').pop() || p
+    for (const f of entries) {
+      if (!/\.(md|mdx|mdc)$/i.test(f)) continue
+      const full = join(dir, f)
+      let mtime = 0
+      try {
+        mtime = statSync(full).mtimeMs
+      } catch {
+        // unreadable entry — still list it, just without a sort key
+      }
+      out.push({ project, name: f, path: full, mtime })
+    }
+  }
+  out.sort((a, b) => b.mtime - a.mtime)
+  return out
+})
+
 // Live watchers per plans directory; each fires `plans:changed` so the
 // renderer can re-fetch without waiting on its 4-second polling loop.
 const plansWatchers = new Map<string, FSWatcher>()
@@ -528,6 +1092,52 @@ function broadcastPlansChanged(plansDir: string): void {
     }
   }
 }
+
+// Live watchers per Claude project dir (~/.claude/projects/<encoded-cwd>). A
+// change there means a session jsonl was written — most importantly a /rename's
+// custom-title record — so we broadcast `claude:sessionsChanged` and the renderer
+// re-reads the affected panes' titles immediately instead of waiting on its 4s
+// poll. Keyed by cwd so the renderer can match only its own panes.
+const claudeWatchers = new Map<string, FSWatcher>()
+const claudeBroadcastTimers = new Map<string, NodeJS.Timeout>()
+
+function broadcastClaudeSessionsChanged(cwd: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+      win.webContents.send('claude:sessionsChanged', { cwd })
+    }
+  }
+}
+
+ipcMain.handle('claude:watchSessions', (_e, { cwd }: { cwd?: string }) => {
+  if (!cwd) return false
+  if (claudeWatchers.has(cwd)) return true
+  const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))
+  try {
+    const watcher = fsWatch(dir, { persistent: false }, () => {
+      const prev = claudeBroadcastTimers.get(cwd)
+      if (prev) clearTimeout(prev)
+      const t = setTimeout(() => {
+        claudeBroadcastTimers.delete(cwd)
+        // Drop cached titles for this cwd so the renderer's re-read sees the
+        // just-written custom-title rather than a stale (<=1.5s) cache entry.
+        for (const key of [...claudeTitleCache.keys()]) {
+          if (key.startsWith(cwd + '::')) claudeTitleCache.delete(key)
+        }
+        broadcastClaudeSessionsChanged(cwd)
+      }, 120)
+      claudeBroadcastTimers.set(cwd, t)
+    })
+    watcher.on('error', () => {
+      watcher.close()
+      claudeWatchers.delete(cwd)
+    })
+    claudeWatchers.set(cwd, watcher)
+    return true
+  } catch {
+    return false
+  }
+})
 
 function ensurePlansWatcher(plansDir: string): void {
   if (plansWatchers.has(plansDir)) return
@@ -554,12 +1164,18 @@ function ensurePlansWatcher(plansDir: string): void {
 }
 
 // Plan files for a terminal: <repo>/docs/plans entries that match
-// "<branch>-<slug>--pane-<stableId>.<ext>". Files without the --pane-<uuid>
-// suffix are ignored — the sidebar only attributes plans to their producing
-// session. Slashes in the branch are matched as dashes since filenames can't
+// "<branch>-<slug>--pane-<stableId>.<ext>" or "<branch>-<slug>-<sessionId>.<ext>".
+// Files with neither owner tag are ignored — the sidebar only attributes plans
+// to their producing session, matched on either the pane stableId or the Claude
+// session id. Slashes in the branch are matched as dashes since filenames can't
 // contain "/".
 ipcMain.handle('plans:forBranch', async (_e, { cwd, branch }: { cwd?: string; branch?: string }) => {
-  type PlanRow = { name: string; path: string; ownerStableId: string | null }
+  type PlanRow = {
+    name: string
+    path: string
+    ownerStableId: string | null
+    ownerSessionId: string | null
+  }
   if (!cwd || !branch) return [] as PlanRow[]
   let dir = cwd.trim()
   if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
@@ -571,8 +1187,13 @@ ipcMain.handle('plans:forBranch', async (_e, { cwd, branch }: { cwd?: string; br
     const rows: PlanRow[] = []
     for (const f of readdirSync(plansDir).sort()) {
       const parsed = parsePlanFilename(f, branch)
-      if (!parsed || !parsed.ownerStableId) continue
-      rows.push({ name: f, path: join(plansDir, f), ownerStableId: parsed.ownerStableId })
+      if (!parsed || (!parsed.ownerStableId && !parsed.ownerSessionId)) continue
+      rows.push({
+        name: f,
+        path: join(plansDir, f),
+        ownerStableId: parsed.ownerStableId,
+        ownerSessionId: parsed.ownerSessionId
+      })
     }
     return rows
   } catch {
@@ -670,6 +1291,60 @@ ipcMain.handle(
     })
   }
 )
+// Kill every live PTY and wait for each one to ACTUALLY exit. This is the fix
+// for the update-restart crash: if PTYs are killed inside `before-quit` and the
+// handler returns immediately (while the Node environment then tears down),
+// node-pty's exit callbacks race the teardown and abort() the process via an
+// uncaught ThreadSafeFunction throw. Draining first — waiting for each onExit to
+// fire and remove the pty from `ptys` — leaves nothing to fire during teardown.
+// A child that ignores SIGHUP (e.g. a running claude/vim) is escalated to
+// SIGKILL after 5s so quitting/updating can't hang. Used both by the in-app
+// update flow and by `before-quit`, so EVERY quit path (Cmd+Q, the deploy
+// script's `osascript quit`, …) drains safely.
+async function drainPtys(): Promise<void> {
+  const entries = [...ptys.values()]
+  if (entries.length === 0) return
+  await Promise.all(
+    entries.map(
+      (p) =>
+        new Promise<void>((resolve) => {
+          let done = false
+          let timer: NodeJS.Timeout | undefined
+          const finish = () => {
+            if (done) return
+            done = true
+            clearTimeout(timer)
+            resolve()
+          }
+          // onExit already removes the pty from `ptys`; we just await it here.
+          try {
+            p.onExit(finish)
+          } catch {
+            finish()
+            return
+          }
+          timer = setTimeout(() => {
+            try {
+              p.kill('SIGKILL')
+            } catch {
+              /* already gone */
+            }
+            // Give the forced kill a brief moment to fire onExit, then resolve.
+            setTimeout(finish, 250)
+          }, 5000)
+          try {
+            p.kill()
+          } catch {
+            finish()
+          }
+        })
+    )
+  )
+}
+ipcMain.handle('deploy:killAllPtys', async () => {
+  await drainPtys()
+  return true
+})
 ipcMain.handle('deploy:swap', (_e, { repoPath }: { repoPath: string }) => {
   const repo = repoPath?.trim()
   if (!repo) return false
@@ -717,6 +1392,44 @@ ipcMain.handle('deploy:wasUpdating', () => {
   return true
 })
 
+// Installed app version (from package.json via Electron).
+ipcMain.handle('app:version', () => app.getVersion())
+
+// Git state of the build this running app was packaged from. Written into the
+// bundle by scripts/deploy.sh (out/build-info.json) at deploy time. Returns null
+// in dev (unpackaged) or when the file is missing — callers then skip the
+// "redeploy needed" comparison.
+ipcMain.handle('app:buildInfo', () => {
+  if (!app.isPackaged) return null
+  try {
+    const info = JSON.parse(readFileSync(join(__dirname, '../build-info.json'), 'utf8'))
+    return {
+      commit: typeof info.commit === 'string' ? info.commit : null,
+      commitCount: typeof info.commitCount === 'number' ? info.commitCount : null
+    }
+  } catch {
+    return null
+  }
+})
+
+// Live git state of the source repo: current commit, commit count, and whether
+// the working tree has uncommitted changes. Lets the renderer flag that the
+// running build is behind the repo (redeploy needed). null on any failure.
+ipcMain.handle('app:repoGit', async (_e, { repoPath }: { repoPath?: string }) => {
+  const repo = repoPath?.trim()
+  if (!repo || !existsSync(repo)) return null
+  const git = gitBin()
+  const commit = await run(git, ['-C', repo, 'rev-parse', 'HEAD'])
+  if (!commit) return null
+  const count = await run(git, ['-C', repo, 'rev-list', '--count', 'HEAD'])
+  const status = await run(git, ['-C', repo, 'status', '--porcelain'])
+  return {
+    commit: commit.trim(),
+    commitCount: count ? parseInt(count.trim(), 10) || 0 : 0,
+    dirty: status !== null && status.trim().length > 0
+  }
+})
+
 // Open a file in the user's Markdown app via their `markdown` (mdpp) command.
 ipcMain.on('markdown:open', (_e, { path }: { path: string }) => {
   execFile('/bin/zsh', ['-lic', `markdown ${shq(path)}`], () => {})
@@ -761,6 +1474,20 @@ ipcMain.handle('fs:readMd', (_e, { path }: { path: string }) => {
     return readFileSync(path, 'utf8')
   } catch {
     return ''
+  }
+})
+
+// Read any text file (read-only viewer). Caps size and rejects binary content so
+// the file viewer pane never tries to render a multi-megabyte blob or garbage.
+ipcMain.handle('fs:readText', (_e, { path }: { path: string }) => {
+  try {
+    if (!existsSync(path)) return { ok: false, error: 'File not found.' }
+    const buf = readFileSync(path)
+    if (buf.length > 2_000_000) return { ok: false, error: 'File too large to preview.' }
+    if (buf.includes(0)) return { ok: false, error: 'Binary file — cannot preview.' }
+    return { ok: true, text: buf.toString('utf8') }
+  } catch {
+    return { ok: false, error: 'Failed to read file.' }
   }
 })
 
@@ -1019,6 +1746,10 @@ ipcMain.on('notebook:reveal', (_e, { path }: { path: string }) => {
 ipcMain.on('shell:openPath', (_e, { path }: { path: string }) => {
   if (path && existsSync(path)) void shell.openPath(path)
 })
+// Reveal an absolute path in Finder (selects the file in its containing folder).
+ipcMain.on('shell:revealPath', (_e, { path }: { path: string }) => {
+  if (path && existsSync(path)) shell.showItemInFolder(path)
+})
 // Play a macOS system sound by name (e.g. "Glass") for notifications.
 ipcMain.on('sound:play', (_e, { name }: { name: string }) => {
   if (!name) return
@@ -1040,6 +1771,74 @@ ipcMain.on('sound:event', (_e, { event }: { event: string }) => {
   const p = join(soundsDir(), file)
   if (existsSync(p)) execFile('/usr/bin/afplay', [p], () => {})
 })
+// Absolute path to the bundled iOS worktree helper script. The renderer types
+// `bash "<path>" <subcommand>` into a pane (with IOSWT_* env from settings.iosDev),
+// so a build's output streams live in the terminal.
+const scriptsDir = (): string =>
+  app.isPackaged ? join(process.resourcesPath, 'scripts') : join(__dirname, '../../resources/scripts')
+ipcMain.handle('iosWorktree:scriptPath', () => join(scriptsDir(), 'ios-worktree.sh'))
+
+// Build the IOSWT_* env from a project's iosConfig (empty fields auto-detect in
+// the script). repoRoot is the owning project's path.
+interface IosCfg {
+  project?: string
+  scheme?: string
+  baseBundleId?: string
+  displayPrefix?: string
+  defaultSimulator?: string
+  copyFiles?: string[]
+  worktreesDir?: string
+}
+function iosEnv(cfg: IosCfg | undefined, repoRoot?: string): Record<string, string> {
+  const e: Record<string, string> = {}
+  if (repoRoot) e.IOSWT_REPO_ROOT = repoRoot
+  if (cfg?.project) e.IOSWT_PROJECT = cfg.project
+  if (cfg?.scheme) e.IOSWT_SCHEME = cfg.scheme
+  if (cfg?.baseBundleId) e.IOSWT_BUNDLE_ID = cfg.baseBundleId
+  if (cfg?.displayPrefix) e.IOSWT_DISPLAY_PREFIX = cfg.displayPrefix
+  if (cfg?.defaultSimulator) e.IOSWT_SIMULATOR = cfg.defaultSimulator
+  if (cfg?.worktreesDir) e.IOSWT_WORKTREES_DIR = cfg.worktreesDir
+  if (cfg?.copyFiles?.length) e.IOSWT_COPY_FILES = cfg.copyFiles.join(':')
+  return e
+}
+
+// Live status for the sidebar: enumerate a repo's worktrees and their variants'
+// built/installed/running state. Returns null on failure (renderer keeps prior).
+ipcMain.handle(
+  'iosWorktree:report',
+  (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: IosCfg }) =>
+    new Promise((resolve) => {
+      const script = join(scriptsDir(), 'ios-worktree.sh')
+      execFile(
+        '/bin/bash',
+        [script, 'report'],
+        { cwd: repoRoot, env: { ...process.env, ...iosEnv(cfg, repoRoot) }, timeout: 90_000, maxBuffer: 8 * 1024 * 1024 },
+        (err, stdout) => {
+          if (err) return resolve(null)
+          try {
+            resolve(JSON.parse(stdout.toString()))
+          } catch {
+            resolve(null)
+          }
+        }
+      )
+    })
+)
+
+// Terminate a worktree's variant on the target simulator.
+ipcMain.handle(
+  'iosWorktree:stop',
+  (_e, { worktreePath, cfg }: { worktreePath: string; cfg?: IosCfg }) =>
+    new Promise((resolve) => {
+      const script = join(scriptsDir(), 'ios-worktree.sh')
+      execFile(
+        '/bin/bash',
+        [script, 'stop'],
+        { cwd: worktreePath, env: { ...process.env, ...iosEnv(cfg, worktreePath) }, timeout: 30_000 },
+        (err) => resolve(!err)
+      )
+    })
+)
 ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => {
   const p = nbResolve(path)
   if (!p || p === notebooksDir()) return false
@@ -1117,10 +1916,24 @@ function buildAppMenu(): void {
   if (process.platform !== 'darwin') return
   // Cmd+W lives on a real menu accelerator so it fires even when an embedded
   // <webview> (browser pane) has focus, where renderer keydown never arrives.
+  // Custom View submenu (no Reload / Force Reload — Cmd+R would otherwise blow
+  // away every pane's state. Devtools and zoom stay so debugging still works.)
+  const viewMenu: Electron.MenuItemConstructorOptions = {
+    label: 'View',
+    submenu: [
+      { role: 'toggleDevTools' },
+      { type: 'separator' },
+      { role: 'resetZoom' },
+      { role: 'zoomIn' },
+      { role: 'zoomOut' },
+      { type: 'separator' },
+      { role: 'togglefullscreen' }
+    ]
+  }
   const template: Electron.MenuItemConstructorOptions[] = [
     { role: 'appMenu' },
     { role: 'editMenu' },
-    { role: 'viewMenu' },
+    viewMenu,
     {
       label: 'Pane',
       submenu: [
@@ -1161,6 +1974,16 @@ app.whenReady().then(() => {
     }
   }
   buildAppMenu()
+  // Belt-and-suspenders against accidental Cmd+R reloads (in addition to the
+  // custom View menu that omits the Reload role). Catches any stray reload
+  // accelerator from devtools, webviews, or pop-out windows before it fires.
+  app.on('web-contents-created', (_e, wc) => {
+    wc.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return
+      if (!(input.control || input.meta)) return
+      if (input.key.toLowerCase() === 'r') event.preventDefault()
+    })
+  })
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -1201,11 +2024,14 @@ app.on('before-quit', (e) => {
     }, 200)
     return
   }
-  for (const p of ptys.values()) {
-    try {
-      p.kill()
-    } catch {
-      /* ignore */
-    }
+  // Second pass: drain every live PTY (kill + await its real exit) BEFORE the
+  // Node environment tears down. Killing them inline and returning lets Electron
+  // start teardown immediately; node-pty then fires exit callbacks into a
+  // half-destroyed env and aborts the process. Draining first empties `ptys` so
+  // nothing fires during the actual teardown. Re-entrant: once drained the map
+  // is empty, so the final before-quit pass falls through and the quit proceeds.
+  if (ptys.size > 0) {
+    e.preventDefault()
+    drainPtys().then(() => app.quit())
   }
 })
