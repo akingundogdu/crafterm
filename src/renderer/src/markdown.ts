@@ -83,6 +83,7 @@ export function renderMarkdown(md: string): string {
   const listBuf: string[] = []
   let inCode = false
   let codeBuf: string[] = []
+  let codeStart = 0
 
   const flushList = (): void => {
     if (listType) {
@@ -98,12 +99,13 @@ export function renderMarkdown(md: string): string {
     const fence = raw.match(/^```/)
     if (fence) {
       if (inCode) {
-        out.push(`<pre><code>${esc(codeBuf.join('\n'))}</code></pre>`)
+        out.push(`<pre data-mdline="${codeStart + 1}"><code>${esc(codeBuf.join('\n'))}</code></pre>`)
         codeBuf = []
         inCode = false
       } else {
         flushList()
         inCode = true
+        codeStart = i
       }
       continue
     }
@@ -122,7 +124,7 @@ export function renderMarkdown(md: string): string {
     if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
       flushList()
       const { html, end } = parseTable(lines, i)
-      out.push(html)
+      out.push(html.replace('<table>', `<table data-mdline="${i + 1}">`))
       i = end
       continue
     }
@@ -131,17 +133,19 @@ export function renderMarkdown(md: string): string {
     if (h) {
       flushList()
       const lvl = h[1].length
-      out.push(`<h${lvl}>${inline(esc(h[2]))}</h${lvl}>`)
+      out.push(`<h${lvl} data-mdline="${i + 1}">${inline(esc(h[2]))}</h${lvl}>`)
       continue
     }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
       flushList()
-      out.push('<hr />')
+      out.push(`<hr data-mdline="${i + 1}" />`)
       continue
     }
     if (/^>\s?/.test(line)) {
       flushList()
-      out.push(`<blockquote>${inline(esc(line.replace(/^>\s?/, '')))}</blockquote>`)
+      out.push(
+        `<blockquote data-mdline="${i + 1}">${inline(esc(line.replace(/^>\s?/, '')))}</blockquote>`
+      )
       continue
     }
     const ul = line.match(/^\s*[-*+]\s+(.*)$/)
@@ -155,16 +159,16 @@ export function renderMarkdown(md: string): string {
       if (task) {
         const checked = task[1].toLowerCase() === 'x' ? ' checked' : ''
         listBuf.push(
-          `<li class="task"><input type="checkbox" disabled${checked} /> ${inline(esc(task[2]))}</li>`
+          `<li class="task" data-mdline="${i + 1}"><input type="checkbox" disabled${checked} /> ${inline(esc(task[2]))}</li>`
         )
       } else {
-        listBuf.push(`<li>${inline(esc(item))}</li>`)
+        listBuf.push(`<li data-mdline="${i + 1}">${inline(esc(item))}</li>`)
       }
       continue
     }
 
     flushList()
-    out.push(`<p>${inline(esc(line))}</p>`)
+    out.push(`<p data-mdline="${i + 1}">${inline(esc(line))}</p>`)
   }
   if (inCode) out.push(`<pre><code>${esc(codeBuf.join('\n'))}</code></pre>`)
   flushList()

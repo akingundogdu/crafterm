@@ -1,9 +1,23 @@
 import { themes } from './themes'
-import { settings, saveSoon, requestSidebar, resolveTheme, applyBgColor, uid } from './state'
-import type { PaletteCommand, Project, Application } from './types'
+import {
+  settings,
+  state,
+  saveSoon,
+  persistNow,
+  saveStatus,
+  subscribeSaveStatus,
+  requestSidebar,
+  resolveTheme,
+  applyBgColor,
+  uid
+} from './state'
+import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from './types'
+import { BUILTIN_ACTIONS } from './types'
 import { flattenProjects, removeProject } from './catalog'
+import { makeProject } from './tree'
+import { reconcileWorktrees, purgeWorktrees } from './worktrees'
 import { applyAppearance } from './pane'
-import { applyOrientation, applySidebarFont } from './sidebar'
+import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from './sidebar'
 import { pickFolderPath } from './pickers'
 import { makeCloseButton, promptForm, promptText } from './dialog'
 import {
@@ -16,7 +30,6 @@ import {
   setRecording,
   isModifierKey
 } from './keybindings'
-import { syncProjectGroupToTree } from './commands'
 
 // Quick background presets (black default + a few dark tones); a custom color
 // picker covers anything else.
@@ -54,6 +67,50 @@ function toHex6(v: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(v)) return v
   if (/^#[0-9a-fA-F]{3}$/.test(v)) return '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3]
   return '#000000'
+}
+
+// Render a horizontal sub-tab strip with one body panel shown at a time.
+// Each tab's `build` runs once, lazily, the first time its tab is shown.
+function buildSubTabs(
+  parent: HTMLElement,
+  tabs: { label: string; build: (el: HTMLElement) => void }[],
+  opts?: { initialIndex?: number; onTabChange?: (idx: number) => void }
+): void {
+  const bar = document.createElement('div')
+  bar.className = 'settings-subtabs'
+  const body = document.createElement('div')
+  body.className = 'settings-subtab-body'
+  parent.append(bar, body)
+  const btns: HTMLButtonElement[] = []
+  const panels: HTMLElement[] = []
+  const built: boolean[] = []
+  const show = (i: number): void => {
+    btns.forEach((b, j) => b.classList.toggle('active', j === i))
+    panels.forEach((p, j) => (p.style.display = j === i ? 'block' : 'none'))
+    if (!built[i]) {
+      tabs[i].build(panels[i])
+      built[i] = true
+    }
+    opts?.onTabChange?.(i)
+  }
+  tabs.forEach((t, i) => {
+    const b = document.createElement('button')
+    b.className = 'settings-subtab'
+    b.textContent = t.label
+    b.addEventListener('click', () => show(i))
+    const p = document.createElement('div')
+    p.className = 'settings-subtab-panel'
+    p.style.display = 'none'
+    btns.push(b)
+    panels.push(p)
+    built.push(false)
+    bar.appendChild(b)
+    body.appendChild(p)
+  })
+  if (tabs.length) {
+    const start = opts?.initialIndex ?? 0
+    show(start >= 0 && start < tabs.length ? start : 0)
+  }
 }
 
 function labeledInput(
@@ -128,10 +185,14 @@ export function openSettings(): void {
     'Appearance',
     'Theme',
     'Sidebar',
+    'Tabs',
     'Workspace',
     'Projects',
     'Commands',
-    'Shortcuts'
+    'Reminders',
+    'Action menu',
+    'Shortcuts',
+    'System update'
   ] as const
   const panels: Record<string, HTMLElement> = {}
   const navButtons: Record<string, HTMLButtonElement> = {}
@@ -159,13 +220,219 @@ export function openSettings(): void {
   buildAppearancePanel(panels['Appearance'])
   buildThemePanel(panels['Theme'])
   buildSidebarPanel(panels['Sidebar'])
+  buildTabsPanel(panels['Tabs'])
   buildWorkspacePanel(panels['Workspace'])
   buildProjectsPanel(panels['Projects'])
   buildCommandsPanel(panels['Commands'])
+  buildRemindersPanel(panels['Reminders'])
   buildShortcutsPanel(panels['Shortcuts'])
+  buildActionMenuPanel(panels['Action menu'])
+  buildSystemUpdatePanel(panels['System update'])
+
+  // Save status footer: shows Unsaved / Saving… / Saved HH:MM:SS + a manual flush.
+  const footer = document.createElement('div')
+  footer.className = 'settings-save-footer'
+  const chip = document.createElement('span')
+  chip.className = 'settings-save-chip'
+  const saveBtn = document.createElement('button')
+  saveBtn.className = 'settings-inline-btn'
+  saveBtn.textContent = 'Save now'
+  saveBtn.addEventListener('click', () => persistNow())
+  footer.append(chip, saveBtn)
+  modal.appendChild(footer)
+  const formatTime = (ms: number): string => {
+    const d = new Date(ms)
+    const pad = (n: number): string => (n < 10 ? '0' + n : String(n))
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }
+  const refreshChip = (): void => {
+    if (saveStatus.pending) {
+      chip.textContent = 'Saving…'
+      chip.dataset.state = 'pending'
+    } else if (saveStatus.lastSavedAt) {
+      chip.textContent = `Saved · ${formatTime(saveStatus.lastSavedAt)}`
+      chip.dataset.state = 'saved'
+    } else {
+      chip.textContent = 'No changes yet'
+      chip.dataset.state = 'idle'
+    }
+  }
+  refreshChip()
+  const unsubscribe = subscribeSaveStatus(refreshChip)
+  settingsCleanups.push(unsubscribe)
 
   show('Appearance')
   document.body.appendChild(overlay)
+}
+
+function buildTabsPanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>Tabs</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Controls the sidebar and right-panel tab strips. In icon-only mode, hover a tab to see its name and shortcut.</div>'
+  )
+
+  labeledSelect(
+    panel,
+    'Display',
+    [
+      ['icon', 'Icon only'],
+      ['text', 'Text only'],
+      ['both', 'Icon + text']
+    ],
+    settings.tabDisplay.mode,
+    (v) => {
+      settings.tabDisplay.mode = v as 'icon' | 'text' | 'both'
+      applyTabDisplay()
+      saveSoon()
+    }
+  )
+
+  const renderHideGroup = (strip: 'left' | 'right', title: string): void => {
+    panel.insertAdjacentHTML('beforeend', `<div class="settings-subhead">${title}</div>`)
+    for (const t of tabMeta().filter((m) => m.strip === strip)) {
+      const row = document.createElement('label')
+      row.style.display = 'flex'
+      row.style.alignItems = 'center'
+      row.style.gap = '6px'
+      row.style.padding = '2px 0'
+      const cb = document.createElement('input')
+      cb.type = 'checkbox'
+      cb.checked = !settings.tabDisplay.hidden[strip].includes(t.id)
+      cb.addEventListener('change', () => {
+        const list = settings.tabDisplay.hidden[strip]
+        const idx = list.indexOf(t.id)
+        if (cb.checked) {
+          if (idx >= 0) list.splice(idx, 1)
+        } else if (idx < 0) {
+          list.push(t.id)
+        }
+        applyTabDisplay()
+        saveSoon()
+      })
+      row.append(cb, document.createTextNode(' ' + t.label))
+      panel.appendChild(row)
+    }
+  }
+  renderHideGroup('left', 'Sidebar tabs (show)')
+  renderHideGroup('right', 'Right panel tabs (show)')
+}
+
+function buildRemindersPanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>Reminders</h3>')
+
+  labeledInput(
+    panel,
+    'Default hour (for "Tomorrow"-style presets)',
+    'number',
+    String(settings.reminderDefaults.defaultHour),
+    (v) => {
+      const n = parseInt(v, 10)
+      if (Number.isInteger(n) && n >= 0 && n <= 23) {
+        settings.reminderDefaults.defaultHour = n
+        saveSoon()
+      }
+    }
+  )
+
+  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Quick-time presets</div>')
+  const list = document.createElement('div')
+  panel.appendChild(list)
+
+  const renderList = (): void => {
+    list.innerHTML = ''
+    settings.reminderDefaults.presets.forEach((p, idx) => {
+      const card = document.createElement('div')
+      card.className = 'app-card'
+
+      const labelI = document.createElement('input')
+      labelI.type = 'text'
+      labelI.value = p.label
+      labelI.placeholder = 'Label'
+      labelI.addEventListener('change', () => {
+        p.label = labelI.value.trim() || p.label
+        labelI.value = p.label
+        saveSoon()
+      })
+
+      // kind: relative offset (minutes) vs day-based jump
+      const kindSel = document.createElement('select')
+      kindSel.className = 'settings-select'
+      ;[
+        ['offset', 'Offset (minutes)'],
+        ['days', 'Days ahead']
+      ].forEach(([val, text]) => {
+        const o = document.createElement('option')
+        o.value = val
+        o.textContent = text
+        kindSel.appendChild(o)
+      })
+      kindSel.value = typeof p.days === 'number' ? 'days' : 'offset'
+
+      const valueI = document.createElement('input')
+      valueI.type = 'number'
+      valueI.min = '0'
+      valueI.value = String(typeof p.days === 'number' ? p.days : (p.offsetMin ?? 0))
+
+      const snapWrap = document.createElement('label')
+      snapWrap.style.display = 'flex'
+      snapWrap.style.alignItems = 'center'
+      snapWrap.style.gap = '6px'
+      const snap = document.createElement('input')
+      snap.type = 'checkbox'
+      snap.checked = p.snapHour === true
+      snapWrap.append(snap, document.createTextNode(' Snap to default hour'))
+
+      const syncSnapVisibility = (): void => {
+        snapWrap.style.display = kindSel.value === 'days' ? '' : 'none'
+      }
+      syncSnapVisibility()
+
+      const applyValue = (): void => {
+        const n = Math.max(0, parseInt(valueI.value, 10) || 0)
+        if (kindSel.value === 'days') {
+          p.days = n
+          p.offsetMin = undefined
+          p.snapHour = snap.checked ? true : undefined
+        } else {
+          p.offsetMin = n
+          p.days = undefined
+          p.snapHour = undefined
+        }
+        saveSoon()
+      }
+      kindSel.addEventListener('change', () => {
+        syncSnapVisibility()
+        applyValue()
+      })
+      valueI.addEventListener('change', applyValue)
+      snap.addEventListener('change', applyValue)
+
+      const del = document.createElement('button')
+      del.className = 'app-del'
+      del.textContent = '✕'
+      del.title = 'Remove preset'
+      del.addEventListener('click', () => {
+        settings.reminderDefaults.presets.splice(idx, 1)
+        saveSoon()
+        renderList()
+      })
+
+      card.append(labelI, kindSel, valueI, snapWrap, del)
+      list.appendChild(card)
+    })
+
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add preset'
+    add.addEventListener('click', () => {
+      settings.reminderDefaults.presets.push({ label: '+1h', offsetMin: 60 })
+      saveSoon()
+      renderList()
+    })
+    list.appendChild(add)
+  }
+  renderList()
 }
 
 function buildAppearancePanel(panel: HTMLElement): void {
@@ -402,6 +669,12 @@ function buildProjectsPanel(panel: HTMLElement): void {
   envBar.className = 'env-bar'
   panel.appendChild(envBar)
 
+  // ---- Global workspace groups (used as the Group dropdown) ----
+  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Groups (workspaces)</div>')
+  const groupBar = document.createElement('div')
+  groupBar.className = 'env-bar'
+  panel.appendChild(groupBar)
+
   // ---- Catalog tree (left) + selected-project editor (right) ----
   const md = document.createElement('div')
   md.className = 'projects-md'
@@ -412,16 +685,38 @@ function buildProjectsPanel(panel: HTMLElement): void {
   md.append(listCol, detailCol)
   panel.appendChild(md)
 
-  let selected: Project | null = flattenProjects(settings.projects)[0] ?? null
+  let selected: ProjectNode | null = flattenProjects(state.tree)[0] ?? null
+
+  // Persist the active sub-tab index per project so re-renders (e.g. after
+  // "Add command") don't kick the user back to the first sub-tab.
+  const activeSubTabIdx = new Map<string, number>()
+
+  // Union of saved group labels and the ones already in use anywhere in the
+  // tree — drives the Group field's datalist so the dropdown stays accurate
+  // even before the user touches Settings → Workspace.
+  const groupOptions = (): string[] => {
+    const used = new Set<string>()
+    const walk = (nodes: typeof state.tree): void => {
+      for (const n of nodes) {
+        if ((n.kind === 'project' || n.kind === 'folder') && n.group) used.add(n.group)
+        if (n.kind === 'project' || n.kind === 'folder') walk(n.children)
+      }
+    }
+    walk(state.tree)
+    for (const g of settings.groups) used.add(g)
+    return [...used].sort((a, b) => a.localeCompare(b))
+  }
 
   // A labeled field (input or textarea) appended to a given parent.
+  // Pass `opts.options` to render the input as a datalist-backed combobox
+  // (typed value is still free-form; the dropdown just suggests known entries).
   const field = (
     parent: HTMLElement,
     label: string,
     value: string,
     placeholder: string,
     onChange: (v: string) => void,
-    opts: { textarea?: boolean; rows?: number } = {}
+    opts: { textarea?: boolean; rows?: number; options?: string[] } = {}
   ): void => {
     const wrap = document.createElement('div')
     wrap.className = 'field'
@@ -436,6 +731,51 @@ function buildProjectsPanel(panel: HTMLElement): void {
     input.placeholder = placeholder
     input.addEventListener('change', () => onChange(input.value))
     wrap.append(lab, input)
+    if (opts.options && input instanceof HTMLInputElement) {
+      const listId = 'dl-' + Math.random().toString(36).slice(2, 9)
+      input.setAttribute('list', listId)
+      const dl = document.createElement('datalist')
+      dl.id = listId
+      for (const v of opts.options) {
+        const o = document.createElement('option')
+        o.value = v
+        dl.appendChild(o)
+      }
+      wrap.appendChild(dl)
+    }
+    parent.appendChild(wrap)
+  }
+
+  // A real dropdown field. `options` are the selectable values; the current
+  // value is always present (legacy labels stay selectable). The empty option
+  // (label `emptyLabel`) clears the value.
+  const selectField = (
+    parent: HTMLElement,
+    label: string,
+    value: string,
+    emptyLabel: string,
+    options: string[],
+    onChange: (v: string) => void
+  ): void => {
+    const wrap = document.createElement('div')
+    wrap.className = 'field'
+    const lab = document.createElement('label')
+    lab.textContent = label
+    const sel = document.createElement('select')
+    const empty = document.createElement('option')
+    empty.value = ''
+    empty.textContent = emptyLabel
+    sel.appendChild(empty)
+    const all = [...new Set([...options, ...(value ? [value] : [])])]
+    for (const v of all) {
+      const o = document.createElement('option')
+      o.value = v
+      o.textContent = v
+      sel.appendChild(o)
+    }
+    sel.value = value
+    sel.addEventListener('change', () => onChange(sel.value))
+    wrap.append(lab, sel)
     parent.appendChild(wrap)
   }
 
@@ -480,12 +820,56 @@ function buildProjectsPanel(panel: HTMLElement): void {
     envBar.appendChild(add)
   }
 
+  const renderGroups = (): void => {
+    groupBar.replaceChildren()
+    const known = groupOptions()
+    known.forEach((name) => {
+      const chip = document.createElement('span')
+      chip.className = 'env-chip'
+      const label = document.createElement('span')
+      label.textContent = name
+      const x = document.createElement('button')
+      x.className = 'env-chip-x'
+      x.textContent = '×'
+      x.title = 'Remove group from suggestions (does not unset on existing projects)'
+      x.addEventListener('click', () => {
+        settings.groups = settings.groups.filter((g) => g !== name)
+        saveSoon()
+        renderGroups()
+        renderDetail()
+      })
+      chip.append(label, x)
+      groupBar.appendChild(chip)
+    })
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn env-add'
+    add.textContent = '+ Group'
+    add.addEventListener('click', () => {
+      void (async () => {
+        const name = await promptText({
+          title: 'New group',
+          label: 'Name',
+          placeholder: 'work',
+          confirmText: 'Add'
+        })
+        const g = (name ?? '').trim()
+        if (!g || settings.groups.includes(g)) return
+        settings.groups.push(g)
+        saveSoon()
+        renderGroups()
+        renderDetail()
+      })()
+    })
+    groupBar.appendChild(add)
+  }
+
   const renderTree = (): void => {
     listCol.replaceChildren()
-    if (!settings.projects.length) {
+    const topProjects = state.tree.filter((n): n is ProjectNode => n.kind === 'project')
+    if (!topProjects.length) {
       listCol.insertAdjacentHTML('beforeend', '<div class="field-hint">No projects yet.</div>')
     }
-    const renderRows = (projects: Project[], depth: number): void => {
+    const renderRows = (projects: ProjectNode[], depth: number): void => {
       projects.forEach((p) => {
         const row = document.createElement('div')
         row.className = 'proj-li' + (p === selected ? ' active' : '')
@@ -512,19 +896,21 @@ function buildProjectsPanel(panel: HTMLElement): void {
           renderDetail()
         })
         listCol.appendChild(row)
-        if (p.children?.length) renderRows(p.children, depth + 1)
+        const subProjects = p.children.filter((c): c is ProjectNode => c.kind === 'project')
+        if (subProjects.length) renderRows(subProjects, depth + 1)
       })
     }
-    renderRows(settings.projects, 0)
+    renderRows(topProjects, 0)
 
     const addBtn = document.createElement('button')
     addBtn.className = 'settings-inline-btn'
     addBtn.textContent = '+ Add project'
     addBtn.addEventListener('click', () => {
-      const proj: Project = { name: 'New project', path: '' }
-      settings.projects.push(proj)
+      const proj = makeProject(uid('p'), 'New project', '')
+      state.tree.push(proj)
       selected = proj
       saveSoon()
+      requestSidebar()
       renderTree()
       renderDetail()
     })
@@ -532,7 +918,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
   }
 
   // The Applications section of the selected project's editor.
-  const renderApps = (p: Project, parent: HTMLElement): void => {
+  const renderApps = (p: ProjectNode, parent: HTMLElement): void => {
     parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Applications</div>')
     p.apps = p.apps ?? []
     if (!p.apps.length) {
@@ -607,6 +993,55 @@ function buildProjectsPanel(panel: HTMLElement): void {
           saveSoon()
         })
       }
+
+      // Optional named menu commands surfaced in the pane action menu of any
+      // terminal spawned from this application.
+      card.insertAdjacentHTML('beforeend', '<div class="app-cmd-head">Run commands</div>')
+      app.runCommands = app.runCommands ?? []
+      app.runCommands.forEach((rc) => {
+        const row = document.createElement('div')
+        row.className = 'app-rc-row'
+        const nameI = document.createElement('input')
+        nameI.type = 'text'
+        nameI.value = rc.name
+        nameI.placeholder = 'name'
+        nameI.addEventListener('change', () => {
+          rc.name = nameI.value.trim() || rc.name
+          saveSoon()
+        })
+        nameI.addEventListener('keydown', (e) => e.stopPropagation())
+        const cmdI = document.createElement('input')
+        cmdI.type = 'text'
+        cmdI.value = rc.command
+        cmdI.placeholder = 'shell command'
+        cmdI.addEventListener('change', () => {
+          rc.command = cmdI.value.trim()
+          saveSoon()
+        })
+        cmdI.addEventListener('keydown', (e) => e.stopPropagation())
+        const delRc = document.createElement('button')
+        delRc.className = 'app-del'
+        delRc.textContent = '✕'
+        delRc.title = 'Remove command'
+        delRc.addEventListener('click', () => {
+          app.runCommands = (app.runCommands ?? []).filter((x) => x !== rc)
+          saveSoon()
+          renderDetail()
+        })
+        row.append(nameI, cmdI, delRc)
+        card.appendChild(row)
+      })
+      const addRc = document.createElement('button')
+      addRc.className = 'settings-inline-btn app-rc-add'
+      addRc.textContent = '+ Add run command'
+      addRc.addEventListener('click', () => {
+        app.runCommands = app.runCommands ?? []
+        app.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+        saveSoon()
+        renderDetail()
+      })
+      card.appendChild(addRc)
+
       parent.appendChild(card)
     })
 
@@ -623,6 +1058,109 @@ function buildProjectsPanel(panel: HTMLElement): void {
     parent.appendChild(addApp)
   }
 
+  // The Features section: time-tracking labels under this project (used by
+  // the Time tracker dropdown). Just name + delete; the data also drives the
+  // sidebar "New feature…" wizard.
+  const renderFeatures = (p: ProjectNode, parent: HTMLElement): void => {
+    parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Features</div>')
+    p.features = p.features ?? []
+    if (!p.features.length) {
+      parent.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">No features. Add labels to track time against, or for the New-feature wizard.</div>'
+      )
+    }
+    p.features.forEach((feat) => {
+      const row = document.createElement('div')
+      row.className = 'feat-row'
+      const input = document.createElement('input')
+      input.type = 'text'
+      input.value = feat.name
+      input.placeholder = 'feature name'
+      input.addEventListener('change', () => {
+        feat.name = input.value.trim() || feat.name
+        saveSoon()
+      })
+      input.addEventListener('keydown', (e) => e.stopPropagation())
+      const del = document.createElement('button')
+      del.className = 'feat-del'
+      del.textContent = '✕'
+      del.title = 'Remove feature'
+      del.addEventListener('click', () => {
+        p.features = (p.features ?? []).filter((f) => f !== feat)
+        saveSoon()
+        renderTree()
+        renderDetail()
+      })
+      row.append(input, del)
+      parent.appendChild(row)
+    })
+
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add feature'
+    add.addEventListener('click', () => {
+      p.features = p.features ?? []
+      p.features.push({ id: uid('ft'), name: 'feature' })
+      saveSoon()
+      renderDetail()
+    })
+    parent.appendChild(add)
+  }
+
+  // Run commands: named one-shot shell commands. Surfaced in the sidebar
+  // "Run command…" modal and executed at the project path (split or new tab).
+  const renderRunCommands = (p: ProjectNode, parent: HTMLElement): void => {
+    parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Run commands</div>')
+    p.runCommands = p.runCommands ?? []
+    if (!p.runCommands.length) {
+      parent.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">No run commands. Add named shell commands (e.g. "Deploy", "Lint") that you can fire from the sidebar.</div>'
+      )
+    }
+    p.runCommands.forEach((rc) => {
+      const card = document.createElement('div')
+      card.className = 'app-card'
+      const head = document.createElement('div')
+      head.className = 'app-card-head'
+      const title = document.createElement('span')
+      title.className = 'app-card-title'
+      title.textContent = rc.name || '(unnamed command)'
+      const del = document.createElement('button')
+      del.className = 'app-del'
+      del.textContent = '✕'
+      del.title = 'Remove command'
+      del.addEventListener('click', () => {
+        p.runCommands = (p.runCommands ?? []).filter((x) => x !== rc)
+        saveSoon()
+        renderDetail()
+      })
+      head.append(title, del)
+      card.appendChild(head)
+      field(card, 'Name', rc.name, 'Deploy', (v) => {
+        rc.name = v.trim() || rc.name
+        title.textContent = rc.name || '(unnamed command)'
+        saveSoon()
+      })
+      field(card, 'Command', rc.command, 'npm run deploy', (v) => {
+        rc.command = v.trim()
+        saveSoon()
+      })
+      parent.appendChild(card)
+    })
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add command'
+    add.addEventListener('click', () => {
+      p.runCommands = p.runCommands ?? []
+      p.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+      saveSoon()
+      renderDetail()
+    })
+    parent.appendChild(add)
+  }
+
   const renderDetail = (): void => {
     detailCol.replaceChildren()
     const p = selected
@@ -633,52 +1171,114 @@ function buildProjectsPanel(panel: HTMLElement): void {
       )
       return
     }
-    field(detailCol, 'Name', p.name, 'Movve', (v) => {
-      p.name = v.trim()
-      renderTree()
-      saveSoon()
-    })
-    field(detailCol, 'Path', p.path, '~/code/movve', (v) => {
-      p.path = v.trim()
-      saveSoon()
-    })
-    field(detailCol, 'Group (workspace)', p.group ?? '', 'work (optional)', (v) => {
-      p.group = v.trim() || undefined
-      renderTree()
-      syncProjectGroupToTree(p.path, p.group)
-      saveSoon()
-    })
-    field(detailCol, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
-      p.command = v.trim() || undefined
-      saveSoon()
-    })
-    field(
-      detailCol,
-      'Startup command',
-      p.startup ?? '',
-      'run in every terminal opened inside (optional)',
-      (v) => {
-        p.startup = v.trim() || undefined
-        saveSoon()
-      }
-    )
-    field(detailCol, 'Shell', p.shell ?? '', '/bin/zsh (override, optional)', (v) => {
-      p.shell = v.trim() || undefined
-      saveSoon()
-    })
-    field(
-      detailCol,
-      'Environment vars',
-      p.env ?? '',
-      'KEY=VALUE (one per line, optional)',
-      (v) => {
-        p.env = v.trim() || undefined
-        saveSoon()
+    const subTabKey = p.id
+    buildSubTabs(detailCol, [
+      {
+        label: 'General',
+        build: (el) => {
+          field(el, 'Name', p.name, 'Movve', (v) => {
+            p.name = v.trim()
+            renderTree()
+            requestSidebar()
+            saveSoon()
+          })
+          field(el, 'Path', p.path, '~/code/movve', (v) => {
+            p.path = v.trim()
+            requestSidebar()
+            saveSoon()
+          })
+          selectField(
+            el,
+            'Group (workspace)',
+            p.group ?? '',
+            '(Ungrouped)',
+            groupOptions(),
+            (v) => {
+              const g = v.trim()
+              p.group = g || undefined
+              if (g && !settings.groups.includes(g)) settings.groups.push(g)
+              renderTree()
+              renderGroups()
+              requestSidebar()
+              saveSoon()
+            }
+          )
+          field(el, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
+            p.command = v.trim() || undefined
+            saveSoon()
+          })
+          field(
+            el,
+            'Startup command',
+            p.startup ?? '',
+            'run in every terminal opened inside (optional)',
+            (v) => {
+              p.startup = v.trim() || undefined
+              saveSoon()
+            }
+          )
+          field(el, 'Shell', p.shell ?? '', '/bin/zsh (override, optional)', (v) => {
+            p.shell = v.trim() || undefined
+            saveSoon()
+          })
+          field(
+            el,
+            'Issue key prefix',
+            p.issueKeyPrefix ?? '',
+            'CRF (for CRF-12 task keys, optional)',
+            (v) => {
+              p.issueKeyPrefix = v.trim().toUpperCase() || undefined
+              saveSoon()
+            }
+          )
+          // Support worktrees: auto-list this repo's git worktrees as folder
+          // nodes under the project (terminals nest inside each worktree).
+          const wtField = document.createElement('div')
+          wtField.className = 'field'
+          const wtLabel = document.createElement('label')
+          wtLabel.style.cursor = 'pointer'
+          const wtCb = document.createElement('input')
+          wtCb.type = 'checkbox'
+          wtCb.checked = !!p.supportWorktree
+          wtCb.style.marginRight = '8px'
+          const wtText = document.createElement('span')
+          wtText.textContent = 'Support worktrees (list git worktrees as folders)'
+          wtLabel.append(wtCb, wtText)
+          wtField.appendChild(wtLabel)
+          el.appendChild(wtField)
+          wtCb.addEventListener('change', () => {
+            p.supportWorktree = wtCb.checked
+            saveSoon()
+            requestSidebar()
+            if (p.supportWorktree) void reconcileWorktrees()
+            else purgeWorktrees(p)
+          })
+        }
       },
-      { textarea: true, rows: 3 }
-    )
-
-    renderApps(p, detailCol)
+      {
+        label: 'Environment',
+        build: (el) => {
+          field(
+            el,
+            'Environment vars',
+            p.env ?? '',
+            'KEY=VALUE (one per line, optional)',
+            (v) => {
+              p.env = v.trim() || undefined
+              saveSoon()
+            },
+            { textarea: true, rows: 4 }
+          )
+        }
+      },
+      { label: 'Apps', build: (el) => renderApps(p, el) },
+      { label: 'Features', build: (el) => renderFeatures(p, el) },
+      { label: 'Run commands', build: (el) => renderRunCommands(p, el) },
+      { label: 'iOS', build: (el) => renderIosConfig(p, el) }
+    ], {
+      initialIndex: activeSubTabIdx.get(subTabKey) ?? 0,
+      onTabChange: (i) => activeSubTabIdx.set(subTabKey, i)
+    })
 
     const actions = document.createElement('div')
     actions.className = 'proj-detail-actions'
@@ -686,11 +1286,11 @@ function buildProjectsPanel(panel: HTMLElement): void {
     addSub.className = 'settings-inline-btn'
     addSub.textContent = '+ Add sub-project'
     addSub.addEventListener('click', () => {
-      p.children = p.children ?? []
-      const child: Project = { name: 'New sub-project', path: '' }
+      const child = makeProject(uid('p'), 'New sub-project', '')
       p.children.push(child)
       selected = child
       saveSoon()
+      requestSidebar()
       renderTree()
       renderDetail()
     })
@@ -698,9 +1298,10 @@ function buildProjectsPanel(panel: HTMLElement): void {
     del.className = 'settings-inline-btn project-del-btn'
     del.textContent = 'Delete project'
     del.addEventListener('click', () => {
-      removeProject(settings.projects, p)
-      selected = flattenProjects(settings.projects)[0] ?? null
+      removeProject(state.tree, p)
+      selected = flattenProjects(state.tree)[0] ?? null
       saveSoon()
+      requestSidebar()
       renderTree()
       renderDetail()
     })
@@ -709,29 +1310,194 @@ function buildProjectsPanel(panel: HTMLElement): void {
   }
 
   renderEnvs()
+  renderGroups()
   renderTree()
   renderDetail()
 }
 
 function buildCommandsPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', '<h3>Commands</h3>')
-  const ide = labeledInput(panel, 'Open code file (ide)', 'text', settings.commands.ide, (v) => {
-    settings.commands.ide = v.trim() || 'ide'
-    saveSoon()
-  })
-  ide.style.maxWidth = '280px'
-  const zsh = labeledInput(panel, 'Update zsh config', 'text', settings.commands.openMyZsh, (v) => {
-    settings.commands.openMyZsh = v.trim() || 'openmyzsh'
-    saveSoon()
-  })
-  zsh.style.maxWidth = '280px'
-  panel.insertAdjacentHTML(
-    'beforeend',
-    '<div class="field-hint">Shell commands run in a new terminal.</div>'
-  )
+  buildSubTabs(panel, [
+    {
+      label: 'General',
+      build: (el) => {
+        const ide = labeledInput(el, 'Open code file (ide)', 'text', settings.commands.ide, (v) => {
+          settings.commands.ide = v.trim() || 'ide'
+          saveSoon()
+        })
+        ide.style.maxWidth = '280px'
+        const zsh = labeledInput(el, 'Update zsh config', 'text', settings.commands.openMyZsh, (v) => {
+          settings.commands.openMyZsh = v.trim() || 'openmyzsh'
+          saveSoon()
+        })
+        zsh.style.maxWidth = '280px'
+        el.insertAdjacentHTML(
+          'beforeend',
+          '<div class="field-hint">Shell commands run in a new terminal.</div>'
+        )
+      }
+    },
+    { label: 'Markdown folders', build: (el) => buildMarkdownFoldersControl(el) },
+    { label: 'Command palette', build: (el) => buildPaletteCommandsControl(el) }
+  ])
+}
 
-  buildMarkdownFoldersControl(panel)
-  buildPaletteCommandsControl(panel)
+// Per-project iOS worktree config (Settings → Projects → [project] → iOS). The
+// repo root is the project's own path. Every field is optional: empty values are
+// auto-detected by the bundled ios-worktree.sh, so each iOS project is independent.
+function defaultIosConfig(): IosDevConfig {
+  return {
+    project: '',
+    scheme: '',
+    baseBundleId: '',
+    displayPrefix: '',
+    defaultSimulator: '',
+    copyFiles: [],
+    worktreesDir: ''
+  }
+}
+
+function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
+  panel.replaceChildren()
+
+  // "iOS app" toggle: reveals the config + the sidebar worktree manager.
+  const toggleField = document.createElement('div')
+  toggleField.className = 'field'
+  const toggleLabel = document.createElement('label')
+  toggleLabel.style.cursor = 'pointer'
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = !!p.iosApp
+  checkbox.style.marginRight = '8px'
+  const labelText = document.createElement('span')
+  labelText.textContent = 'iOS app (show the worktree manager under this project)'
+  toggleLabel.append(checkbox, labelText)
+  toggleField.appendChild(toggleLabel)
+  panel.appendChild(toggleField)
+
+  const body = document.createElement('div')
+  panel.appendChild(body)
+
+  const renderBody = (): void => {
+    body.replaceChildren()
+    if (!p.iosApp) {
+      body.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">Enable to manage this app’s git worktrees (build / run / status) from the sidebar.</div>'
+      )
+      return
+    }
+    if (!p.iosConfig) p.iosConfig = defaultIosConfig()
+    const cfg = p.iosConfig
+
+    // Repo root = the project's working directory. Editing it here also updates
+    // the project path (so worktrees, build/run, and cmd+T all use this repo).
+    const repoInput = labeledInput(body, 'iOS repo path', 'text', p.path, (v) => {
+      p.path = v.trim()
+      saveSoon()
+      requestSidebar()
+    })
+    repoInput.placeholder = '/Users/you/path/to/your-ios-repo'
+    repoInput.style.maxWidth = '420px'
+    if (!p.path) {
+      body.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint" style="color:var(--amber,#e0a44a)">Required: set this to the iOS app’s git repository.</div>'
+      )
+    }
+
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field-hint">The fields below auto-detect from the Xcode project when left empty.</div>'
+    )
+    const field = (
+      label: string,
+      key: 'project' | 'scheme' | 'baseBundleId' | 'displayPrefix' | 'defaultSimulator' | 'worktreesDir',
+      placeholder: string
+    ): void => {
+      const input = labeledInput(body, label, 'text', cfg[key], (v) => {
+        cfg[key] = v.trim()
+        saveSoon()
+      })
+      input.placeholder = placeholder
+      input.style.maxWidth = '420px'
+    }
+    field('Xcode project / workspace', 'project', 'auto: discovered (.xcworkspace/.xcodeproj)')
+    field('Scheme', 'scheme', 'auto: xcodebuild -list')
+    field('Base bundle identifier', 'baseBundleId', 'auto: from build settings, e.g. com.acme.app')
+    field('Display name prefix', 'displayPrefix', 'auto: scheme name')
+    field('Default simulator', 'defaultSimulator', 'auto: booted, else first iPhone')
+    field('Worktrees directory', 'worktreesDir', 'auto: <repo parent>/worktrees')
+
+    // Files-to-copy list: gitignored local files seeded into a fresh worktree.
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field" style="margin-top:14px"><label>Copy into new worktrees</label></div>'
+    )
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field-hint">Gitignored local files (paths relative to the repo root) copied from the main checkout, e.g. Secrets.xcconfig.</div>'
+    )
+    const addBtn = document.createElement('button')
+    addBtn.className = 'settings-inline-btn'
+    addBtn.textContent = '+ Add file'
+    body.appendChild(addBtn)
+    const list = document.createElement('div')
+    list.className = 'palette-admin-list'
+    body.appendChild(list)
+
+    const renderFiles = (): void => {
+      list.replaceChildren()
+      if (!cfg.copyFiles.length) {
+        list.insertAdjacentHTML('beforeend', '<div class="field-hint">No files yet.</div>')
+        return
+      }
+      cfg.copyFiles.forEach((rel, i) => {
+        const row = document.createElement('div')
+        row.className = 'palette-admin-row'
+        const txt = document.createElement('span')
+        txt.className = 'palette-admin-cmd'
+        txt.textContent = rel
+        const del = document.createElement('button')
+        del.className = 'wt-act wt-remove'
+        del.textContent = 'Delete'
+        del.addEventListener('click', () => {
+          cfg.copyFiles.splice(i, 1)
+          saveSoon()
+          renderFiles()
+        })
+        row.append(txt, del)
+        list.appendChild(row)
+      })
+    }
+    addBtn.addEventListener('click', () => {
+      void promptForm({
+        title: 'Add file to copy',
+        fields: [{ key: 'path', label: 'Path (relative to repo root)', placeholder: 'Secrets.xcconfig' }],
+        confirmText: 'Add'
+      }).then((values) => {
+        const rel = (values?.path || '').trim()
+        if (!rel || cfg.copyFiles.includes(rel)) return
+        cfg.copyFiles.push(rel)
+        saveSoon()
+        renderFiles()
+      })
+    })
+    renderFiles()
+  }
+
+  checkbox.addEventListener('change', () => {
+    p.iosApp = checkbox.checked
+    if (p.iosApp) {
+      if (!p.iosConfig) p.iosConfig = defaultIosConfig()
+      p.supportWorktree = true // iOS needs the worktree nodes to attach to
+      void reconcileWorktrees()
+    }
+    saveSoon()
+    requestSidebar()
+    renderBody()
+  })
+  renderBody()
 }
 
 // Manage the Cmd+Shift+P palette entries (predefined + git/linux cheatsheets).
@@ -927,17 +1693,6 @@ function buildWorkspacePanel(panel: HTMLElement): void {
     '<div class="field-hint">Path to the markdown file shown in the Improve Crafterm panel.</div>'
   )
 
-  const repo = labeledInput(panel, 'Crafterm repo path', 'text', settings.repoPath, (v) => {
-    settings.repoPath = v.trim()
-    saveSoon()
-  })
-  repo.style.maxWidth = '280px'
-  repo.placeholder = '~/path/to/crafterm'
-  panel.insertAdjacentHTML(
-    'beforeend',
-    '<div class="field-hint">Source repo built by the sidebar “Update Crafterm” action (rebuilds &amp; reinstalls the app).</div>'
-  )
-
   // File explorer (right panel → Files)
   panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">File explorer</h3>')
   const exRoot = labeledInput(panel, 'Explorer root', 'text', settings.explorerRoot, (v) => {
@@ -991,6 +1746,49 @@ function buildWorkspacePanel(panel: HTMLElement): void {
     'beforeend',
     '<div class="field-hint">Played when a terminal finishes or Claude needs you. Pick one to preview.</div>'
   )
+
+  // Claude usage — token source for the real `/api/oauth/usage` percentages.
+  panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">Claude usage</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">The status-bar chip shows Anthropic\'s real session/week limits, read with the OAuth token Claude Code stores in the macOS keychain. Override the keychain service or point at a saved secret as a fallback.</div>'
+  )
+  const svc = labeledInput(
+    panel,
+    'Keychain service',
+    'text',
+    settings.claudeUsageAuth.keychainService,
+    (v) => {
+      settings.claudeUsageAuth.keychainService = v.trim() || 'Claude Code-credentials'
+      saveSoon()
+    }
+  )
+  svc.style.maxWidth = '260px'
+  svc.placeholder = 'Claude Code-credentials'
+
+  // Fallback secret: any secret-typed field stored under Accounts. Value is the
+  // (entryId :: fieldKey) pair; the renderer decrypts it at fetch time.
+  const secretOptions: [string, string][] = [['', 'None']]
+  for (const a of settings.accounts) {
+    for (const f of a.fields ?? []) {
+      if (f.secret) secretOptions.push([`${a.id}::${f.key}`, `${a.label} / ${f.key}`])
+    }
+  }
+  const current =
+    settings.claudeUsageAuth.fallbackSecretId && settings.claudeUsageAuth.fallbackSecretKey
+      ? `${settings.claudeUsageAuth.fallbackSecretId}::${settings.claudeUsageAuth.fallbackSecretKey}`
+      : ''
+  labeledSelect(panel, 'Fallback secret', secretOptions, current, (v) => {
+    if (!v) {
+      settings.claudeUsageAuth.fallbackSecretId = ''
+      settings.claudeUsageAuth.fallbackSecretKey = ''
+    } else {
+      const [id, key] = v.split('::')
+      settings.claudeUsageAuth.fallbackSecretId = id
+      settings.claudeUsageAuth.fallbackSecretKey = key
+    }
+    saveSoon()
+  })
 }
 
 function buildSidebarPanel(panel: HTMLElement): void {
@@ -1038,4 +1836,201 @@ function buildSidebarPanel(panel: HTMLElement): void {
     r.append(cb, document.createTextNode(label))
     panel.appendChild(r)
   })
+
+  const recRow = document.createElement('label')
+  recRow.className = 'checkbox-row'
+  const recCb = document.createElement('input')
+  recCb.type = 'checkbox'
+  recCb.checked = !!settings.sidebar.groupByRecency
+  recCb.addEventListener('change', () => {
+    settings.sidebar.groupByRecency = recCb.checked
+    requestSidebar()
+    saveSoon()
+  })
+  recRow.append(recCb, document.createTextNode('Group by recency (Today / Yesterday / Earlier)'))
+  panel.appendChild(recRow)
+}
+
+function buildActionMenuPanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>Action menu</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Rows shown in the sidebar ⋯ menu. Builtin rows trigger an in-app action; command rows run a shell command (split beside the active pane, or a new tab). Reorder, hide, edit, or add your own.</div>'
+  )
+
+  const list = document.createElement('div')
+  list.className = 'action-menu-admin'
+  panel.appendChild(list)
+
+  const builtinLabel = (id?: string): string =>
+    BUILTIN_ACTIONS.find((a) => a.id === id)?.label ?? '(unknown builtin)'
+
+  const move = (i: number, delta: number): void => {
+    const j = i + delta
+    if (j < 0 || j >= settings.actionMenu.length) return
+    const arr = settings.actionMenu
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    saveSoon()
+    render()
+  }
+
+  const render = (): void => {
+    list.replaceChildren()
+    if (!settings.actionMenu.length) {
+      list.insertAdjacentHTML('beforeend', '<div class="field-hint">No items.</div>')
+    }
+    settings.actionMenu.forEach((item, i) => {
+      const row = document.createElement('div')
+      row.className = 'action-menu-row' + (item.hidden ? ' hidden' : '')
+
+      const up = document.createElement('button')
+      up.className = 'wt-act'
+      up.textContent = '↑'
+      up.disabled = i === 0
+      up.addEventListener('click', () => move(i, -1))
+      const down = document.createElement('button')
+      down.className = 'wt-act'
+      down.textContent = '↓'
+      down.disabled = i === settings.actionMenu.length - 1
+      down.addEventListener('click', () => move(i, 1))
+
+      const txt = document.createElement('div')
+      txt.className = 'action-menu-text'
+      const nm = document.createElement('span')
+      nm.className = 'action-menu-name'
+      nm.textContent = item.title
+      const sub = document.createElement('span')
+      sub.className = 'action-menu-sub'
+      sub.textContent =
+        item.kind === 'builtin'
+          ? `builtin · ${builtinLabel(item.builtinId)}`
+          : `command (${item.opensAs ?? 'tab'}) · ${item.command || '—'}`
+      txt.append(nm, sub)
+
+      const hideBtn = document.createElement('button')
+      hideBtn.className = 'wt-act'
+      hideBtn.textContent = item.hidden ? 'Show' : 'Hide'
+      hideBtn.addEventListener('click', () => {
+        item.hidden = !item.hidden
+        saveSoon()
+        render()
+      })
+      const edit = document.createElement('button')
+      edit.className = 'wt-act'
+      edit.textContent = 'Edit'
+      edit.addEventListener('click', () => void editActionItem(item).then(render))
+      const del = document.createElement('button')
+      del.className = 'wt-act wt-remove'
+      del.textContent = 'Delete'
+      del.addEventListener('click', () => {
+        settings.actionMenu = settings.actionMenu.filter((x) => x !== item)
+        saveSoon()
+        render()
+      })
+
+      row.append(up, down, txt, hideBtn, edit, del)
+      list.appendChild(row)
+    })
+  }
+
+  const actions = document.createElement('div')
+  actions.className = 'proj-detail-actions'
+  const addCmd = document.createElement('button')
+  addCmd.className = 'settings-inline-btn'
+  addCmd.textContent = '+ Add command'
+  addCmd.addEventListener('click', () => {
+    void editActionItem().then((added) => {
+      if (added) {
+        settings.actionMenu.push(added)
+        saveSoon()
+        render()
+      }
+    })
+  })
+  const reset = document.createElement('button')
+  reset.className = 'settings-inline-btn'
+  reset.textContent = 'Reset to defaults'
+  reset.addEventListener('click', () => {
+    settings.actionMenu = BUILTIN_ACTIONS.map((a) => ({
+      id: uid('am'),
+      title: a.label,
+      kind: 'builtin' as const,
+      builtinId: a.id
+    }))
+    saveSoon()
+    render()
+  })
+  actions.append(addCmd, reset)
+  panel.appendChild(actions)
+
+  render()
+}
+
+// Edit an existing action item in place (returns null), or create a new command
+// item (returns it). Builtin items only allow renaming; command items get a
+// command + placement.
+async function editActionItem(existing?: ActionMenuItem): Promise<ActionMenuItem | null> {
+  const isBuiltin = existing?.kind === 'builtin'
+  const values = await promptForm({
+    title: existing ? 'Edit action' : 'New command action',
+    fields: isBuiltin
+      ? [{ key: 'title', label: 'Title', value: existing?.title, placeholder: 'menu label' }]
+      : [
+          { key: 'title', label: 'Title', value: existing?.title, placeholder: 'Deploy' },
+          { key: 'command', label: 'Command', value: existing?.command, placeholder: 'npm run deploy' },
+          { key: 'opensAs', label: 'Opens as (split/tab)', value: existing?.opensAs ?? 'tab', placeholder: 'tab' }
+        ],
+    confirmText: existing ? 'Save' : 'Add'
+  })
+  if (!values) return null
+  const title = (values.title || '').trim()
+  if (!title) return null
+  if (existing) {
+    existing.title = title
+    if (!isBuiltin) {
+      existing.command = (values.command || '').trim()
+      existing.opensAs = (values.opensAs || '').trim() === 'split' ? 'split' : 'tab'
+    }
+    saveSoon()
+    return null
+  }
+  const command = (values.command || '').trim()
+  if (!command) return null
+  return {
+    id: uid('am'),
+    title,
+    kind: 'command',
+    command,
+    opensAs: (values.opensAs || '').trim() === 'split' ? 'split' : 'tab'
+  }
+}
+
+function buildSystemUpdatePanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>System update</h3>')
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">The sidebar “Update Crafterm” action runs this command in your Crafterm source checkout, then swaps the built app into /Applications and relaunches.</div>'
+  )
+
+  const repo = labeledInput(panel, 'Codebase path', 'text', settings.repoPath, (v) => {
+    settings.repoPath = v.trim()
+    saveSoon()
+  })
+  repo.style.maxWidth = '320px'
+  repo.placeholder = '~/path/to/crafterm'
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Local clone of the Crafterm source repo (must contain package.json).</div>'
+  )
+
+  const cmd = labeledInput(panel, 'Update command', 'text', settings.updateCommand, (v) => {
+    settings.updateCommand = v.trim() || 'run-crafterm-deploy'
+    saveSoon()
+  })
+  cmd.style.maxWidth = '320px'
+  cmd.placeholder = 'run-crafterm-deploy'
+  panel.insertAdjacentHTML(
+    'beforeend',
+    '<div class="field-hint">Shell command run in the codebase path. Must produce <code>dist/Crafterm.app</code>. Defaults to <code>run-crafterm-deploy</code>.</div>'
+  )
 }

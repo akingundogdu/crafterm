@@ -1,5 +1,5 @@
 import type { LayoutNode } from './types'
-import { panes, browsers, docs, state, saveSoon, poppedOut } from './state'
+import { panes, browsers, docs, sqlPanes, diffPanes, filePanes, state, saveSoon, poppedOut } from './state'
 import { findTab } from './tree'
 import { mountPanes } from './pane'
 
@@ -32,7 +32,13 @@ function buildNode(node: LayoutNode): HTMLElement {
       el.style.flexBasis = ''
       return el
     }
-    let el = panes.get(node.paneId)?.el ?? browsers.get(node.paneId)?.el ?? docs.get(node.paneId)?.el
+    let el =
+      panes.get(node.paneId)?.el ??
+      browsers.get(node.paneId)?.el ??
+      docs.get(node.paneId)?.el ??
+      sqlPanes.get(node.paneId)?.el ??
+      diffPanes.get(node.paneId)?.el ??
+      filePanes.get(node.paneId)?.el
     if (!el) {
       el = document.createElement('div')
       el.className = 'pane-box'
@@ -79,6 +85,14 @@ function attachResizer(
     const sum = a0 + b0
     const elA = container.children[i * 2] as HTMLElement
     const elB = container.children[i * 2 + 2] as HTMLElement
+    // A <webview> captures pointer events, so once the cursor crosses into a
+    // browser pane the document stops receiving mousemove/mouseup and the drag
+    // freezes. A full-screen transparent overlay above the webviews keeps the
+    // events flowing to the document for the duration of the drag.
+    const overlay = document.createElement('div')
+    overlay.className = 'resize-overlay'
+    overlay.style.cursor = horizontal ? 'col-resize' : 'row-resize'
+    document.body.appendChild(overlay)
 
     const onMove = (ev: MouseEvent): void => {
       const pos = horizontal ? ev.clientX : ev.clientY
@@ -92,7 +106,15 @@ function attachResizer(
     const onUp = (): void => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      overlay.remove()
       document.body.style.cursor = ''
+      // The drag mutated node.sizes and the DOM directly without a rebuild, so
+      // the cached layout signature is now stale. Refresh it — otherwise a later
+      // equalize/render that computes the same sig string is skipped and the
+      // dragged flex sizes stay stuck on screen.
+      const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
+      const entry = tab ? tabContainers.get(tab.id) : null
+      if (tab && entry) entry.sig = layoutSig(tab.root)
       saveSoon()
     }
     document.addEventListener('mousemove', onMove)

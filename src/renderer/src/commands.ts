@@ -5,7 +5,7 @@ import type {
   TabNode,
   FolderNode,
   ProjectNode,
-  Project,
+  WorktreeNode,
   Application
 } from './types'
 import { MAX_FOLDER_DEPTH } from './types'
@@ -13,6 +13,9 @@ import {
   panes,
   browsers,
   docs,
+  sqlPanes,
+  diffPanes,
+  filePanes,
   poppedOut,
   state,
   settings,
@@ -23,7 +26,8 @@ import {
   renderContent,
   updateActive,
   updatePaneActive,
-  applyDocFont
+  applyDocFont,
+  serializeLayout
 } from './state'
 import {
   firstPaneOf,
@@ -34,6 +38,7 @@ import {
   movePaneInLayout,
   findById,
   findTab,
+  findTabByPane,
   allTabs,
   isDescendant,
   depthOfFolder,
@@ -44,6 +49,7 @@ import {
   isContainer
 } from './tree'
 import { findProjectByPath } from './catalog'
+import { iosWorktreeEnvFor } from './ios-worktree'
 import {
   createPane,
   destroyPane,
@@ -52,8 +58,12 @@ import {
   createDocPane,
   destroyDocPane,
   applyAppearance,
-  paneStatus
+  paneStatus,
+  refreshPaneDailyTask
 } from './pane'
+import { createSqlPane, destroySqlPane } from './dbPane'
+import { createDiffPane, destroyDiffPane } from './diffPane'
+import { createFilePane, destroyFilePane } from './filePane'
 import { promptText, promptForm, promptConfirm } from './dialog'
 
 function focusActivePane(): void {
@@ -92,28 +102,128 @@ export async function newTab(parentFolderId?: string | null, cwd?: string): Prom
 }
 
 // A terminal that auto-runs the Claude Code CLI in its starting directory.
-export async function newClaudeTab(parentFolderId?: string | null): Promise<void> {
+export async function newClaudeTab(parentFolderId?: string | null, cwd?: string): Promise<void> {
   await createTab(parentFolderId, {
+    // 'Claude' is just the starting label; leave the tab unlocked so the Claude
+    // session title (a /rename inside the session) drives the sidebar label. The
+    // terminal's own OSC title can't clobber it — onPaneTitle ignores OSC titles
+    // for Claude panes. A manual sidebar rename still locks it (setNodeName).
     title: 'Claude',
-    titleLocked: true,
     command: 'claude',
-    claude: true
+    claude: true,
+    cwd
+  })
+}
+
+// Bake the pane's stableId in as Claude's --session-id, unifying the two ids: the
+// pane UUID (CRAFTERM_PANE_ID), the plan-file owner tag (`--pane-<stableId>`) and
+// the Claude session id all become the SAME value. PATH/alias/.zshrc-proof —
+// Crafterm tells Claude which id to use instead of relying on a shim winning
+// command resolution. The id is already persisted via the pane's stableId, so
+// restore (`claude --resume <stableId>`) and the sidebar map this pane to its
+// exact session with zero ambiguity, and the post-spawn session-capture polling
+// is unnecessary for these launches. Skips launches that already select a session
+// (--resume/-c/--session-id) or print mode, and anything not launching `claude`.
+const CLAUDE_LAUNCH_RE = /(^|\s|&&|\|\||;|\|)claude(\s|$)/
+function withClaudeSessionId(command: string, paneId: string): string {
+  const pane = panes.get(paneId)
+  if (!pane) return command
+  if (/--resume\b|--continue\b|(^|\s)-[rc](\s|$)|--session-id\b|(^|\s)-p(\s|$)|--print\b/.test(command)) {
+    return command
+  }
+  const m = CLAUDE_LAUNCH_RE.exec(command)
+  if (!m) return command
+  const sid = pane.stableId // unify: Claude session id === pane stableId
+  pane.claude = true
+  pane.claudeSessionId = sid
+  pane.claudeSessionLocked = true
+  saveSoon()
+  const at = m.index + m[1].length + 'claude'.length
+  return command.slice(0, at) + ` --session-id ${sid}` + command.slice(at)
+}
+
+// Single-quote a string for safe pasting into a zsh command line (newlines are
+// preserved literally inside single quotes; embedded quotes are escaped).
+function shQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`
+}
+
+// Open a Claude terminal in `cwd` (nested under the given project/folder),
+// seeded with an initial prompt and titled by `lockedTitle` (e.g. an issue key).
+// The locked title means the Claude session's own /rename won't override it.
+export async function openClaudeWithPrompt(
+  parentFolderId: string | null,
+  cwd: string,
+  prompt: string,
+  lockedTitle: string,
+  dailyTaskId?: string
+): Promise<void> {
+  await createTab(parentFolderId, {
+    title: lockedTitle,
+    titleLocked: true,
+    command: `claude ${shQuote(prompt)}`,
+    claude: true,
+    cwd,
+    dailyTaskId
   })
 }
 
 async function createTab(
   parentFolderId: string | null | undefined,
-  opts: { title: string; titleLocked?: boolean; command?: string; claude?: boolean; cwd?: string }
+  opts: {
+    title: string
+    titleLocked?: boolean
+    command?: string
+    claude?: boolean
+    cwd?: string
+    dailyTaskId?: string
+  }
 ): Promise<void> {
   const folder = parentFolderId ? folderNodeById(parentFolderId) : null
-  const env = folder?.env ? parseEnvLines(folder.env) : undefined
+  let env = folder?.env ? parseEnvLines(folder.env) : undefined
+  // Inside an iOS worktree, inject CRAFTERM_IOS_SCRIPT + IOSWT_* so terminals (and
+  // the /run-on-device skill) can build this worktree correctly (todo23).
+  const iosEnv = parentFolderId ? await iosWorktreeEnvFor(parentFolderId) : null
+  if (iosEnv) env = { ...(env ?? {}), ...iosEnv }
   const paneId = await createPane(opts.cwd ?? activeCwd(), {
     env,
     shell: folder?.shell?.trim() || undefined
   })
+  // If the new tab is nested inside (or directly under) a ProjectNode, tag the
+  // pane so the action menu can surface that project's run commands.
+  const ownerProject = parentFolderId ? projectOf(state.tree, parentFolderId) : null
+  if (ownerProject) {
+    const p = panes.get(paneId)
+    if (p) p.projectId = ownerProject.id
+  }
   if (opts.claude) {
     const p = panes.get(paneId)
-    if (p) p.claude = true
+    if (p) {
+      p.claude = true
+      // Baseline so the session-id capture only adopts ids that appear AFTER
+      // this pane spawns claude — avoids stealing a sibling pane's id when
+      // multiple Claude panes share a cwd.
+      p.claudeSpawnedAt = Date.now()
+      p.claudeSessionLocked = false
+    }
+  }
+  // A locked title (e.g. a daily-task issue key) must also lock the pane so the
+  // Claude session's own /rename can't override it (applyClaudeSessionTitle bails
+  // on pane.titleLocked).
+  if (opts.titleLocked) {
+    const p = panes.get(paneId)
+    if (p) {
+      p.title = opts.title
+      p.titleLocked = true
+      p.htitle.textContent = opts.title
+    }
+  }
+  if (opts.dailyTaskId) {
+    const p = panes.get(paneId)
+    if (p) {
+      p.dailyTaskId = opts.dailyTaskId
+      refreshPaneDailyTask(paneId)
+    }
   }
   const tab: TabNode = {
     kind: 'tab',
@@ -137,18 +247,26 @@ async function createTab(
   renderContent()
   focusActivePane()
   saveSoon()
-  // explicit command wins; otherwise the container's command — a project's
-  // `command` (falling back to its startup), or a folder's startup.
-  const containerCmd =
-    folder?.kind === 'project'
-      ? folder.command?.trim() || folder.startup?.trim() || undefined
-      : folder?.startup?.trim() || undefined
-  const command = opts.command ?? containerCmd
+  // The container's *startup* — a small shell init the user wants on every new
+  // terminal in this group — always runs first. An explicit command (e.g.
+  // "claude" for a Claude tab, or a project's `command` via `openProject`) is
+  // chained after it, so the startup still applies: `startup && claude`. The
+  // project's `command` is NOT auto-applied by plain cmd+T (no opts.command):
+  // that must give a vanilla terminal; cmd+shift+T opens claude explicitly.
+  const containerCmd = folder?.startup?.trim() || undefined
+  const built =
+    opts.command && containerCmd
+      ? `${containerCmd} && ${opts.command}`
+      : (opts.command ?? containerCmd)
+  // Bake in a deterministic --session-id whenever the command launches Claude —
+  // covers cmd+shift+T, "New Claude terminal", and a project whose command is
+  // `claude` (see withClaudeSessionId). A no-op for non-Claude commands.
+  const command = built ? withClaudeSessionId(built, paneId) : built
   // Let the login shell finish its init before injecting the command.
   if (command) setTimeout(() => window.crafterm.input(paneId, command + '\r'), 350)
 }
 
-function folderNodeById(id: string): FolderNode | ProjectNode | null {
+function folderNodeById(id: string): FolderNode | ProjectNode | WorktreeNode | null {
   const r = findById(state.tree, id)
   return r && isContainer(r.node) ? r.node : null
 }
@@ -186,9 +304,11 @@ export function contextFolderId(): string | null {
   return folderIdOfList(r.parent)
 }
 
-// Open a saved project as a new terminal: cwd = project.path, runs its command.
+// Open a project as a new terminal: cwd = project.path, runs its command.
+// Accepts either an existing ProjectNode (picker, sidebar) or a path-based spec
+// (worktree picker — the path may not yet have a node, so one is created).
 export async function openProject(
-  p: {
+  p: ProjectNode | {
     name: string
     path: string
     command?: string
@@ -199,56 +319,49 @@ export async function openProject(
   },
   parentFolderId?: string | null
 ): Promise<void> {
-  // Open inside an explicit parent if given; otherwise find/create a project node
-  // for this path so the terminal lands under its project.
-  let parentId = parentFolderId ?? null
-  if (!parentId) {
-    const existing = state.tree.find(
-      (n): n is ProjectNode => n.kind === 'project' && n.path === p.path
-    )
-    if (existing) parentId = existing.id
-    else {
-      const proj = makeProject(uid('p'), p.name, p.path)
-      if (p.command) proj.command = p.command
-      if (p.group) proj.group = p.group
-      if (p.startup) proj.startup = p.startup
-      if (p.env) proj.env = p.env
-      if (p.shell) proj.shell = p.shell
-      state.tree.push(proj)
-      parentId = proj.id
-    }
-  }
+  const proj = resolveProjectNode(p)
+  const parentId = parentFolderId ?? proj.id
   await createTab(parentId, {
-    title: p.name,
-    cwd: p.path,
-    command: p.command && p.command.trim() ? p.command.trim() : undefined
+    title: proj.name,
+    cwd: proj.path,
+    command: proj.command && proj.command.trim() ? proj.command.trim() : undefined
   })
 }
 
-// Settings → Projects edited a template's group: push it to any matching open
-// project node (by path) and re-render the sidebar, so the change shows without
-// reopening. (Settings holds the catalog; the sidebar shows the open projects.)
-export function syncProjectGroupToTree(path: string, group: string | undefined): void {
-  let changed = false
-  const visit = (nodes: SidebarNode[]): void => {
-    for (const n of nodes) {
-      if (n.kind === 'project' && n.path === path && n.group !== group) {
-        n.group = group
-        changed = true
+// Return the existing ProjectNode for this input, or create+attach a new one at
+// the tree root. Used by openProject + run/feature flows that can be entered
+// from a path-only context (worktree picker).
+function resolveProjectNode(
+  p:
+    | ProjectNode
+    | {
+        name: string
+        path: string
+        command?: string
+        group?: string
+        startup?: string
+        env?: string
+        shell?: string
+        apps?: Application[]
       }
-      if (isContainer(n)) visit(n.children)
-    }
-  }
-  visit(state.tree)
-  if (changed) {
-    requestSidebar()
-    saveSoon()
-  }
+): ProjectNode {
+  if ('kind' in p && p.kind === 'project') return p
+  const existing = findProjectByPath(state.tree, p.path)
+  if (existing) return existing
+  const proj = makeProject(uid('p'), p.name, p.path)
+  if (p.command) proj.command = p.command
+  if (p.group) proj.group = p.group
+  if (p.startup) proj.startup = p.startup
+  if (p.env) proj.env = p.env
+  if (p.shell) proj.shell = p.shell
+  if (p.apps && p.apps.length) proj.apps = p.apps.map((a) => ({ ...a }))
+  state.tree.push(proj)
+  return proj
 }
 
 // Resolve an application's working directory: empty = the project path; absolute
 // (/ or ~) used as-is; otherwise relative to the project path.
-function resolveAppPath(projectPath: string, appPath?: string): string {
+export function resolveAppPath(projectPath: string, appPath?: string): string {
   const a = (appPath ?? '').trim()
   if (!a) return projectPath
   if (a.startsWith('/') || a.startsWith('~')) return a
@@ -260,32 +373,18 @@ function resolveAppPath(projectPath: string, appPath?: string): string {
 // tiled tab (a row split); 'tab' apps each open as their own tab. The
 // environment is never a node — only a label on the tab/pane title.
 export async function runApplications(
-  project: Project,
+  project: ProjectNode,
   env: string,
   apps: Application[]
 ): Promise<void> {
   const runnable = apps.filter((a) => (a.commands?.[env] ?? '').trim())
   if (!runnable.length) return
 
-  // find or create the project's sidebar node (by path), like openProject
-  let parentId: string | null = null
-  const existing = state.tree.find(
-    (n): n is ProjectNode => n.kind === 'project' && n.path === project.path
-  )
-  if (existing) parentId = existing.id
-  else {
-    const proj = makeProject(uid('p'), project.name, project.path)
-    if (project.group) proj.group = project.group
-    if (project.command) proj.command = project.command
-    if (project.startup) proj.startup = project.startup
-    if (project.env) proj.env = project.env
-    if (project.shell) proj.shell = project.shell
-    state.tree.push(proj)
-    parentId = proj.id
-  }
+  const parentId: string = project.id
 
   const projEnv = project.env ? parseEnvLines(project.env) : undefined
   const shell = project.shell?.trim() || undefined
+  const startup = project.startup?.trim()
   const toRun: { paneId: string; cmd: string }[] = []
   const spawn = async (app: Application): Promise<string> => {
     const paneId = await createPane(resolveAppPath(project.path, app.path), { env: projEnv, shell })
@@ -294,8 +393,13 @@ export async function runApplications(
       p.title = `${app.name} · ${env}`
       p.titleLocked = true
       p.htitle.textContent = p.title
+      p.projectId = project.id
+      p.appId = app.id
     }
-    toRun.push({ paneId, cmd: app.commands[env].trim() })
+    // Run the project's startup (e.g. `nvm use`) first, chained with the app's
+    // dev command so both run in order in the same shell.
+    const dev = app.commands[env].trim()
+    toRun.push({ paneId, cmd: startup ? `${startup} && ${dev}` : dev })
     return paneId
   }
 
@@ -360,35 +464,18 @@ export async function runApplications(
 // the user's `run-create-worktree <branch> <base>` first (chained), so the dev
 // command runs in the new worktree.
 export async function createFeature(
-  project: Project,
+  project: ProjectNode,
   opts: { branch: string; base: string; env: string; apps: { app: Application; worktree: boolean }[] }
 ): Promise<void> {
   const env = opts.env
   const selected = opts.apps.filter((x) => (x.app.commands?.[env] ?? '').trim())
-  if (!selected.length) return
+  // No apps is fine — we still create the feature folder so the user has a
+  // visible container to drop terminals into.
   const branch = opts.branch.trim() || project.name
   const base = opts.base.trim() || 'main'
 
-  // ensure the project's sidebar node (by path)
-  let projectId: string | null = null
-  const existing = state.tree.find(
-    (n): n is ProjectNode => n.kind === 'project' && n.path === project.path
-  )
-  if (existing) projectId = existing.id
-  else {
-    const proj = makeProject(uid('p'), project.name, project.path)
-    if (project.group) proj.group = project.group
-    if (project.command) proj.command = project.command
-    if (project.startup) proj.startup = project.startup
-    if (project.env) proj.env = project.env
-    if (project.shell) proj.shell = project.shell
-    state.tree.push(proj)
-    projectId = proj.id
-  }
-  if (projectId) {
-    const r = findById(state.tree, projectId)
-    if (r && isContainer(r.node)) r.node.collapsed = false
-  }
+  const projectId: string = project.id
+  project.collapsed = false
 
   // the feature folder (a worktree-marked folder) under the project
   const folder = makeFolder(uid('f'), branch)
@@ -397,6 +484,7 @@ export async function createFeature(
 
   const projEnv = project.env ? parseEnvLines(project.env) : undefined
   const shell = project.shell?.trim() || undefined
+  const startup = project.startup?.trim()
   const toRun: { paneId: string; cmd: string }[] = []
   const spawn = async (app: Application, wantsWorktree: boolean): Promise<string> => {
     const paneId = await createPane(resolveAppPath(project.path, app.path), { env: projEnv, shell })
@@ -405,12 +493,17 @@ export async function createFeature(
       p.title = `${app.name} · ${branch}`
       p.titleLocked = true
       p.htitle.textContent = p.title
+      p.projectId = project.id
+      p.appId = app.id
     }
+    // Chain: create the worktree (if requested) → project startup → dev command,
+    // so each runs in order in the same shell.
     const dev = app.commands[env].trim()
-    const cmd = wantsWorktree
-      ? `run-create-worktree ${shellQuote(branch)} ${shellQuote(base)} && ${dev}`
-      : dev
-    toRun.push({ paneId, cmd })
+    const parts: string[] = []
+    if (wantsWorktree) parts.push(`run-create-worktree ${shellQuote(branch)} ${shellQuote(base)}`)
+    if (startup) parts.push(startup)
+    parts.push(dev)
+    toRun.push({ paneId, cmd: parts.join(' && ') })
     return paneId
   }
 
@@ -465,23 +558,18 @@ export async function createFeature(
 }
 
 // Move a container (project or company folder) into a group/workspace by dragging
-// it onto a group header. Empty group clears it ("Ungrouped"). For projects, keeps
-// the picker template's group in sync.
+// it onto a group header. Empty group clears it ("Ungrouped").
 export function setNodeGroup(id: string, group: string): void {
   const r = findById(state.tree, id)
   if (!r || !isContainer(r.node)) return
   const g = group.trim()
   r.node.group = g || undefined
-  if (r.node.kind === 'project') {
-    const tmpl = findProjectByPath(settings.projects, (r.node as ProjectNode).path)
-    if (tmpl) tmpl.group = g || undefined
-  }
   requestSidebar()
   saveSoon()
 }
 
-// Create a new project node (and register it as a picker template). Optional
-// `parentId` nests it under another container; otherwise it's top-level.
+// Create a new project node. Optional `parentId` nests it under another
+// container; otherwise it lands at the tree root.
 export async function createProject(parentId?: string | null): Promise<void> {
   const values = await promptForm({
     title: 'New project',
@@ -504,15 +592,6 @@ export async function createProject(parentId?: string | null): Promise<void> {
   if (group) proj.group = group
   const list = parentId ? folderChildren(parentId) : state.tree
   list.push(proj)
-  // keep a picker template in sync (sidebar ↔ Settings → Projects catalog)
-  if (!findProjectByPath(settings.projects, path)) {
-    settings.projects.push({
-      name,
-      path,
-      command: command || undefined,
-      group: group || undefined
-    })
-  }
   state.selectedNodeId = proj.id
   requestSidebar()
   saveSoon()
@@ -596,13 +675,11 @@ export async function splitPane(paneId: string, dir: Dir): Promise<void> {
 
 // Open a project (path + optional command) as a split to the right of the active
 // pane — the openProject behaviour, but inside the current tab instead of a new one.
-export async function splitProjectRight(p: {
-  name: string
-  path: string
-  command?: string
-  env?: string
-  shell?: string
-}): Promise<void> {
+export async function splitProjectRight(
+  p:
+    | ProjectNode
+    | { name: string; path: string; command?: string; env?: string; shell?: string }
+): Promise<void> {
   if (!state.activeTabId || !state.activePaneId) return
   const newPaneId = await createPane(p.path, {
     env: p.env ? parseEnvLines(p.env) : undefined,
@@ -610,7 +687,12 @@ export async function splitProjectRight(p: {
   })
   const command = p.command && p.command.trim() ? p.command.trim() : undefined
   const pane = panes.get(newPaneId)
-  if (pane && command && /\bclaude\b/.test(command)) pane.claude = true
+  if (pane && command && /\bclaude\b/.test(command)) {
+    pane.claude = true
+    pane.claudeSpawnedAt = Date.now()
+    pane.claudeSessionLocked = false
+  }
+  if (pane && 'kind' in p && p.kind === 'project') pane.projectId = p.id
   if (placeSplit(newPaneId, 'row')) {
     focusActivePane()
     if (command) setTimeout(() => window.crafterm.input(newPaneId, command + '\r'), 350)
@@ -631,15 +713,33 @@ export function movePaneByDrop(dragId: string, targetId: string, zone: string): 
   saveSoon()
 }
 
+// Open a file in a new split pane by running the user's IDE command against it.
+// Used by the Files tab when the user clicks a non-markdown file. Inherits the
+// active pane's live cwd so relative paths inside the editor resolve correctly.
+export async function splitWithIde(absPath: string): Promise<void> {
+  if (!state.activeTabId || !state.activePaneId) return
+  const cwd = await liveCwd(state.activePaneId)
+  const newPaneId = await createPane(cwd)
+  if (!placeSplit(newPaneId, 'row')) return
+  focusActivePane()
+  const ide = settings.commands.ide?.trim() || 'ide'
+  // Single-quote the path so paths with spaces still work; escape embedded quotes.
+  const quoted = `'${absPath.replace(/'/g, `'\\''`)}'`
+  setTimeout(() => window.crafterm.input(newPaneId, `${ide} ${quoted}\r`), 350)
+}
+
 // Cmd+Shift+D: split the active pane and auto-run Claude in the new pane.
 export async function splitActivePaneWithClaude(): Promise<void> {
   if (!state.activeTabId || !state.activePaneId) return
   const newPaneId = await createPane(await liveCwd(state.activePaneId))
   const p = panes.get(newPaneId)
   if (p) p.claude = true
+  // Deterministic --session-id so this split maps to its own session (see
+  // withClaudeSessionId), independent of PATH/alias/.zshrc.
+  const command = withClaudeSessionId('claude', newPaneId)
   if (placeSplit(newPaneId, 'row')) {
     focusActivePane()
-    setTimeout(() => window.crafterm.input(newPaneId, 'claude\r'), 350)
+    setTimeout(() => window.crafterm.input(newPaneId, command + '\r'), 350)
   }
 }
 
@@ -702,6 +802,24 @@ export async function openTerminalRunning(command: string, title: string): Promi
   await createTab(null, { title, command })
 }
 
+// Open a new terminal at a specific directory and run a command there, without
+// creating/attaching a sidebar project node (unlike openProject).
+export async function runInDir(dir: string, command: string, title: string): Promise<void> {
+  await createTab(null, { title, cwd: dir, command })
+}
+
+// Open a new terminal nested under a sidebar folder (e.g. a worktree folder), at
+// `dir`, optionally running a command. Used by the worktree manager so terminals
+// land inside the right worktree node rather than the ungrouped area.
+export async function runInFolder(
+  parentFolderId: string,
+  dir: string,
+  command: string | undefined,
+  title: string
+): Promise<void> {
+  await createTab(parentFolderId, { title, cwd: dir, command })
+}
+
 // Resume a stored Claude conversation in a new terminal at its project cwd.
 export async function resumeClaudeSession(
   sessionId: string,
@@ -718,6 +836,9 @@ export async function resumeClaudeSession(
   const p = state.activePaneId ? panes.get(state.activePaneId) : null
   if (p) {
     p.claudeSessionId = sessionId
+    // we know the id, so lock it; the periodic refresh must not overwrite it
+    // with whatever's newest in this cwd (the bug we're fixing)
+    p.claudeSessionLocked = true
     saveSoon()
   }
 }
@@ -749,13 +870,70 @@ export function openNote(relPath: string): void {
   hostDoc(createDocPane(relPath), relPath.split('/').pop() || 'note')
 }
 
+// Open a SQL query pane next to the active pane (or in a fresh tab if none).
+export function openSqlInSplit(opts: {
+  connId?: string | null
+  sql?: string
+  fileName?: string | null
+  autoRun?: boolean
+} = {}): void {
+  const id = createSqlPane(opts)
+  hostDoc(id, 'SQL')
+}
+
+// Cmd+D in Database sidebar mode: opens an empty SQL pane.
+export function splitActiveWithSql(): void {
+  openSqlInSplit({})
+}
+
 // Open any markdown file on disk (read-only) — used by the Cmd+O finder.
 export function openMarkdownFile(absPath: string): void {
   hostDoc(createDocPane(absPath, { absolute: true }), absPath.split('/').pop() || 'note')
 }
 
+// Open a markdown file as a NEW TAB in the same group (sibling list) as an
+// originating terminal pane — used to auto-surface a freshly created plan so the
+// user can review it. Falls back to a top-level tab when the origin is gone.
+export function openMarkdownInGroup(originPaneId: string, absPath: string): void {
+  const docId = createDocPane(absPath, { absolute: true })
+  const tab: TabNode = {
+    kind: 'tab',
+    id: uid('t'),
+    title: absPath.split('/').pop() || 'plan',
+    titleLocked: true,
+    color: null,
+    pinned: false,
+    root: { type: 'leaf', paneId: docId }
+  }
+  const originTab = findTabByPane(state.tree, originPaneId)
+  const loc = originTab ? findById(state.tree, originTab.id) : null
+  if (loc) loc.parent.splice(loc.index + 1, 0, tab)
+  else state.tree.push(tab)
+  state.activeTabId = tab.id
+  state.activePaneId = docId
+  requestSidebar()
+  renderContent()
+}
+
+// Open a PR's diff as an in-app pane. Captures the active terminal first so the
+// selection-send target survives the diff pane stealing focus on open.
+export function openPrDiff(cwd: string, prNumber: number, title: string): void {
+  const targetPaneId =
+    state.activePaneId && panes.has(state.activePaneId) ? state.activePaneId : null
+  hostDoc(createDiffPane({ cwd, prNumber, title, targetPaneId }), `${title} diff`)
+}
+
+// Open a file (read-only) in a line-selectable viewer pane. Captures the active
+// terminal first so the selection-send target survives the new pane stealing
+// focus on open.
+export function openFileViewer(absPath: string): void {
+  const targetPaneId =
+    state.activePaneId && panes.has(state.activePaneId) ? state.activePaneId : null
+  hostDoc(createFilePane({ path: absPath, targetPaneId }), absPath.split('/').pop() || 'file')
+}
+
 // Run a one-off command in a new split terminal beside the active pane.
-async function runInSplit(command: string): Promise<void> {
+export async function runInSplit(command: string): Promise<void> {
   const paneId = await createPane(activeCwd())
   if (placeSplit(paneId, 'row')) {
     focusActivePane()
@@ -777,6 +955,23 @@ export async function confirmAndClosePane(paneId: string): Promise<void> {
       confirmText: 'Close'
     })
     if (!ok) return
+  }
+  // If this terminal is assigned to an unfinished daily task, offer to mark it
+  // done on close (todo50).
+  if (p?.dailyTaskId) {
+    const task = settings.dailyPlan.tasks.find((t) => t.id === p.dailyTaskId)
+    if (task && task.status !== 'done') {
+      const done = await promptConfirm({
+        title: 'Mark task done?',
+        message: `Move "${task.issueKey ? task.issueKey + ' · ' : ''}${task.title}" to Done?`,
+        confirmText: 'Mark done'
+      })
+      if (done) {
+        task.status = 'done'
+        task.updatedAt = Date.now()
+        saveSoon()
+      }
+    }
   }
   closePane(paneId)
 }
@@ -800,22 +995,82 @@ export function killPoppedPane(paneId: string): void {
   closePane(paneId)
 }
 
+// Archive a terminal session (never delete): preserve its layout — with stableIds
+// and bindings — in dormantRoot for later reactivation, kill its PTYs, and leave
+// the node in the tree with status 'archived' (hidden from the sidebar). The live
+// root becomes an empty placeholder until the session is reactivated.
+export function archiveTab(tab: TabNode): void {
+  tab.dormantRoot = serializeLayout(tab.root)
+  panesInLayout(tab.root).forEach((id) => {
+    destroyPane(id)
+    window.crafterm.kill(id)
+  })
+  tab.root = { type: 'leaf', paneId: '' }
+  tab.status = 'archived'
+}
+
 export function closePane(paneId: string): void {
   poppedOut.delete(paneId)
+
+  // A background-process VIEW: tear down only the view (xterm/DOM). The PTY keeps
+  // running in main (close ≠ kill); reopening re-attaches and replays the buffer.
+  const viewPane = panes.get(paneId)
+  if (viewPane?.isProcessView) {
+    destroyPane(paneId)
+    const t = allTabs(state.tree).find((tt) => layoutContains(tt.root, paneId))
+    if (t) {
+      const nr = removePaneFromLayout(t.root, paneId)
+      if (nr === null) removeNodeById(t.id)
+      else t.root = nr
+    }
+    fixActiveAfterChange()
+    requestSidebar()
+    renderContent()
+    focusActivePane()
+    saveSoon()
+    return
+  }
+
+  // A terminal session's last pane: archive the whole session instead of
+  // destroying it, so its stableId/tickets/claude bindings survive (recoverable
+  // under "Show archived items"). Capture the layout before tearing the pane down.
+  const isTerminalPane =
+    !browsers.has(paneId) &&
+    !docs.has(paneId) &&
+    !sqlPanes.has(paneId) &&
+    !diffPanes.has(paneId) &&
+    !filePanes.has(paneId)
+  const owningTab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
+  if (isTerminalPane && owningTab && panesInLayout(owningTab.root).length <= 1) {
+    archiveTab(owningTab)
+    fixActiveAfterChange()
+    requestSidebar()
+    renderContent()
+    focusActivePane()
+    saveSoon()
+    return
+  }
+
   if (browsers.has(paneId)) {
     destroyBrowserPane(paneId)
   } else if (docs.has(paneId)) {
     destroyDocPane(paneId)
+  } else if (sqlPanes.has(paneId)) {
+    destroySqlPane(paneId)
+  } else if (diffPanes.has(paneId)) {
+    destroyDiffPane(paneId)
+  } else if (filePanes.has(paneId)) {
+    destroyFilePane(paneId)
   } else {
     destroyPane(paneId)
     window.crafterm.kill(paneId)
   }
 
-  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
+  const tab = owningTab
   if (tab) {
     const newRoot = removePaneFromLayout(tab.root, paneId)
     if (newRoot === null) {
-      removeNodeById(tab.id) // last pane closed -> drop the tab
+      removeNodeById(tab.id) // last (non-terminal) pane closed -> drop the tab
     } else {
       tab.root = newRoot
     }
@@ -830,11 +1085,8 @@ export function closePane(paneId: string): void {
 export function closeTab(tabId: string): void {
   const tab = findTab(state.tree, tabId)
   if (!tab) return
-  panesInLayout(tab.root).forEach((id) => {
-    destroyPane(id)
-    window.crafterm.kill(id)
-  })
-  removeNodeById(tabId)
+  // Archive (never delete) — keep the session recoverable.
+  archiveTab(tab)
   fixActiveAfterChange()
   requestSidebar()
   renderContent()
@@ -859,8 +1111,9 @@ function removeNodeById(id: string): void {
 
 function fixActiveAfterChange(): void {
   if (state.selectedNodeId && !findById(state.tree, state.selectedNodeId)) state.selectedNodeId = null
-  if (state.activeTabId && findTab(state.tree, state.activeTabId)) return
-  const first = allTabs(state.tree)[0] ?? null
+  const active = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
+  if (active && active.status !== 'archived') return
+  const first = allTabs(state.tree).find((t) => t.status !== 'archived') ?? null
   state.activeTabId = first?.id ?? null
   state.activePaneId = first ? firstPaneOf(first.root) : null
 }
@@ -889,8 +1142,9 @@ export function selectPane(paneId: string): void {
   const p = panes.get(paneId)
   if (p) p.attention = false
   const tab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
+  let tabChanged = false
   if (tab) {
-    const tabChanged = state.activeTabId !== tab.id
+    tabChanged = state.activeTabId !== tab.id
     state.activeTabId = tab.id
     state.selectedNodeId = tab.id // clicking a pane also selects its terminal in the sidebar
     // If the pane lives in a different tab (e.g. jumped to from a notification or
@@ -901,6 +1155,11 @@ export function selectPane(paneId: string): void {
   updatePaneActive() // move the active-pane border so focus is visible
   requestStatuses()
   p?.term.focus()
+  sqlPanes.get(paneId)?.focus()
+  // A tab switch flips `display` on the container; xterm's textarea may not
+  // accept focus until layout settles. Re-focus on the next frame so jumping
+  // from a notification (or the Claude dashboard) actually lands on the pane.
+  if (tabChanged && p) requestAnimationFrame(() => p.term.focus())
 }
 
 export function switchTabByIndex(index: number): void {
@@ -908,13 +1167,32 @@ export function switchTabByIndex(index: number): void {
   if (tab) selectTab(tab.id)
 }
 
-// Distribute every split in the active tab evenly (both row and column splits).
+// Distribute every split in the active tab evenly. Splits get nested on every
+// split-right/split-down (see splitInLayout), so a 3-pane row layout is really
+// a row containing a row — setting every split to [1,1] would leave the outer
+// pane at 50% and the inner two at 25% each. Merge consecutive same-direction
+// splits first so all sibling panes in one direction share one parent and end
+// up truly equal-sized; mixed-direction sub-areas keep their structure and
+// equalize within themselves.
 export function equalizePanes(): void {
   const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
   if (!tab) return
+  tab.root = flattenSameDirSplits(tab.root)
   equalizeNode(tab.root)
   renderContent()
   saveSoon()
+}
+
+function flattenSameDirSplits(node: LayoutNode): LayoutNode {
+  if (node.type === 'leaf') return node
+  const flattened = node.children.map(flattenSameDirSplits)
+  const merged: LayoutNode[] = []
+  for (const child of flattened) {
+    if (child.type === 'split' && child.dir === node.dir) merged.push(...child.children)
+    else merged.push(child)
+  }
+  if (merged.length === 1) return merged[0]
+  return { type: 'split', dir: node.dir, sizes: merged.map(() => 1), children: merged }
 }
 
 function equalizeNode(node: LayoutNode): void {
@@ -1163,7 +1441,7 @@ export function togglePin(id: string): void {
 
 export function toggleCollapse(folderId: string): void {
   const r = findById(state.tree, folderId)
-  if (r && r.node.kind === 'folder') {
+  if (r && isContainer(r.node)) {
     r.node.collapsed = !r.node.collapsed
     requestSidebar()
     saveSoon()
@@ -1171,11 +1449,12 @@ export function toggleCollapse(folderId: string): void {
 }
 
 // Recursively expand (collapsed=false) or collapse (collapsed=true) every
-// folder in the sidebar tree. Backs the expand/collapse-all toolbar button.
+// container (folder or project) in the sidebar tree. Backs the expand/
+// collapse-all toolbar button.
 export function setAllFoldersCollapsed(collapsed: boolean): void {
   const walk = (nodes: SidebarNode[]): void => {
     for (const node of nodes) {
-      if (node.kind === 'folder') {
+      if (isContainer(node)) {
         node.collapsed = collapsed
         walk(node.children)
       }
@@ -1186,11 +1465,11 @@ export function setAllFoldersCollapsed(collapsed: boolean): void {
   saveSoon()
 }
 
-// True when at least one folder in the tree is currently expanded.
+// True when at least one container in the tree is currently expanded.
 export function anyFolderExpanded(): boolean {
   const walk = (nodes: SidebarNode[]): boolean => {
     for (const node of nodes) {
-      if (node.kind === 'folder') {
+      if (isContainer(node)) {
         if (!node.collapsed) return true
         if (walk(node.children)) return true
       }
@@ -1230,10 +1509,10 @@ export function moveNode(dragId: string, targetId: string | null, mode: DropMode
     const tgt = findById(state.tree, targetId)
     if (!tgt) return
     // can't drop a folder into its own subtree
-    if (src.node.kind === 'folder' && isDescendant(src.node, targetId)) return
+    if (isContainer(src.node) && isDescendant(src.node, targetId)) return
 
     if (mode === 'into') {
-      if (tgt.node.kind !== 'folder') return
+      if (!isContainer(tgt.node)) return
       if (!depthOk(src.node, tgt.node.id)) {
         flash(`Max folder depth is ${MAX_FOLDER_DEPTH}`)
         return

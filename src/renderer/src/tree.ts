@@ -1,8 +1,8 @@
-import type { Dir, LayoutNode, SidebarNode, TabNode, FolderNode, ProjectNode } from './types'
+import type { Dir, LayoutNode, SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode } from './types'
 
-// Folders and projects both hold `children`; this narrows to either.
-export function isContainer(node: SidebarNode): node is FolderNode | ProjectNode {
-  return node.kind === 'folder' || node.kind === 'project'
+// Folders, projects and worktrees all hold `children`; this narrows to any.
+export function isContainer(node: SidebarNode): node is FolderNode | ProjectNode | WorktreeNode {
+  return node.kind === 'folder' || node.kind === 'project' || node.kind === 'worktree'
 }
 
 // ===========================================================================
@@ -157,7 +157,9 @@ export function depthOfFolder(tree: SidebarNode[], folderId: string, depth = 1):
 // How many folder levels a subtree spans (a tab/empty folder = 0/1).
 export function subtreeFolderDepth(node: SidebarNode): number {
   if (node.kind === 'tab') return 0
-  const childDepths = node.children.map((c) => (c.kind === 'folder' ? subtreeFolderDepth(c) : 0))
+  const childDepths = node.children.map((c) =>
+    c.kind === 'folder' || c.kind === 'worktree' ? subtreeFolderDepth(c) : 0
+  )
   return 1 + (childDepths.length ? Math.max(...childDepths) : 0)
 }
 
@@ -165,11 +167,11 @@ export function subtreeFolderDepth(node: SidebarNode): number {
 export function ancestorFolders(
   tree: SidebarNode[],
   id: string,
-  trail: FolderNode[] = []
-): FolderNode[] | null {
+  trail: (FolderNode | WorktreeNode)[] = []
+): (FolderNode | WorktreeNode)[] | null {
   for (const node of tree) {
     if (node.id === id) return trail
-    if (node.kind === 'folder') {
+    if (node.kind === 'folder' || node.kind === 'worktree') {
       const r = ancestorFolders(node.children, id, [...trail, node])
       if (r) return r
     } else if (node.kind === 'project') {

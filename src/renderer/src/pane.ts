@@ -1,6 +1,15 @@
 import { Terminal, type ILink } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import type { Pane, PaneStatus, BrowserPane, DocPane } from './types'
+import type {
+  Pane,
+  PaneStatus,
+  NodeStatus,
+  BrowserPane,
+  DocPane,
+  ProjectCommand,
+  ProjectNode,
+  Application
+} from './types'
 import { renderMarkdown } from './markdown'
 import {
   panes,
@@ -19,6 +28,13 @@ import {
   pushNotification
 } from './state'
 import { findTabByPane, ancestorFolders } from './tree'
+import {
+  findProjectByPath,
+  findFeature,
+  findProjectById,
+  findApp,
+  flattenProjects
+} from './catalog'
 
 type DropZoneName = 'left' | 'right' | 'top' | 'bottom'
 
@@ -55,13 +71,15 @@ function commandRunsClaude(cmd: string): boolean {
 // Drag-to-rearrange: the header is the handle. Uses pointer events (NOT HTML5
 // drag-and-drop, which is unreliable over xterm canvases) and hit-tests the
 // pane-box under the cursor each move; dropping re-lays-out the active tab.
-function setupPaneDnd(box: HTMLElement, header: HTMLElement, id: string): void {
+export function setupPaneDnd(box: HTMLElement, header: HTMLElement, id: string): void {
   const grip = document.createElement('span')
   grip.className = 'pane-grip'
   grip.textContent = '⠿'
   grip.title = 'Drag to move this pane'
-  const title = header.querySelector('.pane-title')
-  if (title) title.insertAdjacentElement('afterend', grip)
+  // Sit the grip just after the daily-task chip (when present) so the issue key
+  // shows to the LEFT of the drag handle; otherwise right after the title.
+  const anchor = header.querySelector('.pane-daily-chip') ?? header.querySelector('.pane-title')
+  if (anchor) anchor.insertAdjacentElement('afterend', grip)
   else header.prepend(grip)
 
   // visual-only drop indicator (its ::after draws the highlighted zone)
@@ -122,9 +140,18 @@ function pushResize(pane: Pane): void {
 
 export async function createPane(
   cwd?: string,
-  opts?: { env?: Record<string, string>; shell?: string }
+  opts?: { env?: Record<string, string>; shell?: string; stableId?: string; attachId?: string }
 ): Promise<string> {
-  const id = await window.crafterm.createPty({ cwd, env: opts?.env, shell: opts?.shell })
+  const stableId = opts?.attachId || opts?.stableId || crypto.randomUUID()
+  // Exposed to the shell as CRAFTERM_PANE_ID; the renderer-supplied value wins
+  // over anything the caller might have placed in opts.env.
+  const env = { ...(opts?.env ?? {}), CRAFTERM_PANE_ID: stableId }
+  // Attach mode: this pane is a VIEW onto an already-running background process
+  // (its PTY id === the process stableId). Skip spawning — the PTY already exists
+  // in main; closing this view must not kill it.
+  const id = opts?.attachId
+    ? opts.attachId
+    : await window.crafterm.createPty({ cwd, env, shell: opts?.shell })
 
   const term = new Terminal({
     fontFamily: settings.font.family,
@@ -145,6 +172,16 @@ export async function createPane(
   const htitle = document.createElement('span')
   htitle.className = 'pane-title'
   htitle.textContent = 'zsh'
+  // Chip showing the assigned daily task (hidden until one is assigned). Clicking
+  // it opens the assign/update modal.
+  const taskChip = document.createElement('button')
+  taskChip.className = 'pane-daily-chip'
+  taskChip.style.display = 'none'
+  taskChip.title = 'Daily ticket — click for details'
+  taskChip.addEventListener('click', (e) => {
+    e.stopPropagation()
+    paneActions.viewTicketDetail(id)
+  })
   const menuBtn = document.createElement('button')
   menuBtn.className = 'pane-btn'
   menuBtn.textContent = '⋯'
@@ -160,7 +197,7 @@ export async function createPane(
     e.stopPropagation()
     paneActions.close(id)
   })
-  header.append(htitle, menuBtn, close)
+  header.append(htitle, taskChip, menuBtn, close)
 
   const host = document.createElement('div')
   host.className = 'pane-term'
@@ -172,6 +209,7 @@ export async function createPane(
 
   const pane: Pane = {
     id,
+    stableId,
     term,
     fit,
     el,
@@ -185,20 +223,34 @@ export async function createPane(
     idleTimer: null,
     title: '',
     titleLocked: false,
-    cwd: null,
+    // Seed from the spawn cwd (absolute paths only) so the pane is never null
+    // during the post-restore window — the first lsof tick corrects anything
+    // stale, and the null-guard in refreshPaneInfo keeps a transient lsof
+    // failure from wiping it back to null.
+    cwd: cwd && cwd.startsWith('/') ? cwd : null,
     branch: null,
     worktree: null,
+    lastCommand: null,
     plans: [],
     claude: false,
     claudeSessionId: null,
+    claudeSpawnedAt: null,
+    claudeSessionLocked: false,
     bgColor: null,
     fontSize: null,
     trackProjectPath: null,
     trackFeatureId: null,
+    projectId: null,
+    appId: null,
+    dailyTaskId: null,
+    status: 'idle',
+    role: 'shell',
+    isProcessView: !!opts?.attachId,
     lastActivity: Date.now(),
     lastNotify: 0,
     lastCols: 0,
-    lastRows: 0
+    lastRows: 0,
+    outputTail: ''
   }
 
   // Shift+Enter and Option(Alt)+Enter should insert a newline in TUI line editors
@@ -235,6 +287,10 @@ export async function createPane(
         // resumes on restore. The exact session id is captured in refreshPaneInfo.
         if (commandRunsClaude(cmdBuf) && !pane.claude) {
           pane.claude = true
+          // baseline so refreshPaneInfo only picks up the session this command
+          // is about to create — not any pre-existing jsonl in the cwd
+          pane.claudeSpawnedAt = Date.now()
+          pane.claudeSessionLocked = false
           saveSoon() // persist the claude flag promptly (don't wait for the next capture)
         }
         cmdBuf = ''
@@ -336,7 +392,192 @@ function makeLinkProvider(term: Terminal): { provideLinks: (y: number, cb: (link
   }
 }
 
-// Per-pane options menu (anchored under the ⋯ button). More entries to come.
+// One row in the pane ⋯ menu. `item` is a clickable action, `label` a
+// non-interactive section heading, `swatch` a background-color button.
+// Sync the pane header's daily-task chip with pane.dailyTaskId. Called after an
+// assignment changes (from dailyPlan.ts via paneActions).
+export function refreshPaneDailyTask(paneId: string): void {
+  const pane = panes.get(paneId)
+  if (!pane) return
+  const chip = pane.el.querySelector<HTMLElement>('.pane-daily-chip')
+  if (!chip) return
+  // Only surface the chip when the terminal was opened from a ticket (the task
+  // carries an issue key); plain assignments without a key stay hidden.
+  const key = pane.dailyTaskId ? paneActions.dailyTaskIssueKey(pane.dailyTaskId) : null
+  if (key) {
+    chip.textContent = key
+    chip.style.display = ''
+  } else {
+    chip.textContent = ''
+    chip.style.display = 'none'
+  }
+}
+
+// buildPaneMenu produces these so both the menu and the global search (Cmd+J)
+// consume the same definition without duplicating the action logic.
+export type PaneMenuEntry =
+  | { kind: 'item'; label: string; run: () => void }
+  | { kind: 'label'; text: string }
+  | { kind: 'swatch'; label: string; color: string | null; run: () => void }
+
+export function buildPaneMenu(
+  paneId: string,
+  opts: { worktree?: boolean; bg?: boolean } = {}
+): PaneMenuEntry[] {
+  const out: PaneMenuEntry[] = []
+  const item = (label: string, run: () => void): void => {
+    out.push({ kind: 'item', label, run })
+  }
+  const section = (text: string): void => {
+    out.push({ kind: 'label', text })
+  }
+
+  item('Split right', () => paneActions.split(paneId, 'row'))
+  item('Split down', () => paneActions.split(paneId, 'col'))
+  item('Split with project…', () => paneActions.splitWithProject(paneId))
+  // Plan-mode: a plan this pane produced has been auto-opened — offer Clarify,
+  // which runs the clarify skill in this terminal.
+  if (panes.get(paneId)?.planMode && panes.get(paneId)?.claude) {
+    item('Clarify plan', () => paneActions.clarify(paneId))
+  }
+  // Daily task: when assigned, surface a dedicated section (view detail, mark
+  // done, change); otherwise a single assign entry.
+  {
+    const assignedId = panes.get(paneId)?.dailyTaskId
+    if (assignedId) {
+      section('Daily task')
+      item('View ticket detail', () => paneActions.viewTicketDetail(paneId))
+      if (paneActions.dailyTaskStatus(assignedId) !== 'done') {
+        item('Mark as done', () => paneActions.markTaskDone(paneId))
+      }
+      item('Change task…', () => paneActions.assignDailyTask(paneId))
+    } else {
+      item('Assign to daily task…', () => paneActions.assignDailyTask(paneId))
+    }
+  }
+  item('Open in Finder', () => {
+    const cwd = panes.get(paneId)?.cwd
+    if (cwd) window.crafterm.openPath(cwd)
+  })
+  item('Open URL in browser…', () => paneActions.openUrl())
+  item('Track time…', () => paneActions.trackTime(paneId))
+  if (opts.worktree !== false) item('Create worktree…', () => paneActions.createWorktree(paneId))
+
+  // Git quick-actions (terminal panes in a repo). Each runs in a fresh split.
+  if (opts.worktree !== false) {
+    section('Git')
+    item('Pull', () => paneActions.git(paneId, 'pull'))
+    item('Commit + push…', () => paneActions.git(paneId, 'commitPush'))
+    item('Commit + push + PR…', () => paneActions.git(paneId, 'commitPushPr'))
+    item('New branch + PR…', () => paneActions.git(paneId, 'branchPr'))
+    item('Stash changes…', () => paneActions.git(paneId, 'stash'))
+    item('Stashes…', () => paneActions.stashes(paneId))
+  }
+  // Project / application "run commands". A command is surfaced when the pane is
+  // tied to its owning project/app (`projectId`/`appId`), OR — falling back to a
+  // path match — when the pane's cwd lives under the project/app working
+  // directory. All matching projects/apps are listed (nested projects included).
+  if (opts.bg !== false) {
+    const pane = panes.get(paneId)
+    const cwd = pane?.cwd ?? null
+    const addCommands = (title: string, cmds?: ProjectCommand[]): void => {
+      if (!cmds || !cmds.some((c) => c.command.trim())) return
+      section(title)
+      for (const rc of cmds) {
+        const cmdStr = rc.command.trim()
+        if (!cmdStr) continue
+        item(rc.name || cmdStr, () => window.crafterm.input(paneId, cmdStr + '\r'))
+      }
+    }
+    // cwd is under `base` (same dir or a descendant). Empty base never matches.
+    const cwdUnder = (base?: string): boolean => {
+      if (!cwd || !base) return false
+      const b = base.replace(/\/+$/, '')
+      return cwd === b || cwd.startsWith(b + '/')
+    }
+    // App `path` is relative to its project path (absolute or empty = project path).
+    const appDir = (project: ProjectNode, app: Application): string => {
+      const p = app.path?.trim()
+      if (!p) return project.path
+      return p.startsWith('/') ? p : `${project.path.replace(/\/+$/, '')}/${p}`
+    }
+
+    const projectIds = new Set<string>()
+    const appIds = new Set<string>()
+    if (pane?.projectId) {
+      const proj = findProjectById(state.tree, pane.projectId)
+      if (proj) {
+        projectIds.add(proj.id)
+        addCommands(`Commands — ${proj.name}`, proj.runCommands)
+      }
+    }
+    if (pane?.appId) {
+      const r = findApp(state.tree, pane.appId)
+      if (r) {
+        appIds.add(r.app.id)
+        addCommands(`Commands — ${r.app.name}`, r.app.runCommands)
+      }
+    }
+    for (const proj of flattenProjects(state.tree)) {
+      if (!projectIds.has(proj.id) && cwdUnder(proj.path)) {
+        projectIds.add(proj.id)
+        addCommands(`Commands — ${proj.name}`, proj.runCommands)
+      }
+      for (const app of proj.apps ?? []) {
+        if (!appIds.has(app.id) && cwdUnder(appDir(proj, app))) {
+          appIds.add(app.id)
+          addCommands(`Commands — ${app.name}`, app.runCommands)
+        }
+      }
+    }
+
+    // Applications defined on the matching projects — clicking one opens a
+    // Split / New tab chooser (per environment) and launches it.
+    for (const proj of flattenProjects(state.tree)) {
+      if (!projectIds.has(proj.id)) continue
+      const apps = proj.apps ?? []
+      if (!apps.length) continue
+      section(`Apps — ${proj.name}`)
+      for (const app of apps) item(app.name, () => paneActions.runApp(proj, app))
+    }
+  }
+
+  // SSH connections (only for terminal panes — sends the ssh command into the
+  // current PTY instead of spawning a new terminal, per user request).
+  if (opts.bg !== false && settings.sshConnections.length) {
+    section('SSH')
+    for (const c of settings.sshConnections) {
+      const target = c.user ? `${c.user}@${c.host}` : c.host
+      const cmd = c.port ? `ssh -p ${c.port} ${target}` : `ssh ${target}`
+      item(c.label || target, () => window.crafterm.input(paneId, cmd + '\r'))
+    }
+  }
+
+  // pop-out is for plain terminal panes only (same gate as the bg swatches)
+  if (opts.bg !== false) item('Pop out to window', () => paneActions.popOut(paneId))
+
+  // per-pane background color (terminals only)
+  if (opts.bg !== false) {
+    section('Background')
+    out.push({
+      kind: 'swatch',
+      label: 'Pane background: Default',
+      color: null,
+      run: () => setPaneBackground(paneId, null)
+    })
+    PANE_BG_PALETTE.forEach((c) => {
+      out.push({
+        kind: 'swatch',
+        label: `Pane background: ${c}`,
+        color: c,
+        run: () => setPaneBackground(paneId, c)
+      })
+    })
+  }
+  return out
+}
+
+// Per-pane options menu (anchored under the ⋯ button).
 function showPaneMenu(
   anchor: HTMLElement,
   paneId: string,
@@ -349,70 +590,41 @@ function showPaneMenu(
   menu.style.left = Math.min(r.left, window.innerWidth - 220) + 'px'
   menu.style.top = r.bottom + 4 + 'px'
 
-  const add = (label: string, fn: () => void): void => {
-    const b = document.createElement('button')
-    b.textContent = label
-    b.addEventListener('click', () => {
-      menu.remove()
-      fn()
-    })
-    menu.appendChild(b)
-  }
-  add('Split right', () => paneActions.split(paneId, 'row'))
-  add('Split down', () => paneActions.split(paneId, 'col'))
-  add('Split with project…', () => paneActions.splitWithProject(paneId))
-  add('Open in Finder', () => {
-    const cwd = panes.get(paneId)?.cwd
-    if (cwd) window.crafterm.openPath(cwd)
-  })
-  add('Open URL in browser…', () => paneActions.openUrl())
-  add('Track time…', () => paneActions.trackTime(paneId))
-  if (opts.worktree !== false) add('Create worktree…', () => paneActions.createWorktree(paneId))
-
-  // Git quick-actions (terminal panes in a repo). Each runs in a fresh split.
-  if (opts.worktree !== false) {
-    const gitLabel = document.createElement('div')
-    gitLabel.className = 'menu-label'
-    gitLabel.textContent = 'Git'
-    menu.appendChild(gitLabel)
-    add('Pull', () => paneActions.git(paneId, 'pull'))
-    add('Commit + push…', () => paneActions.git(paneId, 'commitPush'))
-    add('Commit + push + PR…', () => paneActions.git(paneId, 'commitPushPr'))
-    add('New branch + PR…', () => paneActions.git(paneId, 'branchPr'))
-    add('Stash changes…', () => paneActions.git(paneId, 'stash'))
-    add('Stashes…', () => paneActions.stashes(paneId))
-  }
-  // pop-out is for plain terminal panes only (same gate as the bg swatches)
-  if (opts.bg !== false) add('Pop out to window', () => paneActions.popOut(paneId))
-
-  // per-pane background color (terminals only)
-  if (opts.bg !== false) {
-    const label = document.createElement('div')
-    label.className = 'menu-label'
-    label.textContent = 'Background'
-    menu.appendChild(label)
-
-    const colors = document.createElement('div')
-    colors.className = 'color-swatches'
-    const def = document.createElement('button')
-    def.className = 'swatch none'
-    def.title = 'Default'
-    def.addEventListener('click', () => {
-      menu.remove()
-      setPaneBackground(paneId, null)
-    })
-    colors.appendChild(def)
-    PANE_BG_PALETTE.forEach((c) => {
+  // Consecutive swatch entries share a single color-swatches row.
+  let swatchRow: HTMLElement | null = null
+  for (const e of buildPaneMenu(paneId, opts)) {
+    if (e.kind === 'swatch') {
+      if (!swatchRow) {
+        swatchRow = document.createElement('div')
+        swatchRow.className = 'color-swatches'
+        menu.appendChild(swatchRow)
+      }
       const s = document.createElement('button')
-      s.className = 'swatch'
-      s.style.background = c
+      s.className = 'swatch' + (e.color === null ? ' none' : '')
+      if (e.color) s.style.background = e.color
+      else s.title = 'Default'
       s.addEventListener('click', () => {
         menu.remove()
-        setPaneBackground(paneId, c)
+        e.run()
       })
-      colors.appendChild(s)
+      swatchRow.appendChild(s)
+      continue
+    }
+    swatchRow = null
+    if (e.kind === 'label') {
+      const lab = document.createElement('div')
+      lab.className = 'menu-label'
+      lab.textContent = e.text
+      menu.appendChild(lab)
+      continue
+    }
+    const b = document.createElement('button')
+    b.textContent = e.label
+    b.addEventListener('click', () => {
+      menu.remove()
+      e.run()
     })
-    menu.appendChild(colors)
+    menu.appendChild(b)
   }
 
   document.body.appendChild(menu)
@@ -510,6 +722,26 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
   htitle.className = 'pane-title'
   htitle.textContent = source.split('/').pop() || source
 
+  const copyBtn = document.createElement('button')
+  copyBtn.className = 'pane-btn'
+  copyBtn.textContent = '⧉'
+  copyBtn.title = 'Copy full path'
+  copyBtn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    void navigator.clipboard.writeText(source)
+    const prev = copyBtn.textContent
+    copyBtn.textContent = '✓'
+    setTimeout(() => (copyBtn.textContent = prev), 1000)
+  })
+  const revealBtn = document.createElement('button')
+  revealBtn.className = 'pane-btn'
+  revealBtn.textContent = '⌕'
+  revealBtn.title = 'Show in Finder'
+  revealBtn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (absolute) window.crafterm.revealPath(source)
+    else window.crafterm.nbReveal(source)
+  })
   const refreshBtn = document.createElement('button')
   refreshBtn.className = 'pane-btn'
   refreshBtn.textContent = '⟳'
@@ -525,7 +757,7 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
     e.stopPropagation()
     paneActions.close(id)
   })
-  header.append(htitle, refreshBtn, editBtn, close)
+  header.append(htitle, copyBtn, revealBtn, refreshBtn, editBtn, close)
 
   const preview = document.createElement('div')
   preview.className = 'doc-preview'
@@ -585,6 +817,80 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
     }
   })
 
+  // ---- "add to chat": select text in the preview, send a `path:line` reference
+  // into the active terminal (mirrors the diff/file panes). Only for real disk
+  // files (absolute), where the path means something to Claude.
+  if (absolute) {
+    const chatBtn = document.createElement('button')
+    chatBtn.className = 'doc-chat-btn'
+    chatBtn.textContent = '+ chat'
+    chatBtn.title = 'Send this selection as a file:line reference to the terminal'
+    chatBtn.style.display = 'none'
+    el.appendChild(chatBtn)
+
+    // Source line of the block containing a DOM node (nearest [data-mdline]).
+    const lineOf = (node: Node | null): number | null => {
+      const start = node instanceof HTMLElement ? node : node?.parentElement ?? null
+      const block = start?.closest('[data-mdline]') as HTMLElement | null
+      const v = block?.getAttribute('data-mdline')
+      return v ? parseInt(v, 10) : null
+    }
+    const activeTerminal = (): string | null =>
+      state.activePaneId && panes.has(state.activePaneId) ? state.activePaneId : null
+
+    let pendingRef: string | null = null
+    const updateFromSelection = (): void => {
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        chatBtn.style.display = 'none'
+        return
+      }
+      if (!preview.contains(sel.anchorNode) || !preview.contains(sel.focusNode)) {
+        chatBtn.style.display = 'none'
+        return
+      }
+      const a = lineOf(sel.anchorNode)
+      const b = lineOf(sel.focusNode)
+      if (a == null && b == null) {
+        chatBtn.style.display = 'none'
+        return
+      }
+      const lo = Math.min(a ?? b!, b ?? a!)
+      const hi = Math.max(a ?? b!, b ?? a!)
+      const cwd = panes.get(activeTerminal() ?? '')?.cwd ?? null
+      let file = source
+      if (cwd) {
+        const base = cwd.endsWith('/') ? cwd : cwd + '/'
+        if (source.startsWith(base)) file = source.slice(base.length)
+      }
+      pendingRef = lo === hi ? `${file}:${lo}` : `${file}:${lo}-${hi}`
+      const rect = sel.getRangeAt(0).getBoundingClientRect()
+      chatBtn.style.left = `${Math.round(rect.right + 4)}px`
+      chatBtn.style.top = `${Math.round(rect.top - 4)}px`
+      chatBtn.style.display = ''
+    }
+    preview.addEventListener('mouseup', () => setTimeout(updateFromSelection, 0))
+    preview.addEventListener('mousedown', () => {
+      chatBtn.style.display = 'none'
+    })
+    preview.addEventListener('scroll', () => {
+      chatBtn.style.display = 'none'
+    })
+    chatBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+    })
+    chatBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const target = activeTerminal()
+      if (!pendingRef || !target) return
+      window.crafterm.input(target, pendingRef + ' ')
+      paneActions.select(target)
+      panes.get(target)?.term.focus()
+      chatBtn.style.display = 'none'
+    })
+  }
+
   docs.set(id, { id, el, relPath: source })
   return id
 }
@@ -623,9 +929,37 @@ export function destroyPane(paneId: string): void {
 // A run shorter than this is an echo or a trivial command — not worth pinging about.
 const LONG_RUN_MS = 3000
 
+// Heuristic: does the recent terminal tail look like Claude is waiting on a
+// yes/no or a choice? Used to re-tone a 'done' notification to 'question' when
+// the pane is actually idle-waiting on the user, not actually finished.
+const CLAUDE_QUESTION_PATTERNS: RegExp[] = [
+  /do you want to/i,
+  /would you like/i,
+  /are you sure/i,
+  /should i (?:continue|proceed|go ahead|run|stop|skip)/i,
+  /(?:^|\n)\s*(?:1\.|2\.|❯).{0,80}(?:yes|no)\b/i,
+  // Claude's interactive selection menu (AskUserQuestion / ExitPlanMode) renders
+  // a `❯` cursor on the highlighted option, regardless of the option text — catch
+  // it without the yes/no constraint above. The glyph is rare in normal output.
+  /(?:^|\n)\s*❯\s+\S/,
+  /press\s+(?:y|enter|any key|return)\b/i,
+  /\(y\/n\)/i,
+  /\?\s*$/m,
+  /awaiting your reply/i,
+  /confirm[:?]/i
+]
+function looksLikeClaudeQuestion(tail: string): boolean {
+  if (!tail) return false
+  // Look only at the last ~1500 chars — older prompts shouldn't drive the
+  // classification of a fresh idle event.
+  const window = tail.slice(-1500)
+  return CLAUDE_QUESTION_PATTERNS.some((re) => re.test(window))
+}
+
 export function markBusy(pane: Pane): void {
   pane.busy = true
   pane.lastActivity = Date.now() // terminal output counts as activity (idle detection)
+  syncPaneStatus(pane)
   if (pane.idleTimer) clearTimeout(pane.idleTimer)
   pane.idleTimer = window.setTimeout(() => {
     pane.busy = false
@@ -634,9 +968,18 @@ export function markBusy(pane: Pane): void {
     // once per command. While still under the threshold we keep waiting (a quiet
     // gap inside the command, e.g. `sleep`, must not disarm it).
     if (pane.busySince > 0 && Date.now() - pane.busySince >= LONG_RUN_MS) {
-      if (notifyPane(pane, `${pane.title || 'zsh'} finished`, 'done')) pane.attention = true
+      // Claude panes: scan the recent buffer tail for question cues so a card
+      // that's really waiting on user input shows up amber, not green.
+      const event: 'question' | 'done' =
+        pane.claude && looksLikeClaudeQuestion(pane.outputTail) ? 'question' : 'done'
+      const body =
+        event === 'question'
+          ? `${pane.title || 'zsh'} is waiting for you`
+          : `${pane.title || 'zsh'} finished`
+      if (notifyPane(pane, body, event)) pane.attention = true
       pane.busySince = 0
     }
+    syncPaneStatus(pane)
     requestStatuses()
   }, 700)
   requestStatuses()
@@ -644,6 +987,24 @@ export function markBusy(pane: Pane): void {
 
 export function paneStatus(p: Pane): PaneStatus {
   return p.attention ? 'attention' : p.busy ? 'running' : 'idle'
+}
+
+// Keep the persisted lifecycle status (NodeStatus on the stableId-keyed node) in
+// sync with the live busy/claude signals. The visual sidebar dot still uses
+// paneStatus()/claudeStatus; this is the durable status that round-trips through
+// persistence. 'archived' is terminal — never auto-overwritten here.
+export function syncPaneStatus(pane: Pane): void {
+  if (pane.status === 'archived') return
+  const next: NodeStatus =
+    pane.claudeStatus === 'question'
+      ? 'waiting'
+      : pane.busy || pane.claudeStatus === 'in-progress'
+        ? 'running'
+        : 'idle'
+  if (next !== pane.status) {
+    pane.status = next
+    saveSoon()
+  }
 }
 
 // Native notification for a pane, but only when it's unattended (window blurred
@@ -662,12 +1023,14 @@ function notifyPane(pane: Pane, body: string, event: 'question' | 'done'): boole
   const tab = findTabByPane(state.tree, pane.id)
   const trail = tab ? ancestorFolders(state.tree, tab.id) : null
   const group = trail && trail.length ? trail.map((f) => f.name).join(' / ') : ''
+  const proj = pane.projectId ? findProjectById(state.tree, pane.projectId) : null
   pushNotification(pane.id, pane.title || 'zsh', group, body, {
     kind: 'pane',
     event,
     branch: pane.branch,
     worktree: pane.worktree,
-    cwd: pane.cwd
+    cwd: pane.cwd,
+    projectColor: proj?.color ?? undefined
   })
   return true
 }
@@ -680,50 +1043,200 @@ function onBell(pane: Pane): void {
 
 function onPaneTitle(pane: Pane, raw: string): void {
   const clean = raw.trim()
-  if (!pane.titleLocked && clean) {
+  // For a Claude pane, the session jsonl is the single source of truth for the
+  // title (applyClaudeSessionTitle). Ignoring the terminal's own OSC title here
+  // stops a shell/cwd repaint from clobbering a freshly /rename'd title — the
+  // race behind "sometimes the rename sticks" — and keeps a cwd title off the
+  // tab label in the brief window before the session id is captured.
+  const claudeDriven = pane.claude
+  if (!pane.titleLocked && !claudeDriven && clean) {
     pane.title = clean
     pane.htitle.textContent = clean
   }
+  mirrorPaneTitleToTab(pane)
+  requestSidebar()
+  saveSoon()
+}
+
+// A single-pane tab's sidebar label mirrors its pane's title. Shared by the OSC
+// title path and the Claude session-title path so a /rename updates the main tab
+// label, not just the per-pane sub-row.
+function mirrorPaneTitleToTab(pane: Pane): void {
   const tab = findTabByPane(state.tree, pane.id)
   if (tab && !tab.titleLocked) {
-    // a single-pane tab mirrors its pane's title
     const firstPaneTitle = panes.get(firstPaneId(tab.root))?.title
     if (firstPaneTitle) tab.title = firstPaneTitle
   }
-  requestSidebar()
-  saveSoon()
 }
 
 function firstPaneId(node: import('./types').LayoutNode): string {
   return node.type === 'leaf' ? node.paneId : firstPaneId(node.children[0])
 }
 
-export async function refreshPaneInfo(pane: Pane): Promise<void> {
-  const info = await window.crafterm.paneInfo(pane.id)
-  const cwdChanged = info.cwd !== pane.cwd
-  const branchChanged = info.branch !== pane.branch
-  pane.cwd = info.cwd
-  pane.branch = info.branch
-  pane.worktree = info.worktree
-  updatePaneStatus(pane)
-  // Plan files for this branch (docs/plans/<branch>-*.md), shown under the node.
-  if (cwdChanged || branchChanged) {
-    const plans =
-      pane.cwd && pane.branch ? await window.crafterm.plansForBranch(pane.cwd, pane.branch) : []
-    const sig = (a: { path: string }[]): string => a.map((x) => x.path).join('|')
-    if (sig(plans) !== sig(pane.plans)) {
-      pane.plans = plans
+// A plan belongs to a pane when its `--pane-<uuid>` tag matches the pane's
+// stableId, or its trailing `-<sessionId>` matches the Claude session id this
+// pane captured. The session-id match is what lets plans written by the
+// SessionStart hook (which appends the Claude session id, not the pane id)
+// attach to the pane that produced them.
+export function isPlanOwnedByPane(
+  plan: { ownerStableId: string | null; ownerSessionId: string | null },
+  pane: Pane
+): boolean {
+  if (plan.ownerStableId && plan.ownerStableId === pane.stableId) return true
+  if (plan.ownerSessionId && plan.ownerSessionId === pane.claudeSessionId) return true
+  return false
+}
+
+export async function refreshPanePlans(pane: Pane): Promise<void> {
+  const plans =
+    pane.cwd && pane.branch ? await window.crafterm.plansForBranch(pane.cwd, pane.branch) : []
+  const sig = (
+    a: { path: string; ownerStableId: string | null; ownerSessionId: string | null }[]
+  ): string => a.map((x) => `${x.path}|${x.ownerStableId ?? ''}|${x.ownerSessionId ?? ''}`).join('§')
+  if (sig(plans) !== sig(pane.plans)) {
+    // Did this pane just gain its first owned plan? Auto-expand the tab's
+    // details so the user sees the plan attach without having to click the
+    // chevron. Skip when the user has already opened/closed details manually
+    // and at least one owned plan exists — only flip on the empty→non-empty edge.
+    const ownedNow = plans.filter((p) => isPlanOwnedByPane(p, pane)).length
+    const ownedBefore = pane.plans.filter((p) => isPlanOwnedByPane(p, pane)).length
+    // Plans this pane owns that weren't present on the previous sync — auto-open
+    // each as a new markdown tab in this pane's group for review (plan mode).
+    const prevOwned = new Set(
+      pane.plans.filter((p) => isPlanOwnedByPane(p, pane)).map((p) => p.path)
+    )
+    const newlyOwned = plans.filter((p) => isPlanOwnedByPane(p, pane) && !prevOwned.has(p.path))
+    pane.plans = plans
+    if (ownedBefore === 0 && ownedNow > 0) {
+      const tab = findTabByPane(state.tree, pane.id)
+      if (tab && !tab.detailsOpen) tab.detailsOpen = true
+    }
+    // Skip the very first population so existing plans aren't opened on launch.
+    // Then auto-open a plan only when BOTH hold: it was produced during this
+    // live session (mtime newer than the pane's Claude launch) AND the session
+    // is in plan mode right now (the JSONL's last permission-mode is 'plan').
+    // Pre-existing plans that merely become "owned" when the session id is
+    // captured (or when the in-memory list transiently empties on a branch/cwd
+    // blip) have an older mtime; plans touched outside plan mode fail the mode
+    // check. Either way they stay listed under the terminal node, not opened.
+    if (pane.plansSynced) {
+      const liveSince = pane.claudeSpawnedAt ?? Number.POSITIVE_INFINITY
+      const fresh = newlyOwned.filter((p) => p.mtime >= liveSince)
+      if (fresh.length && pane.claude && pane.cwd && pane.claudeSessionId) {
+        const mode = await window.crafterm.claudePermissionMode(pane.cwd, pane.claudeSessionId)
+        if (mode === 'plan') {
+          for (const plan of fresh) {
+            // Auto-open disabled: plan stays listed under the terminal node
+            // instead of opening in a group.
+            // paneActions.openPlanInGroup(pane.id, plan.path)
+            pane.planMode = true
+          }
+        }
+      }
+    }
+    pane.plansSynced = true
+    requestSidebar()
+  }
+}
+
+// Poll the session JSONL for this Claude pane's coarse state (in-progress /
+// question / idle) and reflect it on the sidebar when it changes.
+export async function refreshClaudeStatus(pane: Pane): Promise<void> {
+  if (!pane.claude || !pane.cwd || !pane.claudeSessionId) {
+    if (pane.claudeStatus) {
+      pane.claudeStatus = undefined
       requestSidebar()
     }
+    return
   }
-  // For Claude panes, track the latest session id for this cwd so restore can
-  // `claude --resume <id>` the exact conversation that was open here.
-  if (pane.claude && pane.cwd) {
-    const sid = await window.crafterm.claudeLatestSession(pane.cwd)
-    if (sid && sid !== pane.claudeSessionId) {
-      pane.claudeSessionId = sid
+  try {
+    const s = await window.crafterm.claudeSessionStatus(pane.cwd, pane.claudeSessionId)
+    let next = s ?? undefined
+    // Reconcile the JSONL state with the terminal tail using the SAME question
+    // heuristic the notification sound uses (looksLikeClaudeQuestion). The JSONL
+    // tail can't tell "Claude is working" apart from "Claude is blocked on the
+    // user" — an AskUserQuestion/ExitPlanMode tool_use or a permission prompt
+    // both read as in-progress there. When the visible output is a prompt
+    // awaiting the user, surface it as a question so the badge matches the sound.
+    if (next === 'in-progress' && looksLikeClaudeQuestion(pane.outputTail)) {
+      next = 'question'
+    }
+    if (next !== pane.claudeStatus) {
+      pane.claudeStatus = next
+      syncPaneStatus(pane)
+      requestSidebar()
+    }
+  } catch {
+    // best-effort — leave the previous status in place
+  }
+}
+
+export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
+  if (!pane.cwd || !pane.claudeSessionId || pane.titleLocked) return
+  try {
+    const title = await window.crafterm.claudeSessionTitle(pane.cwd, pane.claudeSessionId)
+    if (!title) return
+    if (pane.title !== title) {
+      pane.title = title
+      pane.htitle.textContent = title
+      mirrorPaneTitleToTab(pane)
+      requestSidebar()
       saveSoon()
     }
+  } catch {
+    // ignore — best-effort title sync
+  }
+}
+
+export async function refreshPaneInfo(pane: Pane): Promise<void> {
+  const info = await window.crafterm.paneInfo(pane.id, pane.stableId)
+  // A null cwd means we couldn't read the pane (lsof timed out under heavy load,
+  // or the pty is gone) — never overwrite a known-good cwd/branch/worktree with
+  // it. Persisting an empty location is exactly what made every terminal reopen
+  // at ~ after a hard kill. Keep the last good values and skip the change-save.
+  let cwdChanged = false
+  if (info.cwd !== null) {
+    cwdChanged = info.cwd !== pane.cwd
+    pane.cwd = info.cwd
+    pane.branch = info.branch
+    pane.worktree = info.worktree
+  }
+  if (info.lastCommand) pane.lastCommand = info.lastCommand
+  updatePaneStatus(pane)
+  // Plan files for this branch (docs/plans/<branch>-*.md). We fetch every tick
+  // (cheap — main reads a single directory) so new files appear without
+  // needing a cwd/branch change. The fs.watch broadcast covers the live case.
+  await refreshPanePlans(pane)
+  // For Claude panes, capture the session id this pane is writing to so restore
+  // can `claude --resume <id>` the exact conversation that was open here. We
+  // filter by `claudeSpawnedAt` so the id we pick is one that appeared after
+  // this pane launched claude — never a sibling pane's session in the same cwd.
+  // Once captured, we lock it so the periodic refresh never overwrites it with
+  // whichever jsonl happens to be newest globally for the cwd.
+  if (pane.claude && pane.cwd && !pane.claudeSessionLocked) {
+    const since = pane.claudeSpawnedAt ?? 0
+    const sid = await window.crafterm.claudeLatestSession(pane.cwd, since)
+    if (sid) {
+      if (sid !== pane.claudeSessionId) pane.claudeSessionId = sid
+      pane.claudeSessionLocked = true
+      saveSoon()
+      // Pull the /rename custom-title immediately so the sidebar reflects it
+      // without having to wait for the next xterm OSC repaint. Re-check at 1s
+      // and 3s because Claude may write the title slightly after spawn.
+      applyClaudeSessionTitle(pane)
+      setTimeout(() => applyClaudeSessionTitle(pane), 1000)
+      setTimeout(() => applyClaudeSessionTitle(pane), 3000)
+    }
+  } else if (pane.claude && pane.cwd && pane.claudeSessionId && !pane.titleLocked) {
+    // Already locked: refresh in the background so /rename inside the session
+    // updates the title without requiring a full pane restart.
+    applyClaudeSessionTitle(pane)
+  }
+  // Ensure a live watcher on this session's project dir so /rename reflects
+  // instantly (the watcher re-reads the title on jsonl change). Idempotent in
+  // main, so calling every tick is cheap.
+  if (pane.claude && pane.cwd && pane.claudeSessionId) {
+    void window.crafterm.watchClaudeSessions(pane.cwd)
   }
   requestStatuses()
   if (cwdChanged) saveSoon() // persist the latest cwd so restore reopens here
@@ -750,10 +1263,8 @@ export function updatePaneStatus(pane: Pane): void {
   const cwd = homeShort ? lastPathSegments(homeShort, 4) : null
   const segs: { cls: string; text: string }[] = []
   if (pane.trackProjectPath) {
-    const proj = settings.projects.find((p) => p.path === pane.trackProjectPath)
-    const feat = pane.trackFeatureId
-      ? settings.features.find((f) => f.id === pane.trackFeatureId)
-      : null
+    const proj = findProjectByPath(state.tree, pane.trackProjectPath)
+    const feat = pane.trackFeatureId ? findFeature(state.tree, pane.trackFeatureId)?.feature : null
     segs.push({ cls: 'tracking', text: feat?.name ?? proj?.name ?? 'tracking' })
   }
   if (pane.branch) segs.push({ cls: 'branch', text: pane.branch })

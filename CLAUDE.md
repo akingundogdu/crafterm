@@ -11,9 +11,12 @@ This is the **active, shipping app**. It is built with Electron + xterm.js +
 node-pty (TypeScript). Work happens here, in `src/`.
 
 - **Feature spec (behavior reference):** `docs/features.md`.
-- **Backlog / workflow:** `todo-list.md` (Backlog → In progress → Ready to test →
-  Done). Implement Backlog items easiest-first, move each finished one to **Ready
-  to test**; the user verifies and moves it to **Done**.
+- **Backlog / workflow:** `~/.crafterm/todo-list.json` (used in both dev and
+  production builds — not `~/.crafterm-dev/`). Statuses: Backlog → In progress →
+  Ready to test → Done. Implement Backlog items easiest-first, move each finished
+  one to **Ready to test**; the user verifies and moves it to **Done**. When the
+  user asks for a "todo check" or to work the backlog, read this JSON file
+  directly — the old `todo-list.md` in the repo is deprecated.
 
 ## Tech Stack
 
@@ -50,6 +53,12 @@ npx tsc --noEmit -p tsconfig.node.json   # main + preload
 change with: (1) `npx tsc --noEmit` on both configs, (2) `npm run build`, then
 (3) `npm run dev` and exercise the feature in the running app. Adding a test
 framework is a new dependency — propose it and get approval first.
+
+**NEVER kill the running app without asking first.** Do not run `kill`, `pkill`,
+`killall`, or otherwise terminate a running Crafterm / Electron / `npm run dev`
+process the user has open — not even a dev instance you started yourself for a
+smoke test. The user may be actively using it. If a launched process must be
+stopped, ask first and wait for an explicit OK.
 
 ## Process Model
 
@@ -178,3 +187,9 @@ framework is a new dependency — propose it and get approval first.
 - Use the `<git-branch-name>-<plan-slug>.md` naming format. Ask the user for the
   branch name and the plan slug before writing the file; do not auto-generate
   either.
+- **When running inside a Crafterm terminal**, the filename **must** include the
+  pane suffix so the sidebar attributes the plan to the producing session:
+  `<git-branch-name>-<plan-slug>--pane-${CRAFTERM_PANE_ID}.md`. The env var is
+  injected by Crafterm at pty spawn (`echo $CRAFTERM_PANE_ID` to confirm). A
+  plan written without this suffix is **ignored by the sidebar** — it will not
+  appear under any pane.

@@ -1,5 +1,5 @@
 import type { DirEntry } from '../../preload/api'
-import type { SshConnection, Project, Application } from './types'
+import type { SshConnection, ProjectNode, Application } from './types'
 import { settings, commandHistory, panes, state, saveSoon, persistNow, uid } from './state'
 import {
   openTerminalInDir,
@@ -13,12 +13,18 @@ import {
   splitProjectRight,
   splitActivePane,
   runApplications,
-  createFeature
+  createFeature,
+  resolveAppPath,
+  openLink,
+  openNote
 } from './commands'
 import { allTabs, panesInLayout, ancestorFolders } from './tree'
 import { flattenProjects } from './catalog'
-import { paneStatus } from './pane'
+import { paneStatus, buildPaneMenu } from './pane'
+import { actionMenuSearchEntries } from './sidebar'
 import { promptForm, promptConfirm, makeCloseButton } from './dialog'
+import { collectBackgroundProcesses, killProcess, openProcessView } from './bgproc'
+import type { CollectedProcess } from './bgproc'
 
 function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLElement; close: () => void } {
   const overlay = document.createElement('div')
@@ -237,6 +243,183 @@ export async function showWorktreeDashboard(): Promise<void> {
     })
   }
   renderWt()
+  search.focus()
+}
+
+// ---- Running processes: every tracked background shell, view/kill -------
+//
+// Surfaces the hidden background processes (iOS build/run, worktree
+// create/remove, …) tracked across all worktrees/projects. "View" attaches a
+// transient pane to the still-running PTY; "Kill" terminates it for good.
+
+const PROC_STATUS_LABEL: Record<string, string> = {
+  running: 'running',
+  done: 'done',
+  idle: 'idle',
+  waiting: 'waiting',
+  archived: 'archived'
+}
+
+export function showRunningProcessesDashboard(): void {
+  const { modal, close } = overlayModal('picker-modal')
+
+  const h = document.createElement('h2')
+  h.textContent = 'Running processes'
+  modal.appendChild(h)
+
+  const search = makeSearchInput('Search processes…', () => render())
+  const list = document.createElement('div')
+  list.className = 'pick-list picker-list'
+  modal.append(search, list)
+
+  const render = (): void => {
+    const q = search.value.trim().toLowerCase()
+    // Running first, then everything else; within a group keep tree order.
+    const all = collectBackgroundProcesses().sort((a, b) => {
+      const ar = a.proc.status === 'running' ? 0 : 1
+      const br = b.proc.status === 'running' ? 0 : 1
+      return ar - br
+    })
+    const items = all.filter(
+      (c) =>
+        !q ||
+        `${c.proc.title} ${c.proc.command} ${c.proc.cwd} ${c.proc.target?.name ?? ''}`
+          .toLowerCase()
+          .includes(q)
+    )
+    list.replaceChildren()
+    if (!items.length) {
+      list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No background processes</div>')
+      return
+    }
+    items.forEach((c) => {
+      const row = document.createElement('div')
+      row.className = 'pick-row wt-row'
+
+      const main = document.createElement('div')
+      main.className = 'claude-main'
+      const title = document.createElement('span')
+      title.className = 'claude-title'
+      title.textContent = c.proc.title
+      const sub = document.createElement('span')
+      sub.className = 'claude-sub'
+      sub.textContent = [c.proc.target?.name, c.proc.cwd].filter(Boolean).join(' · ')
+      main.append(title, sub)
+
+      const badge = document.createElement('span')
+      badge.className = 'proc-status proc-status-' + c.proc.status
+      badge.textContent = PROC_STATUS_LABEL[c.proc.status] ?? c.proc.status
+
+      const viewBtn = document.createElement('button')
+      viewBtn.className = 'wt-act'
+      viewBtn.textContent = 'View'
+      viewBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        void openProcessView(c.proc.stableId)
+        close()
+      })
+      const killBtn = document.createElement('button')
+      killBtn.className = 'wt-act wt-remove'
+      killBtn.textContent = 'Kill'
+      killBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        killProcess(c.proc.stableId)
+        render()
+      })
+
+      row.append(main, badge, viewBtn, killBtn)
+      list.appendChild(row)
+    })
+  }
+  render()
+  search.focus()
+}
+
+// ---- Running devices: Crafterm iOS runs grouped by target, stop the app --
+//
+// A Crafterm "build & run" is tracked as a background process carrying its run
+// target (simulator/device). This groups those by target and lets you terminate
+// the running app on a target: iosWorktreeStop terminates the variant on the
+// simulator, then killProcess clears the run PTY + row.
+
+export function showRunningDevicesDashboard(): void {
+  const { modal, close } = overlayModal('picker-modal')
+
+  const h = document.createElement('h2')
+  h.textContent = 'Running devices'
+  modal.appendChild(h)
+
+  const search = makeSearchInput('Search devices…', () => render())
+  const list = document.createElement('div')
+  list.className = 'pick-list picker-list'
+  modal.append(search, list)
+
+  const stopApp = async (c: CollectedProcess): Promise<void> => {
+    await window.crafterm.iosWorktreeStop(c.proc.cwd, c.project?.iosConfig)
+    killProcess(c.proc.stableId)
+    render()
+  }
+
+  const render = (): void => {
+    const q = search.value.trim().toLowerCase()
+    const runs = collectBackgroundProcesses().filter((c) => c.proc.target)
+    // Group by target (kind + name); preserve first-seen order.
+    const groups = new Map<string, { name: string; kind: string; items: CollectedProcess[] }>()
+    for (const c of runs) {
+      const t = c.proc.target!
+      const key = `${t.kind}:${t.name}`
+      let g = groups.get(key)
+      if (!g) {
+        g = { name: t.name, kind: t.kind, items: [] }
+        groups.set(key, g)
+      }
+      g.items.push(c)
+    }
+
+    list.replaceChildren()
+    let shown = 0
+    for (const g of groups.values()) {
+      const items = g.items.filter(
+        (c) => !q || `${g.name} ${c.proc.title} ${c.proc.cwd}`.toLowerCase().includes(q)
+      )
+      if (!items.length) continue
+      shown += items.length
+
+      const header = document.createElement('div')
+      header.className = 'proc-group-header'
+      header.textContent = `${g.name} (${g.kind})`
+      list.appendChild(header)
+
+      items.forEach((c) => {
+        const row = document.createElement('div')
+        row.className = 'pick-row wt-row'
+        const main = document.createElement('div')
+        main.className = 'claude-main'
+        const title = document.createElement('span')
+        title.className = 'claude-title'
+        title.textContent = c.proc.title
+        const sub = document.createElement('span')
+        sub.className = 'claude-sub'
+        sub.textContent = c.proc.cwd
+        main.append(title, sub)
+
+        const stopBtn = document.createElement('button')
+        stopBtn.className = 'wt-act wt-remove'
+        stopBtn.textContent = 'Stop app'
+        stopBtn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          void stopApp(c)
+        })
+
+        row.append(main, stopBtn)
+        list.appendChild(row)
+      })
+    }
+    if (!shown) {
+      list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No apps running on a device</div>')
+    }
+  }
+  render()
   search.focus()
 }
 
@@ -518,14 +701,16 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
       openTab: () => void newTab(parentFolderId),
       openSplit: () => void splitActivePane('row')
     },
-    ...flattenProjects(settings.projects).map((p) => ({
+    ...flattenProjects(state.tree).map((p) => ({
       label: p.name,
       sub: p.command ? `${p.path} · ${p.command}` : p.path,
-      openTab: () => void openProject(p, parentFolderId),
+      // Always nest the new terminal under the picked project's node (not the
+      // cmd+O context), so it's grouped with that project in the sidebar.
+      openTab: () => void openProject(p),
       openSplit: () => void splitProjectRight(p)
     })),
     // run-apps entries for projects that define applications
-    ...flattenProjects(settings.projects)
+    ...flattenProjects(state.tree)
       .filter((p) => p.apps?.length)
       .map((p) => ({
         label: `▷ ${p.name} — run apps`,
@@ -870,7 +1055,7 @@ export async function showAllMarkdown(): Promise<void> {
 // ---- Run applications: pick environment + apps, open a tiled tab ----
 
 // Modal for one project: choose an environment, tick apps, run them together.
-export function showRunApps(project: Project): void {
+export function showRunApps(project: ProjectNode): void {
   const apps = project.apps ?? []
   const { modal, close } = overlayModal('picker-modal')
   const h = document.createElement('h2')
@@ -954,8 +1139,8 @@ export function showRunApps(project: Project): void {
 
 // Pick a project that has applications, then open its run modal.
 // Shared: pick a project that has applications, then run `onPick`.
-function pickProjectWithApps(title: string, onPick: (p: Project) => void): void {
-  const projects = flattenProjects(settings.projects).filter((p) => p.apps?.length)
+function pickProjectWithApps(title: string, onPick: (p: ProjectNode) => void): void {
+  const projects = flattenProjects(state.tree).filter((p) => p.apps?.length)
   const { modal, close } = overlayModal('picker-modal')
   const h = document.createElement('h2')
   h.textContent = title
@@ -972,11 +1157,11 @@ function pickProjectWithApps(title: string, onPick: (p: Project) => void): void 
   list.className = 'pick-list picker-list'
   modal.append(h, input, list)
   let sel = 0
-  const filtered = (): Project[] => {
+  const filtered = (): ProjectNode[] => {
     const q = input.value.trim().toLowerCase()
     return q ? projects.filter((p) => `${p.name} ${p.path}`.toLowerCase().includes(q)) : projects
   }
-  const choose = (p: Project): void => {
+  const choose = (p: ProjectNode): void => {
     close()
     onPick(p)
   }
@@ -1037,24 +1222,153 @@ export function showFeaturePicker(): void {
   pickProjectWithApps('New feature', showFeatureSetup)
 }
 
+// Project-specific named commands: a list with two run options per row —
+// "Split" (drop into a split beside the active pane) and "New tab" (open as
+// its own terminal under the project). Both spawn at the project's path.
+export function showRunCommand(project: ProjectNode): void {
+  const cmds = project.runCommands ?? []
+  const { modal, close } = overlayModal('picker-modal')
+  const h = document.createElement('h2')
+  h.textContent = `Run command — ${project.name}`
+  modal.append(h)
+  if (!cmds.length) {
+    modal.insertAdjacentHTML(
+      'beforeend',
+      '<div class="empty-hint">No run commands. Add them in Settings → Projects.</div>'
+    )
+    return
+  }
+  const list = document.createElement('div')
+  list.className = 'pick-list picker-list'
+  modal.append(list)
+  for (const rc of cmds) {
+    const row = document.createElement('div')
+    row.className = 'pick-row project-row'
+    const main = document.createElement('div')
+    main.className = 'claude-main'
+    const title = document.createElement('span')
+    title.className = 'picker-name'
+    title.textContent = rc.name
+    const sub = document.createElement('span')
+    sub.className = 'project-sub'
+    sub.textContent = rc.command
+    main.append(title, sub)
+    const splitBtn = document.createElement('button')
+    splitBtn.className = 'wt-act'
+    splitBtn.textContent = 'Split'
+    splitBtn.title = 'Run in a split beside the active pane'
+    splitBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void splitProjectRight({
+        name: rc.name,
+        path: project.path,
+        command: rc.command,
+        env: project.env,
+        shell: project.shell
+      })
+      close()
+    })
+    const tabBtn = document.createElement('button')
+    tabBtn.className = 'wt-act'
+    tabBtn.textContent = 'New tab'
+    tabBtn.title = 'Run in a new terminal tab under the project'
+    tabBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void openProject(
+        {
+          name: rc.name,
+          path: project.path,
+          command: rc.command,
+          env: project.env,
+          shell: project.shell
+        },
+        project.id
+      )
+      close()
+    })
+    row.append(main, splitBtn, tabBtn)
+    list.appendChild(row)
+  }
+}
+
+// Launch a single application (from the pane ⋯ menu). Lists each environment the
+// app has a command for; Split runs it beside the active pane, New tab opens it in
+// a fresh tab under the project. The project's startup is chained before the dev
+// command, matching runApplications().
+export function showRunApp(project: ProjectNode, app: Application): void {
+  const envs = settings.environments.filter((e) => (app.commands?.[e] ?? '').trim())
+  const { modal, close } = overlayModal('picker-modal')
+  const h = document.createElement('h2')
+  h.textContent = `Run ${app.name} — ${project.name}`
+  modal.append(h)
+  if (!envs.length) {
+    modal.insertAdjacentHTML(
+      'beforeend',
+      '<div class="empty-hint">No commands configured for this application. Add them in Settings → Projects.</div>'
+    )
+    return
+  }
+  const appPath = resolveAppPath(project.path, app.path)
+  const startup = project.startup?.trim()
+  const list = document.createElement('div')
+  list.className = 'pick-list picker-list'
+  modal.append(list)
+  for (const env of envs) {
+    const dev = (app.commands[env] ?? '').trim()
+    const command = startup ? `${startup} && ${dev}` : dev
+    const row = document.createElement('div')
+    row.className = 'pick-row project-row'
+    const main = document.createElement('div')
+    main.className = 'claude-main'
+    const title = document.createElement('span')
+    title.className = 'picker-name'
+    title.textContent = env
+    const sub = document.createElement('span')
+    sub.className = 'project-sub'
+    sub.textContent = dev
+    main.append(title, sub)
+    const target = { name: `${app.name} · ${env}`, path: appPath, command, env: project.env, shell: project.shell }
+    const splitBtn = document.createElement('button')
+    splitBtn.className = 'wt-act'
+    splitBtn.textContent = 'Split'
+    splitBtn.title = 'Run in a split beside the active pane'
+    splitBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void splitProjectRight(target)
+      close()
+    })
+    const tabBtn = document.createElement('button')
+    tabBtn.className = 'wt-act'
+    tabBtn.textContent = 'New tab'
+    tabBtn.title = 'Run in a new terminal tab under the project'
+    tabBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void openProject(target, project.id)
+      close()
+    })
+    row.append(main, splitBtn, tabBtn)
+    list.appendChild(row)
+  }
+}
+
 // ---- Feature setup: feature name + branch + env + apps (+ per-app worktree) ----
 
 const sanitizeBranch = (s: string): string => s.trim().replace(/\s+/g, '-')
 
-export function showFeatureSetup(project: Project): void {
+export function showFeatureSetup(project: ProjectNode): void {
   const apps = project.apps ?? []
+  const hasApps = apps.length > 0 && settings.environments.length > 0
   const { modal, close } = overlayModal('picker-modal')
   const h = document.createElement('h2')
   h.textContent = `New feature — ${project.name}`
   modal.append(h)
-  if (!apps.length || !settings.environments.length) {
+  if (!hasApps) {
     modal.insertAdjacentHTML(
       'beforeend',
       `<div class="empty-hint">${
-        apps.length ? 'No environments.' : 'No applications.'
-      } Add them in Settings → Projects.</div>`
+        apps.length ? 'No environments configured.' : 'No applications defined for this project.'
+      } The feature folder will be created without any auto-spawned terminals. Define apps in Settings → Projects to launch them automatically.</div>`
     )
-    return
   }
 
   modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Feature name</div>')
@@ -1082,66 +1396,68 @@ export function showFeatureSetup(project: Project): void {
   baseInput.value = 'main'
   modal.append(baseInput)
 
-  let env = settings.environments[0]
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
-  const envBar = document.createElement('div')
-  envBar.className = 'run-env-bar'
-  const envBtns: HTMLButtonElement[] = []
-  settings.environments.forEach((name) => {
-    const b = document.createElement('button')
-    b.className = 'run-env-chip' + (name === env ? ' active' : '')
-    b.textContent = name
-    b.addEventListener('click', () => {
-      env = name
-      envBtns.forEach((x) => x.classList.toggle('active', x === b))
-      renderApps()
-    })
-    envBtns.push(b)
-    envBar.appendChild(b)
-  })
-  modal.append(envBar)
-
-  modal.insertAdjacentHTML(
-    'beforeend',
-    '<div class="reminder-label">Applications (✓ include · ⑂ worktree)</div>'
-  )
-  const list = document.createElement('div')
-  list.className = 'run-app-list'
-  modal.append(list)
+  let env = settings.environments[0] ?? ''
   const incl = new Map<Application, HTMLInputElement>()
   const wt = new Map<Application, HTMLInputElement>()
-  const renderApps = (): void => {
-    list.replaceChildren()
-    incl.clear()
-    wt.clear()
-    apps.forEach((app) => {
-      const cmd = (app.commands?.[env] ?? '').trim()
-      const row = document.createElement('div')
-      row.className = 'run-app-row feature-app-row' + (cmd ? '' : ' disabled')
-      const cb = document.createElement('input')
-      cb.type = 'checkbox'
-      cb.checked = !!cmd
-      cb.disabled = !cmd
-      cb.title = 'Include'
-      const name = document.createElement('span')
-      name.className = 'run-app-name'
-      name.textContent = app.name
-      const sub = document.createElement('span')
-      sub.className = 'run-app-cmd'
-      sub.textContent = cmd || `no command for ${env}`
-      const wtLabel = document.createElement('label')
-      wtLabel.className = 'feature-wt'
-      const wtCb = document.createElement('input')
-      wtCb.type = 'checkbox'
-      wtCb.disabled = !cmd
-      wtLabel.append(wtCb, document.createTextNode('worktree'))
-      row.append(cb, name, sub, wtLabel)
-      incl.set(app, cb)
-      wt.set(app, wtCb)
-      list.appendChild(row)
+  if (hasApps) {
+    modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
+    const envBar = document.createElement('div')
+    envBar.className = 'run-env-bar'
+    const envBtns: HTMLButtonElement[] = []
+    settings.environments.forEach((name) => {
+      const b = document.createElement('button')
+      b.className = 'run-env-chip' + (name === env ? ' active' : '')
+      b.textContent = name
+      b.addEventListener('click', () => {
+        env = name
+        envBtns.forEach((x) => x.classList.toggle('active', x === b))
+        renderApps()
+      })
+      envBtns.push(b)
+      envBar.appendChild(b)
     })
+    modal.append(envBar)
+
+    modal.insertAdjacentHTML(
+      'beforeend',
+      '<div class="reminder-label">Applications (✓ include · ⑂ worktree)</div>'
+    )
+    const list = document.createElement('div')
+    list.className = 'run-app-list'
+    modal.append(list)
+    const renderApps = (): void => {
+      list.replaceChildren()
+      incl.clear()
+      wt.clear()
+      apps.forEach((app) => {
+        const cmd = (app.commands?.[env] ?? '').trim()
+        const row = document.createElement('div')
+        row.className = 'run-app-row feature-app-row' + (cmd ? '' : ' disabled')
+        const cb = document.createElement('input')
+        cb.type = 'checkbox'
+        cb.checked = !!cmd
+        cb.disabled = !cmd
+        cb.title = 'Include'
+        const name = document.createElement('span')
+        name.className = 'run-app-name'
+        name.textContent = app.name
+        const sub = document.createElement('span')
+        sub.className = 'run-app-cmd'
+        sub.textContent = cmd || `no command for ${env}`
+        const wtLabel = document.createElement('label')
+        wtLabel.className = 'feature-wt'
+        const wtCb = document.createElement('input')
+        wtCb.type = 'checkbox'
+        wtCb.disabled = !cmd
+        wtLabel.append(wtCb, document.createTextNode('worktree'))
+        row.append(cb, name, sub, wtLabel)
+        incl.set(app, cb)
+        wt.set(app, wtCb)
+        list.appendChild(row)
+      })
+    }
+    renderApps()
   }
-  renderApps()
 
   const actions = document.createElement('div')
   actions.className = 'modal-actions'
@@ -1996,7 +2312,36 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   const { modal, close } = overlayModal('picker-modal')
 
   const h = document.createElement('h2')
-  h.textContent = 'Checkout branch'
+  h.textContent = 'Branch'
+  modal.append(h)
+
+  // Quick chips: fire common git commands into the pane without leaving the modal.
+  const actions = document.createElement('div')
+  actions.className = 'git-quick-actions'
+  const runInPane = (cmd: string): void => {
+    selectPane(paneId)
+    window.crafterm.input(paneId, cmd + '\r')
+    close()
+  }
+  const addChip = (label: string, cmd: string, title: string): void => {
+    const b = document.createElement('button')
+    b.className = 'git-quick-chip'
+    b.type = 'button'
+    b.textContent = label
+    b.title = title
+    b.addEventListener('click', () => runInPane(cmd))
+    actions.appendChild(b)
+  }
+  addChip('Fetch', 'git fetch --all --prune', 'git fetch --all --prune')
+  addChip('Pull', 'git pull', 'git pull')
+  addChip('Status', 'git status', 'git status')
+  modal.append(actions)
+
+  const sub = document.createElement('div')
+  sub.className = 'git-quick-sub'
+  sub.textContent = 'Checkout'
+  modal.append(sub)
+
   const input = document.createElement('input')
   input.className = 'picker-input'
   input.type = 'text'
@@ -2004,7 +2349,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   input.spellcheck = false
   const list = document.createElement('div')
   list.className = 'pick-list picker-list'
-  modal.append(h, input, list)
+  modal.append(input, list)
 
   if (!branches.length) {
     list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No branches (not a git repo?)</div>')
@@ -2150,14 +2495,252 @@ export async function runUpdate(): Promise<void> {
 
   // Build the new bundle (runs in main; can take a while).
   const s2 = step('Building new bundle…')
-  const res = await window.crafterm.deployBuild(repo)
+  const cmd = settings.updateCommand.trim() || 'run-crafterm-deploy'
+  const res = await window.crafterm.deployBuild(repo, cmd)
   if (!res.ok) {
     s2.fail(res.error || 'Build failed. See ~/.crafterm/deploy.log for details.')
     return
   }
   s2.done()
 
+  // Close every session and wait for each PTY to actually exit BEFORE quitting.
+  // Killing PTYs during the quit teardown races node-pty's exit callbacks and
+  // crashes the process; draining here, while the app is still healthy, avoids
+  // that. Children that ignore SIGHUP are force-killed after 5s in the main
+  // process, so this resolves promptly.
+  const s3 = step('Closing sessions…')
+  await window.crafterm.deployKillAllPtys()
+  s3.done()
+
   // Swap the installed app + relaunch (detached); the app quits right after.
   step('Restarting…')
   await window.crafterm.deploySwap(repo)
+}
+
+// ---- Spotlight: global search across every navigable surface ---------------
+// Cmd+J. Fuzzy-substring match across projects, features, open panes, notebook
+// docs, bookmarks, plan files, and accounts. Hitting Enter dispatches to the
+// right opener for the picked entry's source.
+interface GsEntry {
+  source:
+    | 'project'
+    | 'feature'
+    | 'pane'
+    | 'notebook'
+    | 'bookmark'
+    | 'plan'
+    | 'account'
+    | 'action'
+    | 'pane-action'
+  label: string
+  detail?: string
+  open: () => void
+}
+
+async function buildGlobalSearchIndex(): Promise<GsEntry[]> {
+  const out: GsEntry[] = []
+  // projects + their features
+  for (const p of flattenProjects(state.tree)) {
+    out.push({
+      source: 'project',
+      label: p.name,
+      detail: p.path,
+      open: () => void splitProjectRight(p)
+    })
+    if (p.features) {
+      for (const f of p.features) {
+        out.push({
+          source: 'feature',
+          label: f.name,
+          detail: p.name,
+          open: () => void splitProjectRight(p)
+        })
+      }
+    }
+  }
+  // open panes
+  for (const pane of panes.values()) {
+    const tab = allTabs(state.tree).find((t) => panesInLayout(t.root).includes(pane.id))
+    out.push({
+      source: 'pane',
+      label: pane.title || 'terminal',
+      detail: [tab?.title, pane.cwd, pane.branch].filter(Boolean).join(' · '),
+      open: () => selectPane(pane.id)
+    })
+  }
+  // bookmarks
+  for (const bm of settings.bookmarks) {
+    out.push({
+      source: 'bookmark',
+      label: bm.title,
+      detail: bm.type === 'link' ? bm.content : bm.tags.join(', '),
+      open: () => void openLink(bm.content)
+    })
+  }
+  // accounts
+  for (const a of settings.accounts) {
+    out.push({
+      source: 'account',
+      label: a.label,
+      detail: [a.kind === 'secret' ? 'secret' : a.service, a.login].filter(Boolean).join(' · '),
+      // No deep-link into Accounts mode form yet — surface by switching to the
+      // sidebar tab so the user can find it.
+      open: () => document.getElementById('tab-accounts')?.dispatchEvent(new MouseEvent('click'))
+    })
+  }
+  // plan files (one per pane, deduped by path)
+  const seenPlans = new Set<string>()
+  for (const pane of panes.values()) {
+    for (const plan of pane.plans) {
+      if (seenPlans.has(plan.path)) continue
+      seenPlans.add(plan.path)
+      out.push({
+        source: 'plan',
+        label: plan.name.replace(/\.(md|mdx|mdc)$/i, ''),
+        detail: plan.path,
+        open: () => openMarkdownFile(plan.path)
+      })
+    }
+  }
+  // notebook tree (flat)
+  try {
+    const tree = await window.crafterm.nbTree()
+    const walk = (nodes: typeof tree, parent: string): void => {
+      for (const n of nodes) {
+        const path = parent ? `${parent}/${n.name}` : n.name
+        if (n.kind === 'file') {
+          out.push({
+            source: 'notebook',
+            label: n.name.replace(/\.(md|mdx|mdc)$/i, ''),
+            detail: parent,
+            open: () => openNote(n.path)
+          })
+        }
+        if (n.children) walk(n.children, path)
+      }
+    }
+    walk(tree, '')
+  } catch {
+    // ignore — notebook IPC may fail in dev
+  }
+  // sidebar ⋯ action menu (global actions)
+  for (const a of actionMenuSearchEntries()) {
+    out.push({ source: 'action', label: a.label, open: a.run })
+  }
+  // active pane's ⋯ menu (pane-scoped actions, run commands, SSH, background)
+  const apid = state.activePaneId
+  if (apid && panes.has(apid)) {
+    const paneTitle = panes.get(apid)?.title || 'terminal'
+    for (const e of buildPaneMenu(apid)) {
+      if (e.kind === 'label') continue
+      out.push({ source: 'pane-action', label: e.label, detail: paneTitle, open: e.run })
+    }
+  }
+  return out
+}
+
+const SOURCE_LABEL: Record<GsEntry['source'], string> = {
+  project: 'PROJECT',
+  feature: 'FEATURE',
+  pane: 'PANE',
+  notebook: 'NOTE',
+  bookmark: 'BOOKMARK',
+  plan: 'PLAN',
+  account: 'ACCOUNT',
+  action: 'ACTION',
+  'pane-action': 'PANE ACTION'
+}
+
+export async function showGlobalSearch(): Promise<void> {
+  const entries = await buildGlobalSearchIndex()
+  const { modal, close } = overlayModal('picker-modal')
+  const h = document.createElement('h2')
+  h.textContent = 'Search Crafterm'
+  modal.appendChild(h)
+  const input = document.createElement('input')
+  input.className = 'picker-input'
+  input.type = 'text'
+  input.placeholder = 'Search projects, panes, actions, bookmarks, notes, plans…'
+  input.spellcheck = false
+  const list = document.createElement('div')
+  list.className = 'pick-list picker-list'
+  modal.append(input, list)
+
+  let sel = 0
+  const filtered = (): GsEntry[] => {
+    const q = input.value.trim().toLowerCase()
+    if (!q) return entries.slice(0, 100)
+    return entries
+      .filter((e) => `${e.label} ${e.detail ?? ''} ${e.source}`.toLowerCase().includes(q))
+      .slice(0, 100)
+  }
+
+  const choose = (e: GsEntry): void => {
+    close()
+    e.open()
+  }
+
+  const highlight = (): void => {
+    list.querySelectorAll<HTMLElement>('.pick-row').forEach((el, i) => {
+      el.classList.toggle('active', i === sel)
+    })
+  }
+
+  const render = (): void => {
+    const items = filtered()
+    if (sel >= items.length) sel = Math.max(0, items.length - 1)
+    list.replaceChildren()
+    if (!items.length) {
+      list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
+      return
+    }
+    items.forEach((e, i) => {
+      const row = document.createElement('button')
+      row.className = 'pick-row gs-row' + (i === sel ? ' active' : '')
+      const badge = document.createElement('span')
+      badge.className = 'gs-badge gs-' + e.source
+      badge.textContent = SOURCE_LABEL[e.source]
+      const lab = document.createElement('span')
+      lab.className = 'gs-label'
+      lab.textContent = e.label
+      row.append(badge, lab)
+      if (e.detail) {
+        const sub = document.createElement('span')
+        sub.className = 'gs-detail'
+        sub.textContent = e.detail
+        row.append(sub)
+      }
+      row.addEventListener('click', () => choose(e))
+      row.addEventListener('mouseenter', () => {
+        sel = i
+        highlight()
+      })
+      list.appendChild(row)
+    })
+  }
+
+  input.addEventListener('input', () => {
+    sel = 0
+    render()
+  })
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation()
+    const items = filtered()
+    if (e.key === 'Escape') close()
+    else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      sel = Math.min(items.length - 1, sel + 1)
+      highlight()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      sel = Math.max(0, sel - 1)
+      highlight()
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (items[sel]) choose(items[sel])
+    }
+  })
+
+  render()
+  setTimeout(() => input.focus(), 0)
 }

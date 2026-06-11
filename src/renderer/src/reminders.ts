@@ -1,6 +1,7 @@
 import { settings, saveSoon, pushNotification, uid } from './state'
-import type { Reminder } from './types'
+import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from './types'
 import { makeCloseButton } from './dialog'
+import { createDateField } from './datepicker'
 
 const DAY = 86_400_000
 const WEEK = 7 * DAY
@@ -8,6 +9,53 @@ const HOUR = 3_600_000
 
 function listEl(): HTMLElement {
   return document.getElementById('reminder-list')!
+}
+
+// YYYY-MM-DD key (local) for a timestamp — used to home a linked daily task.
+function ymdOf(ts: number): string {
+  const d = new Date(ts)
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+// For a typed reminder, create the linked record (bookmark / link bookmark /
+// daily task) and return the payload that ties the reminder back to it.
+function createLinkedRecord(
+  category: NonNullable<Reminder['category']>,
+  body: string,
+  ts: number
+): ReminderPayload | undefined {
+  if (category === 'bookmark' || category === 'link') {
+    const bm: Bookmark = {
+      id: uid('bm'),
+      type: category === 'link' ? 'link' : 'text',
+      title: body.split('\n')[0].slice(0, 80) || 'Bookmark',
+      content: body,
+      tags: [],
+      createdAt: Date.now()
+    }
+    settings.bookmarks.push(bm)
+    return { kind: 'bookmark', bookmarkId: bm.id }
+  }
+  if (category === 'dailyTask') {
+    const date = ymdOf(ts)
+    const peers = settings.dailyPlan.tasks.filter((t) => t.date === date && t.status === 'todo')
+    const now = Date.now()
+    const task: DailyPlanTask = {
+      id: uid('task'),
+      title: body.split('\n')[0].slice(0, 120) || 'Task',
+      date,
+      status: 'todo',
+      priority: 'medium',
+      tagIds: [],
+      order: peers.length ? Math.max(...peers.map((t) => t.order)) + 1 : 0,
+      createdAt: now,
+      updatedAt: now
+    }
+    settings.dailyPlan.tasks.push(task)
+    return { kind: 'dailyTask', taskId: task.id }
+  }
+  return undefined
 }
 
 // timestamp → value for <input type="datetime-local"> (local time, no seconds)
@@ -41,29 +89,29 @@ function relPast(ts: number): string {
 function repeatLabel(r: Reminder): string {
   if (r.repeat === 'daily') return 'daily'
   if (r.repeat === 'weekly') return 'weekly'
+  if (r.repeat === 'biweekly') return 'every 2 weeks'
+  if (r.repeat === 'monthly') return 'monthly'
   if (r.repeat === 'interval') return `every ${r.intervalMin ?? 30}m`
   return ''
 }
 
-// Quick time presets shown in the reminder form (label → absolute timestamp).
+// Resolve a configurable preset to an absolute timestamp.
+function presetAt(p: { offsetMin?: number; days?: number; snapHour?: boolean }): number {
+  if (typeof p.offsetMin === 'number') return Date.now() + p.offsetMin * 60_000
+  const d = new Date(Date.now() + (p.days ?? 0) * DAY)
+  if (p.snapHour) d.setHours(settings.reminderDefaults.defaultHour, 0, 0, 0)
+  return d.getTime()
+}
+
+// Quick time presets shown in the reminder form (label → absolute timestamp),
+// sourced from the user-editable Settings → Reminders config.
 function quickPresets(): { label: string; at: () => number }[] {
-  const tomorrow9 = (): number => {
-    const d = new Date(Date.now() + DAY)
-    d.setHours(9, 0, 0, 0)
-    return d.getTime()
-  }
-  return [
-    { label: '+15m', at: () => Date.now() + 15 * 60_000 },
-    { label: '+30m', at: () => Date.now() + 30 * 60_000 },
-    { label: '+1h', at: () => Date.now() + HOUR },
-    { label: '+2h', at: () => Date.now() + 2 * HOUR },
-    { label: '+3h', at: () => Date.now() + 3 * HOUR },
-    { label: '+5h', at: () => Date.now() + 5 * HOUR },
-    { label: 'Tomorrow 9:00', at: tomorrow9 },
-    { label: '+2 days', at: () => Date.now() + 2 * DAY },
-    { label: '+3 days', at: () => Date.now() + 3 * DAY },
-    { label: '+4 days', at: () => Date.now() + 4 * DAY }
-  ]
+  const hour = settings.reminderDefaults.defaultHour
+  return settings.reminderDefaults.presets.map((p) => ({
+    // "Tomorrow"-style chips show the resolved default hour for clarity.
+    label: p.snapHour ? `${p.label} ${String(hour).padStart(2, '0')}:00` : p.label,
+    at: () => presetAt(p)
+  }))
 }
 
 // Snooze offsets offered on a reminder notification card ("remind me later").
@@ -89,8 +137,22 @@ export function snoozeOptions(): { label: string; at: number }[] {
 
 // Push the reminder's next fire time past `now` (covers missed firings while away).
 function advance(r: Reminder, now: number): void {
+  if (r.repeat === 'monthly') {
+    const d = new Date(r.time)
+    do {
+      d.setMonth(d.getMonth() + 1)
+    } while (d.getTime() <= now)
+    r.time = d.getTime()
+    return
+  }
   const step =
-    r.repeat === 'daily' ? DAY : r.repeat === 'weekly' ? WEEK : (r.intervalMin ?? 30) * 60_000
+    r.repeat === 'daily'
+      ? DAY
+      : r.repeat === 'weekly'
+        ? WEEK
+        : r.repeat === 'biweekly'
+          ? 2 * WEEK
+          : (r.intervalMin ?? 30) * 60_000
   if (step <= 0) {
     r.enabled = false
     return
@@ -101,19 +163,26 @@ function advance(r: Reminder, now: number): void {
 }
 
 function fire(r: Reminder): void {
-  pushNotification('', '⏰ Reminder', '', r.text, { kind: 'reminder', reminderText: r.text })
+  pushNotification('', '⏰ Reminder', '', r.text, {
+    kind: 'reminder',
+    reminderText: r.text,
+    payload: r.payload
+  })
   window.crafterm.notify('Reminder', r.text)
   if (settings.notifSound) window.crafterm.playSound(settings.notifSound)
 }
 
 // Re-arm a reminder (or create one) from a snooze action on its notification card.
-export function snoozeReminder(text: string, at: number): void {
+// Optional payload links the reminder to a bookmark / pane / notebook entry so
+// the eventual notification card can render an Open action.
+export function snoozeReminder(text: string, at: number, payload?: ReminderPayload): void {
   settings.reminders.push({
     id: uid('rem'),
     text,
     time: at,
     repeat: 'none',
-    enabled: true
+    enabled: true,
+    payload
   })
   saveSoon()
   renderReminders()
@@ -234,10 +303,11 @@ export function openReminderForm(existing?: Reminder): void {
 
   // when
   modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">When</div>')
-  const when = document.createElement('input')
-  when.type = 'datetime-local'
-  when.className = 'reminder-input'
-  when.value = toLocalInput(existing && !reArm ? existing.time : Date.now() + HOUR)
+  const when = createDateField({
+    mode: 'datetime',
+    value: toLocalInput(existing && !reArm ? existing.time : Date.now() + HOUR),
+    className: 'reminder-input'
+  })
   modal.appendChild(when)
 
   const quick = document.createElement('div')
@@ -262,6 +332,26 @@ export function openReminderForm(existing?: Reminder): void {
   text.value = existing?.text ?? ''
   modal.appendChild(text)
 
+  // type: a new reminder can also create a linked bookmark / link / daily task.
+  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Type</div>')
+  const typeSel = document.createElement('select')
+  typeSel.className = 'settings-select'
+  ;[
+    ['normal', 'Reminder only'],
+    ['bookmark', 'Bookmark'],
+    ['link', 'Link'],
+    ['dailyTask', 'Daily task']
+  ].forEach(([v, lbl]) => {
+    const o = document.createElement('option')
+    o.value = v
+    o.textContent = lbl
+    if ((existing?.category ?? 'normal') === v) o.selected = true
+    typeSel.appendChild(o)
+  })
+  // Editing an existing reminder shouldn't silently re-create linked records.
+  if (existing) typeSel.disabled = true
+  modal.appendChild(typeSel)
+
   // repeat
   modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Repeat</div>')
   const repeatRow = document.createElement('div')
@@ -272,6 +362,8 @@ export function openReminderForm(existing?: Reminder): void {
     ['none', 'No repeat'],
     ['daily', 'Daily'],
     ['weekly', 'Weekly'],
+    ['biweekly', 'Every 2 weeks'],
+    ['monthly', 'Monthly'],
     ['interval', 'Every N minutes']
   ].forEach(([v, lbl]) => {
     const o = document.createElement('option')
@@ -315,13 +407,19 @@ export function openReminderForm(existing?: Reminder): void {
       existing.enabled = true
       existing.firedAt = undefined
     } else {
+      const category = typeSel.value as NonNullable<Reminder['category']>
+      // Cross-create the linked record (bookmark / link / daily task) and point
+      // the reminder's payload at it so the notification's Open jumps there.
+      const payload = createLinkedRecord(category, body, ts)
       settings.reminders.push({
         id: uid('rem'),
         text: body,
         time: ts,
         repeat: rep,
         intervalMin: rep === 'interval' ? intervalMin : undefined,
-        enabled: true
+        enabled: true,
+        category,
+        payload
       })
     }
     saveSoon()
@@ -333,6 +431,47 @@ export function openReminderForm(existing?: Reminder): void {
 
   document.body.appendChild(overlay)
   when.focus()
+}
+
+// Shared "Remind me about this" modal used by bookmarks, notebook items, and any
+// other place that wants to attach a reminder with a payload. Renders the same
+// snooze-chip grid as the right-panel cards.
+export function showRemindModal(
+  subject: string,
+  reminderText: string,
+  payload: ReminderPayload
+): void {
+  const overlay = document.createElement('div')
+  overlay.className = 'modal-overlay'
+  const modal = document.createElement('div')
+  modal.className = 'modal prompt-modal'
+  overlay.appendChild(modal)
+  const close = (): void => overlay.remove()
+  overlay.addEventListener('mousedown', (e) => {
+    if (e.target === overlay) close()
+  })
+  modal.appendChild(makeCloseButton(close))
+  const h = document.createElement('h2')
+  h.textContent = 'Remind me about this'
+  modal.appendChild(h)
+  const sub = document.createElement('div')
+  sub.className = 'field-hint'
+  sub.textContent = subject
+  modal.appendChild(sub)
+  const chips = document.createElement('div')
+  chips.className = 'bm-remind-chips'
+  for (const opt of snoozeOptions()) {
+    const b = document.createElement('button')
+    b.className = 'bm-remind-chip'
+    b.textContent = opt.label
+    b.addEventListener('click', () => {
+      snoozeReminder(reminderText, opt.at, payload)
+      close()
+    })
+    chips.appendChild(b)
+  }
+  modal.appendChild(chips)
+  document.body.appendChild(overlay)
 }
 
 export function startReminderTimer(): void {
