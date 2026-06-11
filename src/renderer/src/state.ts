@@ -3,7 +3,8 @@ import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, SidebarNo
 import { BUILTIN_ACTIONS } from './types'
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from './themes'
 import { PALETTE_SEED } from './palette-seed'
-import { allTabs } from './tree'
+import { allTabs, panesInLayout } from './tree'
+import type { LayoutNode, NodeStatus } from './types'
 import type { SavedState, SavedSidebarNode, SavedNode } from '../../preload/api'
 
 // ---- Live state (mutated in place; modules import these singletons) ----
@@ -71,6 +72,7 @@ export const settings = {
   bgColor: '#000000', // terminal/app background; user-selectable, defaults to black
   docFontSize: 15, // markdown (notebook) doc font size; Cmd+/- when a doc is focused
   codeRoot: '', // base folder for the Cmd+P folder picker ('' = home)
+  prProjects: [] as string[], // repo paths shown in the PR panel's "All projects" view
   todoFile: '', // path to todo-list.md for the Improve Crafterm panel
   repoPath: '', // Crafterm source repo path used by the "Update Crafterm" action
   updateCommand: 'run-crafterm-deploy', // shell command run in repoPath to rebuild the app
@@ -131,7 +133,9 @@ export const settings = {
   // hide lists keyed by strip. Configured in Settings → Tabs.
   tabDisplay: {
     mode: 'icon' as 'icon' | 'text' | 'both',
-    hidden: { left: [] as string[], right: [] as string[] }
+    hidden: { left: [] as string[], right: [] as string[] },
+    // Per-strip tab order (button ids). Empty -> natural TAB_META order.
+    order: { left: [] as string[], right: [] as string[] }
   },
   bindings: {} as Record<string, string>, // keybinding overrides (action id -> combo)
   sidebar: {
@@ -146,7 +150,11 @@ export const settings = {
 
 let seq = 0
 export function uid(prefix: string): string {
-  return prefix + ++seq
+  // `seq` alone restarts at 0 each session while ids persist, so a fresh session
+  // would regenerate `tag1`, `task1`, … and collide with saved entities (a lookup
+  // by id then returns the wrong, older one). Prefix the per-session time so ids
+  // are unique across sessions; `++seq` keeps them unique within one.
+  return `${prefix}${Date.now().toString(36)}${(++seq).toString(36)}`
 }
 
 export function resolveTheme(): ITheme {
@@ -223,7 +231,14 @@ export const paneActions = {
   // Daily-task assignment (todo50). Wired in main.ts to dailyPlan.ts so pane.ts
   // can drive them without importing dailyPlan directly (avoids an import cycle).
   assignDailyTask: (_paneId: string) => {},
-  dailyTaskLabel: (_taskId: string): string | null => null
+  dailyTaskLabel: (_taskId: string): string | null => null,
+  dailyTaskIssueKey: (_taskId: string): string | null => null,
+  dailyTaskStatus: (_taskId: string): string | null => null,
+  viewTicketDetail: (_paneId: string) => {},
+  markTaskDone: (_paneId: string) => {},
+  // Reactivate an archived session: rebuild its dormant layout (panes + PTYs) and
+  // clear the archived status. Wired in main.ts (needs buildLayout).
+  reactivateTab: (_tabId: string) => {}
 }
 
 let sbPending = false
@@ -284,7 +299,7 @@ export function persistNow(): void {
   persist()
 }
 
-function serializeLayout(node: import('./types').LayoutNode): SavedNode {
+export function serializeLayout(node: import('./types').LayoutNode): SavedNode {
   if (node.type === 'leaf') {
     const sp = sqlPanes.get(node.paneId)
     if (sp) {
@@ -306,12 +321,19 @@ function serializeLayout(node: import('./types').LayoutNode): SavedNode {
       leaf.titleLocked = true
     }
     if (p?.cwd) leaf.cwd = p.cwd // restore in the same directory
+    // Pre-type the last command on restore for raw terminals. Skipped for Claude
+    // panes — they resume via `claude --resume`, not by re-typing the command.
+    if (p?.lastCommand && !p.claude) leaf.lastCommand = p.lastCommand
     if (p?.claude) leaf.claude = true // resume the Claude session on restore
     if (p?.claudeSessionId) leaf.claudeSessionId = p.claudeSessionId // exact session for --resume
     if (p?.bgColor) leaf.bgColor = p.bgColor // per-pane background
     if (p?.projectId) leaf.projectId = p.projectId
     if (p?.appId) leaf.appId = p.appId
-    if (p?.dailyTaskId) leaf.dailyTaskId = p.dailyTaskId
+    if (p?.status) leaf.status = p.status
+    if (p?.role) leaf.role = p.role
+    // Persisted as the multi-valued tickets[]; the single in-memory dailyTaskId
+    // is the current source until the multi-ticket UI (todo14).
+    if (p?.dailyTaskId) leaf.tickets = [p.dailyTaskId]
     return leaf
   }
   return {
@@ -329,6 +351,20 @@ function serializeNotifications(): AppNotification[] {
   return notifications.filter((n) => n.time >= cutoff).slice(0, NOTIF_PERSIST_CAP)
 }
 
+// A tab's status is derived from its panes: waiting > running > (all archived →
+// archived) > idle. Mirrors the unified data model (a container reflects its
+// children's lifecycle).
+function deriveTabStatus(root: LayoutNode): NodeStatus {
+  const statuses = panesInLayout(root)
+    .map((id) => panes.get(id)?.status)
+    .filter((s): s is NodeStatus => !!s)
+  if (!statuses.length) return 'idle'
+  if (statuses.includes('waiting')) return 'waiting'
+  if (statuses.includes('running')) return 'running'
+  if (statuses.every((s) => s === 'archived')) return 'archived'
+  return 'idle'
+}
+
 function serializeNode(node: SidebarNode): SavedSidebarNode {
   if (node.kind === 'tab') {
     return {
@@ -337,7 +373,10 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       titleLocked: node.titleLocked,
       color: node.color,
       pinned: node.pinned,
-      root: serializeLayout(node.root),
+      // Archived sessions keep their preserved layout (dormantRoot) so they stay
+      // reactivatable; the live root is just an empty placeholder while dormant.
+      root: node.status === 'archived' && node.dormantRoot ? node.dormantRoot : serializeLayout(node.root),
+      status: node.status ?? deriveTabStatus(node.root),
       ...(node.detailsOpen ? { detailsOpen: true } : {})
     }
   }
@@ -358,9 +397,29 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       ...(node.apps && node.apps.length ? { apps: node.apps } : {}),
       ...(node.features && node.features.length ? { features: node.features } : {}),
       ...(node.runCommands && node.runCommands.length ? { runCommands: node.runCommands } : {}),
+      ...(node.supportWorktree ? { supportWorktree: true } : {}),
       ...(node.iosApp ? { iosApp: true } : {}),
       ...(node.iosConfig ? { iosConfig: node.iosConfig } : {}),
       ...(node.issueKeyPrefix ? { issueKeyPrefix: node.issueKeyPrefix } : {})
+    }
+  }
+  if (node.kind === 'worktree') {
+    return {
+      kind: 'worktree',
+      name: node.name,
+      color: node.color,
+      collapsed: node.collapsed,
+      pinned: node.pinned,
+      children: node.children.map(serializeNode),
+      branch: node.branch,
+      worktreePath: node.worktreePath,
+      status: node.status ?? 'idle',
+      ...(node.group ? { group: node.group } : {}),
+      ...(node.lastRun ? { lastRun: node.lastRun } : {}),
+      ...(node.processes && node.processes.length ? { processes: node.processes } : {}),
+      ...(node.startup ? { startup: node.startup } : {}),
+      ...(node.env ? { env: node.env } : {}),
+      ...(node.shell ? { shell: node.shell } : {})
     }
   }
   return {
@@ -372,14 +431,21 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
     children: node.children.map(serializeNode),
     ...(node.group ? { group: node.group } : {}),
     ...(node.feature ? { feature: node.feature } : {}),
+    ...(node.worktreeContainer ? { worktreeContainer: true } : {}),
+    ...(node.worktreePath ? { worktreePath: node.worktreePath } : {}),
     ...(node.startup ? { startup: node.startup } : {}),
     ...(node.env ? { env: node.env } : {}),
     ...(node.shell ? { shell: node.shell } : {})
   }
 }
 
+// Bumped when the persisted shape changes. Main backs up the state file once
+// before loading any state whose schemaVersion is below this (migrate-on-load).
+const SCHEMA_VERSION = 3
+
 function persist(): void {
   const data: SavedState = {
+    schemaVersion: SCHEMA_VERSION,
     tree: state.tree.map(serializeNode),
     theme: settings.themeName,
     customTheme: settings.customTheme,
@@ -387,6 +453,7 @@ function persist(): void {
     bgColor: settings.bgColor,
     docFontSize: settings.docFontSize,
     codeRoot: settings.codeRoot,
+    prProjects: settings.prProjects,
     codeExtensions: settings.codeExtensions,
     todoFile: settings.todoFile,
     repoPath: settings.repoPath,
@@ -443,6 +510,8 @@ export function loadSettings(saved: SavedState): void {
   if (saved.bgColor) settings.bgColor = saved.bgColor
   if (typeof saved.docFontSize === 'number') settings.docFontSize = saved.docFontSize
   if (typeof saved.codeRoot === 'string') settings.codeRoot = saved.codeRoot
+  if (Array.isArray(saved.prProjects))
+    settings.prProjects = saved.prProjects.filter((x): x is string => typeof x === 'string')
   if (Array.isArray(saved.codeExtensions)) settings.codeExtensions = saved.codeExtensions
   if (typeof saved.todoFile === 'string') settings.todoFile = saved.todoFile
   if (typeof saved.repoPath === 'string') settings.repoPath = saved.repoPath
@@ -574,6 +643,10 @@ export function loadSettings(saved: SavedState): void {
       hidden: {
         left: strArr(td.hidden?.left),
         right: strArr(td.hidden?.right)
+      },
+      order: {
+        left: strArr(td.order?.left),
+        right: strArr(td.order?.right)
       }
     }
   }

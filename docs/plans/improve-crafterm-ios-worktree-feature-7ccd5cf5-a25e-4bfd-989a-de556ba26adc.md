@@ -1,146 +1,144 @@
-# Crafterm — iOS Worktree Manager (sidebar-native, live status)
+# Crafterm — Worktrees as Real Sidebar Tree Nodes (generic + iOS)
 
 ## Context
 
-A first cut shipped the iOS worktree feature as a modal dashboard (a flat list of
-worktrees with four identical buttons that each typed a raw bash build into a new
-terminal). On testing it was confusing: no visible state (built? installed?
-running? on which sim?), opaque execution, no guided creation, and a transient
-modal with no place to manage parallel work.
+The iOS worktree manager (v2) renders worktrees as flat status rows under a
+project via the sidebar's `below` slot, and its actions open terminals with
+`createTab(null, …)` — so those terminals land in the ungrouped "free" area,
+disconnected from the project. That makes parallel work hard to track.
 
-This redesign turns it into a **sidebar-native manager with live status**: each
-worktree of a project marked as an "iOS app" appears as a status row under that
-project node in the existing sidebar, with one state-aware primary action and a
-context menu. Decisions made with the user:
-- Placement: **sidebar-native** (worktrees as rows under the iOS project node).
-- Status: **live** — poll the simulator/device for installed/running state.
-- Project binding: **per-project config** — each project node carries its own
-  `iosApp` flag + `iosConfig`. There is **no** global config. Fully multi-project
-  from the start: every iOS project has independent scheme/bundle/sim settings.
-- "New feature": **create only** (worktree + bootstrap; user starts the build).
-
-Repo/branch: crafterm, `improve-crafterm`. The bundled script and the
-`iosWorktree:scriptPath` IPC from the first cut are **kept**; the **global**
-`settings.iosDev` state and the global "iOS Mobile Development" Settings tab are
-**removed** in favor of per-project config.
-
-## Config model (per-project)
-
-`ProjectNode` gains `iosApp?: boolean` and `iosConfig?: IosDevConfig`. `repoRoot`
-is dropped — the project node's own `path` is the repo root. `IosDevConfig` fields
-(all optional → auto-detected by the script when empty): `project`, `scheme`,
-`baseBundleId`, `displayPrefix`, `defaultSimulator`, `copyFiles[]`, `worktreesDir`.
-When a worktree action runs, its project's `iosConfig` is passed to the script as
-`IOSWT_*` env (repo root = project path). Each iOS project is fully independent.
-
-## Lifecycle & status dots
+Target: worktrees become **real, auto-managed folder nodes** in the sidebar tree,
+so terminals open *inside* the right worktree and persist/track like any other
+terminal:
 
 ```
-·  not built   →   ○ built   →   (installed)   →   ●  running        ◐ building
+MusicPal ▸ mobile (project) ▸ worktrees ▸ akin-tf-release ▸ terminalX
 ```
-- not built: no `.app` under the worktree's `build/` DerivedData
-- built: `.app` present
-- installed: variant bundle id in `simctl listapps <sim>`
-- running: variant in `simctl spawn <sim> launchctl list`
-- building: a build pane for that worktree is in flight (renderer-tracked)
 
-Dot priority: building > running > installed > built > not built.
+This is **generic**, not iOS-only: a project gains a **"Support worktrees"**
+toggle; any such project (e.g. backend) lists its `git worktree list` entries the
+same way. **iOS is an add-on**: an iOS-enabled project additionally shows the
+status dot + ▶/⋯ build-run action menu next to each worktree node (as today).
 
-## What changes
+Hard constraint: **do not damage the user's existing folder structure** — only
+nodes carrying explicit auto-markers are ever created/removed by reconcile.
 
-### 1. Remove the modal surface (first-cut leftovers)
-- Delete `showIosWorktreeDashboard` from `src/renderer/src/pickers.ts` and the
-  `iosWorktree` entries in `types.ts` (`BUILTIN_ACTIONS`) and `sidebar.ts`
-  (`BUILTIN_ACTION_RUN`). The dashboard is replaced by inline sidebar rows.
+Repo/branch: crafterm, `improve-crafterm`. crafterm already models a worktree as a
+`FolderNode` with `feature` set (see `createFeature` in `commands.ts`, `WORKTREE_SVG`
+icon in `sidebar.ts`), so this builds on an existing concept.
 
-### 2. Per-project iOS config (replaces global `settings.iosDev`)
-- `src/renderer/src/types.ts` — add `iosApp?: boolean` and `iosConfig?: IosDevConfig`
-  to `ProjectNode`. Keep the `IosDevConfig` interface but drop its `repoRoot` field.
-- `src/renderer/src/state.ts` — remove the global `settings.iosDev` (init, persist,
-  load). `serializeNode` (project branch, ~line 327) emits
-  `...(node.iosApp ? { iosApp: true } : {})` and `...(node.iosConfig ? { iosConfig } : {})`;
-  the project deserializer reads both.
-- `src/preload/api.d.ts` — remove `SavedState.iosDev`; add `iosApp?` + `iosConfig?`
-  to `SavedProject`.
-- `src/renderer/src/settings.ts` — remove the global "iOS Mobile Development" tab
-  (category list + `buildIosDevPanel`). Add an **"iOS"** sub-tab to the per-project
-  editor (alongside General/Apps/Features/Run commands at `buildProjectsPanel`
-  ~line 1067): an "iOS app" toggle that, when on, reveals the `iosConfig` fields
-  (scheme/baseBundleId/displayPrefix/defaultSimulator/worktreesDir + copyFiles list),
-  each bound to `p.iosConfig` + `saveSoon()`. Reuse `labeledInput` + the copyFiles
-  list pattern from the old panel.
+## Target structure & ownership
 
-### 3. Bundled script: machine-readable report + stop
-- `resources/scripts/ios-worktree.sh` — add two subcommands:
-  - `report` — run at the repo root, enumerate `git worktree list` and print a
-    JSON array `[{path, branch, bundleId, displayName, built, installed, running}]`
-    (reuses the existing suffix/bundle-id derivation + `simctl listapps` /
-    `simctl spawn <sim> launchctl list`). Single source of truth for id derivation.
-  - `stop` — `simctl terminate <sim> <bundleId>` for the current worktree.
+- **Container**: one auto folder per supported project, `worktreeContainer: true`,
+  named "worktrees", inserted as a direct child of the project node.
+- **Worktree node**: one auto `FolderNode` per `git worktree list` entry under the
+  container, with `feature = branch` (existing marker → worktree icon) and a new
+  `worktreePath = <abs path>` (the stable match key).
+- **Terminals**: normal `TabNode`s parented under the worktree node — they persist,
+  render, and drag like any terminal (reuses the whole tree machinery).
 
-### 4. Live-status + action IPC (3-edit rule each)
-- `src/main/index.ts` — add handlers that `execFile` the bundled script
-  (path via the existing `scriptsDir()`): `iosWorktree:report` (cwd = repo root,
-  IOSWT_* env from the passed config, returns parsed JSON) and `iosWorktree:stop`.
-  Reuse the ~4s status `setInterval` (main.ts:311) cadence, or a renderer timer
-  that only ticks while an iOS group is expanded.
-- `src/preload/index.ts` + `src/preload/api.d.ts` — `iosWorktreeReport(repoRoot, cfg)`
-  and `iosWorktreeStop(worktreePath, cfg)` signatures. `cfg` is the project's
-  `iosConfig`; `repoRoot` is the project's `path`.
+Depth: project → container(1) → worktree(2) → tab — within `MAX_FOLDER_DEPTH` (4).
 
-### 5. Sidebar rendering (the core UX)
-- `src/renderer/src/sidebar.ts`:
-  - Extend `buildBelow(node)` (currently `tab`-only) to also handle
-    `node.kind === 'project' && node.iosApp`: render an **iOS Worktrees** block —
-    one row per worktree with a status dot, name, a **▶ Build & Run** primary
-    button, and a **⋯** menu (Build & Run · Run on device · Open Simulator · Stop ·
-    Status · Clean · Open terminal here · Remove worktree). A trailing
-    **+ New feature…** row, and a **Configure iOS app…** row when the project's
-    `iosConfig` is unset (opens that project's Settings → iOS sub-tab).
-  - Rows are populated from `window.crafterm.iosWorktreeReport(project.path, project.iosConfig)`
-    (cached in a module-level map keyed by project id), refreshed on the poll tick
-    via the coalesced `requestSidebar()`; building paths tracked in a renderer `Set`.
-  - Actions reuse the existing "open a terminal at a path running a command"
-    pattern: `openProject({ name, path, command: '<IOSWT_* env> bash <script> <sub>' }, null)`
-    for Build & Run / device / status / clean (live output in a pane); `Stop` and
-    `Open Simulator` call the IPC / `simctl` directly. The `IOSWT_*` env is built
-    from the owning project's `iosConfig`.
-  - Add iOS items to `buildMenu` for an `iosApp` project node (e.g. "Refresh iOS
-    status", "Configure iOS app…").
-- **New feature**: reuse/adapt `showFeatureSetup` (`pickers.ts:1236`) or a small
-  prompt (branch + base) → `git worktree add` under the project's
-  `iosConfig.worktreesDir` → bootstrap via the script's copy step. No auto build.
+## Data model (markers)
+
+- `ProjectNode` (`types.ts`): add `supportWorktree?: boolean` (keep `iosApp?` /
+  `iosConfig?`). Enabling `iosApp` implies `supportWorktree`.
+- `FolderNode` (`types.ts`): add `worktreeContainer?: boolean` and `worktreePath?: string`.
+- Persist in `serializeNode` (`state.ts`, project + folder branches) and read back in
+  `buildSidebar` (`main.ts`); mirror in `SavedProject` / `SavedFolder` (`api.d.ts`).
+
+## Reconcile — the heart (new `worktrees.ts`, generic)
+
+`reconcileWorktrees()` — for each project with `supportWorktree` (or `iosApp`):
+1. Find/create the `worktreeContainer` child (by marker, never by name → won't
+   hijack a user "worktrees" folder). Reuse `makeFolder` (`tree.ts:193`),
+   push onto the project node's `children`.
+2. Fetch entries via `window.crafterm.listWorktrees(project.path)` (existing
+   `git:worktrees` IPC). Include the main worktree (repo root) so it lists too.
+3. For each entry, find a container child whose `worktreePath` matches; create a
+   marked `FolderNode` (`feature = branch`, `worktreePath = path`, name = branch
+   tail) if missing.
+4. **Prune** only container children that have a `worktreePath` no longer present
+   **and** are empty (`allTabs(node).length === 0`, `tree.ts:126`). Nodes with live
+   terminals are kept (never kill the user's panes).
+5. If anything changed → `requestSidebar()` + `saveSoon()`.
+
+Safety: reconcile only ever touches nodes with `worktreeContainer`/`worktreePath`
+markers — user folders/tabs are untouched. Auto nodes are non-renamable; the
+container is non-draggable (sidebar adapter guards).
+
+**Cadence**: run on load (in `main.ts` right after `state.tree = await buildSidebar(...)`,
+~line 481), on toggling Support-worktrees on, after New/Remove worktree, and on a
+slow interval (~20s) that only mutates when the git set actually changed. (iOS
+status dots refresh separately, faster, without mutating the tree — see below.)
+
+## Terminal parenting
+
+Add `runInFolder(parentFolderId, dir, command, title)` to `commands.ts` (wraps the
+existing internal `createTab(parentFolderId, {cwd, command, title})`). All worktree
+actions use the worktree node's id as parent so terminals open *inside* it:
+- iOS Build&Run / Device / Status / Clean → `runInFolder(node.id, worktreePath, '<IOSWT_* env> bash <script> <sub>', …)`.
+- Generic "Open terminal here" and the folder's default "New terminal" → cwd =
+  `node.worktreePath` (override the folder cwd in `newTerminal` `main.ts:78` and in
+  `buildMenu` for worktree folders).
+
+## iOS add-on (keep `ios-worktree.ts`, repurposed)
+
+- Keep the `iosWorktree:report` poll (~5s) keyed by `worktreePath` for built/installed/
+  running; it updates a cache and calls `requestSidebar()` — **no tree mutation**.
+- Export helpers consumed by the sidebar adapter for a worktree folder whose owning
+  project (`projectOf(state.tree, node.id)`, `tree.ts:212`) has `iosApp`:
+  - status dot (leading), ▶ + ⋯ buttons (trailing), and context-menu items
+    (Build&Run/Device/Stop/Status/Clean).
+- Build "building" state tracked locally per `worktreePath` (set on launch, cleared
+  when the report shows installed/running) → animated dot.
+
+## Sidebar integration (`sidebar.ts`)
+
+- **Remove** the `buildBelow` iOS flat-row branch and `renderIosWorktrees` flat list.
+- Worktree folders now render as ordinary folder rows (worktree icon) via the
+  TreeView; extend the adapter:
+  - `leading`/icon: iOS status dot for iOS worktree folders.
+  - `trailing` (`buildTrailing`): ▶ + ⋯ for iOS worktree folders; a "+" (new worktree)
+    on the container.
+  - `buildMenu`: worktree folder → Open terminal here (cwd = worktreePath) · Remove
+    worktree (+ iOS actions when applicable); container → "New worktree…".
+- New/Remove worktree run `git worktree add/remove` via `runInFolder` at the repo,
+  then trigger a reconcile.
+
+## Settings (`settings.ts`)
+
+- Add a **"Support worktrees"** checkbox to the project editor (General or the iOS
+  sub-tab). The existing iOS sub-tab stays for build config; toggling iOS on also
+  sets `supportWorktree = true`.
 
 ## Critical files
 
-- `src/renderer/src/sidebar.ts` — `buildBelow` iOS block, `buildMenu` items, poll wiring.
-- `src/renderer/src/types.ts`, `src/renderer/src/state.ts`, `src/preload/api.d.ts`
-  — `iosApp` + `iosConfig` on the project (type + serialize + saved shape); remove
-  global `settings.iosDev` / `SavedState.iosDev`.
-- `src/renderer/src/settings.ts` — remove the global iOS tab; add a per-project
-  "iOS" sub-tab with the toggle + config fields.
-- `src/main/index.ts`, `src/preload/index.ts`, `src/preload/api.d.ts`
-  — `iosWorktree:report` / `:stop` IPC.
-- `resources/scripts/ios-worktree.sh` — `report` + `stop` subcommands.
-- `src/renderer/src/pickers.ts`, `types.ts`, `sidebar.ts` — remove the old modal +
-  `iosWorktree` builtin action.
+- `src/renderer/src/types.ts` — `supportWorktree`, `worktreeContainer`, `worktreePath`.
+- `src/renderer/src/state.ts` (`serializeNode`), `src/renderer/src/main.ts`
+  (`buildSidebar` read-back + reconcile-on-load), `src/preload/api.d.ts`
+  (`SavedProject`/`SavedFolder`).
+- `src/renderer/src/worktrees.ts` (new) — reconcile, new/remove worktree, markers.
+- `src/renderer/src/ios-worktree.ts` — repurpose to dot/actions/report helpers.
+- `src/renderer/src/sidebar.ts` — adapter leading/trailing/menu; remove flat `below`.
+- `src/renderer/src/commands.ts` — `runInFolder`.
+- `src/renderer/src/settings.ts` — "Support worktrees" toggle.
+- Reuse: `makeFolder`, `findById`, `projectOf`, `allTabs`, `depthOfFolder` (`tree.ts`);
+  `createFeature` pattern (`commands.ts`); `git:worktrees` IPC; `WORKTREE_SVG`.
 
-Kept as-is: `scriptsDir()` + `iosWorktree:scriptPath`, and the script's
-run/device/status/clean core (now fed per-project `IOSWT_*` env).
+## Verification (no test framework — build + run + observe)
 
-## Verification
-
-crafterm has no test framework. Verify by:
-1. `npx tsc --noEmit -p tsconfig.web.json` and `-p tsconfig.node.json` — clean.
-2. `npm run build`, then `npm run dev`.
-3. Add `musicpal-inc/pianopal-swift` as a sidebar project, open its Settings → **iOS**
-   sub-tab, toggle **iOS app** on, optionally fill scheme/bundle (or leave blank to
-   auto-detect). Add a second iOS project with its own config to confirm independence.
-4. Expand the project → its worktrees appear as rows with status dots reflecting
-   reality (run `report` shows installed/running for already-built variants).
-5. **▶ Build & Run** on a worktree → a pane builds it, the dot goes `◐ → ●`, and a
-   completion notification fires. Do it on a second worktree → both show `●` and run
-   side-by-side on the same simulator.
-6. **Stop** flips `● → ○`; **Clean** flips to `·`; **+ New feature…** adds a worktree
-   row (no build); unconfigured state shows the "Configure iOS app…" row.
-7. Confirm the status dots auto-refresh on the poll tick without manual action.
+1. `npx tsc --noEmit -p tsconfig.web.json` and `-p tsconfig.node.json` clean; `npm run build`.
+2. `npm run dev`. Existing `mobile` (iOS) project: on load a **worktrees** container
+   appears with one folder per worktree; status dots + ▶/⋯ show on each.
+3. ▶ Build&Run on a worktree → terminal opens **under that worktree folder** (not the
+   free group), dot ◐→●. Open several → each terminal nests under its own worktree.
+4. **+ New worktree** under the container → `git worktree add` runs at the repo path,
+   the new folder appears after reconcile (no flat-list, no free-group terminal).
+5. Enable **Support worktrees** on the **backend** project (no iOS): its worktrees
+   list as folder nodes with Open-terminal/Remove menus and terminals nest inside —
+   confirming the generic path.
+6. Manually create a normal folder + terminal under a project, restart: reconcile
+   leaves them untouched (only marked auto-nodes are managed). Remove a worktree in
+   git → its empty node prunes on next reconcile; a worktree node with a live
+   terminal is kept.

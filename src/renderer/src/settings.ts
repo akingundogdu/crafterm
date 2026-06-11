@@ -15,6 +15,7 @@ import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevCo
 import { BUILTIN_ACTIONS } from './types'
 import { flattenProjects, removeProject } from './catalog'
 import { makeProject } from './tree'
+import { reconcileWorktrees, purgeWorktrees } from './worktrees'
 import { applyAppearance } from './pane'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from './sidebar'
 import { pickFolderPath } from './pickers'
@@ -1230,6 +1231,28 @@ function buildProjectsPanel(panel: HTMLElement): void {
               saveSoon()
             }
           )
+          // Support worktrees: auto-list this repo's git worktrees as folder
+          // nodes under the project (terminals nest inside each worktree).
+          const wtField = document.createElement('div')
+          wtField.className = 'field'
+          const wtLabel = document.createElement('label')
+          wtLabel.style.cursor = 'pointer'
+          const wtCb = document.createElement('input')
+          wtCb.type = 'checkbox'
+          wtCb.checked = !!p.supportWorktree
+          wtCb.style.marginRight = '8px'
+          const wtText = document.createElement('span')
+          wtText.textContent = 'Support worktrees (list git worktrees as folders)'
+          wtLabel.append(wtCb, wtText)
+          wtField.appendChild(wtLabel)
+          el.appendChild(wtField)
+          wtCb.addEventListener('change', () => {
+            p.supportWorktree = wtCb.checked
+            saveSoon()
+            requestSidebar()
+            if (p.supportWorktree) void reconcileWorktrees()
+            else purgeWorktrees(p)
+          })
         }
       },
       {
@@ -1367,9 +1390,25 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
     if (!p.iosConfig) p.iosConfig = defaultIosConfig()
     const cfg = p.iosConfig
 
+    // Repo root = the project's working directory. Editing it here also updates
+    // the project path (so worktrees, build/run, and cmd+T all use this repo).
+    const repoInput = labeledInput(body, 'iOS repo path', 'text', p.path, (v) => {
+      p.path = v.trim()
+      saveSoon()
+      requestSidebar()
+    })
+    repoInput.placeholder = '/Users/you/path/to/your-ios-repo'
+    repoInput.style.maxWidth = '420px'
+    if (!p.path) {
+      body.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint" style="color:var(--amber,#e0a44a)">Required: set this to the iOS app’s git repository.</div>'
+      )
+    }
+
     body.insertAdjacentHTML(
       'beforeend',
-      '<div class="field-hint">Repo root is this project’s path. Leave a field empty to auto-detect it from the Xcode project.</div>'
+      '<div class="field-hint">The fields below auto-detect from the Xcode project when left empty.</div>'
     )
     const field = (
       label: string,
@@ -1449,9 +1488,13 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
 
   checkbox.addEventListener('change', () => {
     p.iosApp = checkbox.checked
-    if (p.iosApp && !p.iosConfig) p.iosConfig = defaultIosConfig()
+    if (p.iosApp) {
+      if (!p.iosConfig) p.iosConfig = defaultIosConfig()
+      p.supportWorktree = true // iOS needs the worktree nodes to attach to
+      void reconcileWorktrees()
+    }
     saveSoon()
-    requestSidebar() // toggle the sidebar worktree group immediately
+    requestSidebar()
     renderBody()
   })
   renderBody()

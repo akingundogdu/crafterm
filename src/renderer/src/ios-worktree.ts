@@ -1,27 +1,38 @@
-// iOS worktree manager rendered inline under an "iOS app" project node in the
-// sidebar. Each git worktree becomes a status row (dot + name + primary action +
-// overflow menu). Live state comes from `iosWorktree:report`, polled while any
-// iOS project is present; build/run/clean/status/device run in a visible pane.
+// iOS add-on for the worktree tree nodes. The generic worktree manager
+// (worktrees.ts) materializes worktrees as folder nodes; this layer adds, for an
+// "iOS app" project, a live status dot + ▶/⋯ build-run actions on each worktree
+// node. Build/run/etc. open a terminal *inside* the worktree folder node.
 
-import type { ProjectNode } from './types'
-import type { IosWorktreeReport, IosWorktreeStatus } from '../../preload/api'
-import { state, requestSidebar } from './state'
+import type { SidebarNode, ProjectNode, WorktreeNode } from './types'
+import type { IosWorktreeStatus } from '../../preload/api'
+import { requestSidebar, saveSoon } from './state'
 import { flattenProjects } from './catalog'
-import { openProject, openTerminalInDir, openTerminalRunning } from './commands'
-import { openSettings } from './settings'
-import { promptForm, promptConfirm } from './dialog'
+import { state } from './state'
 import { showContextMenu, type ContextMenuItem } from './contextmenu'
+import { isWorktreeFolder, worktreeProjectOf } from './worktrees'
+import { startBackgroundProcess } from './bgproc'
+import { findById, ancestorFolders } from './tree'
 
-// Reports keyed by project id; building paths tracked locally (the report can't
-// know a build is in flight until the variant launches).
-const reportCache = new Map<string, IosWorktreeReport>()
-const building = new Map<string, number>() // worktree path -> started-at ms
+type RunTarget = { kind: 'device' | 'simulator'; name: string; udid: string; scheme?: string }
+
+const IOS_POLL_MS = 5000
 const BUILD_MAX_AGE = 15 * 60 * 1000
-let scriptPath = ''
-let polling = false
 
+// Live status keyed by worktree absolute path (no trailing slash).
+const statusByPath = new Map<string, IosWorktreeStatus>()
+const building = new Map<string, number>() // worktree path -> started-at ms
+let scriptPath = ''
+let started = false
+
+function norm(p: string): string {
+  return p.replace(/\/+$/, '')
+}
 function shq(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`
+}
+
+function iosProjects(): ProjectNode[] {
+  return flattenProjects(state.tree).filter((p) => p.iosApp && p.path)
 }
 
 function envPrefix(p: ProjectNode): string {
@@ -40,179 +51,268 @@ function envPrefix(p: ProjectNode): string {
   return env.join(' ')
 }
 
+// The same iOS build env as a map (for terminal env injection), plus the absolute
+// path to the bundled build script.
+function iosEnvMap(p: ProjectNode, scriptPath: string): Record<string, string> {
+  const cfg = p.iosConfig
+  const env: Record<string, string> = { CRAFTERM_IOS_SCRIPT: scriptPath, IOSWT_REPO_ROOT: p.path }
+  const add = (k: string, v?: string): void => {
+    if (v && v.trim()) env[k] = v.trim()
+  }
+  add('IOSWT_PROJECT', cfg?.project)
+  add('IOSWT_SCHEME', cfg?.scheme)
+  add('IOSWT_BUNDLE_ID', cfg?.baseBundleId)
+  add('IOSWT_DISPLAY_PREFIX', cfg?.displayPrefix)
+  add('IOSWT_SIMULATOR', cfg?.defaultSimulator)
+  add('IOSWT_WORKTREES_DIR', cfg?.worktreesDir)
+  if (cfg?.copyFiles?.length) env.IOSWT_COPY_FILES = cfg.copyFiles.join(':')
+  return env
+}
+
+// Env to inject into a terminal opened inside an iOS worktree (node id), so any
+// command — including the /run-on-device skill — can build it: CRAFTERM_IOS_SCRIPT
+// + IOSWT_*. Null when the node isn't (under) an iOS worktree. (todo23)
+export async function iosWorktreeEnvFor(parentId: string): Promise<Record<string, string> | null> {
+  const r = findById(state.tree, parentId)
+  if (!r) return null
+  let wt: WorktreeNode | null = isWorktreeFolder(r.node) ? r.node : null
+  if (!wt) {
+    const trail = ancestorFolders(state.tree, parentId) ?? []
+    for (const n of trail) if (isWorktreeFolder(n)) wt = n
+  }
+  if (!wt) return null
+  const p = worktreeProjectOf(wt)
+  if (!p || !p.iosApp) return null
+  return iosEnvMap(p, await ensureScript())
+}
+
 async function ensureScript(): Promise<string> {
   if (!scriptPath) scriptPath = await window.crafterm.iosWorktreeScript()
   return scriptPath
 }
 
 async function fetchReport(p: ProjectNode): Promise<void> {
+  if (!p.path) return
   const rep = await window.crafterm.iosWorktreeReport(p.path, p.iosConfig)
   if (!rep) return
-  const prev = reportCache.get(p.id)
-  reportCache.set(p.id, rep)
-  // Drop "building" once the variant is installed/running.
+  let changed = false
   for (const w of rep.worktrees) {
-    if ((w.installed || w.running) && building.has(w.path)) building.delete(w.path)
+    const key = norm(w.path)
+    const prev = statusByPath.get(key)
+    statusByPath.set(key, w)
+    if ((w.installed || w.running) && building.has(key)) building.delete(key)
+    if (!prev || prev.built !== w.built || prev.installed !== w.installed || prev.running !== w.running) {
+      changed = true
+    }
   }
-  if (JSON.stringify(prev) !== JSON.stringify(rep)) requestSidebar()
+  if (changed) requestSidebar()
 }
 
-function iosProjects(): ProjectNode[] {
-  return flattenProjects(state.tree).filter((p) => p.iosApp)
-}
-
-function ensurePolling(): void {
-  if (polling) return
-  polling = true
-  window.setInterval(() => {
+export function startIosWorktreePoll(): void {
+  if (started) return
+  started = true
+  const tick = (): void => {
     const now = Date.now()
-    for (const [path, ts] of building) if (now - ts > BUILD_MAX_AGE) building.delete(path)
+    for (const [k, ts] of building) if (now - ts > BUILD_MAX_AGE) building.delete(k)
     for (const p of iosProjects()) void fetchReport(p)
-  }, 5000)
+  }
+  tick()
+  window.setInterval(tick, IOS_POLL_MS)
 }
 
-// dot state, highest priority first.
-function dotState(w: IosWorktreeStatus): { cls: string; title: string } {
-  if (building.has(w.path)) return { cls: 'building', title: 'Building…' }
-  if (w.running) return { cls: 'running', title: 'Running' }
-  if (w.installed) return { cls: 'installed', title: 'Installed' }
-  if (w.built) return { cls: 'built', title: 'Built' }
+// Run ANY iOS worktree subcommand (run/device/status/clean/…) as a hidden
+// background process — a sub-row under the worktree, never a separate visible
+// terminal. `extraEnv` carries target/scheme overrides for Build & Run.
+async function runScriptBg(
+  wt: WorktreeNode,
+  p: ProjectNode,
+  sub: string,
+  title: string,
+  extraEnv = ''
+): Promise<void> {
+  const script = await ensureScript()
+  const command = `${envPrefix(p)} ${extraEnv}bash ${shq(script)} ${sub}`
+  if (sub === 'run' || sub === 'device') building.set(norm(wt.worktreePath), Date.now())
+  await startBackgroundProcess(wt, { title, command, role: 'build' })
+  saveSoon()
+}
+
+// Resolve the iOS project owning a worktree node, or null when it isn't one.
+function iosOwner(node: SidebarNode): { p: ProjectNode; wt: WorktreeNode } | null {
+  if (!isWorktreeFolder(node)) return null
+  const p = worktreeProjectOf(node)
+  if (!p || !p.iosApp) return null
+  return { p, wt: node }
+}
+
+// Run an iOS build/run as a hidden background process (todo21) targeting a
+// specific simulator/device (todo20), and remember it as the worktree's last run
+// (todo22). The process is surfaced as a sub-row under the worktree, not a tab.
+async function runTarget(wt: WorktreeNode, p: ProjectNode, target: RunTarget | null): Promise<void> {
+  const isSim = !target || target.kind === 'simulator'
+  const sub = isSim ? 'run' : 'device'
+  let override = target
+    ? target.kind === 'simulator'
+      ? `IOSWT_SIMULATOR=${shq(target.name)} `
+      : `IOSWT_DEVICE_UDID=${shq(target.udid)} `
+    : ''
+  // The scheme (e.g. "local" / "prod") picks the API environment.
+  if (target?.scheme) override += `IOSWT_SCHEME=${shq(target.scheme)} `
+  const schemeSuffix = target?.scheme ? ` [${target.scheme}]` : ''
+  const title = target
+    ? target.kind === 'simulator'
+      ? `Running on ${target.name} (simulator)${schemeSuffix}`
+      : `Running on device — ${target.name}${schemeSuffix}`
+    : 'Building & running (simulator)'
+  if (target) wt.lastRun = target
+  await runScriptBg(wt, p, sub, title, override)
+}
+
+// --- Cascading "Build & Run" menu (todo20): on device/simulator > target >
+// scheme. Targets + schemes are enumerated once and cached so re-opening the
+// menu is instant; each list carries a "Refresh" item that clears its cache and
+// re-fetches without closing the menu (the keepOpen mechanism in contextmenu). ---
+const schemeCache = new Map<string, string[]>()
+type Targets = Awaited<ReturnType<typeof window.crafterm.iosListTargets>>
+let targetsCache: Targets | null = null
+
+const REFRESH_LABEL = '↻ Refresh'
+
+async function loadSchemes(p: ProjectNode): Promise<string[]> {
+  const cached = schemeCache.get(p.path)
+  if (cached) return cached
+  const schemes = await window.crafterm.iosListSchemes(p.path, p.iosConfig)
+  schemeCache.set(p.path, schemes)
+  return schemes
+}
+
+async function loadTargets(): Promise<Targets> {
+  if (targetsCache) return targetsCache
+  targetsCache = await window.crafterm.iosListTargets()
+  return targetsCache
+}
+
+// Scheme leaf items (local/prod) for a chosen target; falls back to a single
+// "default scheme" run when the project exposes none.
+function schemeItems(wt: WorktreeNode, p: ProjectNode, t: RunTarget): () => Promise<ContextMenuItem[]> {
+  return async () => {
+    const refresh: ContextMenuItem = {
+      label: REFRESH_LABEL,
+      keepOpen: true,
+      run: () => void schemeCache.delete(p.path)
+    }
+    const schemes = await loadSchemes(p)
+    if (!schemes.length) {
+      return [{ label: 'Run (default scheme)', run: () => void runTarget(wt, p, t) }, refresh]
+    }
+    return [
+      ...schemes.map((scheme) => ({
+        label: scheme,
+        run: () => void runTarget(wt, p, { ...t, scheme })
+      })),
+      refresh
+    ]
+  }
+}
+
+// Target submenu (each simulator/device), each opening a scheme submenu.
+function targetItems(wt: WorktreeNode, p: ProjectNode, kind: 'device' | 'simulator'): () => Promise<ContextMenuItem[]> {
+  return async () => {
+    const targets = await loadTargets()
+    const list = kind === 'simulator' ? targets.simulators : targets.devices
+    return [
+      ...list.map((t) => ({
+        label: t.name,
+        children: schemeItems(wt, p, { kind, name: t.name, udid: t.udid })
+      })),
+      { label: REFRESH_LABEL, keepOpen: true, run: () => void (targetsCache = null) }
+    ]
+  }
+}
+
+function buildRunMenu(wt: WorktreeNode, p: ProjectNode): ContextMenuItem {
+  return {
+    label: 'Build & Run',
+    children: [
+      { label: 'On simulator', children: targetItems(wt, p, 'simulator') },
+      { label: 'On device', children: targetItems(wt, p, 'device') }
+    ]
+  }
+}
+
+function dotInfo(wtPath: string): { cls: string; title: string } {
+  const key = norm(wtPath)
+  if (building.has(key)) return { cls: 'building', title: 'Building…' }
+  const s = statusByPath.get(key)
+  if (s?.running) return { cls: 'running', title: 'Running' }
+  if (s?.installed) return { cls: 'installed', title: 'Installed' }
+  if (s?.built) return { cls: 'built', title: 'Built' }
   return { cls: 'none', title: 'Not built' }
 }
 
-async function runIn(p: ProjectNode, wtPath: string, sub: string): Promise<void> {
-  const script = await ensureScript()
-  const command = `${envPrefix(p)} bash ${shq(script)} ${sub}`
-  if (sub === 'run' || sub === 'device') {
-    building.set(wtPath, Date.now())
-    requestSidebar()
-  }
-  void openProject({ name: wtPath.split('/').pop() || 'worktree', path: wtPath, command }, null)
+// ---- Sidebar adapter hooks (called per node) ----
+
+export function iosWorktreeDot(node: SidebarNode): HTMLElement | null {
+  const own = iosOwner(node)
+  if (!own) return null
+  const dot = document.createElement('span')
+  const st = dotInfo(own.wt.worktreePath)
+  dot.className = `ios-wt-dot ios-wt-dot-${st.cls}`
+  dot.title = st.title
+  return dot
 }
 
-async function newFeature(p: ProjectNode): Promise<void> {
-  const values = await promptForm({
-    title: 'New iOS feature',
-    fields: [
-      { key: 'branch', label: 'Branch / feature name', placeholder: 'feature-x' },
-      { key: 'base', label: 'Base branch', value: 'main', placeholder: 'main' }
-    ],
-    confirmText: 'Create'
-  })
-  const branch = (values?.branch || '').trim()
-  if (!branch) return
-  const base = (values?.base || 'main').trim() || 'main'
-  const parent = p.iosConfig?.worktreesDir?.trim() || `${p.path.replace(/\/+$/, '').split('/').slice(0, -1).join('/')}/worktrees`
-  const wtPath = `${parent.replace(/\/+$/, '')}/${branch}`
-  void openTerminalRunning(
-    `git -C ${shq(p.path)} worktree add ${shq(wtPath)} -b ${shq(branch)} ${shq(base)}`,
-    `worktree ${branch}`
-  )
-}
-
-function rowMenu(p: ProjectNode, w: IosWorktreeStatus): ContextMenuItem[] {
+export function iosWorktreeMenuItems(node: SidebarNode): ContextMenuItem[] {
+  const own = iosOwner(node)
+  if (!own) return []
+  const { p, wt } = own
+  const wtPath = wt.worktreePath
   return [
-    { label: 'Build & Run (simulator)', run: () => void runIn(p, w.path, 'run') },
-    { label: 'Run on device', run: () => void runIn(p, w.path, 'device') },
-    { label: 'Status', run: () => void runIn(p, w.path, 'status') },
+    buildRunMenu(wt, p),
+    { label: 'Status', run: () => void runScriptBg(wt, p, 'status', 'Status') },
     {
       label: 'Stop',
-      run: () => void window.crafterm.iosWorktreeStop(w.path, p.iosConfig).then(() => fetchReport(p))
+      run: () => void window.crafterm.iosWorktreeStop(wtPath, p.iosConfig).then(() => fetchReport(p))
     },
-    { label: 'Open terminal here', run: () => void openTerminalInDir(w.path) },
-    { label: 'Clean (uninstall + remove build)', run: () => void runIn(p, w.path, 'clean') },
     {
-      label: 'Remove worktree',
-      danger: true,
-      run: () =>
-        void promptConfirm({
-          title: 'Remove worktree',
-          message: `Remove the worktree at ${w.path}? (the branch is kept)`,
-          confirmText: 'Remove'
-        }).then((ok) => {
-          if (ok) {
-            void openTerminalRunning(`git -C ${shq(p.path)} worktree remove ${shq(w.path)}`, 'worktree remove')
-          }
-        })
+      label: 'Clean (uninstall + remove build)',
+      run: () => void runScriptBg(wt, p, 'clean', 'Clean (uninstall + remove build)')
     }
   ]
 }
 
-function renderRow(p: ProjectNode, w: IosWorktreeStatus): HTMLElement {
-  const row = document.createElement('div')
-  row.className = 'ios-wt-row'
-
-  const dot = document.createElement('span')
-  const st = dotState(w)
-  dot.className = `ios-wt-dot ios-wt-dot-${st.cls}`
-  dot.title = st.title
-
-  const name = document.createElement('span')
-  name.className = 'ios-wt-name'
-  name.textContent = w.branch || w.displayName
-  name.title = `${w.bundleId}\n${w.path}`
+export function iosWorktreeTrailing(node: SidebarNode): HTMLElement | null {
+  const own = iosOwner(node)
+  if (!own) return null
+  const { p, wt } = own
+  const wrap = document.createElement('span')
+  wrap.className = 'ios-wt-actions'
 
   const run = document.createElement('button')
   run.className = 'ios-wt-act'
-  run.textContent = w.running ? 'Open' : '▶'
-  run.title = w.running ? 'Open Simulator' : 'Build & Run'
-  run.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void runIn(p, w.path, 'run')
-  })
+  run.textContent = '▶'
+  if (!wt.lastRun) {
+    // Disabled until the worktree has been run at least once (todo22).
+    run.disabled = true
+    run.title = 'Pick a target from the ⋯ menu first'
+  } else {
+    const last = wt.lastRun
+    run.title = `Re-run: ${last.name}`
+    run.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void runTarget(wt, p, last)
+    })
+  }
 
   const more = document.createElement('button')
   more.className = 'ios-wt-act'
   more.textContent = '⋯'
+  more.title = 'iOS actions'
   more.addEventListener('click', (e) => {
     e.stopPropagation()
-    showContextMenu(e, rowMenu(p, w))
+    showContextMenu(e, iosWorktreeMenuItems(node))
   })
 
-  row.append(dot, name, run, more)
-  row.addEventListener('click', () => void openTerminalInDir(w.path))
-  return row
-}
-
-// Build the inline iOS worktree block for an "iOS app" project (called from the
-// sidebar's `below` slot). Renders from the cached report; kicks a refresh.
-export function renderIosWorktrees(p: ProjectNode, host: HTMLElement): void {
-  ensurePolling()
-  if (!reportCache.has(p.id)) void fetchReport(p)
-
-  const wrap = document.createElement('div')
-  wrap.className = 'ios-wt'
-
-  if (!p.iosConfig) {
-    const cta = document.createElement('div')
-    cta.className = 'ios-wt-cta'
-    cta.textContent = 'Configure iOS app…'
-    cta.addEventListener('click', (e) => {
-      e.stopPropagation()
-      openSettings()
-    })
-    wrap.appendChild(cta)
-    host.appendChild(wrap)
-    return
-  }
-
-  const rep = reportCache.get(p.id)
-  const rows = rep?.worktrees ?? []
-  if (!rep) {
-    wrap.insertAdjacentHTML('beforeend', '<div class="ios-wt-empty">Loading…</div>')
-  } else if (!rows.length) {
-    wrap.insertAdjacentHTML('beforeend', '<div class="ios-wt-empty">No worktrees yet.</div>')
-  }
-  for (const w of rows) wrap.appendChild(renderRow(p, w))
-
-  const add = document.createElement('div')
-  add.className = 'ios-wt-new'
-  add.textContent = '+ New feature…'
-  add.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void newFeature(p)
-  })
-  wrap.appendChild(add)
-
-  host.appendChild(wrap)
+  wrap.append(run, more)
+  return wrap
 }

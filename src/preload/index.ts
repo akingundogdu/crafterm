@@ -13,6 +13,13 @@ const api: CraftermApi = {
     ),
   onExit: (cb) =>
     ipcRenderer.on('pty:exit', (_e: IpcRendererEvent, p: { id: string }) => cb(p.id)),
+  procStart: (opts) => ipcRenderer.invoke('proc:start', opts),
+  procBuffer: (id) => ipcRenderer.invoke('proc:buffer', { id }),
+  procAttach: (id) => ipcRenderer.send('proc:attach', { id }),
+  onProcExit: (cb) =>
+    ipcRenderer.on('proc:exit', (_e: IpcRendererEvent, p: { id: string; code: number }) =>
+      cb(p.id, p.code)
+    ),
   adoptPane: (id) => ipcRenderer.send('pty:adopt', { id }),
   popoutOpen: (paneId, title) => ipcRenderer.invoke('popout:open', { paneId, title }),
   popoutConfirmClose: (id) => ipcRenderer.send('popout:close-confirmed', { id }),
@@ -26,7 +33,7 @@ const api: CraftermApi = {
     ipcRenderer.send('improve-window:set-always-on-top', { value }),
   loadState: () => ipcRenderer.invoke('store:load'),
   saveState: (data) => ipcRenderer.send('store:save', data),
-  paneInfo: (id) => ipcRenderer.invoke('pane:info', { id }),
+  paneInfo: (id, stableId) => ipcRenderer.invoke('pane:info', { id, stableId }),
   notify: (title, body, paneId) => ipcRenderer.send('notify', { title, body, paneId }),
   onFocusPane: (cb) =>
     ipcRenderer.on('focus-pane', (_e: IpcRendererEvent, p: { id: string }) => cb(p.id)),
@@ -48,9 +55,13 @@ const api: CraftermApi = {
   },
   openMarkdown: (path) => ipcRenderer.send('markdown:open', { path }),
   listWorktrees: (cwd) => ipcRenderer.invoke('git:worktrees', { cwd }),
+  worktreeAdd: (repo, path, branch, base) =>
+    ipcRenderer.invoke('git:worktreeAdd', { repo, path, branch, base }),
   iosWorktreeScript: () => ipcRenderer.invoke('iosWorktree:scriptPath'),
   iosWorktreeReport: (repoRoot, cfg) => ipcRenderer.invoke('iosWorktree:report', { repoRoot, cfg }),
   iosWorktreeStop: (worktreePath, cfg) => ipcRenderer.invoke('iosWorktree:stop', { worktreePath, cfg }),
+  iosListTargets: () => ipcRenderer.invoke('ios:listTargets'),
+  iosListSchemes: (repoRoot, cfg) => ipcRenderer.invoke('ios:listSchemes', { repoRoot, cfg }),
   nbTree: () => ipcRenderer.invoke('notebook:tree'),
   nbRead: (path) => ipcRenderer.invoke('notebook:read', { path }),
   nbWrite: (path, content) => ipcRenderer.send('notebook:write', { path, content }),
@@ -73,11 +84,14 @@ const api: CraftermApi = {
   gitStashList: (id) => ipcRenderer.invoke('git:stashList', { id }),
   gitBranches: (id) => ipcRenderer.invoke('git:branches', { id }),
   claudeLatestSession: (cwd, since) => ipcRenderer.invoke('claude:latestSession', { cwd, since }),
+  claudeSessionCwd: (sessionId) => ipcRenderer.invoke('claude:sessionCwd', { sessionId }),
   claudeSessions: () => ipcRenderer.invoke('claude:sessions'),
   claudeSessionTitle: (cwd, sessionId) =>
     ipcRenderer.invoke('claude:sessionTitle', { cwd, sessionId }),
   claudeSessionStatus: (cwd, sessionId) =>
     ipcRenderer.invoke('claude:sessionStatus', { cwd, sessionId }),
+  claudePermissionMode: (cwd, sessionId) =>
+    ipcRenderer.invoke('claude:permissionMode', { cwd, sessionId }),
   watchClaudeSessions: (cwd) => ipcRenderer.invoke('claude:watchSessions', { cwd }),
   onClaudeSessionsChanged: (cb) => {
     const listener = (_e: IpcRendererEvent, p: { cwd: string }): void => cb(p.cwd)
@@ -104,6 +118,7 @@ const api: CraftermApi = {
   dbqDelete: (connId, name) => ipcRenderer.invoke('dbq:delete', { connId, name }),
   appVersion: () => ipcRenderer.invoke('app:version'),
   appBuildInfo: () => ipcRenderer.invoke('app:buildInfo'),
+  appBuildCounter: (repoPath) => ipcRenderer.invoke('app:buildCounter', { repoPath }),
   repoGit: (repoPath) => ipcRenderer.invoke('app:repoGit', { repoPath }),
   deployBuild: (repoPath, command) => ipcRenderer.invoke('deploy:build', { repoPath, command }),
   deployKillAllPtys: () => ipcRenderer.invoke('deploy:killAllPtys'),
@@ -123,11 +138,17 @@ const api: CraftermApi = {
   dockerPrune: (target) => ipcRenderer.invoke('docker:prune', { target }),
   prAvailable: (cwd) => ipcRenderer.invoke('pr:available', { cwd }),
   prList: (cwd) => ipcRenderer.invoke('pr:list', { cwd }),
+  prRepos: (root) => ipcRenderer.invoke('pr:repos', { root }),
+  prListAll: (root, paths) => ipcRenderer.invoke('pr:list-all', { root, paths }),
   prMerge: (cwd, number, method) => ipcRenderer.invoke('pr:merge', { cwd, number, method }),
   prView: (cwd, number) => ipcRenderer.invoke('pr:view', { cwd, number }),
   prDiff: (cwd, number) => ipcRenderer.invoke('pr:diff', { cwd, number }),
   prComment: (cwd, number, path, startLine, endLine, body) =>
-    ipcRenderer.invoke('pr:comment', { cwd, number, path, startLine, endLine, body })
+    ipcRenderer.invoke('pr:comment', { cwd, number, path, startLine, endLine, body }),
+  ghRuns: (cwd) => ipcRenderer.invoke('gh:runs', { cwd }),
+  ghRunJobs: (cwd, id) => ipcRenderer.invoke('gh:run-jobs', { cwd, id }),
+  ghDeployments: (cwd) => ipcRenderer.invoke('gh:deployments', { cwd }),
+  ghDeploysAll: (root, paths) => ipcRenderer.invoke('gh:deploys-all', { root, paths })
 }
 
 contextBridge.exposeInMainWorld('crafterm', api)

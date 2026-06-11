@@ -176,7 +176,7 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
   host.appendChild(subtabs)
 
   const body = document.createElement('div')
-  body.className = 'nb-subtab-body' + (nbSubTab === 'notes' ? ' nb-body-notes' : '')
+  body.className = 'nb-subtab-body'
   host.appendChild(body)
   applySubTabChrome()
 
@@ -193,10 +193,29 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
     return
   }
 
+  // Notes: in-page search (same position as the other sub-tabs) + scrollable tree.
+  const search = document.createElement('input')
+  search.type = 'text'
+  search.className = 'nb-subtab-search'
+  search.placeholder = 'Search notes…'
+  search.value = nbQuery
+  search.addEventListener('keydown', (e) => {
+    e.stopPropagation()
+    if (e.key === 'Escape' && nbQuery) {
+      search.value = ''
+      nbApplyQuery('')
+    }
+  })
+  search.addEventListener('input', () => nbApplyQuery(search.value))
+  body.appendChild(search)
+
+  const scroll = document.createElement('div')
+  scroll.className = 'nb-notes-scroll'
   linkedHost = document.createElement('div')
   treeHost = document.createElement('div')
   treeHost.className = 'nb-tree'
-  body.append(linkedHost, treeHost)
+  scroll.append(linkedHost, treeHost)
+  body.appendChild(scroll)
   treeview = createTreeView<NbNode>(treeHost, adapter)
   treeview.setFilter(nbQuery)
   await refresh()

@@ -1,5 +1,6 @@
-import type { SidebarNode, TabNode, FolderNode, ProjectNode, PaneStatus } from './types'
-import { state, panes, settings, saveSoon } from './state'
+import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from './types'
+import { openProcessView, killProcess, startBackgroundProcess } from './bgproc'
+import { state, panes, settings, saveSoon, paneActions } from './state'
 import {
   collectPinnedRoots,
   allTabs,
@@ -47,7 +48,9 @@ import {
   showRunApps,
   showFeatureSetup,
   showRunCommand,
-  runUpdate
+  runUpdate,
+  showRunningProcessesDashboard,
+  showRunningDevicesDashboard
 } from './pickers'
 import { showImproveModal } from './improve'
 import { showDailyPlanModal } from './dailyPlan'
@@ -56,7 +59,8 @@ import { renderDatabase, databaseHandleKey, dbApplyQuery } from './database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from './docker'
 import { renderAccounts, accountsApplyQuery, initAccounts } from './accounts'
 import { type ContextMenuItem } from './contextmenu'
-import { renderIosWorktrees } from './ios-worktree'
+import { iosWorktreeTrailing, iosWorktreeMenuItems } from './ios-worktree'
+import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from './worktrees'
 import { createTreeView, type TreeAdapter, type TreeSection, type DropPos } from './treeview'
 import {
   renderNotebook,
@@ -153,7 +157,9 @@ const BUILTIN_ACTION_RUN: Record<string, () => void> = {
   updateZsh: () => void openTerminalRunning(settings.commands.openMyZsh, 'zsh config'),
   improve: () => void showImproveModal(),
   updateCrafterm: () => void runUpdate(),
-  dailyPlan: () => showDailyPlanModal()
+  dailyPlan: () => showDailyPlanModal(),
+  runningProcesses: () => showRunningProcessesDashboard(),
+  runningDevices: () => showRunningDevicesDashboard()
 }
 
 // Flattened sidebar ⋯ action-menu entries for the global search (Cmd+J). Skips
@@ -219,11 +225,23 @@ function focusList(): void {
   tabListEl.focus()
 }
 
-function scrollSelectedIntoView(): void {
+function scrollSelectedIntoView(center = false): void {
   if (!state.selectedNodeId) return
-  tabListEl
-    .querySelector<HTMLElement>(`[data-tree-id="${CSS.escape(state.selectedNodeId)}"]`)
-    ?.scrollIntoView({ block: 'nearest' })
+  const el = tabListEl.querySelector<HTMLElement>(
+    `[data-tree-id="${CSS.escape(state.selectedNodeId)}"]`
+  )
+  if (!el) return
+  if (!center) {
+    el.scrollIntoView({ block: 'nearest' })
+    return
+  }
+  // Only scroll when the selected row is off-screen; if it's already visible,
+  // leave the scroll position alone. When hidden, center it in the list.
+  const elRect = el.getBoundingClientRect()
+  const contRect = tabListEl.getBoundingClientRect()
+  if (elRect.top < contRect.top || elRect.bottom > contRect.bottom) {
+    el.scrollIntoView({ block: 'center' })
+  }
 }
 
 // Cmd+1..9 (and clicking a number) jump to the Nth visible row: focus a terminal,
@@ -514,36 +532,79 @@ function tabExpandable(node: TabNode): boolean {
   return plansForTab(node).length > 0
 }
 
-// leading slot: a terminal's detail chevron (if expandable) + status dot.
+// leading slot: a terminal's detail chevron (if expandable).
 function buildLeading(node: SidebarNode): HTMLElement | null {
   if (node.kind !== 'tab') return null
+  if (!tabExpandable(node)) return null
   const wrap = document.createElement('span')
   wrap.className = 'tab-leading'
-  if (tabExpandable(node)) {
-    const tri = document.createElement('span')
-    tri.className = 'tri' + (node.detailsOpen ? ' expanded' : '')
-    tri.innerHTML = CHEVRON_SVG
-    tri.title = node.detailsOpen ? 'Hide details' : 'Show details'
-    tri.addEventListener('click', (e) => {
-      e.stopPropagation()
-      toggleTabDetails(node.id)
-    })
-    wrap.appendChild(tri)
-  }
-  const dot = document.createElement('span')
-  dot.className = 'status-dot ' + statusOfNode(node)
-  wrap.appendChild(dot)
+  const tri = document.createElement('span')
+  tri.className = 'tri' + (node.detailsOpen ? ' expanded' : '')
+  tri.innerHTML = CHEVRON_SVG
+  tri.title = node.detailsOpen ? 'Hide details' : 'Show details'
+  tri.addEventListener('click', (e) => {
+    e.stopPropagation()
+    toggleTabDetails(node.id)
+  })
+  wrap.appendChild(tri)
   return wrap
 }
 
 // below slot: detail line + per-pane sub-rows (when expanded) + plan sub-rows.
-function buildBelow(node: SidebarNode): HTMLElement | null {
-  if (node.kind === 'project' && node.iosApp && !node.collapsed) {
-    const frag = document.createElement('div')
-    frag.className = 'tab-below'
-    renderIosWorktrees(node, frag)
-    return frag
+// Background-process sub-rows under a worktree (the "hidden shells"): status dot,
+// title, and a stop (×) button. Clicking a row opens a transient view onto the
+// still-running process.
+function buildWorktreeProcesses(wt: WorktreeNode | ProjectNode): HTMLElement | null {
+  // Respect the node's collapse state — like plan rows, hide the process
+  // sub-rows when the node is collapsed.
+  if (wt.collapsed) return null
+  const procs = (wt.processes ?? []).filter((p) => p.status !== 'archived')
+  if (!procs.length) return null
+  const frag = document.createElement('div')
+  frag.className = 'tab-below'
+  const list = document.createElement('div')
+  list.className = 'tab-panes'
+  for (const proc of procs) {
+    const row = document.createElement('div')
+    row.className = 'tab-pane-row'
+    const title = document.createElement('span')
+    title.className = 'tab-pane-title'
+    title.textContent = (proc.status === 'done' ? '✓ ' : '') + proc.title
+    const stop = document.createElement('button')
+    stop.className = 'tab-proc-kill'
+    stop.textContent = '×'
+    stop.title = 'Stop process'
+    stop.addEventListener('click', (e) => {
+      e.stopPropagation()
+      killProcess(proc.stableId)
+    })
+    row.append(title, stop)
+    row.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void openProcessView(proc.stableId)
+    })
+    list.appendChild(row)
   }
+  frag.appendChild(list)
+  return frag
+}
+
+// The issue key (e.g. CRF-12) for a terminal tab — from whichever pane in its
+// layout is assigned to a daily task. Rendered as a "(KEY)" suffix so the title
+// stays a free, renameable label (todo14).
+function tabIssueKey(tab: TabNode): string | null {
+  for (const id of panesInLayout(tab.root)) {
+    const taskId = panes.get(id)?.dailyTaskId
+    if (taskId) {
+      const key = paneActions.dailyTaskIssueKey(taskId)
+      if (key) return key
+    }
+  }
+  return null
+}
+
+function buildBelow(node: SidebarNode): HTMLElement | null {
+  if (node.kind === 'worktree' || node.kind === 'project') return buildWorktreeProcesses(node)
   if (node.kind !== 'tab') return null
   const frag = document.createElement('div')
   frag.className = 'tab-below'
@@ -565,12 +626,10 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
         const p = panes.get(id)
         const prow = document.createElement('div')
         prow.className = 'tab-pane-row'
-        const pdot = document.createElement('span')
-        pdot.className = 'status-dot ' + (p ? paneStatus(p) : 'idle')
         const ptitle = document.createElement('span')
         ptitle.className = 'tab-pane-title'
         ptitle.textContent = p?.title || 'terminal'
-        prow.append(pdot, ptitle)
+        prow.append(ptitle)
         prow.addEventListener('click', (e) => {
           e.stopPropagation()
           selectPane(id)
@@ -599,7 +658,7 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
         pic.innerHTML = PLAN_SVG
         const ptitle = document.createElement('span')
         ptitle.className = 'tab-plan-title'
-        ptitle.textContent = plan.name.replace(/\.(md|mdx|mdc)$/i, '')
+        ptitle.textContent = plan.slug || plan.name.replace(/\.(md|mdx|mdc)$/i, '')
         prow.append(pic, ptitle)
         prow.addEventListener('mousedown', (e) => e.stopPropagation())
         prow.addEventListener('click', (e) => {
@@ -663,8 +722,17 @@ export function tabMeta(): typeof TAB_META {
   return TAB_META
 }
 
-// Apply the icon/text/both mode + per-tab hide to both strips. Idempotent: the
-// first call also wraps each button's text in an icon + label span.
+// Effective tab id order for a strip: saved order (filtered to ids that still
+// exist) followed by any TAB_META ids missing from it, so new tabs always show.
+function tabOrder(strip: 'left' | 'right'): string[] {
+  const ids = TAB_META.filter((m) => m.strip === strip).map((m) => m.id)
+  const saved = settings.tabDisplay.order[strip].filter((id) => ids.includes(id))
+  return [...saved, ...ids.filter((id) => !saved.includes(id))]
+}
+
+// Apply the icon/text/both mode + per-tab hide + per-strip order to both strips.
+// Idempotent: the first call also wraps each button's text in an icon + label
+// span and wires drag-drop reordering.
 export function applyTabDisplay(): void {
   const { mode, hidden } = settings.tabDisplay
   const strips: Record<'left' | 'right', HTMLElement | null> = {
@@ -693,6 +761,75 @@ export function applyTabDisplay(): void {
     }
     btn.title = t.shortcut ? `${t.label} · ${t.shortcut}` : t.label
     btn.style.display = hidden[t.strip].includes(t.id) ? 'none' : ''
+  }
+  // Reorder buttons in the DOM to match the saved order. appendChild on an
+  // existing child moves it, so the strip ends up in the desired sequence.
+  for (const key of ['left', 'right'] as const) {
+    const strip = strips[key]
+    if (!strip) continue
+    for (const id of tabOrder(key)) {
+      const btn = document.getElementById(id)
+      if (btn) strip.appendChild(btn)
+    }
+  }
+  wireTabReorder(strips)
+}
+
+// One-time drag-drop wiring so tabs can be reordered within their own strip.
+let tabReorderWired = false
+let dragTabId: string | null = null
+function wireTabReorder(strips: Record<'left' | 'right', HTMLElement | null>): void {
+  if (tabReorderWired) return
+  tabReorderWired = true
+  const stripOf = (id: string): 'left' | 'right' | null =>
+    TAB_META.find((m) => m.id === id)?.strip ?? null
+  for (const key of ['left', 'right'] as const) {
+    const strip = strips[key]
+    if (!strip) continue
+    for (const t of TAB_META.filter((m) => m.strip === key)) {
+      const btn = document.getElementById(t.id)
+      if (!btn) continue
+      btn.draggable = true
+      btn.addEventListener('dragstart', (e) => {
+        dragTabId = t.id
+        btn.classList.add('dragging')
+        e.dataTransfer?.setData('text/plain', t.id)
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+      })
+      btn.addEventListener('dragend', () => {
+        dragTabId = null
+        strip.querySelectorAll('.dragging, .drop-target').forEach((el) => {
+          el.classList.remove('dragging', 'drop-target', 'drop-after')
+        })
+      })
+      btn.addEventListener('dragover', (e) => {
+        if (!dragTabId || dragTabId === t.id || stripOf(dragTabId) !== key) return
+        e.preventDefault()
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+        const r = btn.getBoundingClientRect()
+        const after = e.clientX > r.left + r.width / 2
+        strip.querySelectorAll('.drop-target').forEach((el) => {
+          el.classList.remove('drop-target', 'drop-after')
+        })
+        btn.classList.add('drop-target')
+        btn.classList.toggle('drop-after', after)
+      })
+      btn.addEventListener('dragleave', () => {
+        btn.classList.remove('drop-target', 'drop-after')
+      })
+      btn.addEventListener('drop', (e) => {
+        if (!dragTabId || dragTabId === t.id || stripOf(dragTabId) !== key) return
+        e.preventDefault()
+        const r = btn.getBoundingClientRect()
+        const after = e.clientX > r.left + r.width / 2
+        const order = tabOrder(key).filter((id) => id !== dragTabId)
+        const idx = order.indexOf(t.id)
+        order.splice(after ? idx + 1 : idx, 0, dragTabId)
+        settings.tabDisplay.order[key] = order
+        applyTabDisplay()
+        saveSoon()
+      })
+    }
   }
 }
 
@@ -725,6 +862,24 @@ const CLAUDE_STATUS_TITLE: Record<'in-progress' | 'question' | 'idle', string> =
 // trailing slot: Claude status pill + folder child-count badge + pin badge.
 function buildTrailing(node: SidebarNode): HTMLElement | null {
   const wrap = document.createElement('span')
+  // iOS worktree folder → ▶/⋯ build-run actions.
+  const iosActions = iosWorktreeTrailing(node)
+  if (iosActions) wrap.appendChild(iosActions)
+  // Worktrees container → quick "+ new worktree".
+  if (isWorktreeContainer(node)) {
+    const proj = worktreeProjectOf(node)
+    if (proj) {
+      const add = document.createElement('button')
+      add.className = 'ios-wt-act'
+      add.textContent = '+'
+      add.title = 'New worktree'
+      add.addEventListener('click', (e) => {
+        e.stopPropagation()
+        void newWorktree(proj)
+      })
+      wrap.appendChild(add)
+    }
+  }
   if (node.kind === 'tab') {
     const cs = claudeStatusOfTab(node)
     if (cs) {
@@ -751,7 +906,11 @@ function buildTrailing(node: SidebarNode): HTMLElement | null {
 
 function buildMenu(node: SidebarNode): ContextMenuItem[] {
   const items: ContextMenuItem[] = []
-  if (node.kind === 'tab') {
+  if (node.kind === 'tab' && node.status === 'archived') {
+    // Archived session (shown only under "Show archived items"): reactivate it.
+    // Never permanently deleted — that's the whole point of archiving.
+    items.push({ label: 'Restore session', run: () => paneActions.reactivateTab(node.id) })
+  } else if (node.kind === 'tab') {
     const trail = ancestorFolders(state.tree, node.id)
     const parentId = trail && trail.length ? trail[trail.length - 1].id : null
     items.push({ label: 'New Claude terminal', run: () => void newClaudeTab(parentId) })
@@ -759,9 +918,41 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
     if (node.titleLocked) items.push({ label: 'Auto-name', run: () => autoNameTab(node.id) })
     items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
     items.push({ label: 'Close tab', run: () => closeTab(node.id), danger: true })
+  } else if (isWorktreeFolder(node)) {
+    // A worktree node: a dedicated, type-aware menu — git-managed, so the generic
+    // folder operations (subfolder / rename / delete folder / settings) don't apply.
+    const wt = node.worktreePath
+    const proj = worktreeProjectOf(node)
+    items.push({ label: 'New terminal here', run: () => void newTab(node.id, wt) })
+    items.push({ label: 'New Claude terminal here', run: () => void newClaudeTab(node.id, wt) })
+    items.push({
+      label: 'Run in background…',
+      run: () =>
+        void promptText({
+          title: 'Run in background',
+          label: 'Command',
+          placeholder: 'command',
+          confirmText: 'Run'
+        }).then(
+          (command) => {
+            const cmd = command?.trim()
+            if (cmd) void startBackgroundProcess(node, { title: cmd, command: cmd, role: 'shell' })
+          }
+        )
+    })
+    for (const it of iosWorktreeMenuItems(node)) items.push(it)
+    items.push({ label: 'Reveal in Finder', run: () => window.crafterm.revealPath(wt) })
+    if (proj) {
+      items.push({ label: 'Delete worktree', danger: true, run: () => void removeWorktree(proj, wt) })
+    }
+  } else if (isWorktreeContainer(node)) {
+    // The auto "worktrees" container: only "new worktree" (it's auto-managed).
+    const proj = worktreeProjectOf(node)
+    if (proj) items.push({ label: 'New worktree…', run: () => void newWorktree(proj) })
+    items.push({ label: node.collapsed ? 'Expand' : 'Collapse', run: () => toggleCollapse(node.id) })
   } else {
-    // A project node opens its terminals at the project's path; folders inherit
-    // the active terminal's cwd (the legacy behaviour).
+    // A project node opens its terminals at the project's path; other folders
+    // inherit the active terminal's cwd (the legacy behaviour).
     const cwd = node.kind === 'project' ? node.path : undefined
     items.push({ label: 'New terminal here', run: () => void newTab(node.id, cwd) })
     items.push({ label: 'New Claude terminal here', run: () => void newClaudeTab(node.id, cwd) })
@@ -779,7 +970,48 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
     items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
     items.push({ label: 'Delete folder', run: () => deleteFolder(node.id), danger: true })
   }
+  items.push({
+    label: showArchivedView ? 'Show active items' : 'Show archived items',
+    run: () => toggleArchivedView()
+  })
   return items
+}
+
+// ---------------------------------------------------------------------------
+// Archived-view filtering (never-delete model): archived sessions stay in the
+// tree but are hidden by default; "Show archived items" flips to show only them.
+// ---------------------------------------------------------------------------
+
+let showArchivedView = false
+
+function isArchivedTab(n: SidebarNode): boolean {
+  return n.kind === 'tab' && n.status === 'archived'
+}
+// A node that is itself archived: a closed session (tab) or a removed worktree.
+function isArchivedNode(n: SidebarNode): boolean {
+  return (n.kind === 'tab' || n.kind === 'worktree') && n.status === 'archived'
+}
+function hasArchivedDescendant(n: SidebarNode): boolean {
+  if (isArchivedNode(n)) return true
+  if (n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree')
+    return n.children.some(hasArchivedDescendant)
+  return false
+}
+function passesArchiveFilter(n: SidebarNode): boolean {
+  if (showArchivedView) {
+    if (n.kind === 'tab') return isArchivedTab(n)
+    if (n.kind === 'worktree') return n.status === 'archived' || hasArchivedDescendant(n)
+    return hasArchivedDescendant(n)
+  }
+  // Normal view: hide archived sessions and archived (removed) worktrees.
+  if (n.kind === 'tab') return !isArchivedTab(n)
+  if (n.kind === 'worktree') return n.status !== 'archived'
+  return true
+}
+
+export function toggleArchivedView(): void {
+  showArchivedView = !showArchivedView
+  renderSidebar()
 }
 
 // ---------------------------------------------------------------------------
@@ -788,14 +1020,23 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
 
 const adapter: TreeAdapter<SidebarNode> = {
   id: (n) => n.id,
-  label: (n) => (n.kind === 'tab' ? n.title : n.name),
+  label: (n) => {
+    if (n.kind !== 'tab') return n.name
+    const key = tabIssueKey(n)
+    return key ? `${n.title} (${key})` : n.title
+  },
   icon: (n) => {
     if (n.kind === 'project') return PROJECT_SVG
+    if (n.kind === 'worktree') return WORKTREE_SVG
     if (n.kind === 'folder') return n.feature ? WORKTREE_SVG : FOLDER_SVG
     return ''
   },
   iconClass: (n) =>
-    n.kind === 'project' ? 'project-icon' : n.kind === 'folder' && n.feature ? 'worktree-icon' : '',
+    n.kind === 'project'
+      ? 'project-icon'
+      : n.kind === 'worktree' || (n.kind === 'folder' && n.feature)
+        ? 'worktree-icon'
+        : '',
   leading: buildLeading,
   trailing: buildTrailing,
   below: buildBelow,
@@ -804,18 +1045,28 @@ const adapter: TreeAdapter<SidebarNode> = {
     const crumb = folderCrumb(n.id)
     return crumb ? buildCrumb(crumb) : null
   },
-  rowClass: (n) => (n.kind === 'tab' && n.id === state.activeTabId ? 'active' : ''),
-  isContainer: (n) => n.kind === 'folder' || n.kind === 'project',
-  children: (n) => (n.kind === 'folder' || n.kind === 'project' ? n.children : []),
+  rowClass: (n) => {
+    if (n.kind === 'worktree' && n.archiving) return 'worktree-archiving'
+    return n.kind === 'tab' && n.id === state.activeTabId ? 'active' : ''
+  },
+  isContainer: (n) => n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree',
+  children: (n) =>
+    n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree'
+      ? n.children.filter(passesArchiveFilter)
+      : [],
   collapsed: (n) => (n.kind === 'tab' ? false : n.collapsed),
   color: (n) => n.color,
   onColor: (n, c) => setNodeColor(n.id, c),
-  numbered: true,
+  numbered: false,
   draggable: () => true,
   renamable: () => true,
   onToggle: (n) => toggleCollapse(n.id),
   onActivate: (n) => {
-    if (n.kind === 'tab') selectTab(n.id)
+    if (n.kind !== 'tab') return
+    // Clicking an archived session reactivates it rather than selecting an empty
+    // (dormant) tab.
+    if (n.status === 'archived') paneActions.reactivateTab(n.id)
+    else selectTab(n.id)
   },
   onClick: (n) => {
     if (n.kind !== 'tab') focusList()
@@ -891,10 +1142,10 @@ function recencyBucket(ts: number): 'today' | 'yesterday' | 'earlier' {
 function buildSections(): TreeSection<SidebarNode>[] {
   const sections: TreeSection<SidebarNode>[] = []
 
-  const pinned = collectPinnedRoots(state.tree)
+  const pinned = collectPinnedRoots(state.tree).filter(passesArchiveFilter)
   if (pinned.length) sections.push({ header: sectionLabel('Pinned'), nodes: pinned })
 
-  const main = stripPinned(state.tree)
+  const main = stripPinned(state.tree).filter(passesArchiveFilter)
 
   if (settings.sidebar.groupByRecency) {
     // Time-based bucketing across every non-pinned row (tabs + containers).
@@ -967,6 +1218,8 @@ export function updateActiveTab(): void {
     el.classList.toggle('active', el.dataset.treeId === state.activeTabId)
     el.classList.toggle('selected', el.dataset.treeId === state.selectedNodeId)
   })
+  // Reveal the focused terminal's row: if it scrolled out of view, center it.
+  scrollSelectedIntoView(true)
 }
 
 // Inline-rename the currently selected sidebar node. Used by Cmd+Shift+R.

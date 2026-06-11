@@ -41,7 +41,16 @@ import {
   renameSelected
 } from './sidebar'
 import { notebookNewNote, notebookNewFolder, notebookRenameSelected, notebookLinkFile, notebookSubTab } from './notebook'
-import { openNewDailyTask, showDailyPlanModal, assignPaneToTask, dailyTaskLabel } from './dailyPlan'
+import {
+  openNewDailyTask,
+  showDailyPlanModal,
+  assignPaneToTask,
+  dailyTaskLabel,
+  dailyTaskIssueKey,
+  dailyTaskStatus,
+  viewPaneTask,
+  markPaneTaskDone
+} from './dailyPlan'
 import { openNewMeeting } from './meetingNotes'
 import { openReminderForm } from './reminders'
 import { openSettings } from './settings'
@@ -58,6 +67,9 @@ import {
   showFeaturePicker,
   showGlobalSearch
 } from './pickers'
+import { startWorktreeReconcile } from './worktrees'
+import { onProcessExit } from './bgproc'
+import { startIosWorktreePoll } from './ios-worktree'
 import { showImproveModal } from './improve'
 import { databaseNewProject } from './database'
 import { renderDocker } from './docker'
@@ -74,10 +86,15 @@ function newTerminal(parentFolderId: string | null): void {
   if (container?.kind === 'project') {
     cmd = container.command?.trim() || container.startup?.trim() || undefined
     path = container.path
+  } else if (container?.kind === 'worktree') {
+    // A worktree opens its terminals at the worktree path.
+    cmd = container.startup?.trim() || undefined
+    path = container.worktreePath
   } else if (container?.kind === 'folder') {
     cmd = container.startup?.trim() || undefined
+    if (container.worktreePath) path = container.worktreePath
   }
-  if (cmd) {
+  if (cmd || path) {
     // createTab pulls the container's command/startup and runs it in `path`.
     void newTab(parentFolderId, path)
     return
@@ -144,6 +161,11 @@ paneActions.openPlanInGroup = (originPaneId, absPath) => openMarkdownInGroup(ori
 paneActions.clarify = (paneId) => window.crafterm.input(paneId, '/run-clarify\r')
 paneActions.assignDailyTask = (paneId) => assignPaneToTask(paneId)
 paneActions.dailyTaskLabel = (taskId) => dailyTaskLabel(taskId)
+paneActions.dailyTaskIssueKey = (taskId) => dailyTaskIssueKey(taskId)
+paneActions.dailyTaskStatus = (taskId) => dailyTaskStatus(taskId)
+paneActions.viewTicketDetail = (paneId) => viewPaneTask(paneId)
+paneActions.markTaskDone = (paneId) => markPaneTaskDone(paneId)
+paneActions.reactivateTab = (tabId) => void reactivateTab(tabId)
 
 // ---- PTY stream wiring ----
 window.crafterm.onData((id, data) => {
@@ -174,6 +196,8 @@ window.crafterm.onFullscreenChange((isFull) => {
 window.crafterm.onExit((id) => {
   if (!quitting) closePane(id)
 })
+// A background process finished — mark it done in its worktree's process list.
+window.crafterm.onProcExit((id, code) => onProcessExit(id, code))
 // Clicking a native notification focuses the pane that fired it.
 window.crafterm.onFocusPane((id) => {
   if (!panes.has(id)) return
@@ -377,7 +401,15 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
       })
       return { type: 'leaf', paneId: sqlId }
     }
-    const id = await createPane(n.cwd, { stableId: n.stableId })
+    // cwd-aware resume: if the saved cwd was lost (e.g. wiped by a transient lsof
+    // failure before an older build's hard kill) but we still have the Claude
+    // session id, recover the session's real cwd from its jsonl so the pane —
+    // and `claude --resume` — open in the right project directory.
+    let cwd = n.cwd
+    if (!cwd && n.claude && n.claudeSessionId) {
+      cwd = (await window.crafterm.claudeSessionCwd(n.claudeSessionId)) ?? undefined
+    }
+    const id = await createPane(cwd, { stableId: n.stableId })
     const p = panes.get(id)
     if (p && n.titleLocked && n.title) {
       p.title = n.title
@@ -400,13 +432,24 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
       // Resume the exact session if we captured its id, else the latest in this cwd.
       const cmd = n.claudeSessionId ? `claude --resume ${n.claudeSessionId}` : 'claude --continue'
       setTimeout(() => window.crafterm.input(id, cmd + '\r'), 500)
+    } else if (p && n.lastCommand) {
+      // Raw terminal: pre-type the last command WITHOUT a trailing CR so the user
+      // sees it at the prompt and decides whether to run it (never auto-execute —
+      // the last command could be destructive).
+      setTimeout(() => window.crafterm.input(id, n.lastCommand!), 600)
     }
     if (n.bgColor) setPaneBackground(id, n.bgColor)
     if (p) {
       if (n.projectId) p.projectId = n.projectId
       if (n.appId) p.appId = n.appId
-      if (n.dailyTaskId) {
-        p.dailyTaskId = n.dailyTaskId
+      // running/waiting don't survive a restart (nothing is actually live yet) —
+      // normalize to idle; archived/done persist as-is.
+      if (n.status) p.status = n.status === 'running' || n.status === 'waiting' ? 'idle' : n.status
+      if (n.role) p.role = n.role
+      // tickets[] is canonical; fall back to the legacy single dailyTaskId.
+      const ticket = n.tickets?.[0] ?? n.dailyTaskId
+      if (ticket) {
+        p.dailyTaskId = ticket
         refreshPaneDailyTask(id)
       }
     }
@@ -418,10 +461,47 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
   return { type: 'split', dir: n.dir, sizes, children }
 }
 
+// Reactivate an archived session: rebuild its dormant layout (re-spawns panes +
+// PTYs, resumes Claude) and clear the archived status, making it the active tab.
+async function reactivateTab(tabId: string): Promise<void> {
+  const found = findById(state.tree, tabId)
+  if (!found || found.node.kind !== 'tab') return
+  const tab = found.node
+  if (tab.status !== 'archived' || !tab.dormantRoot) return
+  const root = await buildLayout(tab.dormantRoot)
+  tab.root = root
+  tab.dormantRoot = undefined
+  tab.status = 'idle'
+  state.activeTabId = tab.id
+  state.activePaneId = firstPaneOf(root)
+  renderSidebar()
+  renderContent()
+  if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
+  saveSoon()
+}
+
 async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
   const out: SidebarNode[] = []
   for (const n of nodes) {
     if (n.kind === 'tab') {
+      // Archived sessions restore as dormant records — no panes/PTYs spawned
+      // (decision: archived nodes don't open on restore). The preserved layout is
+      // kept in dormantRoot so the session can be reactivated on demand.
+      if (n.status === 'archived') {
+        out.push({
+          kind: 'tab',
+          id: uid('t'),
+          title: n.title || 'zsh',
+          titleLocked: !!n.titleLocked,
+          color: n.color ?? null,
+          pinned: !!n.pinned,
+          root: { type: 'leaf', paneId: '' },
+          status: 'archived',
+          dormantRoot: n.root,
+          detailsOpen: !!n.detailsOpen
+        })
+        continue
+      }
       const root = await buildLayout(n.root)
       out.push({
         kind: 'tab',
@@ -464,7 +544,30 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
               worktreesDir: n.iosConfig.worktreesDir ?? ''
             }
           : undefined,
+        supportWorktree: n.supportWorktree,
         issueKeyPrefix: n.issueKeyPrefix
+      })
+    } else if (n.kind === 'worktree' || (n.kind === 'folder' && n.worktreePath)) {
+      // First-class worktree node — or migrate an old folder-with-worktreePath.
+      const children = await buildSidebar(n.children)
+      const branch = n.kind === 'worktree' ? n.branch : n.feature || n.name || ''
+      out.push({
+        kind: 'worktree',
+        id: uid('w'),
+        name: n.name || branch || 'worktree',
+        color: n.color ?? null,
+        collapsed: !!n.collapsed,
+        pinned: !!n.pinned,
+        children,
+        group: n.group,
+        branch,
+        worktreePath: n.worktreePath ?? '',
+        status: n.kind === 'worktree' ? n.status ?? 'idle' : 'idle',
+        processes: n.kind === 'worktree' ? n.processes?.map((p) => ({ ...p })) : undefined,
+        lastRun: n.kind === 'worktree' ? n.lastRun : undefined,
+        startup: n.startup,
+        env: n.env,
+        shell: n.shell
       })
     } else {
       const children = await buildSidebar(n.children)
@@ -478,6 +581,8 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         children,
         group: n.group,
         feature: n.feature,
+        worktreeContainer: n.worktreeContainer,
+        worktreePath: n.worktreePath,
         startup: n.startup,
         env: n.env,
         shell: n.shell
@@ -535,7 +640,7 @@ async function init(): Promise<void> {
   // by path-based dedup.
   if (saved) migrateLegacyState(saved)
 
-  const first = allTabs(state.tree)[0]
+  const first = allTabs(state.tree).find((t) => t.status !== 'archived')
   if (first) {
     state.activeTabId = first.id
     state.activePaneId = firstPaneOf(first.root)
@@ -546,6 +651,11 @@ async function init(): Promise<void> {
   } else {
     await newTab()
   }
+
+  // Worktree manager: materialize git worktrees into sidebar nodes (generic) and
+  // start the iOS build-status poll.
+  startWorktreeReconcile()
+  startIosWorktreePoll()
 
   // Update finished: flip the overlay to a brief confirmation, then dismiss.
   if (wasUpdating && updateOverlay) {

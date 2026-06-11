@@ -388,16 +388,6 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   box-shadow: inset 0 0 0 1.5px rgba(76, 141, 255, 0.55);
 }
 
-/* slim strip reserved for the native traffic lights (hiddenInset title bar) */
-#drag-region {
-  height: 28px;
-  flex: 0 0 auto;
-  -webkit-app-region: drag;
-}
-.orient-top #drag-region {
-  height: 28px;
-}
-
 #tab-list {
   flex: 1;
   padding: 4px 0 8px;
@@ -467,6 +457,19 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
 #sidebar-tabs button.active {
   color: var(--text);
   border-bottom-color: var(--accent);
+}
+/* Drag-drop reordering of tab buttons within a strip (left + right). */
+#sidebar-tabs button.dragging,
+.notif-tab.dragging {
+  opacity: 0.4;
+}
+#sidebar-tabs button.drop-target,
+.notif-tab.drop-target {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+#sidebar-tabs button.drop-target.drop-after,
+.notif-tab.drop-target.drop-after {
+  box-shadow: inset -2px 0 0 var(--accent);
 }
 /* Exactly one footer shows at a time: terminal footer in terminal mode,
    notebook footer in notebook mode. The shared layout rule below intentionally
@@ -1112,18 +1115,6 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   align-items: center;
   gap: 6px;
 }
-#notif-hide {
-  border: none;
-  background: transparent;
-  color: var(--text-mute);
-  font-size: 17px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-}
-#notif-hide:hover {
-  color: var(--text);
-}
 
 /* right notification panel (toggle: option+cmd+right) — resizable */
 #notif-resizer {
@@ -1214,27 +1205,33 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   border-color: var(--accent);
   transform: translateY(-1px);
 }
-/* State-based accent: a colored left edge + faint tint per notification kind. */
+/* Status accent: a colored left edge per notification state. The status colour
+   lives only on this bar (and the title icon); card fill + title text carry the
+   project colour instead, so the two readings never collide. */
 .notif-card.notif-question {
   border-left: 3px solid #e3b341;
-  background: rgba(227, 179, 65, 0.07);
 }
 .notif-card.notif-done {
   border-left: 3px solid #3fb950;
-  background: rgba(63, 185, 80, 0.07);
 }
 .notif-card.notif-reminder {
   border-left: 3px solid #58a6ff;
-  background: rgba(88, 166, 255, 0.07);
 }
-.notif-card.notif-question .notif-card-title {
-  color: #f0c674;
+/* Status icon left of the title — coloured per state regardless of project tint. */
+.notif-card-status {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.notif-card.notif-done .notif-card-title {
-  color: #56d364;
+.notif-status-question {
+  color: #e3b341;
 }
-.notif-card.notif-reminder .notif-card-title {
-  color: #79c0ff;
+.notif-status-done {
+  color: #3fb950;
+}
+.notif-status-reminder {
+  color: #58a6ff;
 }
 /* Always-visible header row: chevron toggle + terminal name + time. When the
    card is collapsed this is the whole card. */
@@ -1269,13 +1266,19 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
 .notif-card-title {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
+  letter-spacing: 0.01em;
+}
+.notif-card-title > span:last-child {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  letter-spacing: 0.01em;
 }
 .notif-card-time {
   flex: 0 0 auto;
@@ -1540,6 +1543,13 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
 }
 .resizer:hover {
   background: var(--accent-soft);
+}
+/* Sits above the <webview> panes during a split drag so the document keeps
+   receiving mousemove/mouseup instead of the webview swallowing them. */
+.resize-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
 }
 
 .pane-box {
@@ -2770,6 +2780,28 @@ body.improve-window {
   background: rgba(248, 81, 73, 0.12);
   border-color: rgba(248, 81, 73, 0.4);
 }
+.proc-status {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.06);
+}
+.proc-status-running {
+  color: #3fb950;
+  background: rgba(63, 185, 80, 0.14);
+}
+.proc-group-header {
+  padding: 8px 4px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 .claude-row {
   gap: 10px;
 }
@@ -3332,6 +3364,28 @@ body.improve-window {
   color: var(--accent);
 }
 
+/* A worktree being removed in the background: struck-through label + spinner. */
+.tab-item.worktree-archiving > .tab-row > .tab-title {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.tab-item.worktree-archiving > .tab-row::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  margin-left: 6px;
+  border: 1.5px solid var(--text-dim);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: worktree-spin 0.7s linear infinite;
+}
+@keyframes worktree-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Database tool styles moved to database.css (imported by database.ts). */
 
 .shortcuts-list {
@@ -3440,6 +3494,7 @@ body.improve-window {
 }
 .field input[type="text"],
 .field input[type="number"],
+.field input[type="date"],
 .field select {
   flex: 1;
   max-width: 280px;
@@ -3457,6 +3512,207 @@ body.improve-window {
 }
 .field input[type="number"] {
   max-width: 90px;
+}
+/* Render the native date control (text, spinners, calendar glyph) on the dark
+   theme so it matches the other fields instead of showing a white box. */
+.field input[type="date"] {
+  color-scheme: dark;
+  font-family: inherit;
+}
+.field input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}
+.field input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+/* Stack a control with its helper text (e.g. the project select + path hint)
+   so the control keeps the same width as the other fields and the hint sits
+   below it instead of being squeezed beside it on the flex row. */
+.field-control-col {
+  flex: 1;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-control-col select {
+  width: 100%;
+  max-width: none;
+}
+.field-control-col .daily-plan-proj-hint {
+  margin-top: 0;
+}
+
+/* Custom themed date / datetime field (replaces native <input type=date/...>). */
+.date-field {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.date-field-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.date-field-text.is-empty {
+  color: var(--text-mute);
+}
+.date-field-glyph {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+.date-field:hover .date-field-glyph {
+  color: var(--text);
+}
+/* In a .field row, mirror the look/size of the sibling selects/inputs. */
+.field .date-field {
+  flex: 1;
+  max-width: 280px;
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 13px;
+}
+.field .date-field:focus {
+  border-color: var(--accent);
+}
+
+/* Date picker popover. */
+.date-pop {
+  position: fixed;
+  z-index: 1000;
+  width: 252px;
+  background: var(--elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  color: var(--text);
+  animation: menuIn 0.12s ease;
+}
+.date-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.date-pop-month {
+  font-weight: 600;
+  font-size: 13px;
+}
+.date-pop-nav {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.date-pop-nav:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.date-pop-week,
+.date-pop-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.date-pop-week {
+  margin-bottom: 4px;
+}
+.date-pop-week span {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-mute);
+  padding: 2px 0;
+}
+.date-pop-cell {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 5px 0;
+  font-size: 12px;
+  text-align: center;
+}
+.date-pop-cell:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.date-pop-cell.is-muted {
+  color: var(--text-mute);
+  opacity: 0.55;
+}
+.date-pop-cell.is-today {
+  border-color: var(--border-strong);
+}
+.date-pop-cell.is-selected {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.date-pop-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.date-pop-time span {
+  color: var(--text-dim);
+}
+.date-pop-time-input {
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 4px 7px;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  color-scheme: dark;
+}
+.date-pop-time-input:focus {
+  border-color: var(--accent);
+}
+.date-pop-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.date-pop-foot-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+.date-pop-foot-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.date-pop-foot-btn.accent {
+  color: var(--accent);
 }
 .color-grid {
   display: grid;
@@ -3586,6 +3842,8 @@ body.improve-window {
 /* right panel tabs (Notifications | Reminders) */
 .notif-tabs {
   display: flex;
+  flex: 1;
+  min-width: 0;
   gap: 2px;
 }
 .notif-tab {
@@ -4532,11 +4790,87 @@ body.improve-window {
 .pr-toolbar .settings-inline-btn:first-child {
   flex: 1;
 }
+.pr-subtabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 0;
+}
+.pr-subtab {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-mute);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.pr-subtab:hover {
+  color: var(--text-dim);
+}
+.pr-subtab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.pr-scopetabs {
+  gap: 2px;
+  padding: 4px 8px 6px;
+}
+.pr-scopetabs .pr-subtab {
+  flex: 1;
+  padding: 5px 4px;
+  font-size: 10.5px;
+  border-radius: 6px;
+  border-bottom: none;
+  background: transparent;
+}
+.pr-scopetabs .pr-subtab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.pr-scopetabs .pr-subtab.active {
+  background: var(--bg-term);
+  color: var(--accent);
+}
 .pr-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 8px;
+}
+.pr-allbar {
+  display: flex;
+  margin-bottom: 8px;
+}
+.pr-allbar .settings-inline-btn {
+  flex: 1;
+}
+.pr-group-empty {
+  padding: 4px 0 8px;
+  font-size: 11px;
+}
+.pr-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.pr-pick-row input[type='checkbox'] {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.pr-section-head {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 10px 0 6px;
+}
+.pr-section-head:first-child {
+  margin-top: 0;
 }
 .pr-repo {
   font-size: 10.5px;
@@ -4546,11 +4880,41 @@ body.improve-window {
   text-transform: lowercase;
 }
 .pr-card {
+  position: relative;
   border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 9px 10px;
-  margin-bottom: 7px;
-  background: rgba(255, 255, 255, 0.015);
+  border-radius: 10px;
+  padding: 11px 12px 11px 15px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.018);
+  overflow: hidden;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pr-card:hover {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: var(--border-strong);
+}
+/* Left status rail — overall PR health at a glance. */
+.pr-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--text-mute);
+  opacity: 0.45;
+}
+.pr-card.state-ready::before {
+  background: #3fb950;
+  opacity: 1;
+}
+.pr-card.state-running::before {
+  background: #d29922;
+  opacity: 1;
+}
+.pr-card.state-blocked::before {
+  background: #f85149;
+  opacity: 1;
 }
 .pr-card.current {
   border-color: var(--accent, #58a6ff);
@@ -4559,93 +4923,160 @@ body.improve-window {
 .pr-card-top {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 7px;
 }
 .pr-num {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: var(--text-mute);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   flex: 0 0 auto;
 }
 .pr-title {
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 650;
   color: var(--text);
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
 }
 .pr-branch {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 10.5px;
   color: var(--text-mute);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  margin-top: 3px;
+  margin-top: 6px;
+}
+.pr-ref {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pr-ref.head {
+  color: var(--text-dim);
+  min-width: 0;
+}
+.pr-ref.base {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.pr-arrow {
+  flex: 0 0 auto;
+  opacity: 0.55;
+}
 .pr-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 7px;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
 }
-.pr-checks,
 .pr-tag {
-  font-size: 9.5px;
-  font-weight: 700;
-  border-radius: 4px;
-  padding: 2px 6px;
-  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 5px;
+  padding: 3px 7px;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
 }
-.pr-checks.ok,
+.pr-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
 .pr-tag.ok {
-  background: rgba(63, 185, 80, 0.18);
+  background: rgba(63, 185, 80, 0.13);
   color: #3fb950;
+  border-color: rgba(63, 185, 80, 0.22);
 }
-.pr-checks.bad,
 .pr-tag.bad {
-  background: rgba(248, 81, 73, 0.18);
+  background: rgba(248, 81, 73, 0.13);
   color: #f85149;
+  border-color: rgba(248, 81, 73, 0.22);
 }
-.pr-checks.wait,
 .pr-tag.wait {
-  background: rgba(210, 153, 34, 0.18);
+  background: rgba(210, 153, 34, 0.13);
   color: #d29922;
+  border-color: rgba(210, 153, 34, 0.22);
 }
-.pr-checks.none,
 .pr-tag.none {
-  background: rgba(139, 148, 158, 0.16);
+  background: rgba(139, 148, 158, 0.12);
   color: var(--text-mute);
+  border-color: rgba(139, 148, 158, 0.2);
+}
+.pr-tag.comment {
+  gap: 4px;
+}
+.pr-tag.comment svg {
+  width: 11px;
+  height: 11px;
+  opacity: 0.85;
+}
+.pr-tag.pulse .pr-dot {
+  animation: pr-pulse 1.5s ease-in-out infinite;
+}
+@keyframes pr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(210, 153, 34, 0.45);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 3px rgba(210, 153, 34, 0);
+  }
 }
 .pr-actions {
   display: flex;
-  gap: 5px;
-  margin-top: 9px;
+  gap: 6px;
+  margin-top: 11px;
 }
 .pr-act {
   flex: 1;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 7px;
+  background: transparent;
   color: var(--text-dim);
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 6px;
+  padding: 5px 6px;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, filter 0.12s ease;
 }
 .pr-act:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text);
   border-color: var(--border-strong);
 }
 .pr-act.primary {
+  background: var(--accent, #58a6ff);
   border-color: var(--accent, #58a6ff);
-  color: var(--accent, #58a6ff);
+  color: #fff;
+}
+.pr-act.primary:hover:not(:disabled) {
+  background: var(--accent, #58a6ff);
+  color: #fff;
+  filter: brightness(1.12);
+}
+.pr-act.merge {
+  color: #3fb950;
+  border-color: rgba(63, 185, 80, 0.4);
 }
 .pr-act.merge:hover:not(:disabled) {
+  background: rgba(63, 185, 80, 0.12);
   border-color: #3fb950;
   color: #3fb950;
 }
@@ -5186,7 +5617,7 @@ body.improve-window {
 
 /* ---- Daily Plan / Kanban modal ----------------------------------------- */
 .daily-plan-modal {
-  width: min(1180px, 94vw);
+  width: min(1400px, 95vw);
   height: min(780px, 88vh);
   display: flex;
   flex-direction: column;
@@ -5195,12 +5626,12 @@ body.improve-window {
 }
 .daily-plan-header {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   grid-template-rows: auto auto;
   grid-template-areas:
-    "title nav"
-    "subtitle actions";
-  gap: 6px 16px;
+    "title nav actions"
+    "subtitle nav actions";
+  gap: 4px 12px;
   align-items: center;
   margin-bottom: 14px;
   /* reserve space on the right so the × close button never overlaps nav/action buttons */
@@ -5271,6 +5702,7 @@ body.improve-window {
   font-size: 12px;
   font-family: inherit;
   outline: none;
+  color-scheme: dark;
 }
 .daily-plan-date-input:focus {
   border-color: var(--accent);
@@ -5279,7 +5711,7 @@ body.improve-window {
 .daily-plan-board {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   overflow: hidden;
   min-height: 0;
@@ -5423,6 +5855,43 @@ body.improve-window {
   margin-top: 4px;
   font-size: 11px;
   color: var(--text-dim);
+}
+.daily-plan-card-due {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 2px 7px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+}
+.daily-plan-card-due::before {
+  content: '◴';
+  margin-right: 4px;
+  font-weight: 400;
+}
+.daily-plan-card-due.overdue {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.daily-plan-card-due.soon {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.daily-plan-card-due.normal {
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-strong);
+}
+.daily-plan-card-due.done {
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
 }
 .daily-plan-column {
   display: flex;
@@ -5589,14 +6058,13 @@ body.improve-window {
 }
 .daily-plan-card-top {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
 }
 .daily-plan-priority-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-top: 5px;
   flex: 0 0 8px;
 }
 .daily-plan-priority-dot.priority-low {
@@ -5609,15 +6077,21 @@ body.improve-window {
   background: #ef4444;
 }
 .daily-plan-card-title {
-  flex: 1;
-  font-size: 13px;
-  line-height: 1.4;
+  margin-top: 7px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.42;
   color: var(--text);
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .daily-plan-card-actions {
   display: flex;
   gap: 2px;
+  margin-left: auto;
   opacity: 0;
   transition: opacity 0.12s ease;
 }
@@ -5644,7 +6118,6 @@ body.improve-window {
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 8px;
-  padding-left: 16px;
 }
 .daily-plan-tag-chip {
   display: inline-flex;
@@ -5676,7 +6149,6 @@ body.improve-window {
 
 .daily-plan-card-desc {
   margin-top: 6px;
-  padding-left: 16px;
   font-size: 11px;
   color: var(--text-dim);
   line-height: 1.4;
@@ -5699,6 +6171,19 @@ body.improve-window {
   font-weight: normal;
   font-size: 11px;
   margin-left: 4px;
+}
+/* Fixed label column for the title/description rows so both textareas start at the
+   same x and share an identical width. */
+.daily-plan-form .daily-plan-text-field > label {
+  flex: 0 0 100px;
+  align-self: flex-start;
+  padding-top: 9px;
+}
+/* Match the tag picker width to the select controls (Status, Priority, …) so it
+   right-aligns at the same 280px column. */
+.daily-plan-form .daily-plan-tag-picker {
+  flex: 1;
+  max-width: 280px;
 }
 .daily-plan-proj-hint {
   margin-top: 4px;
@@ -5819,11 +6304,13 @@ body.improve-window {
   padding: 8px 2px;
 }
 .meeting-note-card {
-  background: var(--bg-term);
+  position: relative;
+  background: var(--elev-2);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  padding: 8px 9px;
+  padding: 9px 10px 10px;
   cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.08s ease;
 }
 .meeting-note-card:hover {
   border-color: var(--accent);
@@ -5872,6 +6359,54 @@ body.improve-window {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
+.meeting-note-group-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  padding: 6px 2px 2px;
+}
+.meeting-note-group-header:first-child {
+  padding-top: 2px;
+}
+.meeting-note-archived-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--text-mute);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 2px 4px;
+  cursor: pointer;
+}
+.meeting-note-archived-toggle:hover {
+  color: var(--text);
+}
+.daily-plan-title-input {
+  width: 100%;
+  min-height: 56px;
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 10px 11px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+}
+.daily-plan-title-input:focus {
+  border-color: var(--accent);
+}
 .daily-plan-desc-input {
   width: 100%;
   min-height: 120px;
@@ -5879,12 +6414,13 @@ body.improve-window {
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: 7px;
-  padding: 7px 9px;
+  padding: 10px 11px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 15px;
+  font-weight: 600;
   resize: vertical;
   outline: none;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 .daily-plan-desc-input:focus {
   border-color: var(--accent);
@@ -5944,7 +6480,8 @@ body.improve-window {
   cursor: pointer;
   font-family: inherit;
 }
-.daily-plan-tag-option:hover {
+.daily-plan-tag-option:hover,
+.daily-plan-tag-option.active {
   background: var(--row-hover);
 }
 .daily-plan-tag-option.create {

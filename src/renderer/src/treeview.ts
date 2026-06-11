@@ -480,21 +480,24 @@ export function createTreeView<T>(host: HTMLElement, a: TreeAdapter<T>): TreeVie
   }
 
   // Re-fill the dynamic slots (leading/trailing/below) without rebuilding rows,
-  // so e.g. status dots can update while the user is mid-drag/scroll.
+  // so e.g. status dots can update while the user is mid-drag/scroll. Only swap a
+  // slot when its rendered content actually changed: a wholesale replace every
+  // tick would destroy interactive sub-rows (iOS worktrees, plan rows) under the
+  // cursor mid-click, causing flicker and dropped clicks.
+  function syncSlot(hostEl: HTMLElement, next: HTMLElement | null): void {
+    const cur = hostEl.firstElementChild as HTMLElement | null
+    if (!next && !cur) return
+    if (next && cur && next.outerHTML === cur.outerHTML) return
+    hostEl.replaceChildren()
+    if (next) hostEl.appendChild(next)
+  }
+
   function refreshDynamic(): void {
     if (renaming) return
     for (const r of live) {
-      if (r.leadingHost) {
-        r.leadingHost.replaceChildren()
-        const lead = a.leading?.(r.node)
-        if (lead) r.leadingHost.appendChild(lead)
-      }
-      r.trailingHost.replaceChildren()
-      const trailing = a.trailing?.(r.node)
-      if (trailing) r.trailingHost.appendChild(trailing)
-      r.belowHost.replaceChildren()
-      const below = a.below?.(r.node)
-      if (below) r.belowHost.appendChild(below)
+      if (r.leadingHost) syncSlot(r.leadingHost, a.leading?.(r.node) ?? null)
+      syncSlot(r.trailingHost, a.trailing?.(r.node) ?? null)
+      syncSlot(r.belowHost, a.below?.(r.node) ?? null)
     }
   }
 

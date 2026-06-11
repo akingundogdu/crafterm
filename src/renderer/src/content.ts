@@ -85,6 +85,14 @@ function attachResizer(
     const sum = a0 + b0
     const elA = container.children[i * 2] as HTMLElement
     const elB = container.children[i * 2 + 2] as HTMLElement
+    // A <webview> captures pointer events, so once the cursor crosses into a
+    // browser pane the document stops receiving mousemove/mouseup and the drag
+    // freezes. A full-screen transparent overlay above the webviews keeps the
+    // events flowing to the document for the duration of the drag.
+    const overlay = document.createElement('div')
+    overlay.className = 'resize-overlay'
+    overlay.style.cursor = horizontal ? 'col-resize' : 'row-resize'
+    document.body.appendChild(overlay)
 
     const onMove = (ev: MouseEvent): void => {
       const pos = horizontal ? ev.clientX : ev.clientY
@@ -98,6 +106,7 @@ function attachResizer(
     const onUp = (): void => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      overlay.remove()
       document.body.style.cursor = ''
       // The drag mutated node.sizes and the DOM directly without a rebuild, so
       // the cached layout signature is now stale. Refresh it — otherwise a later

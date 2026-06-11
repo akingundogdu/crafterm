@@ -5,6 +5,7 @@ import type {
   TabNode,
   FolderNode,
   ProjectNode,
+  WorktreeNode,
   Application
 } from './types'
 import { MAX_FOLDER_DEPTH } from './types'
@@ -25,7 +26,8 @@ import {
   renderContent,
   updateActive,
   updatePaneActive,
-  applyDocFont
+  applyDocFont,
+  serializeLayout
 } from './state'
 import {
   firstPaneOf,
@@ -47,6 +49,7 @@ import {
   isContainer
 } from './tree'
 import { findProjectByPath } from './catalog'
+import { iosWorktreeEnvFor } from './ios-worktree'
 import {
   createPane,
   destroyPane,
@@ -112,13 +115,15 @@ export async function newClaudeTab(parentFolderId?: string | null, cwd?: string)
   })
 }
 
-// Bake a deterministic --session-id into a bare `claude` launch and record it on
-// the pane. PATH/alias/.zshrc-proof: instead of relying on a shim winning command
-// resolution (a prepended ~/.local/bin defeats that), Crafterm picks the session
-// id and tells Claude to use it directly. The id is persisted via pane state, so
-// restore and the sidebar map this pane to its exact session with zero ambiguity.
-// Skips launches that already select a session (--resume/-c/--session-id) or print
-// mode, and any command that isn't actually launching `claude`.
+// Bake the pane's stableId in as Claude's --session-id, unifying the two ids: the
+// pane UUID (CRAFTERM_PANE_ID), the plan-file owner tag (`--pane-<stableId>`) and
+// the Claude session id all become the SAME value. PATH/alias/.zshrc-proof —
+// Crafterm tells Claude which id to use instead of relying on a shim winning
+// command resolution. The id is already persisted via the pane's stableId, so
+// restore (`claude --resume <stableId>`) and the sidebar map this pane to its
+// exact session with zero ambiguity, and the post-spawn session-capture polling
+// is unnecessary for these launches. Skips launches that already select a session
+// (--resume/-c/--session-id) or print mode, and anything not launching `claude`.
 const CLAUDE_LAUNCH_RE = /(^|\s|&&|\|\||;|\|)claude(\s|$)/
 function withClaudeSessionId(command: string, paneId: string): string {
   const pane = panes.get(paneId)
@@ -128,7 +133,7 @@ function withClaudeSessionId(command: string, paneId: string): string {
   }
   const m = CLAUDE_LAUNCH_RE.exec(command)
   if (!m) return command
-  const sid = crypto.randomUUID()
+  const sid = pane.stableId // unify: Claude session id === pane stableId
   pane.claude = true
   pane.claudeSessionId = sid
   pane.claudeSessionLocked = true
@@ -175,7 +180,11 @@ async function createTab(
   }
 ): Promise<void> {
   const folder = parentFolderId ? folderNodeById(parentFolderId) : null
-  const env = folder?.env ? parseEnvLines(folder.env) : undefined
+  let env = folder?.env ? parseEnvLines(folder.env) : undefined
+  // Inside an iOS worktree, inject CRAFTERM_IOS_SCRIPT + IOSWT_* so terminals (and
+  // the /run-on-device skill) can build this worktree correctly (todo23).
+  const iosEnv = parentFolderId ? await iosWorktreeEnvFor(parentFolderId) : null
+  if (iosEnv) env = { ...(env ?? {}), ...iosEnv }
   const paneId = await createPane(opts.cwd ?? activeCwd(), {
     env,
     shell: folder?.shell?.trim() || undefined
@@ -257,7 +266,7 @@ async function createTab(
   if (command) setTimeout(() => window.crafterm.input(paneId, command + '\r'), 350)
 }
 
-function folderNodeById(id: string): FolderNode | ProjectNode | null {
+function folderNodeById(id: string): FolderNode | ProjectNode | WorktreeNode | null {
   const r = findById(state.tree, id)
   return r && isContainer(r.node) ? r.node : null
 }
@@ -793,6 +802,24 @@ export async function openTerminalRunning(command: string, title: string): Promi
   await createTab(null, { title, command })
 }
 
+// Open a new terminal at a specific directory and run a command there, without
+// creating/attaching a sidebar project node (unlike openProject).
+export async function runInDir(dir: string, command: string, title: string): Promise<void> {
+  await createTab(null, { title, cwd: dir, command })
+}
+
+// Open a new terminal nested under a sidebar folder (e.g. a worktree folder), at
+// `dir`, optionally running a command. Used by the worktree manager so terminals
+// land inside the right worktree node rather than the ungrouped area.
+export async function runInFolder(
+  parentFolderId: string,
+  dir: string,
+  command: string | undefined,
+  title: string
+): Promise<void> {
+  await createTab(parentFolderId, { title, cwd: dir, command })
+}
+
 // Resume a stored Claude conversation in a new terminal at its project cwd.
 export async function resumeClaudeSession(
   sessionId: string,
@@ -968,8 +995,62 @@ export function killPoppedPane(paneId: string): void {
   closePane(paneId)
 }
 
+// Archive a terminal session (never delete): preserve its layout — with stableIds
+// and bindings — in dormantRoot for later reactivation, kill its PTYs, and leave
+// the node in the tree with status 'archived' (hidden from the sidebar). The live
+// root becomes an empty placeholder until the session is reactivated.
+export function archiveTab(tab: TabNode): void {
+  tab.dormantRoot = serializeLayout(tab.root)
+  panesInLayout(tab.root).forEach((id) => {
+    destroyPane(id)
+    window.crafterm.kill(id)
+  })
+  tab.root = { type: 'leaf', paneId: '' }
+  tab.status = 'archived'
+}
+
 export function closePane(paneId: string): void {
   poppedOut.delete(paneId)
+
+  // A background-process VIEW: tear down only the view (xterm/DOM). The PTY keeps
+  // running in main (close ≠ kill); reopening re-attaches and replays the buffer.
+  const viewPane = panes.get(paneId)
+  if (viewPane?.isProcessView) {
+    destroyPane(paneId)
+    const t = allTabs(state.tree).find((tt) => layoutContains(tt.root, paneId))
+    if (t) {
+      const nr = removePaneFromLayout(t.root, paneId)
+      if (nr === null) removeNodeById(t.id)
+      else t.root = nr
+    }
+    fixActiveAfterChange()
+    requestSidebar()
+    renderContent()
+    focusActivePane()
+    saveSoon()
+    return
+  }
+
+  // A terminal session's last pane: archive the whole session instead of
+  // destroying it, so its stableId/tickets/claude bindings survive (recoverable
+  // under "Show archived items"). Capture the layout before tearing the pane down.
+  const isTerminalPane =
+    !browsers.has(paneId) &&
+    !docs.has(paneId) &&
+    !sqlPanes.has(paneId) &&
+    !diffPanes.has(paneId) &&
+    !filePanes.has(paneId)
+  const owningTab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
+  if (isTerminalPane && owningTab && panesInLayout(owningTab.root).length <= 1) {
+    archiveTab(owningTab)
+    fixActiveAfterChange()
+    requestSidebar()
+    renderContent()
+    focusActivePane()
+    saveSoon()
+    return
+  }
+
   if (browsers.has(paneId)) {
     destroyBrowserPane(paneId)
   } else if (docs.has(paneId)) {
@@ -985,11 +1066,11 @@ export function closePane(paneId: string): void {
     window.crafterm.kill(paneId)
   }
 
-  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
+  const tab = owningTab
   if (tab) {
     const newRoot = removePaneFromLayout(tab.root, paneId)
     if (newRoot === null) {
-      removeNodeById(tab.id) // last pane closed -> drop the tab
+      removeNodeById(tab.id) // last (non-terminal) pane closed -> drop the tab
     } else {
       tab.root = newRoot
     }
@@ -1004,11 +1085,8 @@ export function closePane(paneId: string): void {
 export function closeTab(tabId: string): void {
   const tab = findTab(state.tree, tabId)
   if (!tab) return
-  panesInLayout(tab.root).forEach((id) => {
-    destroyPane(id)
-    window.crafterm.kill(id)
-  })
-  removeNodeById(tabId)
+  // Archive (never delete) — keep the session recoverable.
+  archiveTab(tab)
   fixActiveAfterChange()
   requestSidebar()
   renderContent()
@@ -1033,8 +1111,9 @@ function removeNodeById(id: string): void {
 
 function fixActiveAfterChange(): void {
   if (state.selectedNodeId && !findById(state.tree, state.selectedNodeId)) state.selectedNodeId = null
-  if (state.activeTabId && findTab(state.tree, state.activeTabId)) return
-  const first = allTabs(state.tree)[0] ?? null
+  const active = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
+  if (active && active.status !== 'archived') return
+  const first = allTabs(state.tree).find((t) => t.status !== 'archived') ?? null
   state.activeTabId = first?.id ?? null
   state.activePaneId = first ? firstPaneOf(first.root) : null
 }
@@ -1430,7 +1509,7 @@ export function moveNode(dragId: string, targetId: string | null, mode: DropMode
     const tgt = findById(state.tree, targetId)
     if (!tgt) return
     // can't drop a folder into its own subtree
-    if (src.node.kind === 'folder' && isDescendant(src.node, targetId)) return
+    if (isContainer(src.node) && isDescendant(src.node, targetId)) return
 
     if (mode === 'into') {
       if (!isContainer(tgt.node)) return

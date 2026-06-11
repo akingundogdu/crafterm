@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
+import { join } from 'path'
+import { homedir } from 'os'
 
 // Resolve the GitHub CLI; GUI-launched apps don't inherit the shell PATH.
 function ghBin(): string {
@@ -8,6 +10,53 @@ function ghBin(): string {
     if (existsSync(p)) return p
   }
   return 'gh'
+}
+
+// Run an async mapper over items with a fixed concurrency cap, preserving order.
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++
+      out[i] = await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()))
+  return out
+}
+
+function resolveBase(root: string): string {
+  let base = root && root.trim() ? root.trim() : ''
+  if (base.startsWith('~')) base = join(homedir(), base.slice(1))
+  return base
+}
+
+// Two-level git-repo scan under `base`. A child that is itself a repo is one
+// project; a group folder contributes each of its repo subfolders as
+// "group/name".
+function scanRepos(base: string): { name: string; path: string }[] {
+  const isRepo = (p: string): boolean => existsSync(join(p, '.git'))
+  const subdirs = (p: string): { name: string; path: string }[] => {
+    try {
+      return readdirSync(p, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+        .map((d) => ({ name: d.name, path: join(p, d.name) }))
+    } catch {
+      return []
+    }
+  }
+  const repos: { name: string; path: string }[] = []
+  for (const c of subdirs(base)) {
+    if (isRepo(c.path)) repos.push(c)
+    else for (const g of subdirs(c.path)) if (isRepo(g.path)) repos.push({ name: `${c.name}/${g.name}`, path: g.path })
+  }
+  return repos.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+// Display name for a repo path relative to the code root (else its basename).
+function relName(base: string, p: string): string {
+  return base && p.startsWith(base + '/') ? p.slice(base.length + 1) : p.split('/').pop() || p
 }
 
 function ghRun(
@@ -99,6 +148,52 @@ interface RawPr {
   updatedAt?: string
 }
 
+interface RawRun {
+  databaseId: number
+  name?: string
+  displayTitle?: string
+  status?: string
+  conclusion?: string
+  event?: string
+  headBranch?: string
+  headSha?: string
+  url?: string
+  createdAt?: string
+}
+
+function shapeRun(r: RawRun): Record<string, unknown> {
+  return {
+    id: r.databaseId,
+    name: r.name ?? '',
+    title: r.displayTitle ?? '',
+    status: r.status ?? '', // queued | in_progress | completed
+    conclusion: r.conclusion ?? '', // success | failure | cancelled | '' while running
+    event: r.event ?? '',
+    headBranch: r.headBranch ?? '',
+    headSha: r.headSha ?? '',
+    url: r.url ?? '',
+    createdAt: r.createdAt ?? ''
+  }
+}
+
+interface RawDeployment {
+  id: number
+  environment?: string
+  ref?: string
+  sha?: string
+  description?: string
+  created_at?: string
+}
+
+interface RawDeployStatus {
+  state?: string // pending | in_progress | success | failure | error | inactive | queued
+  description?: string
+  environment_url?: string
+  log_url?: string
+  target_url?: string
+  created_at?: string
+}
+
 function shapePr(p: RawPr): Record<string, unknown> {
   return {
     number: p.number,
@@ -114,6 +209,74 @@ function shapePr(p: RawPr): Record<string, unknown> {
     checks: summarizeChecks(p.statusCheckRollup),
     updatedAt: p.updatedAt ?? ''
   }
+}
+
+// Recent GitHub Actions workflow runs for the repo at `cwd`, newest first.
+async function loadRuns(cwd: string): Promise<{ ok: boolean; error?: string; runs: Record<string, unknown>[] }> {
+  const r = await ghRun(
+    [
+      'run',
+      'list',
+      '--limit',
+      '20',
+      '--json',
+      'databaseId,name,displayTitle,status,conclusion,event,headBranch,headSha,url,createdAt'
+    ],
+    cwd
+  )
+  if (!r.ok) return { ok: false, error: (r.err || 'gh run list failed').trim(), runs: [] }
+  try {
+    const arr = JSON.parse(r.out.trim() || '[]') as RawRun[]
+    return { ok: true, runs: arr.map(shapeRun) }
+  } catch {
+    return { ok: false, error: 'failed to parse gh run output', runs: [] }
+  }
+}
+
+// Latest deployment records for the repo at `cwd`, each with its current status.
+// Capped at 10 deployments to bound the per-status API fan-out.
+async function loadDeployments(
+  cwd: string
+): Promise<{ ok: boolean; error?: string; deployments: Record<string, unknown>[] }> {
+  const repoRes = await ghRun(
+    ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
+    cwd,
+    6000
+  )
+  const repo = repoRes.out.trim()
+  if (!repo) return { ok: false, error: 'Not a GitHub repository (or no remote).', deployments: [] }
+
+  const list = await ghRun(['api', `repos/${repo}/deployments?per_page=10`], cwd)
+  if (!list.ok) return { ok: false, error: (list.err || 'gh api deployments failed').trim(), deployments: [] }
+  let raw: RawDeployment[]
+  try {
+    raw = JSON.parse(list.out.trim() || '[]') as RawDeployment[]
+  } catch {
+    return { ok: false, error: 'failed to parse deployments', deployments: [] }
+  }
+
+  const deployments = await Promise.all(
+    raw.map(async (d) => {
+      const sres = await ghRun(['api', `repos/${repo}/deployments/${d.id}/statuses?per_page=1`], cwd)
+      let status: RawDeployStatus = {}
+      try {
+        const statuses = JSON.parse(sres.out.trim() || '[]') as RawDeployStatus[]
+        status = statuses[0] ?? {}
+      } catch {
+        status = {}
+      }
+      return {
+        id: d.id,
+        environment: d.environment ?? '',
+        ref: d.ref ?? d.sha ?? '',
+        state: status.state ?? 'pending', // pending | in_progress | success | failure | error | inactive
+        description: status.description || d.description || '',
+        url: status.environment_url || status.log_url || status.target_url || '',
+        createdAt: status.created_at || d.created_at || ''
+      }
+    })
+  )
+  return { ok: true, deployments }
 }
 
 export function registerPrIpc(): void {
@@ -141,6 +304,38 @@ export function registerPrIpc(): void {
     } catch {
       return { ok: false, error: 'failed to parse gh output', prs: [] }
     }
+  })
+
+  // All git repos under the code root (no gh calls) — feeds the project picker.
+  ipcMain.handle('pr:repos', (_e, { root }: { root: string }) => {
+    const base = resolveBase(root)
+    if (!base) return { ok: false, error: 'Set a Code root in settings.', repos: [] }
+    const repos = scanRepos(base)
+    if (!repos.length) return { ok: false, error: 'Code root is not readable.', repos: [] }
+    return { ok: true, repos }
+  })
+
+  // Open PRs for the explicitly selected repo paths, grouped per-project. A
+  // selected repo with no open PRs is still returned (empty `prs`) so the user
+  // sees every project they chose to track.
+  ipcMain.handle('pr:list-all', async (_e, { root, paths }: { root: string; paths: string[] }) => {
+    const base = resolveBase(root)
+    const sel = (Array.isArray(paths) ? paths : []).filter((p) => existsSync(join(p, '.git')))
+    if (!sel.length) return { ok: true, projects: [] }
+    const groups = await mapPool(sel, 8, async (p) => {
+      const r = await ghRun(['pr', 'list', '--state', 'open', '--limit', '30', '--json', PR_FIELDS], p)
+      let prs: Record<string, unknown>[] = []
+      if (r.ok) {
+        try {
+          prs = (JSON.parse(r.out.trim() || '[]') as RawPr[]).map(shapePr)
+        } catch {
+          prs = []
+        }
+      }
+      const name = relName(base, p)
+      return { name, path: p, repo: name, prs }
+    })
+    return { ok: true, projects: groups }
   })
 
   ipcMain.handle(
@@ -258,4 +453,36 @@ export function registerPrIpc(): void {
       return r.ok ? { ok: true } : { ok: false, error: (r.err || 'failed to post comment').trim() }
     }
   )
+
+  // Recent GitHub Actions workflow runs for the repo, newest first. Repo-wide
+  // (gh has no PR-scoped run list); the renderer keys off headBranch/headSha to
+  // associate a run with a merge.
+  ipcMain.handle('gh:runs', async (_e, { cwd }: { cwd: string }) => loadRuns(cwd))
+
+  // Deployments + workflow runs for the explicitly selected repo paths, grouped
+  // per-project (mirror of pr:list-all for the Deployments view).
+  ipcMain.handle('gh:deploys-all', async (_e, { root, paths }: { root: string; paths: string[] }) => {
+    const base = resolveBase(root)
+    const sel = (Array.isArray(paths) ? paths : []).filter((p) => existsSync(join(p, '.git')))
+    if (!sel.length) return { ok: true, projects: [] }
+    const projects = await mapPool(sel, 6, async (p) => {
+      const [dep, runs] = await Promise.all([loadDeployments(p), loadRuns(p)])
+      return {
+        name: relName(base, p),
+        path: p,
+        deployments: dep.ok ? dep.deployments : [],
+        runs: runs.ok ? runs.runs : []
+      }
+    })
+    return { ok: true, projects }
+  })
+
+  // Job/step breakdown for one run; fetched lazily when a run card is expanded.
+  ipcMain.handle('gh:run-jobs', async (_e, { cwd, id }: { cwd: string; id: number }) => {
+    const r = await ghRun(['run', 'view', String(id), '--json', 'jobs'], cwd)
+    return r.ok ? r.out : r.err || 'gh run view failed'
+  })
+
+  // Latest deployment per recent deployment record, with its current status.
+  ipcMain.handle('gh:deployments', async (_e, { cwd }: { cwd: string }) => loadDeployments(cwd))
 }

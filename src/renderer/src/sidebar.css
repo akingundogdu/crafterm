@@ -74,6 +74,23 @@
   background: var(--row-hover);
   color: var(--text);
 }
+.tab-proc-kill {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1.1em;
+  line-height: 1;
+  padding: 0 4px;
+  opacity: 0;
+}
+.tab-pane-row:hover .tab-proc-kill {
+  opacity: 1;
+}
+.tab-proc-kill:hover {
+  color: var(--text);
+}
 .tab-pane-title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -137,40 +154,41 @@
 }
 
 .tab-badge {
-  font-size: 0.84em;
+  font-size: 0.76em;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: var(--text-mute);
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 9px;
-  padding: 1px 7px;
-  min-width: 20px;
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 7px;
+  padding: 0px 5px;
+  min-width: 16px;
   text-align: center;
 }
 .tab-item.active .tab-badge {
-  color: var(--text-dim);
+  color: var(--text-mute);
 }
 
 /* Claude session status pill (sidebar terminal rows) */
 .claude-status {
-  font-size: 0.74em;
+  font-size: 0.62em;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  border-radius: 9px;
-  padding: 1px 6px;
+  letter-spacing: 0.03em;
+  border-radius: 6px;
+  padding: 0px 4px;
   text-transform: uppercase;
+  opacity: 0.85;
 }
 .claude-status.claude-in-progress {
-  color: #fff;
-  background: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 .claude-status.claude-question {
-  color: #1a1300;
-  background: #f0b429;
+  color: #d6a94a;
+  background: rgba(240, 180, 41, 0.12);
 }
 .claude-status.claude-idle {
-  color: var(--text-mute);
-  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* per-row order number (Cmd+1..9 for the first nine) */
@@ -252,6 +270,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ios-wt-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 .ios-wt-act {
   flex: 0 0 auto;

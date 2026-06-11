@@ -1,3 +1,9 @@
+// ---- Unified node status / pane role (the stableId-keyed data model) ----
+// Every persisted node carries a lifecycle status; panes additionally carry a
+// role. Nodes are never deleted — closing/removal flips status to 'archived'.
+export type NodeStatus = 'idle' | 'running' | 'waiting' | 'done' | 'archived'
+export type PaneRole = 'claude' | 'app' | 'build' | 'shell'
+
 // ---- Pane layout (split tree) ----
 export interface SavedLeaf {
   type: 'leaf'
@@ -7,6 +13,7 @@ export interface SavedLeaf {
   title?: string // only persisted when the pane name was set manually
   titleLocked?: boolean
   cwd?: string // restore the terminal in its last working directory
+  lastCommand?: string // last command run (raw panes only) — pre-typed on restore
   claude?: boolean // a Claude session — resumed on restore
   claudeSessionId?: string // exact session to `claude --resume <id>` on restore
   bgColor?: string // per-pane background override
@@ -14,7 +21,10 @@ export interface SavedLeaf {
   // action menu's "Commands — …" sections after restore).
   projectId?: string
   appId?: string
-  dailyTaskId?: string // daily-task this terminal is assigned to (todo50)
+  status?: NodeStatus // lifecycle status (idle/running/waiting/done/archived)
+  role?: PaneRole // pane role (claude/app/build/shell)
+  tickets?: string[] // daily-task ids this terminal is assigned to (multi)
+  dailyTaskId?: string // deprecated single-ticket field; migrated into tickets[]
   // When set, this leaf is a SQL pane (not a terminal); restore creates a SqlPane.
   sqlPane?: {
     connId: string | null
@@ -40,6 +50,7 @@ export interface SavedTabNode {
   pinned: boolean
   root: SavedNode
   detailsOpen?: boolean
+  status?: NodeStatus // derived from child panes; 'archived' when closed
 }
 export interface SavedFolder {
   kind: 'folder'
@@ -50,6 +61,8 @@ export interface SavedFolder {
   children: SavedSidebarNode[]
   group?: string
   feature?: string // worktree/feature folder marker (the branch name)
+  worktreeContainer?: boolean // auto "worktrees" container under a project
+  worktreePath?: string // this folder is a worktree at this absolute path
   startup?: string
   env?: string
   shell?: string
@@ -114,11 +127,40 @@ export interface SavedProject {
   apps?: SavedApplication[]
   features?: SavedFeature[]
   runCommands?: SavedProjectCommand[]
+  supportWorktree?: boolean
   iosApp?: boolean
   iosConfig?: SavedIosConfig
   issueKeyPrefix?: string
 }
-export type SavedSidebarNode = SavedTabNode | SavedFolder | SavedProject
+// A persisted background process (hidden shell) under a worktree.
+export interface SavedBackgroundProcess {
+  stableId: string
+  title: string
+  role: PaneRole
+  status: NodeStatus
+  command: string
+  cwd: string
+  target?: { kind: 'device' | 'simulator'; name: string; udid?: string }
+}
+// A git worktree as a first-class node (was SavedFolder + worktreePath marker).
+export interface SavedWorktree {
+  kind: 'worktree'
+  name: string
+  color: string | null
+  collapsed: boolean
+  pinned: boolean
+  children: SavedSidebarNode[]
+  group?: string
+  branch: string
+  worktreePath: string
+  status?: NodeStatus
+  processes?: SavedBackgroundProcess[]
+  lastRun?: { kind: 'device' | 'simulator'; name: string; udid: string; scheme?: string }
+  startup?: string
+  env?: string
+  shell?: string
+}
+export type SavedSidebarNode = SavedTabNode | SavedFolder | SavedProject | SavedWorktree
 
 // ---- Legacy (pre-folders) tab list, kept for one-time migration ----
 export interface SavedTab {
@@ -181,6 +223,9 @@ export type SavedDbNode =
   | { kind: 'conn'; id: string; collapsed: boolean; color?: string | null; conn: SavedDbConnection }
 
 export interface SavedState {
+  // Bumped when the persisted shape changes; main backs up the file once before
+  // a mismatching (older) state is loaded and migrated. See store:load.
+  schemaVersion?: number
   tree?: SavedSidebarNode[]
   tabs?: SavedTab[] // legacy
   theme: string // a built-in name, or 'Custom'
@@ -188,6 +233,7 @@ export interface SavedState {
   bgColor?: string // user-chosen background color
   docFontSize?: number // markdown doc font size
   codeRoot?: string // base folder for the Cmd+P folder picker
+  prProjects?: string[] // repo paths shown in the PR panel's "All projects" view
   codeExtensions?: string[] // extensions that open via `ide` when clicked
   todoFile?: string // path to todo-list.md for the Improve Crafterm panel
   repoPath?: string // Crafterm source repo path for the "Update Crafterm" action
@@ -236,6 +282,7 @@ export interface SavedState {
   tabDisplay?: {
     mode?: 'icon' | 'text' | 'both'
     hidden?: { left?: string[]; right?: string[] }
+    order?: { left?: string[]; right?: string[] }
   }
   bookmarks?: {
     id: string
@@ -267,6 +314,7 @@ export interface SavedState {
       title: string
       description?: string
       date: string
+      dueDate?: string
       status: 'backlog' | 'todo' | 'wip' | 'done'
       priority: 'low' | 'medium' | 'high'
       tagIds: string[]
@@ -285,6 +333,7 @@ export interface SavedState {
     attendees: string[]
     notes: string
     projectId?: string
+    archived?: boolean
     createdAt: number
     updatedAt: number
   }[]
@@ -359,6 +408,9 @@ export interface PaneInfo {
   cwd: string | null
   branch: string | null
   worktree: string | null // basename of the git toplevel (worktree/repo folder), or null
+  // Literal last command captured by the zsh preexec hook (keyed by stableId),
+  // or null when none recorded yet. Only read when a stableId is passed.
+  lastCommand?: string | null
 }
 
 // A stored Claude conversation (one .jsonl under ~/.claude/projects/<cwd>/).
@@ -458,6 +510,18 @@ export interface CraftermApi {
   kill(id: string): void
   onData(cb: (id: string, data: string) => void): void
   onExit(cb: (id: string) => void): void
+  // Background processes ("hidden shells"): run a one-shot command in a PTY keyed
+  // by stableId, buffered in main so a view can attach + replay. Live data/exit
+  // flow over the shared pty:data channel and the proc:exit channel.
+  procStart(opts: {
+    stableId: string
+    command: string
+    cwd?: string
+    env?: Record<string, string>
+  }): Promise<string>
+  procBuffer(id: string): Promise<string>
+  procAttach(id: string): void
+  onProcExit(cb: (id: string, code: number) => void): void
   adoptPane(id: string): void
   popoutOpen(paneId: string, title?: string): Promise<void>
   popoutConfirmClose(id: string): void
@@ -468,7 +532,7 @@ export interface CraftermApi {
   improveWindowSetAlwaysOnTop(value: boolean): void
   loadState(): Promise<SavedState | null>
   saveState(data: SavedState): void
-  paneInfo(id: string): Promise<PaneInfo>
+  paneInfo(id: string, stableId?: string): Promise<PaneInfo>
   notify(title: string, body: string, paneId?: string): void
   openExternal(url: string): void
   onCloseActivePane(cb: () => void): void
@@ -486,7 +550,14 @@ export interface CraftermApi {
     cwd: string,
     branch: string
   ): Promise<
-    { name: string; path: string; ownerStableId: string | null; ownerSessionId: string | null }[]
+    {
+      name: string
+      slug: string
+      path: string
+      mtime: number
+      ownerStableId: string | null
+      ownerSessionId: string | null
+    }[]
   >
   // Aggregate every plan markdown under each project path's docs/plans dir
   // (newest first). Powers the Notebook "Plans" section.
@@ -499,12 +570,21 @@ export interface CraftermApi {
   onPlansChanged(cb: (plansDir: string) => void): () => void
   openMarkdown(path: string): void
   listWorktrees(cwd?: string): Promise<WorktreeListing>
+  // Create (or attach an existing branch to) a worktree at `path`, awaiting it.
+  worktreeAdd(repo: string, path: string, branch: string, base?: string): Promise<boolean>
   // Absolute path to the bundled iOS worktree helper script (ios-worktree.sh).
   iosWorktreeScript(): Promise<string>
   // Live status of a repo's iOS worktrees (built/installed/running per variant).
   iosWorktreeReport(repoRoot: string, cfg?: SavedIosConfig): Promise<IosWorktreeReport | null>
   // Terminate a worktree's variant on the target simulator.
   iosWorktreeStop(worktreePath: string, cfg?: SavedIosConfig): Promise<boolean>
+  // Available iOS run targets for the worktree "Build & Run" picker.
+  iosListTargets(): Promise<{
+    simulators: { name: string; udid: string }[]
+    devices: { name: string; udid: string }[]
+  }>
+  // Xcode scheme names for the project (e.g. "local" / "prod").
+  iosListSchemes(repoRoot: string, cfg?: SavedIosConfig): Promise<string[]>
   nbTree(): Promise<NbNode[]>
   nbRead(path: string): Promise<string>
   nbWrite(path: string, content: string): void
@@ -530,6 +610,9 @@ export interface CraftermApi {
   gitStashList(id: string): Promise<{ ref: string; description: string }[]>
   gitBranches(id: string): Promise<string[]>
   claudeLatestSession(cwd?: string, since?: number): Promise<string | null>
+  // Recover a session's working directory from its jsonl (the `cwd` field), used
+  // to resume a Claude pane whose saved cwd was lost. Null if not found.
+  claudeSessionCwd(sessionId: string): Promise<string | null>
   claudeSessions(): Promise<ClaudeSession[]>
   claudeSessionTitle(cwd: string, sessionId: string): Promise<string | null>
   // Coarse session state from the JSONL tail for the sidebar status dot.
@@ -537,6 +620,12 @@ export interface CraftermApi {
     cwd: string,
     sessionId: string
   ): Promise<'in-progress' | 'question' | 'idle' | null>
+  // Live permission mode of a Claude session from the JSONL's last
+  // permission-mode record. 'plan' means the session is in plan mode right now.
+  claudePermissionMode(
+    cwd: string,
+    sessionId: string
+  ): Promise<'plan' | 'default' | 'auto' | 'acceptEdits' | string | null>
   // Start a live watcher on this cwd's Claude project dir; fires
   // onClaudeSessionsChanged when a session jsonl (e.g. a /rename) is written.
   // Idempotent per cwd. Returns false if the dir can't be watched yet.
@@ -575,6 +664,7 @@ export interface CraftermApi {
   dbqDelete(connId: string, name: string): Promise<boolean>
   appVersion(): Promise<string>
   appBuildInfo(): Promise<{ commit: string | null; commitCount: number | null } | null>
+  appBuildCounter(repoPath: string): Promise<number | null>
   repoGit(
     repoPath: string
   ): Promise<{ commit: string; commitCount: number; dirty: boolean } | null>
@@ -600,6 +690,13 @@ export interface CraftermApi {
   dockerPrune(target: string): Promise<{ ok: boolean; out?: string; error?: string }>
   prAvailable(cwd: string): Promise<{ ok: boolean; repo?: string; error?: string }>
   prList(cwd: string): Promise<{ ok: boolean; error?: string; prs: PullRequest[] }>
+  prRepos(
+    root: string
+  ): Promise<{ ok: boolean; error?: string; repos: { name: string; path: string }[] }>
+  prListAll(
+    root: string,
+    paths: string[]
+  ): Promise<{ ok: boolean; error?: string; projects: ProjectPullRequests[] }>
   prMerge(cwd: string, number: number, method: string): Promise<{ ok: boolean; error?: string }>
   prView(cwd: string, number: number): Promise<string>
   prDiff(cwd: string, number: number): Promise<{ ok: boolean; patch?: string; error?: string }>
@@ -611,6 +708,36 @@ export interface CraftermApi {
     endLine: number,
     body: string
   ): Promise<{ ok: boolean; error?: string }>
+  ghRuns(cwd: string): Promise<{ ok: boolean; error?: string; runs: WorkflowRun[] }>
+  ghRunJobs(cwd: string, id: number): Promise<string>
+  ghDeployments(cwd: string): Promise<{ ok: boolean; error?: string; deployments: DeploymentStatus[] }>
+  ghDeploysAll(
+    root: string,
+    paths: string[]
+  ): Promise<{ ok: boolean; error?: string; projects: ProjectDeployments[] }>
+}
+
+export interface WorkflowRun {
+  id: number
+  name: string
+  title: string
+  status: string // queued | in_progress | completed
+  conclusion: string // success | failure | cancelled | '' while running
+  event: string
+  headBranch: string
+  headSha: string
+  url: string
+  createdAt: string
+}
+
+export interface DeploymentStatus {
+  id: number
+  environment: string
+  ref: string
+  state: string // pending | in_progress | success | failure | error | inactive
+  description: string
+  url: string
+  createdAt: string
 }
 
 export interface PrChecks {
@@ -634,6 +761,22 @@ export interface PullRequest {
   comments: number
   checks: PrChecks
   updatedAt: string
+}
+
+// One project (git repo) under the code root, with its open PRs.
+export interface ProjectPullRequests {
+  name: string
+  path: string
+  repo: string
+  prs: PullRequest[]
+}
+
+// One project (git repo) under the code root, with its deployments + CI runs.
+export interface ProjectDeployments {
+  name: string
+  path: string
+  deployments: DeploymentStatus[]
+  runs: WorkflowRun[]
 }
 
 export type DockerKind = 'container' | 'image' | 'volume' | 'network'

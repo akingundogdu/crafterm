@@ -1,5 +1,6 @@
 import { settings, state, panes, saveSoon } from './state'
 import { openMarkdownFile, openFileViewer, splitWithIde } from './commands'
+import type { SidebarNode } from './types'
 
 function treeEl(): HTMLElement {
   return document.getElementById('explorer-tree')!
@@ -11,12 +12,37 @@ function searchEl(): HTMLInputElement {
   return document.getElementById('explorer-search') as HTMLInputElement
 }
 
-// Root: the Settings value, else the active terminal's cwd.
+// Find the git worktree whose path contains `cwd` (the active terminal lives
+// inside it), so the explorer follows the worktree — not the configured/main
+// root. Returns the longest (deepest) matching worktree path. todo17.
+function worktreeRootFor(cwd: string): string | null {
+  const c = cwd.replace(/\/+$/, '')
+  let best: string | null = null
+  const walk = (nodes: SidebarNode[]): void => {
+    for (const n of nodes) {
+      if (n.kind === 'worktree') {
+        const w = n.worktreePath.replace(/\/+$/, '')
+        if ((c === w || c.startsWith(w + '/')) && (!best || w.length > best.length)) best = w
+      }
+      if (n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree') walk(n.children)
+    }
+  }
+  walk(state.tree)
+  return best
+}
+
+// Root: follow the active terminal's worktree when it's in one (todo17), else
+// the Settings value, else the active terminal's cwd.
 function explorerRoot(): string {
-  const r = settings.explorerRoot.trim()
-  if (r) return r.startsWith('~') ? r : r
   const id = state.activePaneId
-  return (id ? panes.get(id)?.cwd : null) ?? ''
+  const cwd = (id ? panes.get(id)?.cwd : null) ?? ''
+  if (cwd) {
+    const wt = worktreeRootFor(cwd)
+    if (wt) return wt
+  }
+  const r = settings.explorerRoot.trim()
+  if (r) return r
+  return cwd
 }
 
 function isExcluded(name: string): boolean {

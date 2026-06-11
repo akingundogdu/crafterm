@@ -11,6 +11,7 @@ import { renderExplorer, initExplorer } from './explorer'
 import { prTabVisible } from './pr'
 import { renderBookmarks } from './bookmarks'
 import { showDailyPlanModal } from './dailyPlan'
+import { openMeetingNote } from './meetingNotes'
 import { renderTime, initTime, startAutoTracker } from './time'
 import { runUpdate } from './pickers'
 
@@ -21,6 +22,15 @@ const panelEl = document.getElementById('notif-panel')!
 // Down-chevron toggle on each card; rotates 180° via CSS when the card expands.
 const CHEVRON_SVG =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+
+// Status icons shown left of the title. The icon (not a colour) communicates the
+// notification state, since card colours now carry the project identity instead.
+const QUESTION_SVG =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+const CLOCK_SVG =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>'
+const CHECK_SVG =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
 
 // Cards start collapsed (terminal name only); expanding reveals the message,
 // source chips and remind button. Tracked per notification id for this session.
@@ -250,6 +260,7 @@ function initStatusbarVersion(): void {
   const textEl = chip.querySelector('.version-text') as HTMLElement | null
   let base = '' // base semver from package.json (e.g. "0.1.0")
   let built: { commit: string | null; commitCount: number | null } | null = null
+  let counter: number | null = null // monotonic save count for the source repo
   let needsRedeploy = false
 
   // The running build is stale when the repo's HEAD differs from what this build
@@ -273,7 +284,7 @@ function initStatusbarVersion(): void {
         `Running build +${built.commitCount ?? '?'} → repo +${repoGit.commitCount}.\n` +
         `Click to rebuild & restart.`
     } else {
-      chip.title = `Crafterm v${base}+${built.commitCount ?? '?'} (up to date) · click to check`
+      chip.title = `Crafterm v${base}+${counter ?? built.commitCount ?? '?'} (up to date) · click to check`
     }
   }
 
@@ -281,8 +292,13 @@ function initStatusbarVersion(): void {
     try {
       base = (await window.crafterm.appVersion()) || ''
       built = await window.crafterm.appBuildInfo()
+      const repo = settings.repoPath.trim()
+      // The displayed "+N" is the live save counter (ticks up as code changes);
+      // fall back to the built-from commit count when no source repo is set.
+      counter = repo ? await window.crafterm.appBuildCounter(repo) : null
       if (textEl) {
-        const suffix = built?.commitCount != null ? `+${built.commitCount}` : ''
+        const n = counter ?? built?.commitCount ?? null
+        const suffix = n != null ? `+${n}` : ''
         textEl.textContent = base ? `v${base}${suffix}` : 'v—'
       }
       await evaluate()
@@ -309,9 +325,10 @@ function initStatusbarVersion(): void {
   })
 
   void refresh()
-  // Re-check periodically and on focus so edits surface without a manual click.
-  window.setInterval(() => void evaluate(), 20_000)
-  window.addEventListener('focus', () => void evaluate())
+  // Re-read the counter and redeploy state periodically and on focus so saves
+  // surface in the label without a manual click.
+  window.setInterval(() => void refresh(), 20_000)
+  window.addEventListener('focus', () => void refresh())
 }
 
 function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
@@ -391,10 +408,10 @@ export function renderNotifications(): void {
     const tone =
       n.kind === 'reminder' ? 'reminder' : n.event === 'question' ? 'question' : n.event === 'done' ? 'done' : ''
     card.className = 'notif-card' + (tone ? ' notif-' + tone : '')
-    // Project color: left-border tag so the source project is recognizable at a
-    // glance. State tint (question/done/reminder) still drives the fill.
+    // Status drives the left bar (via the notif-<tone> CSS class); the project
+    // colour drives the title + background fill so the two readings stay distinct.
     if (n.projectColor) {
-      card.style.borderLeft = `3px solid ${n.projectColor}`
+      card.style.background = `color-mix(in srgb, ${n.projectColor} 9%, transparent)`
     }
 
     const expanded = expandedNotifs.has(n.id)
@@ -425,7 +442,17 @@ export function renderNotifications(): void {
     })
     const title = document.createElement('span')
     title.className = 'notif-card-title'
-    title.textContent = n.title
+    if (n.projectColor) title.style.color = n.projectColor
+    const statusIcon = tone === 'question' ? QUESTION_SVG : tone === 'reminder' ? CLOCK_SVG : tone === 'done' ? CHECK_SVG : ''
+    if (statusIcon) {
+      const icon = document.createElement('span')
+      icon.className = 'notif-card-status notif-status-' + tone
+      icon.innerHTML = statusIcon
+      title.append(icon)
+    }
+    const titleText = document.createElement('span')
+    titleText.textContent = n.title
+    title.append(titleText)
     const time = document.createElement('span')
     time.className = 'notif-card-time'
     time.textContent = relTime(n.time)
@@ -625,6 +652,14 @@ function resolvePayloadOpener(
       open: () => openMarkdownFile(payload.path)
     }
   }
+  if (payload.kind === 'meetingNote') {
+    const n = settings.meetingNotes.find((x) => x.id === payload.noteId)
+    if (!n) return null
+    return {
+      label: 'Open meeting',
+      open: () => openMeetingNote(n.id)
+    }
+  }
   return null
 }
 
@@ -659,7 +694,6 @@ function switchTab(tab: RightTab): void {
 
 export function initNotifications(): void {
   document.getElementById('notif-clear')!.addEventListener('click', clearNotifications)
-  document.getElementById('notif-hide')!.addEventListener('click', toggleNotifPanel)
   document
     .getElementById('statusbar-notif-toggle')!
     .addEventListener('click', toggleNotifPanel)

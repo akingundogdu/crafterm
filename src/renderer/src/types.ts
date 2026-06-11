@@ -1,5 +1,7 @@
 import type { Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
+import type { NodeStatus, PaneRole, SavedNode } from '../../preload/api'
+export type { NodeStatus, PaneRole } from '../../preload/api'
 
 export type Dir = 'row' | 'col'
 
@@ -16,7 +18,14 @@ export type PaneStatus = 'running' | 'idle' | 'attention'
 // Both null means a legacy/shared plan with no owner tag.
 export interface PlanEntry {
   name: string
+  // The plan-slug segment alone (branch prefix + owner/session tag stripped),
+  // shown in the sidebar so long generated filenames stay readable.
+  slug: string
   path: string
+  // File mtime (ms). Used to auto-open only plans produced during the current
+  // live session (mtime after the pane's Claude launch), not pre-existing ones
+  // surfaced on resume / session-id capture.
+  mtime: number
   ownerStableId: string | null
   ownerSessionId: string | null
 }
@@ -42,6 +51,9 @@ export interface Pane {
   cwd: string | null
   branch: string | null
   worktree: string | null // git worktree/repo folder name (status bar)
+  // Literal last command run in this pane (captured by the zsh preexec hook).
+  // Persisted for non-Claude panes so restore can pre-type it (without running).
+  lastCommand: string | null
   plans: PlanEntry[] // docs/plans files matching this branch (filtered by ownership)
   claude: boolean // a Claude session — resumed on restore
   claudeSessionId: string | null // captured session id for `claude --resume <id>` on restore
@@ -65,8 +77,18 @@ export interface Pane {
   appId: string | null
   // Daily-task this terminal is working on (assigned via the pane menu, or set
   // automatically by "Open in terminal"). Drives the header chip + the
-  // "mark done on close?" prompt.
+  // "mark done on close?" prompt. Persisted as the multi-valued `tickets[]`;
+  // the multi-ticket UI lands later (todo14) — for now this single field is the
+  // in-memory source and serializes to/from tickets[0].
   dailyTaskId: string | null
+  // Unified data model (stableId hub). Lifecycle status + pane role. Full status
+  // wiring (busy→running, claude question→waiting) lands in phase F2; for now
+  // these default at creation and round-trip through persistence.
+  status: NodeStatus
+  role: PaneRole
+  // True when this pane is a transient VIEW onto a background process (its id is
+  // the process stableId). Closing the view must NOT kill the underlying PTY.
+  isProcessView?: boolean
   lastActivity: number // ms of last terminal output/input (idle detection)
   lastNotify: number
   lastCols: number // last cols/rows pushed to the PTY; lets us skip no-op resizes
@@ -153,6 +175,13 @@ export interface TabNode {
   pinned: boolean
   root: LayoutNode
   detailsOpen?: boolean // sidebar row: show the detail line (default collapsed = title only)
+  // Unified data model: a session is never deleted — closing flips status to
+  // 'archived' (hidden from the sidebar, shown under "Show archived items").
+  status?: NodeStatus
+  // While archived, the serialized layout (with stableIds) is preserved here so
+  // the session can be rebuilt on reactivate; the live `root` is an empty
+  // placeholder until then.
+  dormantRoot?: SavedNode
 }
 
 // A grouping folder in the sidebar (can nest up to MAX_FOLDER_DEPTH). A folder
@@ -168,6 +197,11 @@ export interface FolderNode {
   children: SidebarNode[]
   group?: string // optional group (workspace) label for the top-level header
   feature?: string // when set, this is a feature/worktree folder (the branch name)
+  // Auto-managed worktree nodes (reconcileWorktrees). The container holds one
+  // worktree folder per `git worktree list` entry; the worktree folder records
+  // its absolute path (the stable match key). Only marked nodes are auto-managed.
+  worktreeContainer?: boolean // the auto "worktrees" container folder under a project
+  worktreePath?: string // this folder is a worktree at this absolute path
   // per-folder defaults applied to terminals opened inside this folder
   startup?: string // command run on open
   env?: string // raw "KEY=VALUE" lines
@@ -197,12 +231,59 @@ export interface ProjectNode {
   apps?: Application[] // runnable applications under this project
   features?: Feature[] // time-tracking features under this project
   runCommands?: ProjectCommand[] // named one-shot shell commands (sidebar "Run command…")
-  iosApp?: boolean // when true, show the iOS worktree manager under this project
+  supportWorktree?: boolean // when true, auto-list this repo's git worktrees as folder nodes
+  iosApp?: boolean // when true, add iOS build/run actions to the worktree nodes (implies supportWorktree)
   iosConfig?: IosDevConfig // per-project iOS build config (repo root = this node's path)
   issueKeyPrefix?: string // prefix for generated daily-task issue keys (e.g. CRF → CRF-12)
+  // Transient hidden shells owned by the project (e.g. a `git worktree add` while
+  // the worktree node doesn't exist yet). Not persisted.
+  processes?: BackgroundProcess[]
 }
 
-export type SidebarNode = TabNode | FolderNode | ProjectNode
+// A hidden/background PTY (a "hidden shell") owned by a worktree — e.g. an iOS
+// build/run. Surfaced as a small sub-row under the worktree; viewable on demand
+// (attach + replay buffer) without killing it. Its lifetime is decoupled from any
+// view. See the Background Processes design (F6).
+export interface BackgroundProcess {
+  stableId: string // UUID hub (exposed as CRAFTERM_PANE_ID), like a pane
+  title: string // e.g. "Running on iPhone 16 simulator"
+  role: PaneRole // 'build' for iOS run; extensible
+  status: NodeStatus // running | done | archived | idle
+  command: string // the shell command this process runs
+  cwd: string
+  target?: { kind: 'device' | 'simulator'; name: string; udid?: string }
+}
+
+// A git worktree as a first-class sidebar node (was a FolderNode + worktreePath
+// marker). Behaves as a container (holds tabs/terminals) and carries its own
+// lifecycle status (git 1:1: delete → `git worktree remove` + archived) plus any
+// background build/run processes.
+export interface WorktreeNode {
+  kind: 'worktree'
+  id: string
+  name: string
+  color: NodeColor
+  collapsed: boolean
+  pinned: boolean
+  children: SidebarNode[]
+  group?: string
+  branch: string // the worktree's branch (was FolderNode.feature)
+  worktreePath: string // absolute path — the stable match key against git
+  status?: NodeStatus // active | archived (never deleted; mirrors git)
+  // Transient: a `git worktree remove` is running in the background. Drives the
+  // strikethrough + spinner row visual; cleared on success (→ archived) or
+  // failure (→ revert). Not persisted.
+  archiving?: boolean
+  processes?: BackgroundProcess[] // hidden background shells (iOS build/run, …)
+  // Last iOS run target chosen for this worktree — the ▶ play button re-runs it
+  // (disabled until the first explicit run). (todo22)
+  lastRun?: { kind: 'device' | 'simulator'; name: string; udid: string; scheme?: string }
+  startup?: string
+  env?: string
+  shell?: string
+}
+
+export type SidebarNode = TabNode | FolderNode | ProjectNode | WorktreeNode
 
 // One row of the sidebar "actions" (⋯) menu. A `builtin` item invokes a
 // registered in-app action (modal/dashboard); a `command` item runs a shell
@@ -233,7 +314,9 @@ export const BUILTIN_ACTIONS: { id: string; label: string }[] = [
   { id: 'updateZsh', label: 'Update my zsh config' },
   { id: 'improve', label: 'Improve Crafterm' },
   { id: 'updateCrafterm', label: 'Update Crafterm' },
-  { id: 'dailyPlan', label: 'Daily plan' }
+  { id: 'dailyPlan', label: 'Daily plan' },
+  { id: 'runningProcesses', label: 'Running processes' },
+  { id: 'runningDevices', label: 'Running devices' }
 ]
 
 export type DailyPlanStatus = 'backlog' | 'todo' | 'wip' | 'done'
@@ -244,12 +327,14 @@ export interface DailyPlanTask {
   title: string
   description?: string // optional free-text notes
   date: string // YYYY-MM-DD; the day this card belongs to
+  dueDate?: string // YYYY-MM-DD; optional target/deadline (drives the "time left" chip)
   status: DailyPlanStatus
   priority: DailyPlanPriority
   tagIds: string[]
   order: number // position within (date, status) for drag-drop ordering
   projectId?: string // owning ProjectNode id (gives cwd + issue-key prefix)
   issueKey?: string // generated once on "Open in terminal" (e.g. CRF-12)
+  worktreeSlug?: string // optional suffix appended to the issue key for the worktree branch/name (e.g. CRF-12-slug)
   createdAt: number
   updatedAt: number
 }
@@ -273,6 +358,7 @@ export interface MeetingNote {
   attendees: string[]
   notes: string // free-text body
   projectId?: string // optional owning ProjectNode id
+  archived?: boolean // hidden from the active list, shown in the Archived section
   createdAt: number
   updatedAt: number
 }
@@ -384,6 +470,7 @@ export type ReminderPayload =
   | { kind: 'notebook'; path: string }
   | { kind: 'dailyTask'; taskId: string }
   | { kind: 'plan'; path: string }
+  | { kind: 'meetingNote'; noteId: string }
 
 // A configurable quick-time chip in the reminder form. `offsetMin` is a relative
 // offset from now; `days` jumps that many days ahead and, when `snapHour` is set,

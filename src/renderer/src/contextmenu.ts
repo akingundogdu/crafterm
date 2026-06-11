@@ -1,6 +1,7 @@
 // Shared sidebar context menu — one implementation used by the terminal sidebar,
 // the notebook, and the database tree, so every right-click menu looks and
-// behaves identically (only the items + color target differ).
+// behaves identically (only the items + color target differ). Supports nested
+// (cascading) submenus via `children`, including async-populated ones.
 
 export const NODE_PALETTE = [
   '#f85149',
@@ -15,8 +16,15 @@ export const NODE_PALETTE = [
 
 export interface ContextMenuItem {
   label: string
-  run: () => void
+  run?: () => void
   danger?: boolean
+  // When set, clicking the item runs `run` but keeps the menu open and re-opens
+  // the submenu it lives in (e.g. a "Refresh" item that clears a cache and lets
+  // its parent producer re-fetch).
+  keepOpen?: boolean
+  // A submenu: either ready items or a (possibly async) producer evaluated when
+  // the submenu opens (e.g. enumerating simulators/devices on demand).
+  children?: ContextMenuItem[] | (() => ContextMenuItem[] | Promise<ContextMenuItem[]>)
 }
 
 export interface ColorOption {
@@ -24,37 +32,84 @@ export interface ColorOption {
   onPick: (color: string | null) => void
 }
 
-let cleanup: (() => void) | null = null
+// The open menu chain, indexed by depth (0 = root). Submenus live deeper.
+let menuStack: HTMLElement[] = []
+let outsideHandler: ((e: MouseEvent) => void) | null = null
+
+function closeFromDepth(depth: number): void {
+  while (menuStack.length > depth) menuStack.pop()?.remove()
+}
 
 export function closeContextMenu(): void {
-  document.querySelector('.context-menu')?.remove()
-  if (cleanup) {
-    cleanup()
-    cleanup = null
+  closeFromDepth(0)
+  if (outsideHandler) {
+    document.removeEventListener('mousedown', outsideHandler, true)
+    outsideHandler = null
   }
 }
 
-export function showContextMenu(e: MouseEvent, items: ContextMenuItem[], color?: ColorOption): void {
-  e.preventDefault()
-  e.stopPropagation()
-  closeContextMenu()
+// Render one menu level. Submenu parents open a flyout to the right on hover;
+// hovering a leaf collapses any deeper level so only one branch is open at once.
+function renderMenu(
+  items: ContextMenuItem[],
+  depth: number,
+  x: number,
+  y: number,
+  color?: ColorOption,
+  reopen?: () => void
+): void {
+  closeFromDepth(depth)
   const menu = document.createElement('div')
   menu.className = 'context-menu'
-  menu.style.left = e.clientX + 'px'
-  menu.style.top = e.clientY + 'px'
+  menu.style.left = x + 'px'
+  menu.style.top = y + 'px'
 
   for (const item of items) {
     const b = document.createElement('button')
-    b.textContent = item.label
+    const hasChildren = !!item.children
+    b.textContent = hasChildren ? `${item.label}  ▸` : item.label
     if (item.danger) b.classList.add('danger')
-    b.addEventListener('click', () => {
-      closeContextMenu()
-      item.run()
-    })
+    if (hasChildren) {
+      const open = async (): Promise<void> => {
+        closeFromDepth(depth + 1)
+        const r = b.getBoundingClientRect()
+        const src = item.children!
+        if (typeof src !== 'function') {
+          renderMenu(src.length ? src : [{ label: '(none)' }], depth + 1, r.right - 2, r.top - 4, undefined, open)
+          return
+        }
+        // Async producer (e.g. enumerating devices/schemes) — show an immediate
+        // "Loading…" flyout so the menu never feels frozen, then swap in results.
+        renderMenu([{ label: 'Loading…' }], depth + 1, r.right - 2, r.top - 4)
+        const placeholder = menuStack[depth + 1]
+        const kids = await src()
+        // Bail if the menu was torn down or the user opened a different submenu.
+        if (!menu.isConnected || menuStack[depth + 1] !== placeholder) return
+        renderMenu(kids.length ? kids : [{ label: '(none)' }], depth + 1, r.right - 2, r.top - 4, undefined, open)
+      }
+      b.addEventListener('mouseenter', () => void open())
+      b.addEventListener('click', (e) => {
+        e.stopPropagation()
+        void open()
+      })
+    } else {
+      // A leaf doesn't close the open submenu on hover — that would shut the
+      // flyout the user is diagonally reaching for. It closes when another parent
+      // opens, a leaf is clicked, or the user clicks outside.
+      b.addEventListener('click', () => {
+        if (item.keepOpen) {
+          item.run?.()
+          reopen?.()
+          return
+        }
+        closeContextMenu()
+        item.run?.()
+      })
+    }
     menu.appendChild(b)
   }
 
-  if (color) {
+  if (depth === 0 && color) {
     const colors = document.createElement('div')
     colors.className = 'color-swatches'
     const none = document.createElement('button')
@@ -79,14 +134,26 @@ export function showContextMenu(e: MouseEvent, items: ContextMenuItem[], color?:
   }
 
   document.body.appendChild(menu)
-  // keep the menu on screen
-  const r = menu.getBoundingClientRect()
-  if (r.bottom > window.innerHeight) menu.style.top = window.innerHeight - r.height - 8 + 'px'
-  if (r.right > window.innerWidth) menu.style.left = window.innerWidth - r.width - 8 + 'px'
+  menuStack[depth] = menu
+  menuStack.length = depth + 1
 
-  const onDown = (ev: MouseEvent): void => {
-    if (!menu.contains(ev.target as Node)) closeContextMenu()
+  // Keep on screen: flip a submenu to the left of its parent when it overflows.
+  const r = menu.getBoundingClientRect()
+  if (r.right > window.innerWidth) {
+    const left = depth > 0 ? x - r.width - menuStack[depth - 1].getBoundingClientRect().width + 4 : window.innerWidth - r.width - 8
+    menu.style.left = Math.max(8, left) + 'px'
   }
-  setTimeout(() => document.addEventListener('mousedown', onDown, true))
-  cleanup = () => document.removeEventListener('mousedown', onDown, true)
+  if (r.bottom > window.innerHeight) menu.style.top = Math.max(8, window.innerHeight - r.height - 8) + 'px'
+}
+
+export function showContextMenu(e: MouseEvent, items: ContextMenuItem[], color?: ColorOption): void {
+  e.preventDefault()
+  e.stopPropagation()
+  closeContextMenu()
+  renderMenu(items, 0, e.clientX, e.clientY, color)
+
+  outsideHandler = (ev: MouseEvent): void => {
+    if (!menuStack.some((m) => m.contains(ev.target as Node))) closeContextMenu()
+  }
+  setTimeout(() => document.addEventListener('mousedown', outsideHandler!, true))
 }

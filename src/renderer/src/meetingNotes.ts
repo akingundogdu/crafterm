@@ -2,6 +2,18 @@ import type { MeetingNote } from './types'
 import { settings, state, saveSoon, uid } from './state'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { flattenProjects, findProjectById } from './catalog'
+import { showRemindModal } from './reminders'
+import { createDateField } from './datepicker'
+
+const ARCHIVE_SVG =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/></svg>'
+
+const NO_PROJECT_GROUP = 'No project'
+
+interface NoteGroup {
+  name: string
+  notes: MeetingNote[]
+}
 
 function todayKey(): string {
   const d = new Date()
@@ -23,7 +35,31 @@ function sortedNotes(): MeetingNote[] {
   return settings.meetingNotes.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
 }
 
+// Group notes by their project name; notes without a project fall into a
+// trailing "No project" group. Project groups are sorted alphabetically and
+// each group keeps the newest-first order of the incoming list.
+function groupByProject(notes: MeetingNote[]): NoteGroup[] {
+  const byProject = new Map<string, MeetingNote[]>()
+  const orphans: MeetingNote[] = []
+  for (const note of notes) {
+    const project = note.projectId ? findProjectById(state.tree, note.projectId) : null
+    if (project) {
+      const arr = byProject.get(project.name)
+      if (arr) arr.push(note)
+      else byProject.set(project.name, [note])
+    } else {
+      orphans.push(note)
+    }
+  }
+  const groups: NoteGroup[] = [...byProject.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, ns]) => ({ name, notes: ns }))
+  if (orphans.length) groups.push({ name: NO_PROJECT_GROUP, notes: orphans })
+  return groups
+}
+
 let activeRerender: (() => void) | null = null
+let archivedOpen = false
 
 export function renderMeetingNotes(host: HTMLElement): void {
   host.innerHTML = ''
@@ -57,8 +93,33 @@ export function renderMeetingNotes(host: HTMLElement): void {
     return
   }
 
-  for (const note of notes) {
-    list.appendChild(renderCard(note, render))
+  const active = notes.filter((n) => !n.archived)
+  const archived = notes.filter((n) => n.archived)
+
+  for (const group of groupByProject(active)) {
+    const head = document.createElement('div')
+    head.className = 'meeting-note-group-header'
+    head.textContent = group.name
+    list.appendChild(head)
+    for (const note of group.notes) {
+      list.appendChild(renderCard(note, render, false))
+    }
+  }
+
+  if (archived.length) {
+    const toggle = document.createElement('button')
+    toggle.className = 'meeting-note-archived-toggle'
+    toggle.textContent = `${archivedOpen ? '▾' : '▸'} Archived (${archived.length})`
+    toggle.addEventListener('click', () => {
+      archivedOpen = !archivedOpen
+      render()
+    })
+    list.appendChild(toggle)
+    if (archivedOpen) {
+      for (const note of archived) {
+        list.appendChild(renderCard(note, render, true))
+      }
+    }
   }
 }
 
@@ -67,7 +128,14 @@ export function openNewMeeting(): void {
   showMeetingForm(null, () => activeRerender?.())
 }
 
-function renderCard(note: MeetingNote, rerender: () => void): HTMLElement {
+// Deep-link: open the edit form for a specific note (e.g. from a reminder card).
+export function openMeetingNote(noteId: string): void {
+  const note = settings.meetingNotes.find((n) => n.id === noteId)
+  if (!note) return
+  showMeetingForm(note, () => activeRerender?.())
+}
+
+function renderCard(note: MeetingNote, rerender: () => void, showProject: boolean): HTMLElement {
   const card = document.createElement('div')
   card.className = 'meeting-note-card'
 
@@ -82,6 +150,27 @@ function renderCard(note: MeetingNote, rerender: () => void): HTMLElement {
 
   const actions = document.createElement('div')
   actions.className = 'meeting-note-actions'
+  const remind = document.createElement('button')
+  remind.className = 'daily-plan-card-icon'
+  remind.title = 'Remind me'
+  remind.textContent = '⏰'
+  remind.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const subject = note.title || 'meeting note'
+    showRemindModal(subject, subject, { kind: 'meetingNote', noteId: note.id })
+  })
+  const arch = document.createElement('button')
+  arch.className = 'daily-plan-card-icon'
+  arch.title = note.archived ? 'Unarchive' : 'Archive'
+  arch.innerHTML = ARCHIVE_SVG
+  arch.addEventListener('click', (e) => {
+    e.stopPropagation()
+    note.archived = !note.archived
+    note.updatedAt = Date.now()
+    if (note.archived) archivedOpen = true
+    saveSoon()
+    rerender()
+  })
   const del = document.createElement('button')
   del.className = 'daily-plan-card-icon'
   del.title = 'Delete'
@@ -99,7 +188,7 @@ function renderCard(note: MeetingNote, rerender: () => void): HTMLElement {
     saveSoon()
     rerender()
   })
-  actions.appendChild(del)
+  actions.append(remind, arch, del)
 
   top.append(date, title, actions)
   card.appendChild(top)
@@ -111,7 +200,7 @@ function renderCard(note: MeetingNote, rerender: () => void): HTMLElement {
     card.appendChild(att)
   }
 
-  const project = note.projectId ? findProjectById(state.tree, note.projectId) : null
+  const project = showProject && note.projectId ? findProjectById(state.tree, note.projectId) : null
   if (project) {
     const proj = document.createElement('span')
     proj.className = 'meeting-note-project'
@@ -170,9 +259,7 @@ function showMeetingForm(existing: MeetingNote | null, onSaved: () => void): voi
   const dateField = document.createElement('div')
   dateField.className = 'field'
   dateField.innerHTML = '<label>Date</label>'
-  const dateInput = document.createElement('input')
-  dateInput.type = 'date'
-  dateInput.value = existing?.date ?? todayKey()
+  const dateInput = createDateField({ mode: 'date', value: existing?.date ?? todayKey() })
   dateField.appendChild(dateInput)
   modal.appendChild(dateField)
 

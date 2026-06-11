@@ -32,13 +32,19 @@
   color: var(--accent);
 }
 .nb-subtab-body {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-/* Notes tree must lay out as direct flex children of #tab-list (margin collapse,
-   scroll behaviour) — so the Notes body collapses its own box. */
-.nb-body-notes {
-  display: contents;
+/* Notes tab: in-page search stays fixed on top; the tree + linked files scroll
+   inside their own area (consistent with the Plans / Daily Plan sub-tabs). */
+.nb-notes-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 /* Shared in-page search box for the Plans / Daily Plan sub-tabs. */
 .nb-subtab-search {
@@ -75,8 +81,11 @@
   font-size: 12px;
   color: var(--text-mute);
 }
-/* When a non-Notes sub-tab is active, hide the notes-only search + footer. */
-#app.mode-notebook.nb-sub-other #sidebar-search,
+/* The shared top search box is replaced by per-tab in-page search in every
+   notebook sub-tab. The footer (new note/folder) is Notes-only. */
+#app.mode-notebook #sidebar-search {
+  display: none;
+}
 #app.mode-notebook.nb-sub-other #notebook-footer {
   display: none;
 }

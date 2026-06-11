@@ -142,7 +142,13 @@ PY
 }
 
 # --- Resolve a connected physical device UDID -------------------------------
+# An explicit IOSWT_DEVICE_UDID (chosen from the Crafterm "Build & Run" picker)
+# wins; otherwise fall back to the first reachable paired device.
 resolve_device() {
+  if [ -n "${IOSWT_DEVICE_UDID:-}" ]; then
+    printf '%s' "$IOSWT_DEVICE_UDID"
+    return
+  fi
   local json udid
   json="$(mktemp -t ioswt-devices)"
   xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1 || true
@@ -258,6 +264,18 @@ if [ -n "${IOSWT_COPY_FILES:-}" ]; then
   IFS="$OLD_IFS"
 fi
 
+# Seed a real *.xcconfig from its committed *.xcconfig.template when the
+# gitignored file is missing in a fresh worktree (e.g. Secrets.xcconfig — the
+# template is committed, the real file isn't). todo16.
+while IFS= read -r tmpl; do
+  [ -z "$tmpl" ] && continue
+  target="${tmpl%.template}"
+  if [ ! -e "$target" ]; then
+    cp "$tmpl" "$target"
+    echo "Created $(basename "$target") from $(basename "$tmpl")."
+  fi
+done < <(find "$WORKTREE_ROOT" -maxdepth 3 -name '*.xcconfig.template' -not -path '*/.*' 2>/dev/null)
+
 # --- Resolve target + destination -------------------------------------------
 DEVICE_UDID=""
 SIM_UDID=""
@@ -285,6 +303,10 @@ else
 fi
 
 # --- Build (isolated DerivedData + per-worktree identity overrides) ---------
+# Share the Swift Package clone cache across this repo's worktrees so each one
+# doesn't re-download SPM dependencies (todo24). Lives beside the checkouts.
+SHARED_SPM="${IOSWT_SPM_CACHE:-$(dirname "$MAIN_CHECKOUT")/.crafterm-spm-cache}"
+mkdir -p "$SHARED_SPM" 2>/dev/null || true
 BUILD_SETTINGS=(
   "PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID"
   "INFOPLIST_KEY_CFBundleDisplayName=$DISPLAY_NAME"
@@ -293,6 +315,7 @@ echo "Building..."
 xcodebuild "$CONTAINER_FLAG" "$CONTAINER" -scheme "$SCHEME" \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED_DATA" \
+  -clonedSourcePackagesDirPath "$SHARED_SPM" \
   ${EXTRA_FLAGS[@]+"${EXTRA_FLAGS[@]}"} \
   "${BUILD_SETTINGS[@]}" \
   build
@@ -301,6 +324,7 @@ xcodebuild "$CONTAINER_FLAG" "$CONTAINER" -scheme "$SCHEME" \
 APP_PATH="$(
   xcodebuild "$CONTAINER_FLAG" "$CONTAINER" -scheme "$SCHEME" \
     -destination "$DESTINATION" -derivedDataPath "$DERIVED_DATA" \
+    -clonedSourcePackagesDirPath "$SHARED_SPM" \
     "${BUILD_SETTINGS[@]}" -showBuildSettings 2>/dev/null \
     | awk -F' = ' '/ BUILT_PRODUCTS_DIR =/{d=$2} / FULL_PRODUCT_NAME =/{n=$2} END{print d"/"n}'
 )"
@@ -316,7 +340,7 @@ else
   echo "Installing on simulator..."
   xcrun simctl install "$SIM_UDID" "$APP_PATH"
   echo "Launching..."
-  xcrun simctl launch "$SIM_UDID" "$BUNDLE_ID"
+  xcrun simctl launch --console "$SIM_UDID" "$BUNDLE_ID"
 fi
 
 echo "Done: $BUNDLE_ID"

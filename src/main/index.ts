@@ -132,6 +132,13 @@ ipcMain.handle(
     // CRAFTERM_PANE_ID always reflects the pane that owns this PTY.
     const env = { ...process.env, ...(opts?.env ?? {}) }
     if (opts?.env?.CRAFTERM_PANE_ID) env.CRAFTERM_PANE_ID = opts.env.CRAFTERM_PANE_ID
+    // Route zsh through our ZDOTDIR shim so a preexec hook records the last
+    // command for this pane (restored as pre-typed text). USER_ZDOTDIR points the
+    // shim at the user's real rc dir so their config still loads.
+    if (shellIntegrationReady && /zsh/.test(shell)) {
+      env.USER_ZDOTDIR = process.env.ZDOTDIR || homedir()
+      env.ZDOTDIR = zdotDir()
+    }
     const p = pty.spawn(shell, ['-l'], {
       name: 'xterm-256color',
       cols: 80,
@@ -187,6 +194,68 @@ ipcMain.on('pty:kill', (_e, { id }: { id: string }) => {
   ptys.get(id)?.kill()
   ptys.delete(id)
   owners.delete(id)
+  procBuffers.delete(id)
+})
+
+// --- Background processes ("hidden shells"): a PTY that runs a one-shot command
+// (e.g. an iOS build/run), keyed by the renderer-supplied stableId. Output is
+// buffered in main so a view can attach later and replay it (the PTY lives
+// independent of any view; closing a view never kills it). It reuses the same
+// pty:data / pty:exit / pty:kill / pty:input channels, keyed by stableId. ---
+const procBuffers = new Map<string, string>()
+const PROC_BUFFER_CAP = 256 * 1024 // keep the last ~256KB of output for replay
+
+ipcMain.handle(
+  'proc:start',
+  (
+    e,
+    opts: { stableId: string; command: string; cwd?: string; env?: Record<string, string> }
+  ) => {
+    const id = opts.stableId
+    if (ptys.has(id)) return id // already running — don't double-spawn
+    owners.set(id, e.sender)
+    const shell = process.env.SHELL || '/bin/zsh'
+    let cwd = opts.cwd || homedir()
+    if (cwd.startsWith('~')) cwd = join(homedir(), cwd.slice(1))
+    if (!existsSync(cwd)) cwd = homedir()
+    const env = { ...process.env, ...(opts.env ?? {}), CRAFTERM_PANE_ID: id }
+    procBuffers.set(id, '')
+    const p = pty.spawn(shell, ['-lc', opts.command], {
+      name: 'xterm-256color',
+      cols: 120,
+      rows: 30,
+      cwd,
+      env: env as { [key: string]: string }
+    })
+    p.onData((data) => {
+      try {
+        const prev = procBuffers.get(id) ?? ''
+        const next = (prev + data).slice(-PROC_BUFFER_CAP)
+        procBuffers.set(id, next)
+        sendToOwner(id, 'pty:data', { id, data })
+      } catch {
+        /* renderer gone — never throw back into node-pty */
+      }
+    })
+    p.onExit(({ exitCode }) => {
+      try {
+        sendToOwner(id, 'proc:exit', { id, code: exitCode })
+      } catch {
+        /* teardown race */
+      }
+      ptys.delete(id) // buffer is kept for replay until the process is dismissed
+    })
+    ptys.set(id, p)
+    return id
+  }
+)
+
+// Replay buffer for an attaching view (the output produced while nothing watched).
+ipcMain.handle('proc:buffer', (_e, { id }: { id: string }) => procBuffers.get(id) ?? '')
+
+// Re-route a background process's live stream to the window attaching a view.
+ipcMain.on('proc:attach', (e, { id }: { id: string }) => {
+  owners.set(id, e.sender)
 })
 
 // --- Pop-out windows: host a single pane's terminal in its own window ---
@@ -286,9 +355,105 @@ const stateDir = (): string =>
   join(homedir(), app.isPackaged ? '.crafterm' : '.crafterm-dev')
 const statePath = (): string => join(stateDir(), 'crafterm-state.json')
 
+// --- Last-command capture (zsh preexec) -------------------------------------
+// A ZDOTDIR shim installs a `preexec` hook that records each command run in a
+// pane to <stateDir>/last-cmd/<CRAFTERM_PANE_ID>. On restore the renderer
+// pre-types it for raw (non-Claude) panes so the user can resume where they left
+// off. Best-effort: if the shim fails to install, terminals still work normally.
+const lastCmdDir = (): string => join(stateDir(), 'last-cmd')
+const zdotDir = (): string => join(stateDir(), 'zdotdir')
+let shellIntegrationReady = false
+
+function readLastCommand(stableId: string): string | null {
+  try {
+    const f = join(lastCmdDir(), stableId)
+    if (!existsSync(f)) return null
+    const s = readFileSync(f, 'utf8').trim()
+    // Drop multi-line commands: pre-typing one with embedded newlines would auto-
+    // run every line but the last, defeating the type-but-don't-run safety intent.
+    if (!s || s.includes('\n')) return null
+    return s
+  } catch {
+    return null
+  }
+}
+
+// Generate the ZDOTDIR shim. Each shim file sources the user's real rc (from
+// $USER_ZDOTDIR, defaulting to $HOME) so aliases/PATH/prompt stay intact, then
+// .zshrc appends our preexec hook and restores ZDOTDIR so nested shells are
+// untouched. Every source is guarded with `[ -f ]` so an unusual zsh setup still
+// yields a working shell.
+function setupShellIntegration(): void {
+  try {
+    mkdirSync(lastCmdDir(), { recursive: true })
+    const dir = zdotDir()
+    mkdirSync(dir, { recursive: true })
+    const sourceUser = (name: string): string =>
+      `[ -f "\${USER_ZDOTDIR:-$HOME}/${name}" ] && source "\${USER_ZDOTDIR:-$HOME}/${name}"\n`
+    // .zshenv runs for every shell. A user .zshenv may itself set ZDOTDIR, so we
+    // snapshot the shim dir first and reassert it afterwards to keep the chain.
+    writeFileSync(
+      join(dir, '.zshenv'),
+      'CRAFTERM_ZDOTDIR="$ZDOTDIR"\n' +
+        ': "${USER_ZDOTDIR:=$HOME}"\n' +
+        sourceUser('.zshenv') +
+        'ZDOTDIR="$CRAFTERM_ZDOTDIR"\n'
+    )
+    writeFileSync(join(dir, '.zprofile'), sourceUser('.zprofile'))
+    const cmdDir = lastCmdDir().replace(/(["\\$`])/g, '\\$1')
+    writeFileSync(
+      join(dir, '.zshrc'),
+      sourceUser('.zshrc') +
+        'if [ -n "$CRAFTERM_PANE_ID" ]; then\n' +
+        `  crafterm_preexec() { print -r -- "$1" > "${cmdDir}/$CRAFTERM_PANE_ID" 2>/dev/null }\n` +
+        '  typeset -ag preexec_functions\n' +
+        '  preexec_functions+=(crafterm_preexec)\n' +
+        'fi\n' +
+        // Restore ZDOTDIR so any nested zsh the user starts uses their own config.
+        'ZDOTDIR="${USER_ZDOTDIR:-$HOME}"\n'
+    )
+    shellIntegrationReady = true
+  } catch {
+    shellIntegrationReady = false
+  }
+}
+setupShellIntegration()
+
+// Bumped when the persisted shape changes (kept in sync with the renderer's
+// SCHEMA_VERSION in state.ts). State whose schemaVersion is below this is backed
+// up once before the renderer migrates and overwrites it on the next save.
+const SCHEMA_VERSION = 3
+
+function backupStateBeforeMigration(raw: string): void {
+  try {
+    const ts = new Date().toISOString().replace(/[:.]/g, '-')
+    writeFileSync(join(stateDir(), `crafterm-state.backup-${ts}.json`), raw)
+    // Keep only the most recent 5 backups.
+    const dir = stateDir()
+    const backups = readdirSync(dir)
+      .filter((f) => f.startsWith('crafterm-state.backup-') && f.endsWith('.json'))
+      .sort()
+    for (const f of backups.slice(0, Math.max(0, backups.length - 5))) {
+      try {
+        unlinkSync(join(dir, f))
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore backup errors — never block startup */
+  }
+}
+
 ipcMain.handle('store:load', () => {
   try {
-    return existsSync(statePath()) ? JSON.parse(readFileSync(statePath(), 'utf8')) : null
+    if (!existsSync(statePath())) return null
+    const raw = readFileSync(statePath(), 'utf8')
+    const data = JSON.parse(raw)
+    if (data && typeof data === 'object' && data.schemaVersion !== SCHEMA_VERSION) {
+      backupStateBeforeMigration(raw)
+    }
+    return data
   } catch {
     return null
   }
@@ -297,7 +462,11 @@ ipcMain.handle('store:load', () => {
 ipcMain.on('store:save', (_e, data: unknown) => {
   try {
     mkdirSync(stateDir(), { recursive: true })
-    writeFileSync(statePath(), JSON.stringify(data, null, 2))
+    // Atomic write: a hard kill mid-write would otherwise leave a truncated JSON
+    // that fails to parse on next launch, losing every saved session.
+    const tmp = statePath() + '.tmp'
+    writeFileSync(tmp, JSON.stringify(data, null, 2))
+    renameSync(tmp, statePath())
   } catch {
     /* ignore write errors */
   }
@@ -349,14 +518,15 @@ async function gitWorktreeName(cwd: string): Promise<string | null> {
   return top ? top.split('/').pop() || null : null
 }
 
-ipcMain.handle('pane:info', async (_e, { id }: { id: string }) => {
+ipcMain.handle('pane:info', async (_e, { id, stableId }: { id: string; stableId?: string }) => {
+  const lastCommand = stableId ? readLastCommand(stableId) : null
   const p = ptys.get(id)
-  if (!p) return { cwd: null, branch: null, worktree: null }
+  if (!p) return { cwd: null, branch: null, worktree: null, lastCommand }
   const cwd = await paneCwd(p.pid)
   const [branch, worktree] = cwd
     ? await Promise.all([gitBranch(cwd), gitWorktreeName(cwd)])
     : [null, null]
-  return { cwd, branch, worktree }
+  return { cwd, branch, worktree, lastCommand }
 })
 
 // Local branches for the repo a pane is in, most-recently-committed first.
@@ -862,6 +1032,34 @@ ipcMain.handle(
   }
 )
 
+// Current permission mode of a Claude session ('plan' | 'default' | 'auto' |
+// 'acceptEdits' | null). Claude appends a {type:'permission-mode',
+// permissionMode} record to the session JSONL on every mode change, so the last
+// such record in the file is the live mode. We scan a generous tail (a single
+// plan Write tool_use can be large) from the end for the most recent one.
+ipcMain.handle(
+  'claude:permissionMode',
+  (_e, { cwd, sessionId }: { cwd?: string; sessionId?: string }) => {
+    if (!cwd || !sessionId) return null
+    const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
+    if (!existsSync(file)) return null
+    const lines = readTail(file, 262144)
+      .split('\n')
+      .filter((l) => l.trim())
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const o = JSON.parse(lines[i]) as Record<string, unknown>
+        if (o.type === 'permission-mode' && typeof o.permissionMode === 'string') {
+          return o.permissionMode
+        }
+      } catch {
+        // truncated/partial line at the tail boundary — skip
+      }
+    }
+    return null
+  }
+)
+
 ipcMain.handle(
   'claude:latestSession',
   (_e, { cwd, since }: { cwd?: string; since?: number }) => {
@@ -882,6 +1080,35 @@ ipcMain.handle(
     return best ? best.id : null
   }
 )
+
+// Recover a Claude session's working directory from its jsonl (each line carries
+// a `cwd` field). The encoded project-dir name is lossy, so we scan every project
+// dir for `<sessionId>.jsonl` and read the first line that has a cwd. Used to
+// resume a Claude pane whose saved cwd was lost.
+ipcMain.handle('claude:sessionCwd', (_e, { sessionId }: { sessionId?: string }) => {
+  if (!sessionId) return null
+  const root = claudeProjectsDir()
+  if (!existsSync(root)) return null
+  try {
+    for (const d of readdirSync(root)) {
+      const file = join(root, d, sessionId + '.jsonl')
+      if (!existsSync(file)) continue
+      for (const line of readHead(file).split('\n')) {
+        if (!line.trim()) continue
+        try {
+          const obj = JSON.parse(line) as { cwd?: unknown }
+          if (typeof obj.cwd === 'string' && obj.cwd) return obj.cwd
+        } catch {
+          /* partial/non-JSON line — keep scanning */
+        }
+      }
+      return null
+    }
+  } catch {
+    return null
+  }
+  return null
+})
 
 // Read just the head of a file (session prompts/cwd live near the top).
 function readHead(path: string, bytes = 16384): string {
@@ -1172,7 +1399,9 @@ function ensurePlansWatcher(plansDir: string): void {
 ipcMain.handle('plans:forBranch', async (_e, { cwd, branch }: { cwd?: string; branch?: string }) => {
   type PlanRow = {
     name: string
+    slug: string
     path: string
+    mtime: number
     ownerStableId: string | null
     ownerSessionId: string | null
   }
@@ -1188,9 +1417,18 @@ ipcMain.handle('plans:forBranch', async (_e, { cwd, branch }: { cwd?: string; br
     for (const f of readdirSync(plansDir).sort()) {
       const parsed = parsePlanFilename(f, branch)
       if (!parsed || (!parsed.ownerStableId && !parsed.ownerSessionId)) continue
+      const full = join(plansDir, f)
+      let mtime = 0
+      try {
+        mtime = statSync(full).mtimeMs
+      } catch {
+        // ignore — file vanished between readdir and stat
+      }
       rows.push({
         name: f,
-        path: join(plansDir, f),
+        slug: parsed.slug,
+        path: full,
+        mtime,
         ownerStableId: parsed.ownerStableId,
         ownerSessionId: parsed.ownerSessionId
       })
@@ -1428,6 +1666,76 @@ ipcMain.handle('app:repoGit', async (_e, { repoPath }: { repoPath?: string }) =>
     commitCount: count ? parseInt(count.trim(), 10) || 0 : 0,
     dirty: status !== null && status.trim().length > 0
   }
+})
+
+// Monotonic build counter: increments on every save under the source repo while
+// the app is running. Stored per-repo in <stateDir>/build-counter.json and never
+// reset — gives the version chip a "+N" that ticks up as code changes, surfacing
+// edits without a commit or redeploy. The recursive watcher is started lazily on
+// the first query and survives restarts via the persisted count.
+const buildCounterWatchers = new Map<string, FSWatcher>()
+const buildCounterTimers = new Map<string, NodeJS.Timeout>()
+const buildCounterPath = (): string => join(stateDir(), 'build-counter.json')
+
+function readBuildCounters(): Record<string, number> {
+  try {
+    const data = JSON.parse(readFileSync(buildCounterPath(), 'utf8'))
+    if (!data || typeof data !== 'object') return {}
+    return data as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+
+function writeBuildCounters(counters: Record<string, number>): void {
+  try {
+    mkdirSync(stateDir(), { recursive: true })
+    writeFileSync(buildCounterPath(), JSON.stringify(counters))
+  } catch {
+    /* ignore */
+  }
+}
+
+// Build output, dependencies, and git internals are not source edits, so changes
+// under these path segments never bump the counter.
+const BUILD_COUNTER_IGNORE = ['.git', 'node_modules', 'out', 'dist']
+function isIgnoredBuildPath(file: string): boolean {
+  return file.split(/[\\/]/).some((seg) => BUILD_COUNTER_IGNORE.includes(seg))
+}
+
+function ensureBuildCounterWatcher(repo: string): void {
+  if (buildCounterWatchers.has(repo)) return
+  try {
+    const watcher = fsWatch(repo, { persistent: false, recursive: true }, (_evt, filename) => {
+      if (filename && isIgnoredBuildPath(filename.toString())) return
+      // Debounce: one save can fire several events; collapse to a single +1.
+      const prev = buildCounterTimers.get(repo)
+      if (prev) clearTimeout(prev)
+      const t = setTimeout(() => {
+        buildCounterTimers.delete(repo)
+        const counters = readBuildCounters()
+        counters[repo] = (counters[repo] ?? 0) + 1
+        writeBuildCounters(counters)
+      }, 300)
+      buildCounterTimers.set(repo, t)
+    })
+    watcher.on('error', () => {
+      watcher.close()
+      buildCounterWatchers.delete(repo)
+    })
+    buildCounterWatchers.set(repo, watcher)
+  } catch {
+    /* ignore */
+  }
+}
+
+// Current monotonic save count for the source repo; starts the watcher on first
+// call so subsequent saves are counted. null when no/invalid repo path.
+ipcMain.handle('app:buildCounter', (_e, { repoPath }: { repoPath?: string }) => {
+  const repo = repoPath?.trim()
+  if (!repo || !existsSync(repo)) return null
+  ensureBuildCounterWatcher(repo)
+  return readBuildCounters()[repo] ?? 0
 })
 
 // Open a file in the user's Markdown app via their `markdown` (mdpp) command.
@@ -1839,6 +2147,81 @@ ipcMain.handle(
       )
     })
 )
+// Enumerate available iOS run targets: simulators (simctl JSON, reliable) and
+// connected physical devices (xctrace text, best-effort). Returns names + UDIDs
+// for the worktree "Build & Run" picker.
+ipcMain.handle('ios:listTargets', async () => {
+  const simulators: { name: string; udid: string }[] = []
+  const devices: { name: string; udid: string }[] = []
+  try {
+    const out = await run('/usr/bin/xcrun', ['simctl', 'list', 'devices', 'available', '--json'])
+    if (out) {
+      const data = JSON.parse(out) as { devices: Record<string, { name: string; udid: string; isAvailable?: boolean }[]> }
+      for (const [runtime, list] of Object.entries(data.devices)) {
+        if (!/iOS/i.test(runtime)) continue
+        for (const d of list) {
+          if (d.isAvailable === false) continue
+          simulators.push({ name: d.name, udid: d.udid })
+        }
+      }
+    }
+  } catch {
+    /* simctl missing / parse error — leave simulators empty */
+  }
+  try {
+    const out = await run('/usr/bin/xcrun', ['xctrace', 'list', 'devices'])
+    if (out) {
+      // Physical devices live under "== Devices ==" AND "== Devices Offline =="
+      // (a USB device is often listed "offline" until trusted/tunneled — still
+      // worth showing so the user can pick it). Lines look like
+      // "Akın's iPhone (17.0) (00008110-...)". The host Mac carries no OS version
+      // in parens, so the version-requiring regex excludes it; simulators live
+      // under their own header.
+      let inDevices = false
+      for (const line of out.split('\n')) {
+        const t = line.trim()
+        if (/^==.*Devices.*==/i.test(t)) { inDevices = true; continue }
+        if (/^==/.test(t)) { inDevices = false; continue }
+        if (!inDevices || !t || /Simulator/i.test(t)) continue
+        const m = t.match(/^(.*?)\s+\(([\d.]+)\)\s+\(([0-9A-Fa-f-]{8,})\)$/)
+        if (m && !devices.some((d) => d.udid === m![3])) {
+          devices.push({ name: `${m[1]} (${m[2]})`, udid: m[3] })
+        }
+      }
+    }
+  } catch {
+    /* xctrace missing — leave devices empty */
+  }
+  return { simulators, devices }
+})
+
+// List the Xcode schemes for an iOS project (e.g. "local" / "prod" — they pick the
+// API environment). Used by the worktree "Build & Run" picker's scheme level.
+ipcMain.handle(
+  'ios:listSchemes',
+  (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: IosCfg }) =>
+    new Promise<string[]>((resolve) => {
+      const args = ['xcodebuild', '-list', '-json']
+      const container = cfg?.project?.trim()
+      if (container) args.push(/\.xcworkspace$/.test(container) ? '-workspace' : '-project', container)
+      execFile(
+        '/usr/bin/xcrun',
+        args,
+        { cwd: repoRoot, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 },
+        (err, stdout) => {
+          if (err) return resolve([])
+          try {
+            const d = JSON.parse(stdout.toString())
+            const schemes = (d.workspace || d.project || {}).schemes
+            resolve(Array.isArray(schemes) ? schemes : [])
+          } catch {
+            resolve([])
+          }
+        }
+      )
+    })
+)
+
 ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => {
   const p = nbResolve(path)
   if (!p || p === notebooksDir()) return false
@@ -1851,6 +2234,22 @@ ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => {
 })
 
 // List git worktrees for the repo containing `cwd`.
+// Create a worktree at `path` for `branch`, awaiting completion (unlike the
+// terminal-based newWorktree). Tries `-b` (new branch off base) first, then falls
+// back to attaching an existing branch. Used by "Run in worktree" (todo6).
+ipcMain.handle(
+  'git:worktreeAdd',
+  (_e, { repo, path, branch, base }: { repo: string; path: string; branch: string; base?: string }) =>
+    new Promise<boolean>((resolve) => {
+      const git = gitBin()
+      execFile(git, ['-C', repo, 'worktree', 'add', path, '-b', branch, base || 'main'], { timeout: 120_000 }, (err) => {
+        if (!err) return resolve(true)
+        // Branch likely already exists — attach it to the new worktree instead.
+        execFile(git, ['-C', repo, 'worktree', 'add', path, branch], { timeout: 120_000 }, (e2) => resolve(!e2))
+      })
+    })
+)
+
 ipcMain.handle('git:worktrees', async (_e, { cwd }: { cwd?: string }) => {
   let dir = cwd && cwd.trim() ? cwd.trim() : homedir()
   if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))

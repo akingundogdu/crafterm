@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import type {
   Pane,
   PaneStatus,
+  NodeStatus,
   BrowserPane,
   DocPane,
   ProjectCommand,
@@ -75,8 +76,10 @@ export function setupPaneDnd(box: HTMLElement, header: HTMLElement, id: string):
   grip.className = 'pane-grip'
   grip.textContent = '⠿'
   grip.title = 'Drag to move this pane'
-  const title = header.querySelector('.pane-title')
-  if (title) title.insertAdjacentElement('afterend', grip)
+  // Sit the grip just after the daily-task chip (when present) so the issue key
+  // shows to the LEFT of the drag handle; otherwise right after the title.
+  const anchor = header.querySelector('.pane-daily-chip') ?? header.querySelector('.pane-title')
+  if (anchor) anchor.insertAdjacentElement('afterend', grip)
   else header.prepend(grip)
 
   // visual-only drop indicator (its ::after draws the highlighted zone)
@@ -137,13 +140,18 @@ function pushResize(pane: Pane): void {
 
 export async function createPane(
   cwd?: string,
-  opts?: { env?: Record<string, string>; shell?: string; stableId?: string }
+  opts?: { env?: Record<string, string>; shell?: string; stableId?: string; attachId?: string }
 ): Promise<string> {
-  const stableId = opts?.stableId || crypto.randomUUID()
+  const stableId = opts?.attachId || opts?.stableId || crypto.randomUUID()
   // Exposed to the shell as CRAFTERM_PANE_ID; the renderer-supplied value wins
   // over anything the caller might have placed in opts.env.
   const env = { ...(opts?.env ?? {}), CRAFTERM_PANE_ID: stableId }
-  const id = await window.crafterm.createPty({ cwd, env, shell: opts?.shell })
+  // Attach mode: this pane is a VIEW onto an already-running background process
+  // (its PTY id === the process stableId). Skip spawning — the PTY already exists
+  // in main; closing this view must not kill it.
+  const id = opts?.attachId
+    ? opts.attachId
+    : await window.crafterm.createPty({ cwd, env, shell: opts?.shell })
 
   const term = new Terminal({
     fontFamily: settings.font.family,
@@ -169,10 +177,10 @@ export async function createPane(
   const taskChip = document.createElement('button')
   taskChip.className = 'pane-daily-chip'
   taskChip.style.display = 'none'
-  taskChip.title = 'Daily task — click to change'
+  taskChip.title = 'Daily ticket — click for details'
   taskChip.addEventListener('click', (e) => {
     e.stopPropagation()
-    paneActions.assignDailyTask(id)
+    paneActions.viewTicketDetail(id)
   })
   const menuBtn = document.createElement('button')
   menuBtn.className = 'pane-btn'
@@ -215,9 +223,14 @@ export async function createPane(
     idleTimer: null,
     title: '',
     titleLocked: false,
-    cwd: null,
+    // Seed from the spawn cwd (absolute paths only) so the pane is never null
+    // during the post-restore window — the first lsof tick corrects anything
+    // stale, and the null-guard in refreshPaneInfo keeps a transient lsof
+    // failure from wiping it back to null.
+    cwd: cwd && cwd.startsWith('/') ? cwd : null,
     branch: null,
     worktree: null,
+    lastCommand: null,
     plans: [],
     claude: false,
     claudeSessionId: null,
@@ -230,6 +243,9 @@ export async function createPane(
     projectId: null,
     appId: null,
     dailyTaskId: null,
+    status: 'idle',
+    role: 'shell',
+    isProcessView: !!opts?.attachId,
     lastActivity: Date.now(),
     lastNotify: 0,
     lastCols: 0,
@@ -385,9 +401,11 @@ export function refreshPaneDailyTask(paneId: string): void {
   if (!pane) return
   const chip = pane.el.querySelector<HTMLElement>('.pane-daily-chip')
   if (!chip) return
-  const label = pane.dailyTaskId ? paneActions.dailyTaskLabel(pane.dailyTaskId) : null
-  if (label) {
-    chip.textContent = `◎ ${label}`
+  // Only surface the chip when the terminal was opened from a ticket (the task
+  // carries an issue key); plain assignments without a key stay hidden.
+  const key = pane.dailyTaskId ? paneActions.dailyTaskIssueKey(pane.dailyTaskId) : null
+  if (key) {
+    chip.textContent = key
     chip.style.display = ''
   } else {
     chip.textContent = ''
@@ -422,13 +440,20 @@ export function buildPaneMenu(
   if (panes.get(paneId)?.planMode && panes.get(paneId)?.claude) {
     item('Clarify plan', () => paneActions.clarify(paneId))
   }
-  // Daily task: assign this terminal to (or change/clear) a daily-plan task.
+  // Daily task: when assigned, surface a dedicated section (view detail, mark
+  // done, change); otherwise a single assign entry.
   {
     const assignedId = panes.get(paneId)?.dailyTaskId
-    const label = assignedId ? paneActions.dailyTaskLabel(assignedId) : null
-    item(label ? `Daily task: ${label}…` : 'Assign to daily task…', () =>
-      paneActions.assignDailyTask(paneId)
-    )
+    if (assignedId) {
+      section('Daily task')
+      item('View ticket detail', () => paneActions.viewTicketDetail(paneId))
+      if (paneActions.dailyTaskStatus(assignedId) !== 'done') {
+        item('Mark as done', () => paneActions.markTaskDone(paneId))
+      }
+      item('Change task…', () => paneActions.assignDailyTask(paneId))
+    } else {
+      item('Assign to daily task…', () => paneActions.assignDailyTask(paneId))
+    }
   }
   item('Open in Finder', () => {
     const cwd = panes.get(paneId)?.cwd
@@ -913,6 +938,10 @@ const CLAUDE_QUESTION_PATTERNS: RegExp[] = [
   /are you sure/i,
   /should i (?:continue|proceed|go ahead|run|stop|skip)/i,
   /(?:^|\n)\s*(?:1\.|2\.|❯).{0,80}(?:yes|no)\b/i,
+  // Claude's interactive selection menu (AskUserQuestion / ExitPlanMode) renders
+  // a `❯` cursor on the highlighted option, regardless of the option text — catch
+  // it without the yes/no constraint above. The glyph is rare in normal output.
+  /(?:^|\n)\s*❯\s+\S/,
   /press\s+(?:y|enter|any key|return)\b/i,
   /\(y\/n\)/i,
   /\?\s*$/m,
@@ -930,6 +959,7 @@ function looksLikeClaudeQuestion(tail: string): boolean {
 export function markBusy(pane: Pane): void {
   pane.busy = true
   pane.lastActivity = Date.now() // terminal output counts as activity (idle detection)
+  syncPaneStatus(pane)
   if (pane.idleTimer) clearTimeout(pane.idleTimer)
   pane.idleTimer = window.setTimeout(() => {
     pane.busy = false
@@ -949,6 +979,7 @@ export function markBusy(pane: Pane): void {
       if (notifyPane(pane, body, event)) pane.attention = true
       pane.busySince = 0
     }
+    syncPaneStatus(pane)
     requestStatuses()
   }, 700)
   requestStatuses()
@@ -956,6 +987,24 @@ export function markBusy(pane: Pane): void {
 
 export function paneStatus(p: Pane): PaneStatus {
   return p.attention ? 'attention' : p.busy ? 'running' : 'idle'
+}
+
+// Keep the persisted lifecycle status (NodeStatus on the stableId-keyed node) in
+// sync with the live busy/claude signals. The visual sidebar dot still uses
+// paneStatus()/claudeStatus; this is the durable status that round-trips through
+// persistence. 'archived' is terminal — never auto-overwritten here.
+export function syncPaneStatus(pane: Pane): void {
+  if (pane.status === 'archived') return
+  const next: NodeStatus =
+    pane.claudeStatus === 'question'
+      ? 'waiting'
+      : pane.busy || pane.claudeStatus === 'in-progress'
+        ? 'running'
+        : 'idle'
+  if (next !== pane.status) {
+    pane.status = next
+    saveSoon()
+  }
 }
 
 // Native notification for a pane, but only when it's unattended (window blurred
@@ -1063,10 +1112,26 @@ export async function refreshPanePlans(pane: Pane): Promise<void> {
       if (tab && !tab.detailsOpen) tab.detailsOpen = true
     }
     // Skip the very first population so existing plans aren't opened on launch.
+    // Then auto-open a plan only when BOTH hold: it was produced during this
+    // live session (mtime newer than the pane's Claude launch) AND the session
+    // is in plan mode right now (the JSONL's last permission-mode is 'plan').
+    // Pre-existing plans that merely become "owned" when the session id is
+    // captured (or when the in-memory list transiently empties on a branch/cwd
+    // blip) have an older mtime; plans touched outside plan mode fail the mode
+    // check. Either way they stay listed under the terminal node, not opened.
     if (pane.plansSynced) {
-      for (const plan of newlyOwned) {
-        paneActions.openPlanInGroup(pane.id, plan.path)
-        pane.planMode = true
+      const liveSince = pane.claudeSpawnedAt ?? Number.POSITIVE_INFINITY
+      const fresh = newlyOwned.filter((p) => p.mtime >= liveSince)
+      if (fresh.length && pane.claude && pane.cwd && pane.claudeSessionId) {
+        const mode = await window.crafterm.claudePermissionMode(pane.cwd, pane.claudeSessionId)
+        if (mode === 'plan') {
+          for (const plan of fresh) {
+            // Auto-open disabled: plan stays listed under the terminal node
+            // instead of opening in a group.
+            // paneActions.openPlanInGroup(pane.id, plan.path)
+            pane.planMode = true
+          }
+        }
       }
     }
     pane.plansSynced = true
@@ -1086,9 +1151,19 @@ export async function refreshClaudeStatus(pane: Pane): Promise<void> {
   }
   try {
     const s = await window.crafterm.claudeSessionStatus(pane.cwd, pane.claudeSessionId)
-    const next = s ?? undefined
+    let next = s ?? undefined
+    // Reconcile the JSONL state with the terminal tail using the SAME question
+    // heuristic the notification sound uses (looksLikeClaudeQuestion). The JSONL
+    // tail can't tell "Claude is working" apart from "Claude is blocked on the
+    // user" — an AskUserQuestion/ExitPlanMode tool_use or a permission prompt
+    // both read as in-progress there. When the visible output is a prompt
+    // awaiting the user, surface it as a question so the badge matches the sound.
+    if (next === 'in-progress' && looksLikeClaudeQuestion(pane.outputTail)) {
+      next = 'question'
+    }
     if (next !== pane.claudeStatus) {
       pane.claudeStatus = next
+      syncPaneStatus(pane)
       requestSidebar()
     }
   } catch {
@@ -1114,11 +1189,19 @@ export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
 }
 
 export async function refreshPaneInfo(pane: Pane): Promise<void> {
-  const info = await window.crafterm.paneInfo(pane.id)
-  const cwdChanged = info.cwd !== pane.cwd
-  pane.cwd = info.cwd
-  pane.branch = info.branch
-  pane.worktree = info.worktree
+  const info = await window.crafterm.paneInfo(pane.id, pane.stableId)
+  // A null cwd means we couldn't read the pane (lsof timed out under heavy load,
+  // or the pty is gone) — never overwrite a known-good cwd/branch/worktree with
+  // it. Persisting an empty location is exactly what made every terminal reopen
+  // at ~ after a hard kill. Keep the last good values and skip the change-save.
+  let cwdChanged = false
+  if (info.cwd !== null) {
+    cwdChanged = info.cwd !== pane.cwd
+    pane.cwd = info.cwd
+    pane.branch = info.branch
+    pane.worktree = info.worktree
+  }
+  if (info.lastCommand) pane.lastCommand = info.lastCommand
   updatePaneStatus(pane)
   // Plan files for this branch (docs/plans/<branch>-*.md). We fetch every tick
   // (cheap — main reads a single directory) so new files appear without

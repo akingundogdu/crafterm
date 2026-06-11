@@ -1,6 +1,7 @@
 import { settings, saveSoon, pushNotification, uid } from './state'
 import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from './types'
 import { makeCloseButton } from './dialog'
+import { createDateField } from './datepicker'
 
 const DAY = 86_400_000
 const WEEK = 7 * DAY
@@ -302,10 +303,11 @@ export function openReminderForm(existing?: Reminder): void {
 
   // when
   modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">When</div>')
-  const when = document.createElement('input')
-  when.type = 'datetime-local'
-  when.className = 'reminder-input'
-  when.value = toLocalInput(existing && !reArm ? existing.time : Date.now() + HOUR)
+  const when = createDateField({
+    mode: 'datetime',
+    value: toLocalInput(existing && !reArm ? existing.time : Date.now() + HOUR),
+    className: 'reminder-input'
+  })
   modal.appendChild(when)
 
   const quick = document.createElement('div')
