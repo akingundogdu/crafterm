@@ -1,4 +1,5 @@
-import { settings, saveSoon, uid, state, panes } from './state'
+import { settings, uid, state, panes } from './state'
+import { persistence } from './services/storage/persistence.service'
 import type { TimeEntry } from './types'
 import { promptText, makeCloseButton } from './dialog'
 import { updatePaneStatus } from './pane'
@@ -178,7 +179,7 @@ function stopActive(): void {
     clearInterval(ticker)
     ticker = null
   }
-  saveSoon()
+  persistence.save()
 }
 
 // Manual Start/Stop button.
@@ -249,7 +250,7 @@ async function addFeature(): Promise<void> {
   const f = { id: uid('ft'), name: name.trim() }
   owner.features = owner.features ?? []
   owner.features.push(f)
-  saveSoon()
+  persistence.save()
   renderFeatures()
   featureSel().value = f.id
 }
@@ -393,7 +394,7 @@ function closeAutoSession(): void {
       end: Date.now(),
       source: 'auto'
     })
-    saveSoon()
+    persistence.save()
   }
   autoSession = null
 }

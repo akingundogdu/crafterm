@@ -1,4 +1,5 @@
-import { settings, saveSoon, pushNotification, uid } from './state'
+import { settings, pushNotification, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from './types'
 import { makeCloseButton } from './dialog'
 import { createDateField } from '@crafterm/ui'
@@ -185,7 +186,7 @@ export function snoozeReminder(text: string, at: number, payload?: ReminderPaylo
     enabled: true,
     payload
   })
-  saveSoon()
+  persistence.save()
   renderReminders()
 }
 
@@ -207,7 +208,7 @@ function tick(): void {
     }
   }
   if (changed) {
-    saveSoon()
+    persistence.save()
     renderReminders()
   }
 }
@@ -251,7 +252,7 @@ function reminderCard(r: Reminder, past: boolean): HTMLElement {
   del.textContent = 'Delete'
   del.addEventListener('click', () => {
     settings.reminders = settings.reminders.filter((x) => x.id !== r.id)
-    saveSoon()
+    persistence.save()
     renderReminders()
   })
   actions.append(del)
@@ -423,7 +424,7 @@ export function openReminderForm(existing?: Reminder): void {
         payload
       })
     }
-    saveSoon()
+    persistence.save()
     renderReminders()
     close()
   })

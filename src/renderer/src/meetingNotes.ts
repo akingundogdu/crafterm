@@ -1,5 +1,6 @@
 import type { MeetingNote } from './types'
-import { settings, state, saveSoon, uid } from './state'
+import { settings, state, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { flattenProjects, findProjectById } from './catalog'
 import { showRemindModal } from './reminders'
@@ -168,7 +169,7 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
     note.archived = !note.archived
     note.updatedAt = Date.now()
     if (note.archived) archivedOpen = true
-    saveSoon()
+    persistence.save()
     rerender()
   })
   const del = document.createElement('button')
@@ -185,7 +186,7 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
     if (!ok) return
     const i = settings.meetingNotes.findIndex((n) => n.id === note.id)
     if (i >= 0) settings.meetingNotes.splice(i, 1)
-    saveSoon()
+    persistence.save()
     rerender()
   })
   actions.append(remind, arch, del)
@@ -336,7 +337,7 @@ function showMeetingForm(existing: MeetingNote | null, onSaved: () => void): voi
         updatedAt: now
       })
     }
-    saveSoon()
+    persistence.save()
     return true
   }
 

@@ -2,15 +2,12 @@ import { themes } from './themes'
 import {
   settings,
   state,
-  saveSoon,
-  persistNow,
-  saveStatus,
-  subscribeSaveStatus,
   requestSidebar,
   resolveTheme,
   applyBgColor,
   uid
 } from './state'
+import { persistence } from './services/storage/persistence.service'
 import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from './types'
 import { BUILTIN_ACTIONS } from './types'
 import { flattenProjects, removeProject } from './catalog'
@@ -239,7 +236,7 @@ export function openSettings(): void {
   const saveBtn = document.createElement('button')
   saveBtn.className = 'settings-inline-btn'
   saveBtn.textContent = 'Save now'
-  saveBtn.addEventListener('click', () => persistNow())
+  saveBtn.addEventListener('click', () => persistence.flush())
   footer.append(chip, saveBtn)
   modal.appendChild(footer)
   const formatTime = (ms: number): string => {
@@ -248,11 +245,11 @@ export function openSettings(): void {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
   const refreshChip = (): void => {
-    if (saveStatus.pending) {
+    if (persistence.status.pending) {
       chip.textContent = 'Saving…'
       chip.dataset.state = 'pending'
-    } else if (saveStatus.lastSavedAt) {
-      chip.textContent = `Saved · ${formatTime(saveStatus.lastSavedAt)}`
+    } else if (persistence.status.lastSavedAt) {
+      chip.textContent = `Saved · ${formatTime(persistence.status.lastSavedAt)}`
       chip.dataset.state = 'saved'
     } else {
       chip.textContent = 'No changes yet'
@@ -260,7 +257,7 @@ export function openSettings(): void {
     }
   }
   refreshChip()
-  const unsubscribe = subscribeSaveStatus(refreshChip)
+  const unsubscribe = persistence.subscribe(refreshChip)
   settingsCleanups.push(unsubscribe)
 
   show('Appearance')
@@ -286,7 +283,7 @@ function buildTabsPanel(panel: HTMLElement): void {
     (v) => {
       settings.tabDisplay.mode = v as 'icon' | 'text' | 'both'
       applyTabDisplay()
-      saveSoon()
+      persistence.save()
     }
   )
 
@@ -310,7 +307,7 @@ function buildTabsPanel(panel: HTMLElement): void {
           list.push(t.id)
         }
         applyTabDisplay()
-        saveSoon()
+        persistence.save()
       })
       row.append(cb, document.createTextNode(' ' + t.label))
       panel.appendChild(row)
@@ -332,7 +329,7 @@ function buildRemindersPanel(panel: HTMLElement): void {
       const n = parseInt(v, 10)
       if (Number.isInteger(n) && n >= 0 && n <= 23) {
         settings.reminderDefaults.defaultHour = n
-        saveSoon()
+        persistence.save()
       }
     }
   )
@@ -354,7 +351,7 @@ function buildRemindersPanel(panel: HTMLElement): void {
       labelI.addEventListener('change', () => {
         p.label = labelI.value.trim() || p.label
         labelI.value = p.label
-        saveSoon()
+        persistence.save()
       })
 
       // kind: relative offset (minutes) vs day-based jump
@@ -401,7 +398,7 @@ function buildRemindersPanel(panel: HTMLElement): void {
           p.days = undefined
           p.snapHour = undefined
         }
-        saveSoon()
+        persistence.save()
       }
       kindSel.addEventListener('change', () => {
         syncSnapVisibility()
@@ -416,7 +413,7 @@ function buildRemindersPanel(panel: HTMLElement): void {
       del.title = 'Remove preset'
       del.addEventListener('click', () => {
         settings.reminderDefaults.presets.splice(idx, 1)
-        saveSoon()
+        persistence.save()
         renderList()
       })
 
@@ -429,7 +426,7 @@ function buildRemindersPanel(panel: HTMLElement): void {
     add.textContent = '+ Add preset'
     add.addEventListener('click', () => {
       settings.reminderDefaults.presets.push({ label: '+1h', offsetMin: 60 })
-      saveSoon()
+      persistence.save()
       renderList()
     })
     list.appendChild(add)
@@ -442,7 +439,7 @@ function buildAppearancePanel(panel: HTMLElement): void {
   const fam = labeledInput(panel, 'Font family', 'text', settings.font.family, (v) => {
     settings.font.family = v
     applyAppearance()
-    saveSoon()
+    persistence.save()
   })
   fam.style.maxWidth = '280px'
   labeledInput(panel, 'Terminal font size', 'number', String(settings.font.size), (v) => {
@@ -450,7 +447,7 @@ function buildAppearancePanel(panel: HTMLElement): void {
     if (!Number.isNaN(n) && n >= 6 && n <= 40) {
       settings.font.size = n
       applyAppearance()
-      saveSoon()
+      persistence.save()
     }
   })
   buildBackgroundControl(panel)
@@ -462,7 +459,7 @@ function buildAppearancePanel(panel: HTMLElement): void {
     (v) => {
       settings.editorTheme = v
       void applyTheme(v)
-      saveSoon()
+      persistence.save()
     }
   )
 }
@@ -480,7 +477,7 @@ function buildBackgroundControl(panel: HTMLElement): void {
     settings.bgColor = color
     applyBgColor()
     applyAppearance()
-    saveSoon()
+    persistence.save()
     mark()
   }
 
@@ -559,7 +556,7 @@ function buildThemePanel(panel: HTMLElement): void {
         hex.value = v
         if (settings.themeName === 'Custom') {
           applyAppearance()
-          saveSoon()
+          persistence.save()
         }
       }
       color.addEventListener('input', () => apply(color.value))
@@ -572,7 +569,7 @@ function buildThemePanel(panel: HTMLElement): void {
   sel.addEventListener('change', () => {
     settings.themeName = sel.value
     applyAppearance()
-    saveSoon()
+    persistence.save()
     renderColors()
   })
   copyBtn.addEventListener('click', () => {
@@ -580,7 +577,7 @@ function buildThemePanel(panel: HTMLElement): void {
     settings.themeName = 'Custom'
     sel.value = 'Custom'
     applyAppearance()
-    saveSoon()
+    persistence.save()
     renderColors()
   })
   renderColors()
@@ -626,7 +623,7 @@ function buildShortcutsPanel(panel: HTMLElement): void {
       if (!settings.bindings[a.id]) reset.style.visibility = 'hidden'
       reset.addEventListener('click', () => {
         resetBinding(a.id)
-        saveSoon()
+        persistence.save()
         render()
       })
       row.append(label, combo, reset)
@@ -651,7 +648,7 @@ function buildShortcutsPanel(panel: HTMLElement): void {
       const combo = comboFromEvent(e)
       if (!combo) return // Cmd required
       setBinding(id, combo)
-      saveSoon()
+      persistence.save()
       stop()
       render()
     }
@@ -671,7 +668,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
   cb.checked = settings.askProjectOnNew
   cb.addEventListener('change', () => {
     settings.askProjectOnNew = cb.checked
-    saveSoon()
+    persistence.save()
   })
   ask.append(cb, document.createTextNode('Ask which project to open on a new terminal'))
   panel.appendChild(ask)
@@ -805,7 +802,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       x.title = 'Remove environment'
       x.addEventListener('click', () => {
         settings.environments.splice(i, 1)
-        saveSoon()
+        persistence.save()
         renderEnvs()
         renderDetail()
       })
@@ -825,7 +822,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         })
         if (!name || settings.environments.includes(name)) return
         settings.environments.push(name)
-        saveSoon()
+        persistence.save()
         renderEnvs()
         renderDetail()
       })()
@@ -847,7 +844,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       x.title = 'Remove group from suggestions (does not unset on existing projects)'
       x.addEventListener('click', () => {
         settings.groups = settings.groups.filter((g) => g !== name)
-        saveSoon()
+        persistence.save()
         renderGroups()
         renderDetail()
       })
@@ -868,7 +865,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         const g = (name ?? '').trim()
         if (!g || settings.groups.includes(g)) return
         settings.groups.push(g)
-        saveSoon()
+        persistence.save()
         renderGroups()
         renderDetail()
       })()
@@ -922,7 +919,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       const proj = makeProject(uid('p'), 'New project', '')
       state.tree.push(proj)
       selected = proj
-      saveSoon()
+      persistence.save()
       requestSidebar()
       renderTree()
       renderDetail()
@@ -954,7 +951,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       delApp.title = 'Remove application'
       delApp.addEventListener('click', () => {
         p.apps = (p.apps ?? []).filter((a) => a !== app)
-        saveSoon()
+        persistence.save()
         renderTree()
         renderDetail()
       })
@@ -965,11 +962,11 @@ function buildProjectsPanel(panel: HTMLElement): void {
         app.name = v.trim()
         title.textContent = app.name || '(unnamed app)'
         renderTree()
-        saveSoon()
+        persistence.save()
       })
       field(card, 'Path', app.path ?? '', 'relative to project, or absolute (optional)', (v) => {
         app.path = v.trim() || undefined
-        saveSoon()
+        persistence.save()
       })
 
       const opensWrap = document.createElement('div')
@@ -990,7 +987,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       })
       opensSel.addEventListener('change', () => {
         app.opensAs = opensSel.value as Application['opensAs']
-        saveSoon()
+        persistence.save()
       })
       opensWrap.append(opensLab, opensSel)
       card.appendChild(opensWrap)
@@ -1003,7 +1000,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
           const t = v.trim()
           if (t) app.commands[envName] = t
           else delete app.commands[envName]
-          saveSoon()
+          persistence.save()
         })
       }
 
@@ -1020,7 +1017,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         nameI.placeholder = 'name'
         nameI.addEventListener('change', () => {
           rc.name = nameI.value.trim() || rc.name
-          saveSoon()
+          persistence.save()
         })
         nameI.addEventListener('keydown', (e) => e.stopPropagation())
         const cmdI = document.createElement('input')
@@ -1029,7 +1026,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         cmdI.placeholder = 'shell command'
         cmdI.addEventListener('change', () => {
           rc.command = cmdI.value.trim()
-          saveSoon()
+          persistence.save()
         })
         cmdI.addEventListener('keydown', (e) => e.stopPropagation())
         const delRc = document.createElement('button')
@@ -1038,7 +1035,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         delRc.title = 'Remove command'
         delRc.addEventListener('click', () => {
           app.runCommands = (app.runCommands ?? []).filter((x) => x !== rc)
-          saveSoon()
+          persistence.save()
           renderDetail()
         })
         row.append(nameI, cmdI, delRc)
@@ -1050,7 +1047,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       addRc.addEventListener('click', () => {
         app.runCommands = app.runCommands ?? []
         app.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
-        saveSoon()
+        persistence.save()
         renderDetail()
       })
       card.appendChild(addRc)
@@ -1064,7 +1061,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
     addApp.addEventListener('click', () => {
       p.apps = p.apps ?? []
       p.apps.push({ id: uid('app'), name: 'app', commands: {} })
-      saveSoon()
+      persistence.save()
       renderTree()
       renderDetail()
     })
@@ -1092,7 +1089,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       input.placeholder = 'feature name'
       input.addEventListener('change', () => {
         feat.name = input.value.trim() || feat.name
-        saveSoon()
+        persistence.save()
       })
       input.addEventListener('keydown', (e) => e.stopPropagation())
       const del = document.createElement('button')
@@ -1101,7 +1098,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       del.title = 'Remove feature'
       del.addEventListener('click', () => {
         p.features = (p.features ?? []).filter((f) => f !== feat)
-        saveSoon()
+        persistence.save()
         renderTree()
         renderDetail()
       })
@@ -1115,7 +1112,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
     add.addEventListener('click', () => {
       p.features = p.features ?? []
       p.features.push({ id: uid('ft'), name: 'feature' })
-      saveSoon()
+      persistence.save()
       renderDetail()
     })
     parent.appendChild(add)
@@ -1146,7 +1143,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       del.title = 'Remove command'
       del.addEventListener('click', () => {
         p.runCommands = (p.runCommands ?? []).filter((x) => x !== rc)
-        saveSoon()
+        persistence.save()
         renderDetail()
       })
       head.append(title, del)
@@ -1154,11 +1151,11 @@ function buildProjectsPanel(panel: HTMLElement): void {
       field(card, 'Name', rc.name, 'Deploy', (v) => {
         rc.name = v.trim() || rc.name
         title.textContent = rc.name || '(unnamed command)'
-        saveSoon()
+        persistence.save()
       })
       field(card, 'Command', rc.command, 'npm run deploy', (v) => {
         rc.command = v.trim()
-        saveSoon()
+        persistence.save()
       })
       parent.appendChild(card)
     })
@@ -1168,7 +1165,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
     add.addEventListener('click', () => {
       p.runCommands = p.runCommands ?? []
       p.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
-      saveSoon()
+      persistence.save()
       renderDetail()
     })
     parent.appendChild(add)
@@ -1193,12 +1190,12 @@ function buildProjectsPanel(panel: HTMLElement): void {
             p.name = v.trim()
             renderTree()
             requestSidebar()
-            saveSoon()
+            persistence.save()
           })
           field(el, 'Path', p.path, '~/code/movve', (v) => {
             p.path = v.trim()
             requestSidebar()
-            saveSoon()
+            persistence.save()
           })
           selectField(
             el,
@@ -1213,12 +1210,12 @@ function buildProjectsPanel(panel: HTMLElement): void {
               renderTree()
               renderGroups()
               requestSidebar()
-              saveSoon()
+              persistence.save()
             }
           )
           field(el, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
             p.command = v.trim() || undefined
-            saveSoon()
+            persistence.save()
           })
           field(
             el,
@@ -1227,12 +1224,12 @@ function buildProjectsPanel(panel: HTMLElement): void {
             'run in every terminal opened inside (optional)',
             (v) => {
               p.startup = v.trim() || undefined
-              saveSoon()
+              persistence.save()
             }
           )
           field(el, 'Shell', p.shell ?? '', '/bin/zsh (override, optional)', (v) => {
             p.shell = v.trim() || undefined
-            saveSoon()
+            persistence.save()
           })
           field(
             el,
@@ -1241,7 +1238,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
             'CRF (for CRF-12 task keys, optional)',
             (v) => {
               p.issueKeyPrefix = v.trim().toUpperCase() || undefined
-              saveSoon()
+              persistence.save()
             }
           )
           // Support worktrees: auto-list this repo's git worktrees as folder
@@ -1261,7 +1258,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
           el.appendChild(wtField)
           wtCb.addEventListener('change', () => {
             p.supportWorktree = wtCb.checked
-            saveSoon()
+            persistence.save()
             requestSidebar()
             if (p.supportWorktree) void reconcileWorktrees()
             else purgeWorktrees(p)
@@ -1278,7 +1275,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
             'KEY=VALUE (one per line, optional)',
             (v) => {
               p.env = v.trim() || undefined
-              saveSoon()
+              persistence.save()
             },
             { textarea: true, rows: 4 }
           )
@@ -1302,7 +1299,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       const child = makeProject(uid('p'), 'New sub-project', '')
       p.children.push(child)
       selected = child
-      saveSoon()
+      persistence.save()
       requestSidebar()
       renderTree()
       renderDetail()
@@ -1313,7 +1310,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
     del.addEventListener('click', () => {
       removeProject(state.tree, p)
       selected = flattenProjects(state.tree)[0] ?? null
-      saveSoon()
+      persistence.save()
       requestSidebar()
       renderTree()
       renderDetail()
@@ -1336,12 +1333,12 @@ function buildCommandsPanel(panel: HTMLElement): void {
       build: (el) => {
         const ide = labeledInput(el, 'Open code file (ide)', 'text', settings.commands.ide, (v) => {
           settings.commands.ide = v.trim() || 'ide'
-          saveSoon()
+          persistence.save()
         })
         ide.style.maxWidth = '280px'
         const zsh = labeledInput(el, 'Update zsh config', 'text', settings.commands.openMyZsh, (v) => {
           settings.commands.openMyZsh = v.trim() || 'openmyzsh'
-          saveSoon()
+          persistence.save()
         })
         zsh.style.maxWidth = '280px'
         el.insertAdjacentHTML(
@@ -1407,7 +1404,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
     // the project path (so worktrees, build/run, and cmd+T all use this repo).
     const repoInput = labeledInput(body, 'iOS repo path', 'text', p.path, (v) => {
       p.path = v.trim()
-      saveSoon()
+      persistence.save()
       requestSidebar()
     })
     repoInput.placeholder = '/Users/you/path/to/your-ios-repo'
@@ -1430,7 +1427,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
     ): void => {
       const input = labeledInput(body, label, 'text', cfg[key], (v) => {
         cfg[key] = v.trim()
-        saveSoon()
+        persistence.save()
       })
       input.placeholder = placeholder
       input.style.maxWidth = '420px'
@@ -1476,7 +1473,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
         del.textContent = 'Delete'
         del.addEventListener('click', () => {
           cfg.copyFiles.splice(i, 1)
-          saveSoon()
+          persistence.save()
           renderFiles()
         })
         row.append(txt, del)
@@ -1492,7 +1489,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
         const rel = (values?.path || '').trim()
         if (!rel || cfg.copyFiles.includes(rel)) return
         cfg.copyFiles.push(rel)
-        saveSoon()
+        persistence.save()
         renderFiles()
       })
     })
@@ -1506,7 +1503,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
       p.supportWorktree = true // iOS needs the worktree nodes to attach to
       void reconcileWorktrees()
     }
-    saveSoon()
+    persistence.save()
     requestSidebar()
     renderBody()
   })
@@ -1568,7 +1565,7 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
           del.textContent = 'Delete'
           del.addEventListener('click', () => {
             settings.paletteCommands = settings.paletteCommands.filter((x) => x.id !== c.id)
-            saveSoon()
+            persistence.save()
             render()
           })
           row.append(txt, edit, del)
@@ -1606,7 +1603,7 @@ async function editPaletteCommand(existing?: PaletteCommand): Promise<void> {
   } else {
     settings.paletteCommands.push(cmd)
   }
-  saveSoon()
+  persistence.save()
 }
 
 // Folders shown as filter chips in the Cmd+O markdown finder. Picked via the
@@ -1647,7 +1644,7 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
       del.title = 'Remove'
       del.addEventListener('click', () => {
         settings.commands.mdFolders.splice(idx, 1)
-        saveSoon()
+        persistence.save()
         render()
       })
       row.append(label, del)
@@ -1660,7 +1657,7 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
     if (!picked) return
     if (!settings.commands.mdFolders.includes(picked)) {
       settings.commands.mdFolders.push(picked)
-      saveSoon()
+      persistence.save()
       render()
     }
   })
@@ -1671,7 +1668,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', '<h3>Workspace</h3>')
   const root = labeledInput(panel, 'Code root', 'text', settings.codeRoot, (v) => {
     settings.codeRoot = v.trim()
-    saveSoon()
+    persistence.save()
   })
   root.placeholder = '(home)'
   root.style.maxWidth = '280px'
@@ -1686,7 +1683,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
         .split(/[\s,]+/)
         .map((e) => e.replace(/^\./, '').trim().toLowerCase())
         .filter((e) => /^[a-z0-9]+$/.test(e))
-      saveSoon()
+      persistence.save()
     }
   )
   ext.style.maxWidth = '280px'
@@ -1697,7 +1694,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
 
   const todo = labeledInput(panel, 'Todo list file', 'text', settings.todoFile, (v) => {
     settings.todoFile = v.trim()
-    saveSoon()
+    persistence.save()
   })
   todo.style.maxWidth = '280px'
   todo.placeholder = '~/path/to/todo-list.md'
@@ -1710,7 +1707,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">File explorer</h3>')
   const exRoot = labeledInput(panel, 'Explorer root', 'text', settings.explorerRoot, (v) => {
     settings.explorerRoot = v.trim()
-    saveSoon()
+    persistence.save()
   })
   exRoot.style.maxWidth = '280px'
   exRoot.placeholder = '(active terminal cwd)'
@@ -1724,7 +1721,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
         .split(/[\s,]+/)
         .map((s) => s.trim())
         .filter(Boolean)
-      saveSoon()
+      persistence.save()
     }
   )
   exExclude.style.maxWidth = '280px'
@@ -1750,7 +1747,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
   }
   sel.addEventListener('change', () => {
     settings.notifSound = sel.value
-    saveSoon()
+    persistence.save()
     if (sel.value) appService.playSound(sel.value) // preview
   })
   soundRow.appendChild(sel)
@@ -1773,7 +1770,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
     settings.claudeUsageAuth.keychainService,
     (v) => {
       settings.claudeUsageAuth.keychainService = v.trim() || 'Claude Code-credentials'
-      saveSoon()
+      persistence.save()
     }
   )
   svc.style.maxWidth = '260px'
@@ -1800,7 +1797,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
       settings.claudeUsageAuth.fallbackSecretId = id
       settings.claudeUsageAuth.fallbackSecretKey = key
     }
-    saveSoon()
+    persistence.save()
   })
 }
 
@@ -1817,7 +1814,7 @@ function buildSidebarPanel(panel: HTMLElement): void {
     (v) => {
       settings.sidebar.orientation = v as 'left' | 'top'
       applyOrientation()
-      saveSoon()
+      persistence.save()
     }
   )
   labeledInput(panel, 'Sidebar font size', 'number', String(settings.sidebar.fontSize), (v) => {
@@ -1825,7 +1822,7 @@ function buildSidebarPanel(panel: HTMLElement): void {
     if (!Number.isNaN(n) && n >= 9 && n <= 22) {
       settings.sidebar.fontSize = n
       applySidebarFont()
-      saveSoon()
+      persistence.save()
     }
   })
 
@@ -1844,7 +1841,7 @@ function buildSidebarPanel(panel: HTMLElement): void {
     cb.addEventListener('change', () => {
       settings.sidebar.details[key] = cb.checked
       requestSidebar()
-      saveSoon()
+      persistence.save()
     })
     r.append(cb, document.createTextNode(label))
     panel.appendChild(r)
@@ -1858,7 +1855,7 @@ function buildSidebarPanel(panel: HTMLElement): void {
   recCb.addEventListener('change', () => {
     settings.sidebar.groupByRecency = recCb.checked
     requestSidebar()
-    saveSoon()
+    persistence.save()
   })
   recRow.append(recCb, document.createTextNode('Group by recency (Today / Yesterday / Earlier)'))
   panel.appendChild(recRow)
@@ -1883,7 +1880,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
     if (j < 0 || j >= settings.actionMenu.length) return
     const arr = settings.actionMenu
     ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    saveSoon()
+    persistence.save()
     render()
   }
 
@@ -1925,7 +1922,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
       hideBtn.textContent = item.hidden ? 'Show' : 'Hide'
       hideBtn.addEventListener('click', () => {
         item.hidden = !item.hidden
-        saveSoon()
+        persistence.save()
         render()
       })
       const edit = document.createElement('button')
@@ -1937,7 +1934,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
       del.textContent = 'Delete'
       del.addEventListener('click', () => {
         settings.actionMenu = settings.actionMenu.filter((x) => x !== item)
-        saveSoon()
+        persistence.save()
         render()
       })
 
@@ -1955,7 +1952,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
     void editActionItem().then((added) => {
       if (added) {
         settings.actionMenu.push(added)
-        saveSoon()
+        persistence.save()
         render()
       }
     })
@@ -1970,7 +1967,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
       kind: 'builtin' as const,
       builtinId: a.id
     }))
-    saveSoon()
+    persistence.save()
     render()
   })
   actions.append(addCmd, reset)
@@ -2004,7 +2001,7 @@ async function editActionItem(existing?: ActionMenuItem): Promise<ActionMenuItem
       existing.command = (values.command || '').trim()
       existing.opensAs = (values.opensAs || '').trim() === 'split' ? 'split' : 'tab'
     }
-    saveSoon()
+    persistence.save()
     return null
   }
   const command = (values.command || '').trim()
@@ -2027,7 +2024,7 @@ function buildSystemUpdatePanel(panel: HTMLElement): void {
 
   const repo = labeledInput(panel, 'Codebase path', 'text', settings.repoPath, (v) => {
     settings.repoPath = v.trim()
-    saveSoon()
+    persistence.save()
   })
   repo.style.maxWidth = '320px'
   repo.placeholder = '~/path/to/crafterm'
@@ -2038,7 +2035,7 @@ function buildSystemUpdatePanel(panel: HTMLElement): void {
 
   const cmd = labeledInput(panel, 'Update command', 'text', settings.updateCommand, (v) => {
     settings.updateCommand = v.trim() || 'run-crafterm-deploy'
-    saveSoon()
+    persistence.save()
   })
   cmd.style.maxWidth = '320px'
   cmd.placeholder = 'run-crafterm-deploy'

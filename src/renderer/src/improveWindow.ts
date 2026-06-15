@@ -1,5 +1,6 @@
 import './style.css'
-import { loadSettings, applyBgColor } from './state'
+import { applyBgColor } from './state'
+import { loadSettings } from './services/storage/settings.service'
 import { showImproveModal } from './improve'
 import { storeService } from './services/ipc'
 

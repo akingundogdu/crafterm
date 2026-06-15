@@ -1,4 +1,12 @@
-import { codePanes, panes, state, paneActions, uid, settings, saveSoon } from './state'
+import {
+  codePanes,
+  panes,
+  state,
+  paneActions,
+  uid,
+  settings
+} from './state'
+import { persistence } from './services/storage/persistence.service'
 import { findTabByPane, panesInLayout } from './tree'
 import { setupPaneDnd } from './pane'
 import { createCodeEditor, type CodeEditor } from './codeEditor'
@@ -91,7 +99,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
   themeSel.addEventListener('change', () => {
     settings.editorTheme = themeSel.value
     void applyTheme(themeSel.value)
-    saveSoon()
+    persistence.save()
   })
 
   // Build the `@<relpath>:<start>:<end>` mention for the current selection

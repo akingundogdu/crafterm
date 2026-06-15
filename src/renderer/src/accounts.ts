@@ -1,5 +1,6 @@
 import type { AccountEntry, AccountField } from './types'
-import { settings, saveSoon, uid } from './state'
+import { settings, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { secretsService } from './services/ipc'
 
@@ -99,7 +100,7 @@ function accountCard(a: AccountEntry): HTMLElement {
     if (!ok) return
     settings.accounts = settings.accounts.filter((x) => x.id !== a.id)
     await secretsService.delete(a.id)
-    saveSoon()
+    persistence.save()
     renderAccounts()
   })
   acts.append(edit, del)
@@ -330,7 +331,7 @@ function showAccountForm(existing?: AccountEntry, defaultKind: 'account' | 'secr
     } else {
       settings.accounts.unshift(draft)
     }
-    saveSoon()
+    persistence.save()
     close()
     renderAccounts()
   })

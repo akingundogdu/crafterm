@@ -2,7 +2,21 @@ import '@xterm/xterm/css/xterm.css'
 import './style.css'
 import type { LayoutNode, SidebarNode, DiffPane, CodePane } from './types'
 import type { SavedNode, SavedSidebarNode } from '../../preload/api'
-import { state, panes, docs, diffPanes, codePanes, hooks, paneActions, loadSettings, migrateLegacyState, seedActionMenu, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
+import {
+  state,
+  panes,
+  docs,
+  diffPanes,
+  codePanes,
+  hooks,
+  paneActions,
+  uid,
+  applyBgColor,
+  applyDocFont,
+  settings
+} from './state'
+import { persistence } from './services/storage/persistence.service'
+import { loadSettings, migrateLegacyState, seedActionMenu } from './services/storage/settings.service'
 import { firstPaneOf, allTabs, findById } from './tree'
 import { flattenProjects } from './catalog'
 import {
@@ -196,7 +210,7 @@ terminalService.onData((id, data) => {
 let quitting = false
 appService.onAppQuitting(() => {
   quitting = true
-  persistNow() // flush the current (still-intact) tree before any pane closes
+  persistence.flush() // flush the current (still-intact) tree before any pane closes
 })
 // macOS hides the traffic lights while fullscreen — reflect that on the body so
 // the content-statusbar can drop its left clearance when not needed.
@@ -515,7 +529,7 @@ async function reactivateTab(tabId: string): Promise<void> {
   renderSidebar()
   renderContent()
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
-  saveSoon()
+  persistence.save()
 }
 
 async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
@@ -652,7 +666,7 @@ async function init(): Promise<void> {
   applySidebarCollapsed()
   initNotifications()
   applyTabDisplay()
-  wireSidebarResizer(saveSoon)
+  wireSidebarResizer(() => persistence.save())
 
   // Restore the saved session tree. Guard it so a single failure can't leave the
   // app blank — we still fall back to whatever rebuilt, or a fresh terminal.
@@ -690,7 +704,7 @@ async function init(): Promise<void> {
     renderSidebar()
     renderContent()
     if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
-    saveSoon()
+    persistence.save()
   } else {
     await newTab()
   }

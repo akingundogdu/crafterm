@@ -5,7 +5,8 @@
 
 import type { SidebarNode, ProjectNode, WorktreeNode } from './types'
 import type { IosWorktreeStatus } from '../../preload/api'
-import { requestSidebar, saveSoon } from './state'
+import { requestSidebar } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { flattenProjects } from './catalog'
 import { state } from './state'
 import { showContextMenu, type ContextMenuItem } from '@crafterm/ui'
@@ -135,7 +136,7 @@ async function runScriptBg(
   const command = `${envPrefix(p)} ${extraEnv}bash ${shq(script)} ${sub}`
   if (sub === 'run' || sub === 'device') building.set(norm(wt.worktreePath), Date.now())
   await startBackgroundProcess(wt, { title, command, role: 'build' })
-  saveSoon()
+  persistence.save()
 }
 
 // Resolve the iOS project owning a worktree node, or null when it isn't one.

@@ -2,7 +2,8 @@ import type { NbNode } from '../../preload/api'
 import { openNote, openMarkdownFile } from './commands'
 import { promptText } from './dialog'
 import { showFileFinder } from './pickers'
-import { settings, saveSoon, state } from './state'
+import { settings, state } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { flattenProjects } from './catalog'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
 import { type ContextMenuItem } from '@crafterm/ui'
@@ -56,7 +57,7 @@ const adapter: TreeAdapter<NbNode> = {
   onColor: (n, c) => {
     if (c) settings.notebookColors[n.path] = c
     else delete settings.notebookColors[n.path]
-    saveSoon()
+    persistence.save()
     void refresh()
   },
   renamable: () => true,
@@ -361,7 +362,7 @@ function openLinked(path: string): void {
 
 function unlink(path: string): void {
   settings.linkedFiles = settings.linkedFiles.filter((f) => f.path !== path)
-  saveSoon()
+  persistence.save()
   void refresh()
 }
 
@@ -418,7 +419,7 @@ export function notebookLinkFile(): void {
     onPick: (path, name) => {
       if (!settings.linkedFiles.some((f) => f.path === path)) {
         settings.linkedFiles.push({ path, name })
-        saveSoon()
+        persistence.save()
         void refresh()
       }
     }
@@ -462,7 +463,7 @@ async function doMove(src: string, targetId: string, pos: DropPos): Promise<void
   if (!ok) return
   const newPath = joinPath(destDir, basename(src))
   moveColor(src, newPath)
-  saveSoon()
+  persistence.save()
   if (destDir) expanded.add(destDir)
   await refresh()
 }
@@ -479,7 +480,7 @@ async function doRename(node: NbNode, rawName: string): Promise<void> {
   const newPath = joinPath(parentOf(node.path), name)
   moveColor(node.path, newPath)
   if (openPath === node.path) openPath = newPath
-  saveSoon()
+  persistence.save()
   await refresh()
 }
 
@@ -491,14 +492,14 @@ async function renamePath(path: string, current: string): Promise<void> {
   const newPath = joinPath(parentOf(path), name)
   moveColor(path, newPath)
   if (openPath === path) openPath = newPath
-  saveSoon()
+  persistence.save()
   await refresh()
 }
 
 async function deleteNode(node: NbNode): Promise<void> {
   await notebookService.delete(node.path)
   delete settings.notebookColors[node.path]
-  saveSoon()
+  persistence.save()
   await refresh()
 }
 

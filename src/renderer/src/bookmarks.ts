@@ -1,5 +1,6 @@
 import type { Bookmark } from './types'
-import { settings, saveSoon, uid } from './state'
+import { settings, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { openLink } from './commands'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { snoozeReminder, snoozeOptions } from './reminders'
@@ -143,7 +144,7 @@ function showForm(existing?: Bookmark): void {
         createdAt: Date.now()
       })
     }
-    saveSoon()
+    persistence.save()
     close()
     renderBookmarks()
   })
@@ -272,7 +273,7 @@ function card(bm: Bookmark): HTMLElement {
     const ok = await promptConfirm({ title: 'Delete bookmark', message: bm.title, confirmText: 'Delete' })
     if (!ok) return
     settings.bookmarks = settings.bookmarks.filter((b) => b.id !== bm.id)
-    saveSoon()
+    persistence.save()
     renderBookmarks()
   })
   acts.append(remind, edit, del)

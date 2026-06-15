@@ -1,5 +1,6 @@
 import type { PullRequest, WorkflowRun, DeploymentStatus } from '../../preload/api'
-import { state, panes, settings, saveSoon, pushNotification } from './state'
+import { state, panes, settings, pushNotification } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { openLink, runInSplit, openPrDiff } from './commands'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { prService } from './services/ipc'
@@ -511,7 +512,7 @@ async function showProjectPicker(): Promise<void> {
   save.textContent = 'Save'
   save.addEventListener('click', () => {
     settings.prProjects = repos.filter((r) => selected.has(r.path)).map((r) => r.path)
-    saveSoon()
+    persistence.save()
     close()
     void renderPr()
   })

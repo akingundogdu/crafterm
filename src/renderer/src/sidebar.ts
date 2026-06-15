@@ -1,6 +1,7 @@
 import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from './types'
 import { openProcessView, killProcess, startBackgroundProcess } from './bgproc'
-import { state, panes, settings, saveSoon, paneActions } from './state'
+import { state, panes, settings, paneActions } from './state'
+import { persistence } from './services/storage/persistence.service'
 import {
   collectPinnedRoots,
   allTabs,
@@ -126,7 +127,7 @@ export function applySidebarCollapsed(): void {
 export function toggleSidebar(): void {
   settings.sidebar.collapsed = !(settings.sidebar.collapsed ?? false)
   applySidebarCollapsed()
-  saveSoon()
+  persistence.save()
 }
 
 document.getElementById('sidebar-show')!.addEventListener('click', toggleSidebar)
@@ -488,7 +489,7 @@ async function promptGroup(node: FolderNode | ProjectNode): Promise<void> {
   const group = g.trim()
   if (group && !settings.groups.includes(group)) {
     settings.groups.push(group)
-    saveSoon()
+    persistence.save()
   }
   setNodeGroup(node.id, group)
 }
@@ -828,7 +829,7 @@ function wireTabReorder(strips: Record<'left' | 'right', HTMLElement | null>): v
         order.splice(after ? idx + 1 : idx, 0, dragTabId)
         settings.tabDisplay.order[key] = order
         applyTabDisplay()
-        saveSoon()
+        persistence.save()
       })
     }
   }
@@ -1329,7 +1330,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
     node.startup = startup.value.trim() || undefined
     node.shell = shell.value.trim() || undefined
     node.env = env.value.trim() || undefined
-    saveSoon()
+    persistence.save()
     renderSidebar()
     close()
   })
@@ -1361,13 +1362,13 @@ export function adjustSidebarFontSize(delta: number): void {
   const cur = settings.sidebar.fontSize ?? 13
   settings.sidebar.fontSize = Math.max(9, Math.min(22, cur + delta))
   applySidebarFont()
-  saveSoon()
+  persistence.save()
 }
 
 export function resetSidebarFontSize(): void {
   settings.sidebar.fontSize = 13
   applySidebarFont()
-  saveSoon()
+  persistence.save()
 }
 
 export function sidebarHasFocus(): boolean {

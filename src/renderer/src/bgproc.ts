@@ -2,7 +2,8 @@
 // one-shot command (e.g. an iOS build/run) without occupying a visible pane. It
 // is surfaced as a small sub-row under its worktree and viewable on demand — the
 // view is a transient pane attached to the still-running PTY (close ≠ kill).
-import { panes, state, requestSidebar, saveSoon, uid } from './state'
+import { panes, state, requestSidebar, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { createPane } from './pane'
 import { renderContent } from './content'
 import { allTabs, layoutContains, splitInLayout } from './tree'
@@ -104,7 +105,7 @@ export async function startBackgroundProcess(
   })
   await terminalService.procStart({ stableId, command: spec.command, cwd })
   requestSidebar()
-  saveSoon()
+  persistence.save()
   return stableId
 }
 
@@ -129,7 +130,7 @@ export function removeProcess(stableId: string): void {
   if (found?.holder.processes) {
     found.holder.processes = found.holder.processes.filter((p) => p.stableId !== stableId)
     requestSidebar()
-    saveSoon()
+    persistence.save()
   }
 }
 
@@ -196,7 +197,7 @@ export function killProcess(stableId: string): void {
   if (found && found.holder.processes) {
     found.holder.processes = found.holder.processes.filter((p) => p.stableId !== stableId)
     requestSidebar()
-    saveSoon()
+    persistence.save()
   }
 }
 
@@ -211,6 +212,6 @@ export function onProcessExit(stableId: string, code = 0): void {
   if (found) {
     found.proc.status = 'done'
     requestSidebar()
-    saveSoon()
+    persistence.save()
   }
 }

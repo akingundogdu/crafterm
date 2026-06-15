@@ -1,4 +1,5 @@
-import { settings, saveSoon, uid } from './state'
+import { settings, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from './types'
 import type { DbObjects } from '../../preload/api'
 import { makeCloseButton, promptText } from './dialog'
@@ -126,7 +127,7 @@ async function renameConn(c: DbConnNode): Promise<void> {
   const name = await promptText({ title: 'Rename', label: 'Name', value: c.conn.name, confirmText: 'Rename' })
   if (!name) return
   c.conn.name = name
-  saveSoon()
+  persistence.save()
   void refresh()
 }
 
@@ -177,7 +178,7 @@ function moveDbNode(dragId: string, targetId: string, pos: DropPos): void {
   } else {
     dst.arr.splice(pos === 'before' ? dst.i : dst.i + 1, 0, dragged)
   }
-  saveSoon()
+  persistence.save()
   void refresh()
 }
 
@@ -252,7 +253,7 @@ const adapter: TreeAdapter<DbTreeNode> = {
     if (n.t === 'group') n.g.color = c
     else if (n.t === 'conn') n.c.color = c
     else return
-    saveSoon()
+    persistence.save()
     void refresh()
   },
   onToggle: (n) => {
@@ -282,7 +283,7 @@ const adapter: TreeAdapter<DbTreeNode> = {
     if (n.t === 'group') n.g.name = name
     else if (n.t === 'conn') n.c.conn.name = name
     else return
-    saveSoon()
+    persistence.save()
     void refresh()
   },
   onMove: moveDbNode,
@@ -297,7 +298,7 @@ const adapter: TreeAdapter<DbTreeNode> = {
           danger: true,
           run: () => {
             removeNode(n.g.id)
-            saveSoon()
+            persistence.save()
             void refresh()
           }
         }
@@ -314,7 +315,7 @@ const adapter: TreeAdapter<DbTreeNode> = {
           run: () => {
             removeNode(n.c.id)
             void dbService.disconnect(n.c.conn.id)
-            saveSoon()
+            persistence.save()
             void refresh()
           }
         }
@@ -384,7 +385,7 @@ async function addGroup(parentId: string | null): Promise<void> {
   } else {
     settings.dbTree.push(group)
   }
-  saveSoon()
+  persistence.save()
   await refresh()
 }
 
@@ -396,7 +397,7 @@ async function renameGroup(node: DbGroup): Promise<void> {
   const name = await promptText({ title: 'Rename', label: 'Name', value: node.name, confirmText: 'Rename' })
   if (!name) return
   node.name = name
-  saveSoon()
+  persistence.save()
   await refresh()
 }
 
@@ -550,7 +551,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
         settings.dbTree.push(node)
       }
     }
-    saveSoon()
+    persistence.save()
     void refresh()
     close()
   })

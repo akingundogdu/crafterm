@@ -6,7 +6,8 @@ import type {
   ProjectNode,
   SidebarNode
 } from './types'
-import { settings, state, panes, saveSoon, uid } from './state'
+import { settings, state, panes, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { showRemindModal } from './reminders'
 import { findProjectById } from './catalog'
@@ -169,7 +170,7 @@ function assignIssueKey(task: DailyPlanTask): string | null {
   }
   task.issueKey = `${prefix}-${max + 1}`
   task.updatedAt = Date.now()
-  saveSoon()
+  persistence.save()
   return task.issueKey
 }
 
@@ -241,7 +242,7 @@ async function openTaskInTerminal(
   if (task.status !== 'wip' && task.status !== 'done') {
     task.status = 'wip'
     task.updatedAt = Date.now()
-    saveSoon()
+    persistence.save()
   }
   onChange()
   const desc = task.description?.trim()
@@ -321,7 +322,7 @@ export function markPaneTaskDone(paneId: string): void {
   if (!t || t.status === 'done') return
   t.status = 'done'
   t.updatedAt = Date.now()
-  saveSoon()
+  persistence.save()
   refreshPaneDailyTask(paneId)
   activeDailyRerender?.()
   void offerDeleteTaskWorktree(t) // todo7
@@ -335,7 +336,7 @@ export function markPaneTaskReview(paneId: string): void {
   if (!t || t.status === 'review' || t.status === 'done') return
   t.status = 'review'
   t.updatedAt = Date.now()
-  saveSoon()
+  persistence.save()
   refreshPaneDailyTask(paneId)
   activeDailyRerender?.()
 }
@@ -348,7 +349,7 @@ export function markPaneTaskTest(paneId: string): void {
   if (!t || t.status === 'test' || t.status === 'done') return
   t.status = 'test'
   t.updatedAt = Date.now()
-  saveSoon()
+  persistence.save()
   refreshPaneDailyTask(paneId)
   activeDailyRerender?.()
 }
@@ -396,7 +397,7 @@ export function assignPaneToTask(paneId: string): void {
 
   const assign = (taskId: string | null): void => {
     pane.dailyTaskId = taskId
-    saveSoon()
+    persistence.save()
     refreshPaneDailyTask(paneId)
     close()
     if (taskId) {
@@ -1048,7 +1049,7 @@ function renderCard(task: DailyPlanTask, rerender: () => void): HTMLElement {
     if (!ok) return
     const idx = settings.dailyPlan.tasks.findIndex((t) => t.id === task.id)
     if (idx >= 0) settings.dailyPlan.tasks.splice(idx, 1)
-    saveSoon()
+    persistence.save()
     rerender()
   })
 
@@ -1142,7 +1143,7 @@ function wireDropTarget(body: HTMLElement, status: DailyPlanStatus, rerender: ()
     if (selectedRange === 'day') task.date = selectedDate
     task.updatedAt = Date.now()
     reorderWithin(task, status, before)
-    saveSoon()
+    persistence.save()
     rerender()
   })
 }
@@ -1381,7 +1382,7 @@ function showTaskForm(
       existing.worktreeSlug = sanitizeSlug(slugInput.value) || undefined
       existing.updatedAt = now
       assignIssueKey(existing)
-      saveSoon()
+      persistence.save()
       return existing
     }
     const newTask: DailyPlanTask = {
@@ -1403,7 +1404,7 @@ function showTaskForm(
     // Assign the stable issue key immediately on creation (idempotent — it stays
     // fixed for the task's lifetime).
     assignIssueKey(newTask)
-    saveSoon()
+    persistence.save()
     return newTask
   }
 
@@ -1560,7 +1561,7 @@ function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
         settings.dailyPlan.tags.push(tag)
         selectedIds.push(tag.id)
         input.value = ''
-        saveSoon()
+        persistence.save()
         renderChips()
         renderDropdown()
         input.focus()
@@ -1587,7 +1588,7 @@ function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
     if (!tag) {
       tag = { id: uid('tag'), name, color: nextTagColor() }
       settings.dailyPlan.tags.push(tag)
-      saveSoon()
+      persistence.save()
     }
     if (!selectedIds.includes(tag.id)) selectedIds.push(tag.id)
     input.value = ''
@@ -1683,7 +1684,7 @@ function showManageTagsModal(rerender: () => void): void {
       color.className = 'daily-plan-tag-color'
       color.addEventListener('change', () => {
         tag.color = color.value
-        saveSoon()
+        persistence.save()
       })
 
       const name = document.createElement('input')
@@ -1694,7 +1695,7 @@ function showManageTagsModal(rerender: () => void): void {
         const v = name.value.trim()
         if (v) {
           tag.name = v
-          saveSoon()
+          persistence.save()
         } else {
           name.value = tag.name
         }
@@ -1716,7 +1717,7 @@ function showManageTagsModal(rerender: () => void): void {
           t.tagIds = t.tagIds.filter((id) => id !== tag.id)
         }
         tagFilter.delete(tag.id) // drop from the active filter so the board isn't stranded empty
-        saveSoon()
+        persistence.save()
         renderList()
       })
 

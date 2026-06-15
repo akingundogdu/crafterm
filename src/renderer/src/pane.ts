@@ -20,13 +20,12 @@ import {
   resolveTheme,
   requestStatuses,
   requestSidebar,
-  saveSoon,
   paneActions,
   state,
   uid,
-  recordCommand,
   pushNotification
 } from './state'
+import { persistence, recordCommand } from './services/storage/persistence.service'
 import { findTabByPane, ancestorFolders, panesInLayout } from './tree'
 import {
   findProjectByPath,
@@ -292,7 +291,7 @@ export async function createPane(
           // is about to create — not any pre-existing jsonl in the cwd
           pane.claudeSpawnedAt = Date.now()
           pane.claudeSessionLocked = false
-          saveSoon() // persist the claude flag promptly (don't wait for the next capture)
+          persistence.save() // persist the claude flag promptly (don't wait for the next capture)
         }
         cmdBuf = ''
         // Arm the "finished" notification from the moment a command is submitted,
@@ -354,7 +353,7 @@ export function setPaneBackground(paneId: string, color: string | null): void {
   if (!p) return
   p.bgColor = color
   applyPaneTheme(p)
-  saveSoon()
+  persistence.save()
 }
 
 // Detects http(s) URLs in a terminal line and routes clicks to paneActions.
@@ -1048,7 +1047,7 @@ export function syncPaneStatus(pane: Pane): void {
         : 'idle'
   if (next !== pane.status) {
     pane.status = next
-    saveSoon()
+    persistence.save()
   }
 }
 
@@ -1100,7 +1099,7 @@ function onPaneTitle(pane: Pane, raw: string): void {
   }
   mirrorPaneTitleToTab(pane)
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 // A single-pane tab's sidebar label mirrors its pane's title. Shared by the OSC
@@ -1226,7 +1225,7 @@ export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
       pane.htitle.textContent = title
       mirrorPaneTitleToTab(pane)
       requestSidebar()
-      saveSoon()
+      persistence.save()
     }
   } catch {
     // ignore — best-effort title sync
@@ -1264,7 +1263,7 @@ export async function refreshPaneInfo(pane: Pane): Promise<void> {
     if (sid) {
       if (sid !== pane.claudeSessionId) pane.claudeSessionId = sid
       pane.claudeSessionLocked = true
-      saveSoon()
+      persistence.save()
       // Pull the /rename custom-title immediately so the sidebar reflects it
       // without having to wait for the next xterm OSC repaint. Re-check at 1s
       // and 3s because Claude may write the title slightly after spawn.
@@ -1284,7 +1283,7 @@ export async function refreshPaneInfo(pane: Pane): Promise<void> {
     void claudeService.watchSessions(pane.cwd)
   }
   requestStatuses()
-  if (cwdChanged) saveSoon() // persist the latest cwd so restore reopens here
+  if (cwdChanged) persistence.save() // persist the latest cwd so restore reopens here
 }
 
 // Keep only the last `n` path segments, prefixed with an ellipsis when trimmed.
@@ -1381,7 +1380,7 @@ export function startPaneRename(pane: Pane): void {
       }
     }
     if (input.parentElement === header) header.replaceChild(pane.htitle, input)
-    saveSoon()
+    persistence.save()
     requestSidebar()
   }
   input.addEventListener('keydown', (e) => {

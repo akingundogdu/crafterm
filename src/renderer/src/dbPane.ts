@@ -1,4 +1,5 @@
-import { sqlPanes, paneActions, settings, uid, saveSoon } from './state'
+import { sqlPanes, paneActions, settings, uid } from './state'
+import { persistence } from './services/storage/persistence.service'
 import type { DbConnection, DbEngine, DbConnNode, DbNode } from './types'
 import { createSqlEditor, type SqlEditor } from './sqlEditor'
 import { ALL_THEME_NAMES, currentThemeName, applyTheme } from './monacoSetup'
@@ -350,7 +351,7 @@ export function createSqlPane(opts: {
     if (conn) ensureSchema(conn)
     // changing the connection invalidates column metadata cache for this pane
     paneColCache.delete(id)
-    saveSoon()
+    persistence.save()
     updateSnap()
   })
   connSel.addEventListener('mousedown', rebuildConnOptions)
@@ -360,7 +361,7 @@ export function createSqlPane(opts: {
     settings.editorTheme = themeName
     void applyTheme(themeName)
     updateSnap()
-    saveSoon()
+    persistence.save()
   })
 
   runBtn.addEventListener('click', () => void run())
@@ -382,7 +383,7 @@ export function createSqlPane(opts: {
       if (!nm) return
       fileName = nm.endsWith('.sql') ? nm : nm + '.sql'
       await dbService.savedWrite(conn.id, fileName, editor.getValue())
-      saveSoon()
+      persistence.save()
       window.dispatchEvent(new CustomEvent('crafterm:dbq-changed', { detail: { connId: conn.id } }))
     })()
   })

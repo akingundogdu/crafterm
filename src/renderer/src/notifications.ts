@@ -1,4 +1,12 @@
-import { notifications, notifState, panes, poppedOut, settings, saveSoon, pushNotification } from './state'
+import {
+  notifications,
+  notifState,
+  panes,
+  poppedOut,
+  settings,
+  pushNotification
+} from './state'
+import { persistence } from './services/storage/persistence.service'
 import { selectPane, openLink, openNote, openMarkdownFile } from './commands'
 import {
   renderReminders,
@@ -55,7 +63,7 @@ function wireNotifResizer(): void {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
-      saveSoon()
+      persistence.save()
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
@@ -248,7 +256,7 @@ function evaluateUsageThresholds(u: RealUsage): void {
   }
   check(u.fiveHour, settings.claudeUsageNotify.session, 'session')
   check(u.sevenDay, settings.claudeUsageNotify.week, 'weekly')
-  saveSoon()
+  persistence.save()
 }
 
 // Status bar version chip: shows the installed app version (base + git commit

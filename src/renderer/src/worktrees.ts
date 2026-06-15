@@ -7,7 +7,14 @@
 // ever created or removed here; the user's own folders/tabs are never touched.
 
 import type { ProjectNode, FolderNode, SidebarNode, WorktreeNode } from './types'
-import { state, settings, requestSidebar, saveSoon, uid, pushNotification } from './state'
+import {
+  state,
+  settings,
+  requestSidebar,
+  uid,
+  pushNotification
+} from './state'
+import { persistence } from './services/storage/persistence.service'
 import { makeFolder, allTabs, projectOf } from './tree'
 import { flattenProjects } from './catalog'
 import { archiveTab } from './commands'
@@ -121,7 +128,7 @@ export function archiveWorktreeNode(wt: WorktreeNode): void {
   wt.status = 'archived'
   wt.archiving = false
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 async function runReconcilePass(): Promise<void> {
@@ -131,7 +138,7 @@ async function runReconcilePass(): Promise<void> {
   }
   if (changed) {
     requestSidebar()
-    saveSoon()
+    persistence.save()
   }
 }
 
@@ -372,6 +379,6 @@ export function purgeWorktrees(p: ProjectNode): void {
   if (allTabs([container]).length === 0) {
     p.children = p.children.filter((n) => n !== container)
     requestSidebar()
-    saveSoon()
+    persistence.save()
   }
 }

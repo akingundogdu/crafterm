@@ -1,4 +1,5 @@
-import { settings, state, panes, saveSoon } from './state'
+import { settings, state, panes } from './state'
+import { persistence } from './services/storage/persistence.service'
 import { openMarkdownFile, openCodeEditor } from './commands'
 import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from '@crafterm/ui'
 import { promptText, promptConfirm } from './dialog'
@@ -323,7 +324,7 @@ function buildMenu(e: Entry): TreeMenuItem[] {
     label: `Exclude “${e.name}”`,
     run: () => {
       if (!settings.explorerExclude.includes(e.name)) settings.explorerExclude.push(e.name)
-      saveSoon()
+      persistence.save()
       childrenCache.clear()
       void renderExplorer()
     }

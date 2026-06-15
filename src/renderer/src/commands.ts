@@ -21,15 +21,14 @@ import {
   state,
   settings,
   uid,
-  saveSoon,
   requestSidebar,
   requestStatuses,
   renderContent,
   updateActive,
   updatePaneActive,
-  applyDocFont,
-  serializeLayout
+  applyDocFont
 } from './state'
+import { persistence } from './services/storage/persistence.service'
 import {
   firstPaneOf,
   panesInLayout,
@@ -141,7 +140,7 @@ function withClaudeSessionId(command: string, paneId: string): string {
   pane.claude = true
   pane.claudeSessionId = sid
   pane.claudeSessionLocked = true
-  saveSoon()
+  persistence.save()
   const at = m.index + m[1].length + 'claude'.length
   return command.slice(0, at) + ` --session-id ${sid}` + command.slice(at)
 }
@@ -250,7 +249,7 @@ async function createTab(
   requestSidebar()
   renderContent()
   focusActivePane()
-  saveSoon()
+  persistence.save()
   // The container's *startup* — a small shell init the user wants on every new
   // terminal in this group — always runs first. An explicit command (e.g.
   // "claude" for a Claude tab, or a project's `command` via `openProject`) is
@@ -456,7 +455,7 @@ export async function runApplications(
   requestSidebar()
   renderContent()
   focusActivePane()
-  saveSoon()
+  persistence.save()
   // let each login shell finish init before injecting its command
   for (const { paneId, cmd } of toRun) {
     setTimeout(() => terminalService.input(paneId, cmd + '\r'), 350)
@@ -555,7 +554,7 @@ export async function createFeature(
   requestSidebar()
   renderContent()
   focusActivePane()
-  saveSoon()
+  persistence.save()
   for (const { paneId, cmd } of toRun) {
     setTimeout(() => terminalService.input(paneId, cmd + '\r'), 350)
   }
@@ -569,7 +568,7 @@ export function setNodeGroup(id: string, group: string): void {
   const g = group.trim()
   r.node.group = g || undefined
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 // Create a new project node. Optional `parentId` nests it under another
@@ -598,7 +597,7 @@ export async function createProject(parentId?: string | null): Promise<void> {
   list.push(proj)
   state.selectedNodeId = proj.id
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 // The folder that owns a sibling list (null when the list is the tree root).
@@ -646,7 +645,7 @@ export async function newFolder(parentFolderId?: string | null): Promise<void> {
   }
   state.selectedNodeId = folder.id
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 function folderChildren(folderId: string): SidebarNode[] {
@@ -674,7 +673,7 @@ export async function splitPane(paneId: string, dir: Dir): Promise<void> {
   updateActive()
   updatePaneActive()
   focusActivePane()
-  saveSoon()
+  persistence.save()
 }
 
 // Open a project (path + optional command) as a split to the right of the active
@@ -714,7 +713,7 @@ export function movePaneByDrop(dragId: string, targetId: string, zone: string): 
   tab.root = newRoot
   renderContent()
   selectPane(dragId)
-  saveSoon()
+  persistence.save()
 }
 
 // Open a file in a new split pane by running the user's IDE command against it.
@@ -755,7 +754,7 @@ function placeSplit(leafId: string, dir: Dir): boolean {
   state.activePaneId = leafId
   renderContent()
   updateActive()
-  saveSoon()
+  persistence.save()
   return true
 }
 
@@ -843,7 +842,7 @@ export async function resumeClaudeSession(
     // we know the id, so lock it; the periodic refresh must not overwrite it
     // with whatever's newest in this cwd (the bug we're fixing)
     p.claudeSessionLocked = true
-    saveSoon()
+    persistence.save()
   }
 }
 
@@ -1027,7 +1026,7 @@ export async function confirmAndClosePane(paneId: string): Promise<void> {
     if (task && res.markDone) {
       task.status = 'done'
       task.updatedAt = Date.now()
-      saveSoon()
+      persistence.save()
     }
     if (wt && res.deleteWorktree) {
       const removed = await removeWorktree(wt.project, wt.path, { force: true, skipConfirm: true })
@@ -1064,7 +1063,7 @@ export function killPoppedPane(paneId: string): void {
 // the node in the tree with status 'archived' (hidden from the sidebar). The live
 // root becomes an empty placeholder until the session is reactivated.
 export function archiveTab(tab: TabNode): void {
-  tab.dormantRoot = serializeLayout(tab.root)
+  tab.dormantRoot = persistence.serializeLayout(tab.root)
   panesInLayout(tab.root).forEach((id) => {
     destroyPane(id)
     terminalService.kill(id)
@@ -1091,7 +1090,7 @@ export function closePane(paneId: string): void {
     requestSidebar()
     renderContent()
     focusActivePane()
-    saveSoon()
+    persistence.save()
     return
   }
 
@@ -1112,7 +1111,7 @@ export function closePane(paneId: string): void {
     requestSidebar()
     renderContent()
     focusActivePane()
-    saveSoon()
+    persistence.save()
     return
   }
 
@@ -1146,7 +1145,7 @@ export function closePane(paneId: string): void {
   requestSidebar()
   renderContent()
   focusActivePane()
-  saveSoon()
+  persistence.save()
 }
 
 export function closeTab(tabId: string): void {
@@ -1158,7 +1157,7 @@ export function closeTab(tabId: string): void {
   requestSidebar()
   renderContent()
   focusActivePane()
-  saveSoon()
+  persistence.save()
 }
 
 export function deleteFolder(folderId: string): void {
@@ -1168,7 +1167,7 @@ export function deleteFolder(folderId: string): void {
   r.parent.splice(r.index, 1, ...r.node.children)
   fixActiveAfterChange()
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 function removeNodeById(id: string): void {
@@ -1248,7 +1247,7 @@ export function equalizePanes(): void {
   tab.root = flattenSameDirSplits(tab.root)
   equalizeNode(tab.root)
   renderContent()
-  saveSoon()
+  persistence.save()
 }
 
 function flattenSameDirSplits(node: LayoutNode): LayoutNode {
@@ -1274,13 +1273,13 @@ function equalizeNode(node: LayoutNode): void {
 export function adjustDocFontSize(delta: number): void {
   settings.docFontSize = Math.max(10, Math.min(28, settings.docFontSize + delta))
   applyDocFont()
-  saveSoon()
+  persistence.save()
 }
 
 export function resetDocFontSize(): void {
   settings.docFontSize = 15
   applyDocFont()
-  saveSoon()
+  persistence.save()
 }
 
 // Cmd+Option+Arrow: move focus to the neighbouring pane in a given direction.
@@ -1478,7 +1477,7 @@ export function setNodeName(id: string, name: string): void {
     r.node.name = v
   }
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 export function autoNameTab(tabId: string): void {
@@ -1488,7 +1487,7 @@ export function autoNameTab(tabId: string): void {
   const p = panes.get(firstPaneOf(tab.root) ?? '')
   if (p?.title) tab.title = p.title
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 export function setNodeColor(id: string, color: string | null): void {
@@ -1496,7 +1495,7 @@ export function setNodeColor(id: string, color: string | null): void {
   if (!r) return
   r.node.color = color
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 export function togglePin(id: string): void {
@@ -1504,7 +1503,7 @@ export function togglePin(id: string): void {
   if (!r) return
   r.node.pinned = !r.node.pinned
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 export function toggleCollapse(folderId: string): void {
@@ -1512,7 +1511,7 @@ export function toggleCollapse(folderId: string): void {
   if (r && isContainer(r.node)) {
     r.node.collapsed = !r.node.collapsed
     requestSidebar()
-    saveSoon()
+    persistence.save()
   }
 }
 
@@ -1530,7 +1529,7 @@ export function setAllFoldersCollapsed(collapsed: boolean): void {
   }
   walk(state.tree)
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 // True when at least one container in the tree is currently expanded.
@@ -1553,7 +1552,7 @@ export function toggleTabDetails(tabId: string): void {
   if (r && r.node.kind === 'tab') {
     r.node.detailsOpen = !r.node.detailsOpen
     requestSidebar()
-    saveSoon()
+    persistence.save()
   }
 }
 
@@ -1608,7 +1607,7 @@ export function moveNode(dragId: string, targetId: string | null, mode: DropMode
   destList.splice(destIndex, 0, fresh.node)
 
   requestSidebar()
-  saveSoon()
+  persistence.save()
 }
 
 // depth check for dropping `node` INTO folder with id

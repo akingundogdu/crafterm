@@ -1,5 +1,16 @@
 import type { LayoutNode } from './types'
-import { panes, browsers, docs, sqlPanes, diffPanes, filePanes, codePanes, state, saveSoon, poppedOut } from './state'
+import {
+  panes,
+  browsers,
+  docs,
+  sqlPanes,
+  diffPanes,
+  filePanes,
+  codePanes,
+  state,
+  poppedOut
+} from './state'
+import { persistence } from './services/storage/persistence.service'
 import { findTab } from './tree'
 import { mountPanes } from './pane'
 import { terminalService } from './services/ipc'
@@ -117,7 +128,7 @@ function attachResizer(
       const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
       const entry = tab ? tabContainers.get(tab.id) : null
       if (tab && entry) entry.sig = layoutSig(tab.root)
-      saveSoon()
+      persistence.save()
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)

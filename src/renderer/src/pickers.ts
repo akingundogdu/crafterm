@@ -1,6 +1,13 @@
 import type { DirEntry } from '../../preload/api'
 import type { SshConnection, ProjectNode, Application } from './types'
-import { settings, commandHistory, panes, state, saveSoon, persistNow, uid } from './state'
+import {
+  settings,
+  commandHistory,
+  panes,
+  state,
+  uid
+} from './state'
+import { persistence } from './services/storage/persistence.service'
 import {
   openTerminalInDir,
   openProject,
@@ -477,7 +484,7 @@ async function editSshConnection(existing?: SshConnection): Promise<void> {
   } else {
     settings.sshConnections.push(conn)
   }
-  saveSoon()
+  persistence.save()
 }
 
 export function showSshConnections(): void {
@@ -565,7 +572,7 @@ export function showSshConnections(): void {
         }).then((ok) => {
           if (!ok) return
           settings.sshConnections = settings.sshConnections.filter((x) => x.id !== c.id)
-          saveSoon()
+          persistence.save()
           render()
         })
       })
@@ -2437,7 +2444,7 @@ export async function runUpdate(): Promise<void> {
     if (!picked) return
     repo = picked
     settings.repoPath = repo
-    saveSoon()
+    persistence.save()
   }
 
   // 2. Confirm — this restarts the app.
@@ -2491,7 +2498,7 @@ export async function runUpdate(): Promise<void> {
 
   // Save sessions (flush synchronously) so the relaunch restores them.
   const s1 = step('Saving sessions…')
-  persistNow()
+  persistence.flush()
   s1.done()
 
   // Build the new bundle (runs in main; can take a while).
