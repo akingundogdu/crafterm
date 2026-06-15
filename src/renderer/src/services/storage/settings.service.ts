@@ -1,12 +1,6 @@
 import type {
   ActionMenuItem,
-  Reminder,
-  Bookmark,
-  AccountEntry,
   DbNode,
-  DailyPlanTask,
-  DailyPlanTag,
-  MeetingNote,
   ProjectNode,
   SidebarNode,
   Project,
@@ -25,9 +19,42 @@ import {
   uid
 } from '../../state'
 import { persistence } from './persistence.service'
+import { reminderSchema } from '../domain/model/reminder'
+import { bookmarkSchema } from '../domain/model/bookmark'
+import { accountEntrySchema } from '../domain/model/account'
+import { timeEntrySchema } from '../domain/model/time-entry'
+import { sshConnectionSchema } from '../domain/model/ssh-connection'
+import { paletteCommandSchema } from '../domain/model/palette-command'
+import { actionMenuItemSchema } from '../domain/model/action-menu-item'
+import { meetingNoteSchema } from '../domain/model/meeting-note'
+import { dailyTaskSchema } from '../domain/model/daily-task'
+import { dailyTagSchema } from '../domain/model/daily-tag'
+import { appNotificationSchema } from '../domain/model/notification'
 
 // Renderer load side of the persistence layer: validate/restore a SavedState
 // blob into the live singletons, plus the one-time legacy migrations.
+
+// Schema-validate persisted rows at the JSON boundary (Phase 2 / F). Each row is
+// checked against its entity schema; malformed rows are dropped (and counted in
+// one log line) rather than crashing the load or corrupting live state. Replaces
+// the old ad-hoc `Array.isArray` + `as T[]` casts.
+interface RowParser<T> {
+  safeParse(row: unknown): { success: true; data: T } | { success: false; error: unknown }
+}
+function validateRows<T>(rows: unknown, schema: RowParser<T>, label: string): T[] {
+  if (!Array.isArray(rows)) return []
+  const out: T[] = []
+  let dropped = 0
+  for (const row of rows) {
+    // Keep the ORIGINAL row on success (no key stripping), so a schema that
+    // lags a new field can never silently drop persisted data — it only filters
+    // genuinely malformed rows.
+    if (schema.safeParse(row).success) out.push(row as T)
+    else dropped++
+  }
+  if (dropped) console.warn(`[settings] dropped ${dropped} invalid ${label} row(s) on load`)
+  return out
+}
 
 export function loadSettings(saved: SavedState): void {
   if (saved.font) settings.font = saved.font
@@ -67,7 +94,7 @@ export function loadSettings(saved: SavedState): void {
     settings.environments = saved.environments
   if (Array.isArray(saved.groups)) settings.groups = saved.groups.filter((s) => typeof s === 'string')
   if (Array.isArray(saved.actionMenu) && saved.actionMenu.length) {
-    settings.actionMenu = saved.actionMenu as ActionMenuItem[]
+    settings.actionMenu = validateRows(saved.actionMenu, actionMenuItemSchema, 'action-menu-item')
     // Auto-append any builtin actions added after this user's menu was seeded
     // (e.g. "Daily plan" shipped later). Items appear at the end of the menu;
     // persistence.save() persists the migration so it runs only once.
@@ -89,11 +116,14 @@ export function loadSettings(saved: SavedState): void {
   } else {
     settings.actionMenu = seedActionMenu()
   }
-  if (Array.isArray(saved.sshConnections)) settings.sshConnections = saved.sshConnections
-  if (Array.isArray(saved.paletteCommands)) settings.paletteCommands = saved.paletteCommands
+  if (Array.isArray(saved.sshConnections))
+    settings.sshConnections = validateRows(saved.sshConnections, sshConnectionSchema, 'ssh-connection')
+  if (Array.isArray(saved.paletteCommands))
+    settings.paletteCommands = validateRows(saved.paletteCommands, paletteCommandSchema, 'palette-command')
   if (typeof saved.notifPanelSize === 'number') settings.notifPanelSize = saved.notifPanelSize
   if (typeof saved.notifSound === 'string') settings.notifSound = saved.notifSound
-  if (Array.isArray(saved.reminders)) settings.reminders = saved.reminders as Reminder[]
+  if (Array.isArray(saved.reminders))
+    settings.reminders = validateRows(saved.reminders, reminderSchema, 'reminder')
   if (saved.reminderDefaults && typeof saved.reminderDefaults === 'object') {
     const rd = saved.reminderDefaults
     const hour = Number(rd.defaultHour)
@@ -111,8 +141,10 @@ export function loadSettings(saved: SavedState): void {
         : settings.reminderDefaults.presets
     }
   }
-  if (Array.isArray(saved.bookmarks)) settings.bookmarks = saved.bookmarks as Bookmark[]
-  if (Array.isArray(saved.accounts)) settings.accounts = saved.accounts as AccountEntry[]
+  if (Array.isArray(saved.bookmarks))
+    settings.bookmarks = validateRows(saved.bookmarks, bookmarkSchema, 'bookmark')
+  if (Array.isArray(saved.accounts))
+    settings.accounts = validateRows(saved.accounts, accountEntrySchema, 'account')
   if (saved.claudePlanCaps && typeof saved.claudePlanCaps === 'object') {
     settings.claudePlanCaps = {
       daily: Number(saved.claudePlanCaps.daily) || settings.claudePlanCaps.daily,
@@ -159,15 +191,17 @@ export function loadSettings(saved: SavedState): void {
   if (saved.notebookColors && typeof saved.notebookColors === 'object')
     settings.notebookColors = saved.notebookColors
   if (Array.isArray(saved.dbTree)) settings.dbTree = saved.dbTree as DbNode[]
-  if (Array.isArray(saved.timeEntries)) settings.timeEntries = saved.timeEntries
+  if (Array.isArray(saved.timeEntries))
+    settings.timeEntries = validateRows(saved.timeEntries, timeEntrySchema, 'time-entry')
   if (saved.dailyPlan && typeof saved.dailyPlan === 'object') {
     const dp = saved.dailyPlan
     settings.dailyPlan = {
-      tasks: Array.isArray(dp.tasks) ? (dp.tasks as DailyPlanTask[]) : [],
-      tags: Array.isArray(dp.tags) ? (dp.tags as DailyPlanTag[]) : []
+      tasks: validateRows(dp.tasks, dailyTaskSchema, 'daily-task'),
+      tags: validateRows(dp.tags, dailyTagSchema, 'daily-tag')
     }
   }
-  if (Array.isArray(saved.meetingNotes)) settings.meetingNotes = saved.meetingNotes as MeetingNote[]
+  if (Array.isArray(saved.meetingNotes))
+    settings.meetingNotes = validateRows(saved.meetingNotes, meetingNoteSchema, 'meeting-note')
   if (typeof saved.askProjectOnNew === 'boolean') settings.askProjectOnNew = saved.askProjectOnNew
   if (saved.tabDisplay && typeof saved.tabDisplay === 'object') {
     const td = saved.tabDisplay
@@ -193,6 +227,7 @@ export function loadSettings(saved: SavedState): void {
     const cutoff = Date.now() - NOTIF_PERSIST_WINDOW_MS
     for (const n of saved.notifications) {
       if (typeof n?.time !== 'number' || n.time < cutoff) continue
+      if (!appNotificationSchema.safeParse(n).success) continue // drop malformed
       notifications.push(n as AppNotification)
       if (notifications.length >= NOTIF_PERSIST_CAP) break
     }
