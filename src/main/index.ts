@@ -350,8 +350,11 @@ ipcMain.on('improve-window:set-always-on-top', (_e, { value }: { value: boolean 
 // --- Tiny JSON store (saved layout + theme) in a dot-dir under $HOME ---
 
 // Packaged app and dev mode keep separate state so dev experiments never clobber
-// the installed app's saved sessions/layout.
+// the installed app's saved sessions/layout. Tests/E2E set CRAFTERM_STATE_DIR to a
+// throwaway temp dir so they never touch the real ~/.crafterm (HR-5); the default
+// is unchanged when the env var is absent.
 const stateDir = (): string =>
+  process.env.CRAFTERM_STATE_DIR ||
   join(homedir(), app.isPackaged ? '.crafterm' : '.crafterm-dev')
 const statePath = (): string => join(stateDir(), 'crafterm-state.json')
 
