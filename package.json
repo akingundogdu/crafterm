@@ -24,6 +24,7 @@
     "macos"
   ],
   "main": "./out/main/index.js",
+  "packageManager": "npm@10.9.2",
   "workspaces": [
     "packages/*"
   ],
