@@ -1,0 +1,21 @@
+import { z } from 'zod'
+
+// Bookmark — mirrors `Bookmark` in types.ts exactly (HR-1).
+
+export const bookmarkSchema = z.object({
+  id: z.string(),
+  type: z.enum(['link', 'text', 'code', 'snippet']),
+  title: z.string(),
+  content: z.string(),
+  tags: z.array(z.string()),
+  language: z.string().optional(),
+  createdAt: z.number()
+})
+
+export type Bookmark = z.infer<typeof bookmarkSchema>
+
+export function makeBookmark(
+  p: Partial<Bookmark> & Pick<Bookmark, 'type' | 'title' | 'content'>
+): Bookmark {
+  return bookmarkSchema.parse({ id: crypto.randomUUID(), tags: [], createdAt: Date.now(), ...p })
+}
