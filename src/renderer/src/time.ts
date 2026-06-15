@@ -5,6 +5,15 @@ import { promptText, makeCloseButton } from './dialog'
 import { updatePaneStatus } from './pane'
 import { flattenProjects, findProjectByPath, findFeature } from './catalog'
 import { appService } from './services/ipc'
+import {
+  fmtClock,
+  fmtHM,
+  startOfToday,
+  rangeStart,
+  sumByProject,
+  reportByProject,
+  type Range
+} from './services/domain/time'
 
 const IDLE_MS = 5 * 60_000 // no activity this long ⇒ stop auto-counting
 
@@ -39,20 +48,6 @@ function featureSel(): HTMLSelectElement {
   return el('time-feature')
 }
 
-function fmtClock(ms: number): string {
-  const s = Math.floor(ms / 1000)
-  const p = (n: number): string => String(n).padStart(2, '0')
-  return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`
-}
-function fmtHM(ms: number): string {
-  const m = Math.round(ms / 60000)
-  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
-}
-function startOfToday(): number {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
-}
 
 function renderProjects(): void {
   const sel = projectSel()
@@ -92,21 +87,12 @@ function renderSummary(): void {
   const sum = el('time-summary')
   sum.replaceChildren()
   sum.insertAdjacentHTML('beforeend', '<div class="time-summary-head">Today</div>')
-  const today0 = startOfToday()
-  const byProj = new Map<string, number>()
-  for (const e of settings.timeEntries) {
-    if (e.end < today0) continue
-    byProj.set(e.projectPath, (byProj.get(e.projectPath) ?? 0) + (e.end - e.start))
-  }
-  if (active) {
-    byProj.set(active.projectPath, (byProj.get(active.projectPath) ?? 0) + (Date.now() - active.start))
-  }
-  if (autoSession) {
-    byProj.set(
-      autoSession.projectPath,
-      (byProj.get(autoSession.projectPath) ?? 0) + (Date.now() - autoSession.start)
-    )
-  }
+  const now = Date.now()
+  const ongoing = [
+    active && { projectPath: active.projectPath, ms: now - active.start },
+    autoSession && { projectPath: autoSession.projectPath, ms: now - autoSession.start }
+  ].filter((o): o is { projectPath: string; ms: number } => !!o)
+  const byProj = sumByProject(settings.timeEntries, startOfToday(now), ongoing)
   if (!byProj.size) {
     sum.insertAdjacentHTML('beforeend', '<div class="notif-empty">No time logged today</div>')
     return
@@ -255,26 +241,6 @@ async function addFeature(): Promise<void> {
   featureSel().value = f.id
 }
 
-type Range = 'today' | 'week' | 'month' | 'all'
-function rangeStart(range: Range): number {
-  const d = new Date()
-  if (range === 'today') {
-    d.setHours(0, 0, 0, 0)
-    return d.getTime()
-  }
-  if (range === 'week') {
-    d.setDate(d.getDate() - 6)
-    d.setHours(0, 0, 0, 0)
-    return d.getTime()
-  }
-  if (range === 'month') {
-    d.setDate(d.getDate() - 29)
-    d.setHours(0, 0, 0, 0)
-    return d.getTime()
-  }
-  return 0
-}
-
 // Report modal: total per project (and per feature) over a date range.
 function showReport(): void {
   const overlay = document.createElement('div')
@@ -315,20 +281,7 @@ function showReport(): void {
       chipsRow.appendChild(c)
     })
 
-    const from = rangeStart(range)
-    const byProj = new Map<string, { total: number; feats: Map<string, number> }>()
-    for (const e of settings.timeEntries) {
-      if (e.end < from) continue
-      let p = byProj.get(e.projectPath)
-      if (!p) {
-        p = { total: 0, feats: new Map() }
-        byProj.set(e.projectPath, p)
-      }
-      const ms = e.end - e.start
-      p.total += ms
-      const fk = e.featureId ?? ''
-      p.feats.set(fk, (p.feats.get(fk) ?? 0) + ms)
-    }
+    const byProj = reportByProject(settings.timeEntries, rangeStart(range))
 
     body.replaceChildren()
     if (!byProj.size) {

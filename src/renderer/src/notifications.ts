@@ -23,6 +23,7 @@ import { openMeetingNote } from './meetingNotes'
 import { renderTime, initTime, startAutoTracker } from './time'
 import { runUpdate } from './pickers'
 import { terminalService, claudeService, secretsService, appService } from './services/ipc'
+import { fmtResetTime, usageErrorShort, usageErrorLong } from './services/domain/usage'
 
 const appEl = document.getElementById('app')!
 const listEl = document.getElementById('notif-list')!
@@ -122,15 +123,6 @@ function shortModel(m: string | null): string {
     .replace(/-(\d{8})$/, '')
     .replace(/-(\d)-(\d)$/, '-$1.$2')
 }
-function fmtResetTime(ms: number): string {
-  const d = new Date(ms)
-  const sameDay = d.toDateString() === new Date().toDateString()
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  if (sameDay) return `Today ${time}`
-  const tmr = new Date(Date.now() + 86_400_000)
-  if (d.toDateString() === tmr.toDateString()) return `Tomorrow ${time}`
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time
-}
 
 // Resolve the OAuth token source from settings, then pull the real server-side
 // utilization. The keychain (read in main) is the primary source; the fallback
@@ -212,19 +204,6 @@ function initStatusbarUsage(): void {
     }
     setTimeout(() => document.addEventListener('mousedown', onDown, true))
   })
-}
-
-function usageErrorShort(e: NonNullable<RealUsage['error']>): string {
-  if (e === 'no-token') return 'no token'
-  if (e === 'auth-expired') return 'auth expired'
-  return 'unavailable'
-}
-function usageErrorLong(e: NonNullable<RealUsage['error']>): string {
-  if (e === 'no-token')
-    return 'No Claude OAuth token found. Set the keychain service or a fallback secret in Settings.'
-  if (e === 'auth-expired')
-    return 'Claude OAuth token expired. Open Claude Code to re-authenticate.'
-  return 'Could not reach the Claude usage endpoint.'
 }
 
 // Fire a notification card the first time session/week usage crosses each of

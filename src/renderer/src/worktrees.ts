@@ -21,19 +21,10 @@ import { archiveTab } from './commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
 import { promptForm, promptConfirm } from './dialog'
 import { gitService, appService } from './services/ipc'
+import { norm, baseName, shq } from './services/domain/worktree-path'
 
 const RECONCILE_INTERVAL_MS = 20_000
 let started = false
-
-function norm(p: string): string {
-  return p.replace(/\/+$/, '')
-}
-function baseName(p: string): string {
-  return norm(p).split('/').pop() || p
-}
-function shq(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`
-}
 
 export function isWorktreeFolder(n: SidebarNode): n is WorktreeNode {
   return n.kind === 'worktree'
