@@ -1,11 +1,4 @@
-import {
-  notifications,
-  notifState,
-  panes,
-  poppedOut,
-  settings,
-  pushNotification
-} from './state'
+import { notifState, panes, poppedOut, settings, pushNotification } from './state'
 import { persistence } from './services/storage/persistence.service'
 import { selectPane, openLink, openNote, openMarkdownFile } from './commands'
 import {
@@ -24,7 +17,7 @@ import { renderTime, initTime, startAutoTracker } from './time'
 import { runUpdate } from './pickers'
 import { terminalService, claudeService, secretsService, appService } from './services/ipc'
 import { fmtResetTime, usageErrorShort, usageErrorLong } from './services/domain/usage'
-import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo } from './services/storage/repositories'
+import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from './services/storage/repositories'
 
 const appEl = document.getElementById('app')!
 const listEl = document.getElementById('notif-list')!
@@ -99,7 +92,7 @@ export function applyNotifPanel(): void {
 function updateBadge(): void {
   const badge = document.getElementById('notif-badge')
   if (!badge) return
-  const n = notifications.length
+  const n = notificationRepo.getAll().length
   badge.textContent = n > 99 ? '99+' : String(n)
   badge.style.display = n > 0 ? 'flex' : 'none'
 }
@@ -373,25 +366,24 @@ function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
 }
 
 function dismiss(id: string): void {
-  const i = notifications.findIndex((x) => x.id === id)
-  if (i >= 0) notifications.splice(i, 1)
+  notificationRepo.remove(id)
   expandedNotifs.delete(id)
   renderNotifications()
 }
 
 export function clearNotifications(): void {
-  notifications.length = 0
+  notificationRepo.clear()
   renderNotifications()
 }
 
 export function renderNotifications(): void {
   updateBadge()
   listEl.replaceChildren()
-  if (!notifications.length) {
+  if (!notificationRepo.getAll().length) {
     listEl.insertAdjacentHTML('beforeend', '<div class="notif-empty">No notifications</div>')
     return
   }
-  notifications.forEach((n) => {
+  notificationRepo.getAll().forEach((n) => {
     const card = document.createElement('div')
     // State-based accent: reminder (blue), question/attention (amber), done (green).
     const tone =

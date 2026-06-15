@@ -7,6 +7,7 @@ import { openSqlInSplit } from './commands'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
 import './database.css'
 import { dbService } from './services/ipc'
+import { dbConnectionRepo } from './services/storage/repositories'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object
 // introspection under each connection, a Queries section of saved .sql files,
@@ -127,7 +128,7 @@ async function renameConn(c: DbConnNode): Promise<void> {
   const name = await promptText({ title: 'Rename', label: 'Name', value: c.conn.name, confirmText: 'Rename' })
   if (!name) return
   c.conn.name = name
-  persistence.save()
+  dbConnectionRepo.update(c.conn)
   void refresh()
 }
 
@@ -280,10 +281,13 @@ const adapter: TreeAdapter<DbTreeNode> = {
     }
   },
   onRename: (n, name) => {
-    if (n.t === 'group') n.g.name = name
-    else if (n.t === 'conn') n.c.conn.name = name
-    else return
-    persistence.save()
+    if (n.t === 'group') {
+      n.g.name = name
+      persistence.save()
+    } else if (n.t === 'conn') {
+      n.c.conn.name = name
+      dbConnectionRepo.update(n.c.conn)
+    } else return
     void refresh()
   },
   onMove: moveDbNode,

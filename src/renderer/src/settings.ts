@@ -29,7 +29,7 @@ import {
   isModifierKey
 } from './keybindings'
 import { appService } from './services/ipc'
-import { paletteCommandRepo, accountRepo, actionMenuRepo } from './services/storage/repositories'
+import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from './services/storage/repositories'
 
 // Quick background presets (black default + a few dark tones); a custom color
 // picker covers anything else.
@@ -931,14 +931,13 @@ function buildProjectsPanel(panel: HTMLElement): void {
   // The Applications section of the selected project's editor.
   const renderApps = (p: ProjectNode, parent: HTMLElement): void => {
     parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Applications</div>')
-    p.apps = p.apps ?? []
-    if (!p.apps.length) {
+    if (!applicationRepo.listForProject(p.id).length) {
       parent.insertAdjacentHTML(
         'beforeend',
         '<div class="field-hint">No applications. Add one to run it (with per-environment commands).</div>'
       )
     }
-    p.apps.forEach((app) => {
+    applicationRepo.listForProject(p.id).forEach((app) => {
       const card = document.createElement('div')
       card.className = 'app-card'
       const head = document.createElement('div')
@@ -951,8 +950,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       delApp.textContent = '✕'
       delApp.title = 'Remove application'
       delApp.addEventListener('click', () => {
-        p.apps = (p.apps ?? []).filter((a) => a !== app)
-        persistence.save()
+        applicationRepo.remove(p.id, app.id)
         renderTree()
         renderDetail()
       })
@@ -963,11 +961,11 @@ function buildProjectsPanel(panel: HTMLElement): void {
         app.name = v.trim()
         title.textContent = app.name || '(unnamed app)'
         renderTree()
-        persistence.save()
+        applicationRepo.upsert(p.id, app)
       })
       field(card, 'Path', app.path ?? '', 'relative to project, or absolute (optional)', (v) => {
         app.path = v.trim() || undefined
-        persistence.save()
+        applicationRepo.upsert(p.id, app)
       })
 
       const opensWrap = document.createElement('div')
@@ -988,7 +986,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       })
       opensSel.addEventListener('change', () => {
         app.opensAs = opensSel.value as Application['opensAs']
-        persistence.save()
+        applicationRepo.upsert(p.id, app)
       })
       opensWrap.append(opensLab, opensSel)
       card.appendChild(opensWrap)
@@ -1001,7 +999,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
           const t = v.trim()
           if (t) app.commands[envName] = t
           else delete app.commands[envName]
-          persistence.save()
+          applicationRepo.upsert(p.id, app)
         })
       }
 
@@ -1018,7 +1016,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         nameI.placeholder = 'name'
         nameI.addEventListener('change', () => {
           rc.name = nameI.value.trim() || rc.name
-          persistence.save()
+          applicationRepo.upsert(p.id, app)
         })
         nameI.addEventListener('keydown', (e) => e.stopPropagation())
         const cmdI = document.createElement('input')
@@ -1027,7 +1025,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         cmdI.placeholder = 'shell command'
         cmdI.addEventListener('change', () => {
           rc.command = cmdI.value.trim()
-          persistence.save()
+          applicationRepo.upsert(p.id, app)
         })
         cmdI.addEventListener('keydown', (e) => e.stopPropagation())
         const delRc = document.createElement('button')
@@ -1036,7 +1034,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
         delRc.title = 'Remove command'
         delRc.addEventListener('click', () => {
           app.runCommands = (app.runCommands ?? []).filter((x) => x !== rc)
-          persistence.save()
+          applicationRepo.upsert(p.id, app)
           renderDetail()
         })
         row.append(nameI, cmdI, delRc)
@@ -1048,7 +1046,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
       addRc.addEventListener('click', () => {
         app.runCommands = app.runCommands ?? []
         app.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
-        persistence.save()
+        applicationRepo.upsert(p.id, app)
         renderDetail()
       })
       card.appendChild(addRc)
@@ -1060,9 +1058,7 @@ function buildProjectsPanel(panel: HTMLElement): void {
     addApp.className = 'settings-inline-btn'
     addApp.textContent = '+ Add application'
     addApp.addEventListener('click', () => {
-      p.apps = p.apps ?? []
-      p.apps.push({ id: uid('app'), name: 'app', commands: {} })
-      persistence.save()
+      applicationRepo.upsert(p.id, { id: uid('app'), name: 'app', commands: {} })
       renderTree()
       renderDetail()
     })
@@ -1428,7 +1424,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
     ): void => {
       const input = labeledInput(body, label, 'text', cfg[key], (v) => {
         cfg[key] = v.trim()
-        persistence.save()
+        iosConfigRepo.set(p.id, cfg)
       })
       input.placeholder = placeholder
       input.style.maxWidth = '420px'
@@ -1474,7 +1470,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
         del.textContent = 'Delete'
         del.addEventListener('click', () => {
           cfg.copyFiles.splice(i, 1)
-          persistence.save()
+          iosConfigRepo.set(p.id, cfg)
           renderFiles()
         })
         row.append(txt, del)
@@ -1490,7 +1486,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
         const rel = (values?.path || '').trim()
         if (!rel || cfg.copyFiles.includes(rel)) return
         cfg.copyFiles.push(rel)
-        persistence.save()
+        iosConfigRepo.set(p.id, cfg)
         renderFiles()
       })
     })
@@ -1500,7 +1496,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
   checkbox.addEventListener('change', () => {
     p.iosApp = checkbox.checked
     if (p.iosApp) {
-      if (!p.iosConfig) p.iosConfig = defaultIosConfig()
+      iosConfigRepo.ensure(p.id, defaultIosConfig)
       p.supportWorktree = true // iOS needs the worktree nodes to attach to
       void reconcileWorktrees()
     }

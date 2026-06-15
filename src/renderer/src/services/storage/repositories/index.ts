@@ -30,6 +30,12 @@ import { dailyTagSchema } from '../../domain/model/daily-tag'
 // entities ONLY through these repos, so the future SQLite backend (§10) is a
 // drop-in swap. `prepend: true` mirrors the lists that keep newest-first order.
 
+// Nested / non-flat entities get bespoke repositories (see each file).
+export { notificationRepo } from './notification.repository'
+export { applicationRepo } from './application.repository'
+export { iosConfigRepo } from './ios-config.repository'
+export { dbConnectionRepo } from './db-connection.repository'
+
 const save = (): void => persistence.save()
 
 export const bookmarkRepo = createArrayRepository<Bookmark>(() => settings.bookmarks, save, {

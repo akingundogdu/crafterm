@@ -13,6 +13,7 @@ import {
 } from './dbResultGrid'
 import './dbPane.css'
 import { dbService } from './services/ipc'
+import { dbConnectionRepo } from './services/storage/repositories'
 
 // SQL query pane: the workbench (toolbar + editor + result grid) shown as a
 // first-class pane (split next to the active pane), replacing the old modal.
@@ -27,13 +28,8 @@ function engineLabel(e: DbEngine): string {
   return e === 'postgres' ? 'PostgreSQL' : e === 'mysql' ? 'MySQL' : 'SQLite'
 }
 
-function flattenConns(nodes: DbNode[] = settings.dbTree): DbConnNode[] {
-  const out: DbConnNode[] = []
-  for (const n of nodes) {
-    if (n.kind === 'conn') out.push(n)
-    else out.push(...flattenConns(n.children))
-  }
-  return out
+function flattenConns(): DbConnNode[] {
+  return dbConnectionRepo.nodes()
 }
 
 // Per-pane Monaco editor teardown (dispose on close).

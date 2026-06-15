@@ -3,6 +3,7 @@ import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, CodePane,
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from './themes'
 import { PALETTE_SEED } from './palette-seed'
 import { allTabs } from './tree'
+import { notificationRepo } from './services/storage/repositories/notification.repository'
 
 // ---- Live state (mutated in place; modules import these singletons) ----
 
@@ -188,8 +189,7 @@ export function pushNotification(
   message: string,
   meta: import('./types').NotificationMeta = {}
 ): void {
-  notifications.unshift({ id: uid('n'), paneId, title, group, message, time: Date.now(), ...meta })
-  if (notifications.length > 100) notifications.length = 100
+  notificationRepo.add({ id: uid('n'), paneId, title, group, message, time: Date.now(), ...meta })
   hooks.renderNotifications()
 }
 
