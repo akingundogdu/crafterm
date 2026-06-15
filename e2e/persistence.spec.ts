@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// ONE real-app session that exercises the data integrity of EVERY entity whose
-// read/write path Phase 2 rerouted through a repository (E.11) plus the load
-// validation boundary (F). Malformed rows can't be produced through the UI, so
-// we seed a VALID and a MALFORMED row per entity, launch once (load ->
-// validateRows drops bad rows into the live settings), trigger one full persist
-// by adding a bookmark, then read the re-saved file and assert per feature:
-// valid survived, malformed dropped. HR-5: throwaway state dir only.
+// State persistence + load-validation, end to end, in ONE real-app session.
+// For every persisted entity we seed a VALID and a MALFORMED row, launch once
+// (the load path validates each row against its schema and drops the bad ones
+// into the live state), trigger a full persist by adding a bookmark, then read
+// the re-saved file and assert per feature: the valid row survived and the
+// malformed one was dropped. Malformed rows can't be produced through the UI,
+// hence the seeded fixture. HR-5: throwaway state dir only.
 
 const SCHEMA_VERSION = 4
 const NOW = Date.now()
@@ -23,7 +23,7 @@ function readState(dir: string): Record<string, any> {
   return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
 }
 
-test('every rerouted entity survives load-validation + persist in one session (E.11 + F)', async () => {
+test('every persisted entity survives load-validation and round-trips to disk', async () => {
   const dir = freshStateDir()
   const seed = {
     schemaVersion: SCHEMA_VERSION,
@@ -97,7 +97,7 @@ test('every rerouted entity survives load-validation + persist in one session (E
   try {
     app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_STATE_DIR: dir } })
     const win: Page = await app.firstWindow()
-    // The malformed rows must not crash the load (F): the shell still boots.
+    // The malformed rows must not crash the load: the shell still boots.
     await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
 
     // Flush the whole (validated) state to disk by adding a bookmark through the UI.
@@ -136,7 +136,7 @@ test('every rerouted entity survives load-validation + persist in one session (E
     await check('daily-tag', st.dailyPlan?.tags, 'tag-valid', 'tag-bad')
     await check('notification', st.notifications, 'notif-valid', 'notif-bad')
 
-    // ---- nested entities round-trip (E.11b) ----
+    // ---- entities nested in the tree / dbTree round-trip ----
     const findProject = (nodes: any[], id: string): any =>
       (nodes ?? []).reduce(
         (f: any, n: any) => f ?? (n.kind === 'project' && n.id === id ? n : findProject(n.children, id)),
