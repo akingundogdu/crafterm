@@ -27,7 +27,7 @@ import {
   recordCommand,
   pushNotification
 } from './state'
-import { findTabByPane, ancestorFolders } from './tree'
+import { findTabByPane, ancestorFolders, panesInLayout } from './tree'
 import {
   findProjectByPath,
   findFeature,
@@ -447,7 +447,14 @@ export function buildPaneMenu(
     if (assignedId) {
       section('Daily task')
       item('View ticket detail', () => paneActions.viewTicketDetail(paneId))
-      if (paneActions.dailyTaskStatus(assignedId) !== 'done') {
+      const taskStatus = paneActions.dailyTaskStatus(assignedId)
+      if (taskStatus !== 'review' && taskStatus !== 'done') {
+        item('Mark as code review', () => paneActions.markTaskReview(paneId))
+      }
+      if (taskStatus !== 'test' && taskStatus !== 'done') {
+        item('Mark as test', () => paneActions.markTaskTest(paneId))
+      }
+      if (taskStatus !== 'done') {
         item('Mark as done', () => paneActions.markTaskDone(paneId))
       }
       item('Change task…', () => paneActions.assignDailyTask(paneId))
@@ -817,16 +824,32 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
     }
   })
 
-  // ---- "add to chat": select text in the preview, send a `path:line` reference
-  // into the active terminal (mirrors the diff/file panes). Only for real disk
-  // files (absolute), where the path means something to Claude.
+  // ---- floating selection actions (Cursor-style): select text in the preview,
+  // then Copy / Add to Chat send an `@path:start-end` reference. Mirrors the code
+  // editor pane. Only for real disk files (absolute), where the path means
+  // something to Claude.
   if (absolute) {
-    const chatBtn = document.createElement('button')
-    chatBtn.className = 'doc-chat-btn'
-    chatBtn.textContent = '+ chat'
-    chatBtn.title = 'Send this selection as a file:line reference to the terminal'
-    chatBtn.style.display = 'none'
-    el.appendChild(chatBtn)
+    const menu = document.createElement('div')
+    menu.className = 'code-sel-actions doc-sel-menu'
+    menu.style.display = 'none'
+    const mkBtn = (label: string, run: () => void, feedback?: string): HTMLButtonElement => {
+      const b = document.createElement('button')
+      b.className = 'code-sel-btn'
+      b.textContent = label
+      b.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      })
+      b.addEventListener('click', (e) => {
+        e.stopPropagation()
+        run()
+        if (feedback) {
+          b.textContent = feedback
+          setTimeout(() => (b.textContent = label), 1000)
+        }
+      })
+      return b
+    }
 
     // Source line of the block containing a DOM node (nearest [data-mdline]).
     const lineOf = (node: Node | null): number | null => {
@@ -835,59 +858,80 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
       const v = block?.getAttribute('data-mdline')
       return v ? parseInt(v, 10) : null
     }
-    const activeTerminal = (): string | null =>
-      state.activePaneId && panes.has(state.activePaneId) ? state.activePaneId : null
 
-    let pendingRef: string | null = null
-    const updateFromSelection = (): void => {
+    // Target terminal: prefer a Claude session in the same tab as this doc pane,
+    // else the tab's first terminal, else the active terminal (matches codePane).
+    const targetTerminal = (): { id: string; cwd: string | null } | null => {
+      const tab = findTabByPane(state.tree, id)
+      if (tab) {
+        const ids = panesInLayout(tab.root).filter((pid) => panes.has(pid))
+        const pick = ids.find((pid) => panes.get(pid)?.claude) ?? ids[0]
+        if (pick) return { id: pick, cwd: panes.get(pick)?.cwd ?? null }
+      }
+      if (state.activePaneId && panes.has(state.activePaneId)) {
+        return { id: state.activePaneId, cwd: panes.get(state.activePaneId)?.cwd ?? null }
+      }
+      return null
+    }
+
+    // The `@path:start-end` mention for the current preview selection (or null).
+    const buildMention = (): string | null => {
       const sel = window.getSelection()
-      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-        chatBtn.style.display = 'none'
-        return
-      }
-      if (!preview.contains(sel.anchorNode) || !preview.contains(sel.focusNode)) {
-        chatBtn.style.display = 'none'
-        return
-      }
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null
+      if (!preview.contains(sel.anchorNode) || !preview.contains(sel.focusNode)) return null
       const a = lineOf(sel.anchorNode)
       const b = lineOf(sel.focusNode)
-      if (a == null && b == null) {
-        chatBtn.style.display = 'none'
-        return
-      }
+      if (a == null && b == null) return null
       const lo = Math.min(a ?? b!, b ?? a!)
       const hi = Math.max(a ?? b!, b ?? a!)
-      const cwd = panes.get(activeTerminal() ?? '')?.cwd ?? null
+      const cwd = targetTerminal()?.cwd ?? null
       let file = source
       if (cwd) {
         const base = cwd.endsWith('/') ? cwd : cwd + '/'
         if (source.startsWith(base)) file = source.slice(base.length)
       }
-      pendingRef = lo === hi ? `${file}:${lo}` : `${file}:${lo}-${hi}`
+      const lines = lo === hi ? `${lo}` : `${lo}-${hi}`
+      return `@${file}:${lines}`
+    }
+
+    menu.append(
+      mkBtn(
+        'Copy',
+        () => {
+          const m = buildMention()
+          if (m) void navigator.clipboard.writeText(m)
+        },
+        'Copied'
+      ),
+      mkBtn('Add to Chat', () => {
+        const m = buildMention()
+        const tgt = targetTerminal()
+        if (!m || !tgt) return
+        window.crafterm.input(tgt.id, m + ' ')
+        paneActions.select(tgt.id)
+        panes.get(tgt.id)?.term.focus()
+        menu.style.display = 'none'
+      })
+    )
+    el.appendChild(menu)
+
+    const updateFromSelection = (): void => {
+      const sel = window.getSelection()
+      if (!buildMention() || !sel) {
+        menu.style.display = 'none'
+        return
+      }
       const rect = sel.getRangeAt(0).getBoundingClientRect()
-      chatBtn.style.left = `${Math.round(rect.right + 4)}px`
-      chatBtn.style.top = `${Math.round(rect.top - 4)}px`
-      chatBtn.style.display = ''
+      menu.style.left = `${Math.round(rect.right + 4)}px`
+      menu.style.top = `${Math.round(rect.top - 4)}px`
+      menu.style.display = ''
     }
     preview.addEventListener('mouseup', () => setTimeout(updateFromSelection, 0))
     preview.addEventListener('mousedown', () => {
-      chatBtn.style.display = 'none'
+      menu.style.display = 'none'
     })
     preview.addEventListener('scroll', () => {
-      chatBtn.style.display = 'none'
-    })
-    chatBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-    })
-    chatBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const target = activeTerminal()
-      if (!pendingRef || !target) return
-      window.crafterm.input(target, pendingRef + ' ')
-      paneActions.select(target)
-      panes.get(target)?.term.focus()
-      chatBtn.style.display = 'none'
+      menu.style.display = 'none'
     })
   }
 

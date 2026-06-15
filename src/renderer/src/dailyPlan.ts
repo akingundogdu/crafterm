@@ -15,12 +15,31 @@ import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from '
 import { refreshPaneDailyTask } from './pane'
 import { createDateField } from './datepicker'
 
+// Board columns. 'review' is intentionally absent — it's an intermediate status
+// whose tasks render under the In Progress (wip) column (see boardColumnOf).
 const STATUSES: { id: DailyPlanStatus; label: string }[] = [
   { id: 'backlog', label: 'Backlog' },
   { id: 'todo', label: 'Todo' },
   { id: 'wip', label: 'In Progress' },
   { id: 'done', label: 'Done' }
 ]
+
+// Full status list for the task form's Status dropdown — includes Code Review
+// and Test, which the board omits as columns.
+const FORM_STATUSES: { id: DailyPlanStatus; label: string }[] = [
+  { id: 'backlog', label: 'Backlog' },
+  { id: 'todo', label: 'Todo' },
+  { id: 'wip', label: 'In Progress' },
+  { id: 'review', label: 'Code Review' },
+  { id: 'test', label: 'Test' },
+  { id: 'done', label: 'Done' }
+]
+
+// The board column a status renders under: 'review' and 'test' fold into the In
+// Progress column; every other status maps to its own column.
+function boardColumnOf(status: DailyPlanStatus): DailyPlanStatus {
+  return status === 'review' || status === 'test' ? 'wip' : status
+}
 
 const PRIORITIES: { id: DailyPlanPriority; label: string }[] = [
   { id: 'low', label: 'Low' },
@@ -263,6 +282,8 @@ const STATUS_LABEL: Record<DailyPlanStatus, string> = {
   backlog: 'Backlog',
   todo: 'Todo',
   wip: 'In Progress',
+  review: 'Code Review',
+  test: 'Test',
   done: 'Done'
 }
 
@@ -304,6 +325,32 @@ export function markPaneTaskDone(paneId: string): void {
   refreshPaneDailyTask(paneId)
   activeDailyRerender?.()
   void offerDeleteTaskWorktree(t) // todo7
+}
+
+// Mark this pane's assigned task as code review without closing the terminal.
+export function markPaneTaskReview(paneId: string): void {
+  const taskId = panes.get(paneId)?.dailyTaskId
+  if (!taskId) return
+  const t = taskById(taskId)
+  if (!t || t.status === 'review' || t.status === 'done') return
+  t.status = 'review'
+  t.updatedAt = Date.now()
+  saveSoon()
+  refreshPaneDailyTask(paneId)
+  activeDailyRerender?.()
+}
+
+// Mark this pane's assigned task as test without closing the terminal.
+export function markPaneTaskTest(paneId: string): void {
+  const taskId = panes.get(paneId)?.dailyTaskId
+  if (!taskId) return
+  const t = taskById(taskId)
+  if (!t || t.status === 'test' || t.status === 'done') return
+  t.status = 'test'
+  t.updatedAt = Date.now()
+  saveSoon()
+  refreshPaneDailyTask(paneId)
+  activeDailyRerender?.()
 }
 
 // When a ticket is marked done from its terminal, offer to remove its worktree
@@ -547,7 +594,7 @@ export function renderDailyCompact(host: HTMLElement): void {
   const tabs = document.createElement('div')
   tabs.className = 'daily-compact-tabs'
   for (const status of STATUSES) {
-    const count = tasks.filter((t) => t.status === status.id).length
+    const count = tasks.filter((t) => boardColumnOf(t.status) === status.id).length
     const b = document.createElement('button')
     b.className = 'daily-compact-tab' + (compactStatus === status.id ? ' active' : '')
     const label = document.createElement('span')
@@ -582,7 +629,7 @@ export function renderDailyCompact(host: HTMLElement): void {
     listHost.replaceChildren()
     const q = compactSearch.trim().toLowerCase()
     const items = tasks
-      .filter((t) => t.status === compactStatus)
+      .filter((t) => boardColumnOf(t.status) === compactStatus)
       .filter((t) => !q || `${t.title} ${t.description ?? ''} ${t.issueKey ?? ''}`.toLowerCase().includes(q))
       .sort((a, b) => a.order - b.order)
     if (!items.length) {
@@ -722,6 +769,14 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
     showManageTagsModal(rerender)
   })
 
+  const changelogBtn = document.createElement('button')
+  changelogBtn.className = 'daily-plan-secondary-btn'
+  changelogBtn.textContent = 'Changelog'
+  changelogBtn.title = 'Generate a customer-facing changelog from completed tasks'
+  changelogBtn.addEventListener('click', () => {
+    showChangelogModal()
+  })
+
   // Tag filter (multi-select, OR semantics). Only meaningful when tags exist.
   if (settings.dailyPlan.tags.length) {
     const filterBtn = document.createElement('button')
@@ -731,9 +786,9 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
       e.stopPropagation()
       openTagFilterPopover(filterBtn, rerender)
     })
-    actions.append(filterBtn, newBtn, manageBtn)
+    actions.append(filterBtn, newBtn, manageBtn, changelogBtn)
   } else {
-    actions.append(newBtn, manageBtn)
+    actions.append(newBtn, manageBtn, changelogBtn)
   }
   host.appendChild(actions)
 }
@@ -846,7 +901,7 @@ function renderBoard(host: HTMLElement, rerender: () => void): void {
     const colCount = document.createElement('span')
     colCount.className = 'daily-plan-column-count'
     const colTasks = tasks
-      .filter((t) => t.status === status.id)
+      .filter((t) => boardColumnOf(t.status) === status.id)
       .sort((a, b) => (multiDay && a.date !== b.date ? a.date.localeCompare(b.date) : a.order - b.order))
     colCount.textContent = String(colTasks.length)
     head.append(colTitle, colCount)
@@ -892,8 +947,9 @@ function renderCard(task: DailyPlanTask, rerender: () => void): HTMLElement {
   card.className = `daily-plan-card priority-${task.priority}`
   card.draggable = true
   card.dataset.taskId = task.id
-  // Searchable text for the per-column filter (title + description + issue key).
-  card.dataset.search = `${task.title} ${task.description ?? ''} ${task.issueKey ?? ''}`.toLowerCase()
+  // Searchable text for the per-column filter (title + description + issue key + slug).
+  card.dataset.search =
+    `${task.title} ${task.description ?? ''} ${task.issueKey ?? ''} ${task.worktreeSlug ?? ''}`.toLowerCase()
 
   card.addEventListener('dragstart', (e) => {
     card.classList.add('dragging')
@@ -912,11 +968,33 @@ function renderCard(task: DailyPlanTask, rerender: () => void): HTMLElement {
   dot.title = `${task.priority[0].toUpperCase() + task.priority.slice(1)} priority`
   top.appendChild(dot)
 
-  if (task.issueKey) {
+  // When the task carries a worktree slug, show its full worktree branch name
+  // (issue key + slug) as a branch chip; otherwise fall back to the plain issue
+  // key chip.
+  if (task.worktreeSlug) {
+    const branch = document.createElement('span')
+    branch.className = 'daily-plan-card-branch'
+    branch.title = 'Worktree branch'
+    branch.textContent = `⑂ ${task.issueKey ? worktreeBranchForTask(task, task.issueKey) : sanitizeSlug(task.worktreeSlug)}`
+    top.appendChild(branch)
+  } else if (task.issueKey) {
     const key = document.createElement('span')
     key.className = 'daily-plan-card-key'
     key.textContent = task.issueKey
     top.appendChild(key)
+  }
+
+  // Review/Test tasks share the In Progress column, so a small badge sets them apart.
+  if (task.status === 'review') {
+    const review = document.createElement('span')
+    review.className = 'daily-plan-card-review'
+    review.textContent = 'Review'
+    top.appendChild(review)
+  } else if (task.status === 'test') {
+    const test = document.createElement('span')
+    test.className = 'daily-plan-card-test'
+    test.textContent = 'Test'
+    top.appendChild(test)
   }
 
   // The title is rendered below the meta row as a full-width block (appended
@@ -1155,12 +1233,52 @@ function showTaskForm(
   const selectedTagIds: string[] = [...(existing?.tagIds ?? [])]
   buildTagPicker(tagPicker, selectedTagIds)
 
+  // Project (required) — provides the terminal cwd and the issue-key prefix used
+  // to assign the task's stable issue key immediately on save.
+  const projField = document.createElement('div')
+  projField.className = 'field'
+  projField.innerHTML = '<label>Project</label>'
+  const projSel = document.createElement('select')
+  const noneOpt = document.createElement('option')
+  noneOpt.value = ''
+  noneOpt.textContent = '— Select a project —'
+  projSel.appendChild(noneOpt)
+  const projectList = projectTree()
+  const projects = projectList.map((x) => x.p)
+  for (const { p, depth } of projectList) {
+    const o = document.createElement('option')
+    o.value = p.id
+    const label = p.issueKeyPrefix ? `${p.name} (${p.issueKeyPrefix})` : p.name
+    // Indent sub-projects so the project hierarchy reads in the dropdown (todo5).
+    o.textContent = '   '.repeat(depth) + (depth ? '└ ' : '') + label
+    projSel.appendChild(o)
+  }
+  projSel.value = existing?.projectId ?? ''
+  const projHint = document.createElement('div')
+  projHint.className = 'daily-plan-proj-hint'
+  const updateProjHint = (): void => {
+    const p = projSel.value ? projects.find((x) => x.id === projSel.value) : null
+    projHint.textContent = p ? p.path : ''
+  }
+  projSel.addEventListener('change', () => {
+    updateProjHint()
+    if (projSel.value) projSel.classList.remove('field-invalid')
+  })
+  updateProjHint()
+  // Wrap the select + path hint in a column so the select keeps the same width
+  // as the other fields and the hint sits beneath it (not squeezed beside it).
+  const projCol = document.createElement('div')
+  projCol.className = 'field-control-col'
+  projCol.append(projSel, projHint)
+  projField.appendChild(projCol)
+  modal.appendChild(projField)
+
   // Status
   const statusField = document.createElement('div')
   statusField.className = 'field'
   statusField.innerHTML = '<label>Status</label>'
   const statusSel = document.createElement('select')
-  for (const s of STATUSES) {
+  for (const s of FORM_STATUSES) {
     const o = document.createElement('option')
     o.value = s.id
     o.textContent = s.label
@@ -1200,42 +1318,6 @@ function showTaskForm(
   const dueInput = createDateField({ mode: 'date', value: existing?.dueDate ?? '' })
   dueField.appendChild(dueInput)
   modal.appendChild(dueField)
-
-  // Project (optional) — provides the terminal cwd and the issue-key prefix.
-  const projField = document.createElement('div')
-  projField.className = 'field'
-  projField.innerHTML = '<label>Project <span class="field-hint">(optional)</span></label>'
-  const projSel = document.createElement('select')
-  const noneOpt = document.createElement('option')
-  noneOpt.value = ''
-  noneOpt.textContent = '— None —'
-  projSel.appendChild(noneOpt)
-  const projectList = projectTree()
-  const projects = projectList.map((x) => x.p)
-  for (const { p, depth } of projectList) {
-    const o = document.createElement('option')
-    o.value = p.id
-    const label = p.issueKeyPrefix ? `${p.name} (${p.issueKeyPrefix})` : p.name
-    // Indent sub-projects so the project hierarchy reads in the dropdown (todo5).
-    o.textContent = '   '.repeat(depth) + (depth ? '└ ' : '') + label
-    projSel.appendChild(o)
-  }
-  projSel.value = existing?.projectId ?? ''
-  const projHint = document.createElement('div')
-  projHint.className = 'daily-plan-proj-hint'
-  const updateProjHint = (): void => {
-    const p = projSel.value ? projects.find((x) => x.id === projSel.value) : null
-    projHint.textContent = p ? p.path : ''
-  }
-  projSel.addEventListener('change', updateProjHint)
-  updateProjHint()
-  // Wrap the select + path hint in a column so the select keeps the same width
-  // as the other fields and the hint sits beneath it (not squeezed beside it).
-  const projCol = document.createElement('div')
-  projCol.className = 'field-control-col'
-  projCol.append(projSel, projHint)
-  projField.appendChild(projCol)
-  modal.appendChild(projField)
 
   // Worktree slug (optional) — when set, it's appended to the issue key for the
   // worktree branch/name (e.g. CRF-12 → CRF-12-fix-login). Empty → the worktree is
@@ -1278,6 +1360,13 @@ function showTaskForm(
       titleInput.focus()
       return null
     }
+    // Project is required so every task gets a stable issue key assigned the
+    // moment it's created (the key derives from the project's prefix).
+    if (!projSel.value) {
+      projSel.classList.add('field-invalid')
+      projSel.focus()
+      return null
+    }
     const now = Date.now()
     const description = descInput.value.trim()
     if (existing) {
@@ -1291,6 +1380,7 @@ function showTaskForm(
       existing.projectId = projSel.value || undefined
       existing.worktreeSlug = sanitizeSlug(slugInput.value) || undefined
       existing.updatedAt = now
+      assignIssueKey(existing)
       saveSoon()
       return existing
     }
@@ -1310,6 +1400,9 @@ function showTaskForm(
       updatedAt: now
     }
     settings.dailyPlan.tasks.push(newTask)
+    // Assign the stable issue key immediately on creation (idempotent — it stays
+    // fixed for the task's lifetime).
+    assignIssueKey(newTask)
     saveSoon()
     return newTask
   }
@@ -1632,6 +1725,164 @@ function showManageTagsModal(rerender: () => void): void {
     }
   }
   renderList()
+
+  document.body.appendChild(overlay)
+}
+
+// ---- Changelog report --------------------------------------------------
+
+// Day-range options for the changelog window (filtered by task.updatedAt).
+const CHANGELOG_RANGES: { id: string; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'yesterday', label: 'Yesterday' },
+  { id: '2d', label: 'Last 2 days' },
+  { id: '3d', label: 'Last 3 days' },
+  { id: '4d', label: 'Last 4 days' },
+  { id: '5d', label: 'Last 5 days' },
+  { id: '7d', label: 'Last 7 days' },
+  { id: '10d', label: 'Last 10 days' }
+]
+
+// Midnight (local) of today as a ms epoch — the anchor for changelog windows.
+function startOfTodayMs(): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+// [from, to) ms window for a changelog range id, relative to today's midnight.
+function changelogWindow(id: string): { from: number; to: number } {
+  const start = startOfTodayMs()
+  const day = 86400000
+  switch (id) {
+    case 'today':
+      return { from: start, to: Infinity }
+    case 'yesterday':
+      return { from: start - day, to: start }
+    default: {
+      // "Last N days" = from N days ago through today (e.g. last 5 days on Jun 15
+      // covers Jun 10–15).
+      const span = parseInt(id, 10) || 1 // '2d' → 2, '5d' → 5
+      return { from: start - span * day, to: Infinity }
+    }
+  }
+}
+
+// "Jun 12, 2026" for a YYYY-MM-DD key.
+function fullDateLabel(dateStr: string): string {
+  return parseYmd(dateStr).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+// Human label for the span a changelog range covers (e.g. "Jun 8 – Jun 12, 2026").
+function changelogRangeDateLabel(id: string): string {
+  const today = todayKey()
+  if (id === 'today') return fullDateLabel(today)
+  if (id === 'yesterday') return fullDateLabel(shiftDays(today, -1))
+  const span = parseInt(id, 10) || 1
+  return `${shortDue(shiftDays(today, -span))} – ${fullDateLabel(today)}`
+}
+
+// Build the markdown changelog: every done task whose card day (date) OR
+// last-touched time (updatedAt) falls in the window, as a single flat list
+// ordered newest-first by day.
+function buildChangelogMarkdown(rangeId: string): string {
+  const { from, to } = changelogWindow(rangeId)
+  const inWindow = (ms: number): boolean => ms >= from && ms < to
+  const done = settings.dailyPlan.tasks
+    .filter(
+      (t) =>
+        t.status === 'done' &&
+        (inWindow(t.updatedAt) || inWindow(parseYmd(t.date).getTime()))
+    )
+    .sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt)
+
+  const lines: string[] = [`# Changelog (${changelogRangeDateLabel(rangeId)})`, '']
+  if (!done.length) {
+    lines.push('_No completed tasks in this range._')
+  } else {
+    for (const t of done) lines.push(`- ${t.title.trim()}`)
+  }
+  return lines.join('\n').trim() + '\n'
+}
+
+// Modal: pick projects + a day range, then generate a copyable markdown changelog
+// of completed tasks for customers.
+export function showChangelogModal(): void {
+  const overlay = document.createElement('div')
+  overlay.className = 'modal-overlay daily-plan-form-overlay'
+  const modal = document.createElement('div')
+  modal.className = 'modal prompt-modal changelog-modal'
+  overlay.appendChild(modal)
+
+  const close = (): void => {
+    document.removeEventListener('keydown', onKey, true)
+    overlay.remove()
+  }
+  const onKey = (e: KeyboardEvent): void => {
+    e.stopPropagation()
+    if (e.key === 'Escape') close()
+  }
+  document.addEventListener('keydown', onKey, true)
+  overlay.addEventListener('mousedown', (e) => {
+    if (e.target === overlay) close()
+  })
+  modal.appendChild(makeCloseButton(close))
+
+  const h = document.createElement('h2')
+  h.textContent = 'Changelog report'
+  modal.appendChild(h)
+
+  // Range select
+  const rangeField = document.createElement('div')
+  rangeField.className = 'field'
+  rangeField.innerHTML = '<label>Date range</label>'
+  const rangeSel = document.createElement('select')
+  rangeSel.className = 'settings-select'
+  for (const r of CHANGELOG_RANGES) {
+    const o = document.createElement('option')
+    o.value = r.id
+    o.textContent = r.label
+    rangeSel.appendChild(o)
+  }
+  rangeSel.value = 'today'
+  rangeField.appendChild(rangeSel)
+  modal.appendChild(rangeField)
+
+  // Generate + output
+  const output = document.createElement('textarea')
+  output.className = 'changelog-output'
+  output.rows = 14
+  output.placeholder = 'Click "Generate" to produce the changelog markdown…'
+  output.addEventListener('keydown', (e) => e.stopPropagation())
+
+  const actions = document.createElement('div')
+  actions.className = 'modal-actions'
+
+  const copyBtn = document.createElement('button')
+  copyBtn.textContent = 'Copy'
+  copyBtn.disabled = true
+  copyBtn.addEventListener('click', () => {
+    void navigator.clipboard.writeText(output.value)
+    const prev = copyBtn.textContent
+    copyBtn.textContent = 'Copied!'
+    setTimeout(() => (copyBtn.textContent = prev), 1200)
+  })
+
+  const generateBtn = document.createElement('button')
+  generateBtn.className = 'primary'
+  generateBtn.textContent = 'Generate'
+  generateBtn.addEventListener('click', () => {
+    output.value = buildChangelogMarkdown(rangeSel.value)
+    copyBtn.disabled = false
+  })
+
+  actions.append(generateBtn, copyBtn)
+  modal.appendChild(output)
+  modal.appendChild(actions)
 
   document.body.appendChild(overlay)
 }

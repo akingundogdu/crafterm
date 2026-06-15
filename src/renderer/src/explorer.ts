@@ -1,5 +1,7 @@
 import { settings, state, panes, saveSoon } from './state'
-import { openMarkdownFile, openFileViewer, splitWithIde } from './commands'
+import { openMarkdownFile, openCodeEditor } from './commands'
+import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from './treeview'
+import { promptText, promptConfirm } from './dialog'
 import type { SidebarNode } from './types'
 
 function treeEl(): HTMLElement {
@@ -11,6 +13,132 @@ function rootEl(): HTMLElement {
 function searchEl(): HTMLInputElement {
   return document.getElementById('explorer-search') as HTMLInputElement
 }
+
+// ---- Icons (inline SVG) ----------------------------------------------------
+
+const FOLDER_SVG =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1.6 4.4c0-.6.4-1 1-1h3.1l1.2 1.4H13.4c.6 0 1 .4 1 1V11.6c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1z" fill="currentColor"/></svg>'
+const FILE_SVG =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 1.5v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>'
+
+// A short letter/symbol badge glyph (e.g. "TS", "JS", "<>"), tinted via iconClass.
+function letterGlyph(text: string, font = 'system-ui,-apple-system,sans-serif'): string {
+  const size = text.length >= 2 ? 7 : 11
+  return `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><text x="8" y="11.5" text-anchor="middle" font-family="${font}" font-weight="700" font-size="${size}" fill="currentColor">${text}</text></svg>`
+}
+
+// Config / settings glyph: three horizontal lines of varying length.
+const LINES_SVG =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><g stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"><path d="M3 5h10M3 8h7M3 11h10"/></g></svg>'
+
+// Markdown mark: rounded square with the "M" + downward arrow.
+const MD_SVG =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="1" y="3.5" width="14" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M3 10.5V5.5h1.4L6 7.6l1.6-2.1H9v5H7.6V7.7L6 9.7 4.4 7.7v2.8z" fill="currentColor"/><path d="M11.4 5.5h1.3v2.7h1.1l-1.75 2.1-1.75-2.1h1.1z" fill="currentColor"/></svg>'
+
+// Image glyph: framed picture with a sun and a mountain.
+const IMG_SVG =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="6.5" r="1.1" fill="currentColor"/><path d="M3 12l3.5-3.5L9 11l2-2 2 2.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>'
+
+// Distinct glyph per icon category (falls back to the generic file outline).
+const GLYPHS: Record<string, string> = {
+  ts: letterGlyph('TS'),
+  js: letterGlyph('JS'),
+  json: letterGlyph('{}', 'ui-monospace,monospace'),
+  md: MD_SVG,
+  sh: letterGlyph('$', 'ui-monospace,monospace'),
+  config: LINES_SVG,
+  data: LINES_SVG,
+  web: letterGlyph('<>'),
+  img: IMG_SVG,
+  swift: letterGlyph('SW'),
+  py: letterGlyph('PY'),
+  go: letterGlyph('GO'),
+  rust: letterGlyph('RS')
+}
+
+// Map a filename to an icon category — drives both the glyph and the color tint.
+function iconCategory(name: string): string {
+  const lower = name.toLowerCase()
+  // Special filenames (no or ambiguous extension).
+  if (lower === 'dockerfile' || lower.startsWith('dockerfile.') || lower === '.dockerignore') return 'config'
+  if (lower === 'makefile' || lower === 'cmakelists.txt') return 'config'
+  if (lower.startsWith('.env')) return 'config'
+  if (
+    lower === '.gitignore' ||
+    lower === '.gitattributes' ||
+    lower === '.npmrc' ||
+    lower === '.editorconfig' ||
+    lower === '.prettierrc'
+  )
+    return 'config'
+
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : ''
+  switch (ext) {
+    case 'swift':
+      return 'swift'
+    case 'ts':
+    case 'tsx':
+      return 'ts'
+    case 'js':
+    case 'jsx':
+    case 'mjs':
+    case 'cjs':
+      return 'js'
+    case 'json':
+    case 'jsonc':
+      return 'json'
+    case 'md':
+    case 'mdx':
+    case 'mdc':
+    case 'markdown':
+      return 'md'
+    case 'html':
+    case 'htm':
+    case 'css':
+    case 'scss':
+    case 'less':
+      return 'web'
+    case 'sh':
+    case 'bash':
+    case 'zsh':
+    case 'fish':
+      return 'sh'
+    case 'ini':
+    case 'conf':
+    case 'cfg':
+    case 'properties':
+      return 'config'
+    case 'yaml':
+    case 'yml':
+    case 'toml':
+    case 'xml':
+    case 'plist':
+      return 'data'
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'svg':
+    case 'webp':
+    case 'icns':
+      return 'img'
+    case 'py':
+      return 'py'
+    case 'go':
+      return 'go'
+    case 'rs':
+      return 'rust'
+    default:
+      return 'default'
+  }
+}
+
+// The glyph for a file: a type-specific badge when known, else the file outline.
+function iconFor(name: string): string {
+  return GLYPHS[iconCategory(name)] ?? FILE_SVG
+}
+
+// ---- Root resolution -------------------------------------------------------
 
 // Find the git worktree whose path contains `cwd` (the active terminal lives
 // inside it), so the explorer follows the worktree — not the configured/main
@@ -53,59 +181,11 @@ function shortPath(p: string): string {
   return p.replace(/^\/(Users|home)\/[^/]+/, '~')
 }
 
-// markdown → in-app markdown viewer; everything else → a read-only, line-
-// selectable file viewer pane (select lines and send a `path:line` reference to
-// a terminal to ask Claude about that spot).
+// markdown → in-app markdown viewer; everything else → the editable CodeMirror
+// code editor pane (syntax highlight by extension + Cmd+S save).
 function openFile(path: string): void {
   if (/\.(md|mdx|mdc)$/i.test(path)) openMarkdownFile(path)
-  else openFileViewer(path)
-}
-
-const CHEVRON = '▸'
-
-function showFileContextMenu(e: MouseEvent, entry: Entry): void {
-  document.querySelector('.context-menu')?.remove()
-  const menu = document.createElement('div')
-  menu.className = 'context-menu'
-  menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px'
-  menu.style.top = e.clientY + 'px'
-
-  if (!entry.isDir) {
-    const editor = document.createElement('button')
-    editor.textContent = 'Open in editor'
-    editor.addEventListener('click', () => {
-      menu.remove()
-      void splitWithIde(entry.path)
-    })
-    menu.appendChild(editor)
-  }
-
-  const reveal = document.createElement('button')
-  reveal.textContent = 'Open in Finder'
-  reveal.addEventListener('click', () => {
-    menu.remove()
-    window.crafterm.revealPath(entry.path)
-  })
-  menu.appendChild(reveal)
-
-  const exclude = document.createElement('button')
-  exclude.textContent = `Exclude “${entry.name}”`
-  exclude.addEventListener('click', () => {
-    menu.remove()
-    if (!settings.explorerExclude.includes(entry.name)) settings.explorerExclude.push(entry.name)
-    saveSoon()
-    void renderExplorer()
-  })
-  menu.appendChild(exclude)
-
-  document.body.appendChild(menu)
-  const onDown = (ev: MouseEvent): void => {
-    if (!menu.contains(ev.target as Node)) {
-      menu.remove()
-      document.removeEventListener('mousedown', onDown, true)
-    }
-  }
-  setTimeout(() => document.addEventListener('mousedown', onDown, true))
+  else openCodeEditor(path)
 }
 
 interface Entry {
@@ -114,56 +194,162 @@ interface Entry {
   isDir: boolean
 }
 
-function buildRow(entry: Entry, depth: number): HTMLElement {
-  const row = document.createElement('div')
-  row.className = 'explorer-row' + (entry.isDir ? ' dir' : ' file')
-  row.style.paddingLeft = 6 + depth * 12 + 'px'
+type GitKind = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'
 
-  const tri = document.createElement('span')
-  tri.className = 'explorer-tri'
-  tri.textContent = entry.isDir ? CHEVRON : ''
-  const name = document.createElement('span')
-  name.className = 'explorer-name'
-  name.textContent = entry.name
-  row.append(tri, name)
+// ---- Tree state ------------------------------------------------------------
 
-  if (entry.isDir) {
-    let open = false
-    let childrenEl: HTMLElement | null = null
-    row.addEventListener('click', async () => {
-      open = !open
-      tri.classList.toggle('open', open)
-      if (open) {
-        childrenEl = document.createElement('div')
-        childrenEl.className = 'explorer-children'
-        row.after(childrenEl)
-        await renderInto(entry.path, childrenEl, depth + 1)
-      } else {
-        childrenEl?.remove()
-        childrenEl = null
-      }
-    })
-  } else {
-    row.addEventListener('click', () => openFile(entry.path))
-  }
-  row.addEventListener('contextmenu', (e) => {
-    e.preventDefault()
-    showFileContextMenu(e, entry)
-  })
-  return row
-}
+let treeview: TreeView<Entry> | null = null
+const childrenCache = new Map<string, Entry[]>()
+const expanded = new Set<string>()
+let gitStatus: Record<string, GitKind> = {}
+let currentRoot = ''
 
-async function renderInto(path: string, container: HTMLElement, depth: number): Promise<void> {
+async function loadDir(path: string): Promise<Entry[]> {
   const { entries } = await window.crafterm.listEntries(path)
   const visible = entries.filter((e) => !isExcluded(e.name))
-  if (!visible.length) {
-    container.insertAdjacentHTML('beforeend', `<div class="explorer-empty" style="padding-left:${6 + depth * 12}px">empty</div>`)
-    return
-  }
-  for (const e of visible) container.appendChild(buildRow(e, depth))
+  childrenCache.set(path, visible)
+  return visible
 }
 
-// Flat "search results" view: contains-match on file/dir name across the root.
+async function toggleDir(e: Entry): Promise<void> {
+  if (expanded.has(e.path)) {
+    expanded.delete(e.path)
+  } else {
+    expanded.add(e.path)
+    if (!childrenCache.has(e.path)) await loadDir(e.path)
+  }
+  rerenderTree()
+}
+
+function rerenderTree(): void {
+  treeview?.render(childrenCache.get(currentRoot) ?? [])
+}
+
+// Git decoration class for a row. Files use their direct status; a directory is
+// tinted (modified) when any changed path lives under it.
+function gitClassFor(e: Entry): string {
+  if (e.isDir) {
+    const prefix = e.path + '/'
+    for (const p in gitStatus) {
+      if (p.startsWith(prefix)) return 'expl-git-modified'
+    }
+    return ''
+  }
+  const kind = gitStatus[e.path]
+  return kind ? 'expl-git-' + kind : ''
+}
+
+// Parent directory of a path (no trailing slash). Falls back to "/".
+function parentDir(p: string): string {
+  return p.replace(/\/[^/]+\/?$/, '') || '/'
+}
+
+// Re-read the affected directory + git status, then re-render the tree.
+async function refreshAfterChange(dir: string): Promise<void> {
+  gitStatus = (await window.crafterm.gitFileStatus(currentRoot)) as Record<string, GitKind>
+  if (childrenCache.has(dir) || dir === currentRoot) await loadDir(dir)
+  rerenderTree()
+}
+
+async function showError(message: string): Promise<void> {
+  await promptConfirm({ title: 'Operation failed', message, confirmText: 'OK' })
+}
+
+async function newFile(dir: string): Promise<void> {
+  const name = await promptText({
+    title: 'New File',
+    label: 'File name',
+    placeholder: 'example.ts',
+    confirmText: 'Create'
+  })
+  if (!name || !name.trim()) return
+  const path = dir.replace(/\/$/, '') + '/' + name.trim()
+  if (!(await window.crafterm.createFile(path))) return void showError(`Could not create “${name.trim()}”.`)
+  expanded.add(dir)
+  await refreshAfterChange(dir)
+  openFile(path)
+}
+
+async function newFolder(dir: string): Promise<void> {
+  const name = await promptText({
+    title: 'New Folder',
+    label: 'Folder name',
+    placeholder: 'components',
+    confirmText: 'Create'
+  })
+  if (!name || !name.trim()) return
+  const path = dir.replace(/\/$/, '') + '/' + name.trim()
+  if (!(await window.crafterm.mkdir(path))) return void showError(`Could not create “${name.trim()}”.`)
+  expanded.add(dir)
+  await refreshAfterChange(dir)
+}
+
+async function renameEntry(e: Entry): Promise<void> {
+  const name = await promptText({ title: 'Rename', label: 'New name', value: e.name, confirmText: 'Rename' })
+  if (!name || !name.trim() || name.trim() === e.name) return
+  const dir = parentDir(e.path)
+  const to = dir + '/' + name.trim()
+  if (!(await window.crafterm.renamePath(e.path, to))) return void showError(`Could not rename to “${name.trim()}”.`)
+  expanded.delete(e.path)
+  childrenCache.delete(e.path)
+  await refreshAfterChange(dir)
+}
+
+async function deleteEntry(e: Entry): Promise<void> {
+  const ok = await promptConfirm({
+    title: 'Move to Trash',
+    message: `“${e.name}” will be moved to the Trash.`,
+    confirmText: 'Delete'
+  })
+  if (!ok) return
+  if (!(await window.crafterm.trashPath(e.path))) return void showError(`Could not delete “${e.name}”.`)
+  expanded.delete(e.path)
+  childrenCache.delete(e.path)
+  await refreshAfterChange(parentDir(e.path))
+}
+
+function buildMenu(e: Entry): TreeMenuItem[] {
+  const items: TreeMenuItem[] = []
+  if (e.isDir) {
+    items.push({ label: 'New File…', run: () => void newFile(e.path) })
+    items.push({ label: 'New Folder…', run: () => void newFolder(e.path) })
+  } else {
+    items.push({ label: 'Open in new page', run: () => openCodeEditor(e.path, { newPage: true }) })
+  }
+  items.push({ label: 'Open in Finder', run: () => window.crafterm.revealPath(e.path) })
+  items.push({ label: 'Rename…', run: () => void renameEntry(e) })
+  items.push({
+    label: `Exclude “${e.name}”`,
+    run: () => {
+      if (!settings.explorerExclude.includes(e.name)) settings.explorerExclude.push(e.name)
+      saveSoon()
+      childrenCache.clear()
+      void renderExplorer()
+    }
+  })
+  items.push({ label: 'Delete', run: () => void deleteEntry(e), danger: true })
+  return items
+}
+
+const adapter: TreeAdapter<Entry> = {
+  id: (e) => e.path,
+  label: (e) => e.name,
+  icon: (e) => (e.isDir ? FOLDER_SVG : iconFor(e.name)),
+  iconClass: (e) => 'expl-ic expl-ic-' + (e.isDir ? 'folder' : iconCategory(e.name)),
+  rowClass: (e) => gitClassFor(e),
+  isContainer: (e) => e.isDir,
+  children: (e) => childrenCache.get(e.path) ?? [],
+  collapsed: (e) => !expanded.has(e.path),
+  draggable: () => false,
+  onToggle: (e) => void toggleDir(e),
+  onActivate: (e) => {
+    if (!e.isDir) openFile(e.path)
+  },
+  menu: (e) => buildMenu(e)
+}
+
+// ---- Flat search view (contains-match on name across the whole root) --------
+
 async function renderSearch(root: string, query: string): Promise<void> {
   const el = treeEl()
   el.replaceChildren()
@@ -192,29 +378,44 @@ async function renderSearch(root: string, query: string): Promise<void> {
   }
 }
 
+// ---- Public render ---------------------------------------------------------
+
 export async function renderExplorer(): Promise<void> {
   const root = explorerRoot()
   rootEl().textContent = root ? shortPath(root) : ''
   rootEl().title = root
   const el = treeEl()
-  el.replaceChildren()
   if (!root) {
+    el.replaceChildren()
     el.insertAdjacentHTML(
       'beforeend',
       '<div class="notif-empty">No root yet. Set one in Settings → Workspace, or open a terminal.</div>'
     )
     return
   }
+  // Root changed → drop stale expansion/cache so we don't show another repo.
+  if (root !== currentRoot) {
+    currentRoot = root
+    childrenCache.clear()
+    expanded.clear()
+  }
   const q = (searchEl()?.value ?? '').trim()
   if (q) {
     await renderSearch(root, q)
     return
   }
-  await renderInto(root, el, 0)
+  if (!treeview) treeview = createTreeView<Entry>(el, adapter)
+  // Refresh git decorations + the root listing, then render.
+  gitStatus = (await window.crafterm.gitFileStatus(root)) as Record<string, GitKind>
+  if (!childrenCache.has(root)) await loadDir(root)
+  rerenderTree()
 }
 
 export function initExplorer(): void {
-  document.getElementById('explorer-refresh')!.addEventListener('click', () => void renderExplorer())
+  document.getElementById('explorer-refresh')!.addEventListener('click', () => {
+    childrenCache.clear()
+    void renderExplorer()
+  })
   // Debounced search: every keystroke schedules a re-render; cancel pending.
   let timer: number | null = null
   searchEl()?.addEventListener('input', () => {

@@ -7,7 +7,7 @@
 // ever created or removed here; the user's own folders/tabs are never touched.
 
 import type { ProjectNode, FolderNode, SidebarNode, WorktreeNode } from './types'
-import { state, requestSidebar, saveSoon, uid, pushNotification } from './state'
+import { state, settings, requestSidebar, saveSoon, uid, pushNotification } from './state'
 import { makeFolder, allTabs, projectOf } from './tree'
 import { flattenProjects } from './catalog'
 import { archiveTab } from './commands'
@@ -194,6 +194,34 @@ function findWorktreeNodeByPath(path: string): WorktreeNode | null {
   return hit
 }
 
+// Find the linked worktree (node + owning project) that contains `cwd`, or null
+// when cwd is not inside any managed worktree (e.g. the main checkout). Matches
+// the worktree root or any subdirectory of it. Used by the close-pane flow to
+// offer deleting the worktree a terminal lives in.
+export function worktreeForCwd(
+  cwd: string
+): { project: ProjectNode; node: WorktreeNode; path: string } | null {
+  const target = norm(cwd)
+  let best: WorktreeNode | null = null
+  const walk = (nodes: SidebarNode[]): void => {
+    for (const n of nodes) {
+      if (n.kind === 'worktree' && n.status !== 'archived') {
+        const root = norm(n.worktreePath)
+        if (target === root || target.startsWith(root + '/')) {
+          if (!best || root.length > norm(best.worktreePath).length) best = n
+        }
+      }
+      if (n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree') walk(n.children)
+    }
+  }
+  walk(state.tree)
+  if (!best) return null
+  const node: WorktreeNode = best
+  const project = worktreeProjectOf(node)
+  if (!project) return null
+  return { project, node, path: node.worktreePath }
+}
+
 // Ensure a worktree exists for `branch` (creating it off main when absent), then
 // return its path + materialized node id. Awaits creation. Used by "Run in
 // worktree" for a daily ticket — branch == issue key (todo6).
@@ -287,14 +315,20 @@ export async function newWorktree(p: ProjectNode): Promise<void> {
 // background shell under the worktree node, which shows struck-through + a
 // spinner (`archiving`) while it runs; on success the node + its dead terminals
 // are archived (hidden from the list). On failure the visual reverts + a notice.
-export async function removeWorktree(p: ProjectNode, worktreePath: string): Promise<void> {
-  if (!p.path) return
-  const ok = await promptConfirm({
-    title: 'Remove worktree',
-    message: `Remove the worktree at ${worktreePath}? (the branch is kept)`,
-    confirmText: 'Remove'
-  })
-  if (!ok) return
+export async function removeWorktree(
+  p: ProjectNode,
+  worktreePath: string,
+  opts?: { force?: boolean; skipConfirm?: boolean }
+): Promise<boolean> {
+  if (!p.path) return false
+  if (!opts?.skipConfirm) {
+    const ok = await promptConfirm({
+      title: 'Remove worktree',
+      message: `Remove the worktree at ${worktreePath}? (the branch is kept)`,
+      confirmText: 'Remove'
+    })
+    if (!ok) return false
+  }
   const wt = findWorktreeNodeByPath(worktreePath)
   if (wt) {
     wt.archiving = true
@@ -303,7 +337,7 @@ export async function removeWorktree(p: ProjectNode, worktreePath: string): Prom
   const repo = norm(p.path)
   const { stableId, code } = await runHiddenAndWait(wt ?? p, {
     title: `removing ${baseName(worktreePath)}…`,
-    command: `git worktree remove ${shq(worktreePath)}`,
+    command: `git worktree remove ${opts?.force ? '--force ' : ''}${shq(worktreePath)}`,
     cwd: repo,
     role: 'shell'
   })
@@ -311,18 +345,22 @@ export async function removeWorktree(p: ProjectNode, worktreePath: string): Prom
   if (code === 0) {
     if (wt) archiveWorktreeNode(wt)
     else void reconcileWorktrees()
-  } else {
-    if (wt) {
-      wt.archiving = false
-      requestSidebar()
-    }
-    pushNotification(
-      '',
-      'Worktree remove failed',
-      'worktree',
-      `git worktree remove exited with code ${code}. The worktree may have uncommitted changes (use a clean tree or remove it manually).`
-    )
+    return true
   }
+  if (wt) {
+    wt.archiving = false
+    requestSidebar()
+  }
+  pushNotification(
+    '',
+    'Worktree remove failed',
+    'worktree',
+    `git worktree remove exited with code ${code}. The worktree may have uncommitted changes (use a clean tree or remove it manually).`
+  )
+  // Distinct error sound so a failed removal is audibly different from the
+  // regular notification chime.
+  if (settings.notifSound) window.crafterm.playSound('Basso')
+  return false
 }
 
 // Stop managing worktrees for a project (toggle off): drop the auto container

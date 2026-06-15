@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage, safeStorage } from 'electron'
 import type { WebContents } from 'electron'
-import { join, dirname } from 'path'
+import { join, dirname, resolve as resolvePath } from 'path'
 import { homedir } from 'os'
 import {
   readFileSync,
@@ -422,7 +422,7 @@ setupShellIntegration()
 // Bumped when the persisted shape changes (kept in sync with the renderer's
 // SCHEMA_VERSION in state.ts). State whose schemaVersion is below this is backed
 // up once before the renderer migrates and overwrites it on the next save.
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 function backupStateBeforeMigration(raw: string): void {
   try {
@@ -1809,6 +1809,153 @@ ipcMain.handle('fs:writeMd', (_e, { path, content }: { path: string; content: st
   }
 })
 
+// Write any text file back to disk (code editor save). Only overwrites an
+// existing regular file — never creates new paths here, so a bad path can't
+// scatter files. Returns false on any failure (the established IPC idiom).
+ipcMain.handle('fs:writeText', (_e, { path, content }: { path: string; content: string }) => {
+  try {
+    if (!isFilePath(path)) return false
+    writeFileSync(path, content, 'utf8')
+    return true
+  } catch {
+    return false
+  }
+})
+
+// Read a monaco-themes theme JSON by display name (e.g. "Monokai"). Ships via
+// extraResources when packaged; reads from node_modules in dev. Returns the
+// parsed IStandaloneThemeData, or null on any failure / bad name.
+const monacoThemesDir = (): string =>
+  app.isPackaged
+    ? join(process.resourcesPath, 'monaco-themes')
+    : join(__dirname, '../../node_modules/monaco-themes/themes')
+ipcMain.handle('monaco:theme', (_e, { name }: { name: string }) => {
+  if (!name || name.includes('/') || name.includes('..')) return null
+  try {
+    const p = join(monacoThemesDir(), `${name}.json`)
+    if (!existsSync(p)) return null
+    return JSON.parse(readFileSync(p, 'utf8'))
+  } catch {
+    return null
+  }
+})
+
+// Resolve a relative import specifier to an absolute source file (go-to-
+// definition for imports). Probes the common TS/JS extensions + index files.
+// When `symbol` is given, scans the target for its declaration line. Returns
+// null for bare/node_modules specifiers or anything that doesn't exist.
+const IMPORT_EXTS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs', '.json', '.vue', '.svelte']
+ipcMain.handle(
+  'fs:resolveImport',
+  (_e, { fromFile, spec, symbol }: { fromFile: string; spec: string; symbol?: string }) => {
+    if (!fromFile || !spec) return null
+    if (!spec.startsWith('.') && !spec.startsWith('/')) return null // bare module — skip
+    const base = spec.startsWith('/') ? spec : resolvePath(dirname(fromFile), spec)
+    const candidates: string[] = []
+    if (/\.[a-z0-9]+$/i.test(base) && isFilePath(base)) candidates.push(base)
+    for (const ext of IMPORT_EXTS) candidates.push(base + ext)
+    for (const ext of IMPORT_EXTS) candidates.push(join(base, 'index' + ext))
+    const target = candidates.find((c) => isFilePath(c))
+    if (!target) return null
+    let line = 1
+    if (symbol && /^[A-Za-z_$][\w$]*$/.test(symbol)) {
+      try {
+        const src = readFileSync(target, 'utf8').split('\n')
+        const re = new RegExp(
+          `\\b(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?(?:class|interface|type|enum|function|const|let|var)\\s+${symbol}\\b`
+        )
+        const idx = src.findIndex((l) => re.test(l))
+        if (idx >= 0) line = idx + 1
+      } catch {
+        // fall back to line 1
+      }
+    }
+    return { path: target, line }
+  }
+)
+
+// Create an empty file (Files tree → New File). Refuses to overwrite an
+// existing path. Returns false on any failure (the established IPC idiom).
+ipcMain.handle('fs:createFile', (_e, { path }: { path: string }) => {
+  try {
+    if (existsSync(path)) return false
+    writeFileSync(path, '', { flag: 'wx' })
+    return true
+  } catch {
+    return false
+  }
+})
+
+// Create a directory (Files tree → New Folder). Refuses an existing path.
+ipcMain.handle('fs:mkdir', (_e, { path }: { path: string }) => {
+  try {
+    if (existsSync(path)) return false
+    mkdirSync(path)
+    return true
+  } catch {
+    return false
+  }
+})
+
+// Rename/move a path (Files tree → Rename). Refuses if the destination exists.
+ipcMain.handle('fs:rename', (_e, { from, to }: { from: string; to: string }) => {
+  try {
+    if (!existsSync(from) || existsSync(to)) return false
+    renameSync(from, to)
+    return true
+  } catch {
+    return false
+  }
+})
+
+// Move a path to the system Trash (Files tree → Delete). Recoverable, unlike rm.
+ipcMain.handle('fs:trash', async (_e, { path }: { path: string }) => {
+  try {
+    if (!existsSync(path)) return false
+    await shell.trashItem(path)
+    return true
+  } catch {
+    return false
+  }
+})
+
+// Git working-tree status for the Files tree decorations. Returns a map of
+// absolute path → change kind, parsed from `git status --porcelain`. Empty map
+// outside a repo / on any failure (the established IPC idiom).
+type GitStatusKind = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'
+ipcMain.handle('git:fileStatus', async (_e, { cwd }: { cwd?: string }) => {
+  const out: Record<string, GitStatusKind> = {}
+  if (!cwd) return out
+  const top = await run(gitBin(), ['-C', cwd, 'rev-parse', '--show-toplevel'])
+  if (!top) return out
+  const root = top.trim()
+  const status = await run(gitBin(), [
+    '-C',
+    root,
+    '-c',
+    'core.quotePath=false',
+    'status',
+    '--porcelain'
+  ])
+  if (!status) return out
+  for (const line of status.split('\n')) {
+    if (!line) continue
+    const code = line.slice(0, 2)
+    let rel = line.slice(3)
+    // Renames print "old -> new"; decorate the new path.
+    const arrow = rel.indexOf(' -> ')
+    if (arrow >= 0) rel = rel.slice(arrow + 4)
+    let kind: GitStatusKind
+    if (code === '??') kind = 'untracked'
+    else if (code.includes('A')) kind = 'added'
+    else if (code.includes('R')) kind = 'renamed'
+    else if (code.includes('D')) kind = 'deleted'
+    else kind = 'modified'
+    out[join(root, rel)] = kind
+  }
+  return out
+})
+
 function isFilePath(p: string): boolean {
   try {
     return statSync(p).isFile()
@@ -1896,6 +2043,32 @@ ipcMain.handle('todo:write', (_e, { path, content }: { path?: string; content: s
     return true
   } catch {
     return false
+  }
+})
+
+// Read the project backlog (~/.crafterm/todo-list.json, shared by dev + prod) and
+// return its items plus the resolved path so the renderer's spotlight can list
+// backlog entries and open the file in the code editor without hardcoding a path.
+ipcMain.handle('backlog:read', () => {
+  const file = join(homedir(), '.crafterm', 'todo-list.json')
+  if (!existsSync(file)) return null
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    const items = Array.isArray(parsed?.items)
+      ? parsed.items
+          .filter((it: unknown): it is { id: string; text: string; status?: string } => {
+            const o = it as { id?: unknown; text?: unknown }
+            return typeof o?.id === 'string' && typeof o?.text === 'string'
+          })
+          .map((it: { id: string; text: string; status?: string }) => ({
+            id: it.id,
+            text: it.text,
+            status: typeof it.status === 'string' ? it.status : ''
+          }))
+      : []
+    return { path: file, items }
+  } catch {
+    return null
   }
 })
 
@@ -2235,19 +2408,29 @@ ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => {
 
 // List git worktrees for the repo containing `cwd`.
 // Create a worktree at `path` for `branch`, awaiting completion (unlike the
-// terminal-based newWorktree). Tries `-b` (new branch off base) first, then falls
-// back to attaching an existing branch. Used by "Run in worktree" (todo6).
+// terminal-based newWorktree). Fetches the base from origin first so the new
+// branch starts off the latest remote tip, then tries `-b` (new branch off
+// origin/base) and finally falls back to attaching an existing branch. Used by
+// "Run in worktree" (todo6).
 ipcMain.handle(
   'git:worktreeAdd',
-  (_e, { repo, path, branch, base }: { repo: string; path: string; branch: string; base?: string }) =>
-    new Promise<boolean>((resolve) => {
-      const git = gitBin()
-      execFile(git, ['-C', repo, 'worktree', 'add', path, '-b', branch, base || 'main'], { timeout: 120_000 }, (err) => {
+  async (_e, { repo, path, branch, base }: { repo: string; path: string; branch: string; base?: string }) => {
+    const git = gitBin()
+    const baseRef = base || 'main'
+    // Refresh the base from origin so the worktree branches off the latest tip.
+    // Best-effort: if fetch fails (offline / no remote), fall back to the local ref.
+    const fetched = await new Promise<boolean>((resolve) => {
+      execFile(git, ['-C', repo, 'fetch', 'origin', baseRef], { timeout: 120_000 }, (err) => resolve(!err))
+    })
+    const startPoint = fetched ? `origin/${baseRef}` : baseRef
+    return new Promise<boolean>((resolve) => {
+      execFile(git, ['-C', repo, 'worktree', 'add', path, '-b', branch, startPoint], { timeout: 120_000 }, (err) => {
         if (!err) return resolve(true)
         // Branch likely already exists — attach it to the new worktree instead.
         execFile(git, ['-C', repo, 'worktree', 'add', path, branch], { timeout: 120_000 }, (e2) => resolve(!e2))
       })
     })
+  }
 )
 
 ipcMain.handle('git:worktrees', async (_e, { cwd }: { cwd?: string }) => {

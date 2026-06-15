@@ -848,6 +848,20 @@ function claudeStatusOfTab(node: TabNode): 'in-progress' | 'question' | 'idle' |
   return result
 }
 
+// The intermediate daily-task status (review/test) of any pane in the tab, if
+// any. Drives the badge that takes precedence over the Claude status pill.
+function tabTaskBadge(node: TabNode): 'review' | 'test' | null {
+  let test = false
+  for (const id of panesInLayout(node.root)) {
+    const taskId = panes.get(id)?.dailyTaskId
+    if (!taskId) continue
+    const s = paneActions.dailyTaskStatus(taskId)
+    if (s === 'review') return 'review'
+    if (s === 'test') test = true
+  }
+  return test ? 'test' : null
+}
+
 const CLAUDE_STATUS_LABEL: Record<'in-progress' | 'question' | 'idle', string> = {
   'in-progress': 'working',
   question: 'ask',
@@ -881,13 +895,23 @@ function buildTrailing(node: SidebarNode): HTMLElement | null {
     }
   }
   if (node.kind === 'tab') {
-    const cs = claudeStatusOfTab(node)
-    if (cs) {
+    // A code-review/test task overrides the Claude status pill with its badge.
+    const taskBadge = tabTaskBadge(node)
+    if (taskBadge) {
       const chip = document.createElement('span')
-      chip.className = 'claude-status claude-' + cs
-      chip.textContent = CLAUDE_STATUS_LABEL[cs]
-      chip.title = CLAUDE_STATUS_TITLE[cs]
+      chip.className = 'claude-status claude-' + taskBadge
+      chip.textContent = taskBadge
+      chip.title = taskBadge === 'review' ? 'Ticket is in code review' : 'Ticket is in test'
       wrap.appendChild(chip)
+    } else {
+      const cs = claudeStatusOfTab(node)
+      if (cs) {
+        const chip = document.createElement('span')
+        chip.className = 'claude-status claude-' + cs
+        chip.textContent = CLAUDE_STATUS_LABEL[cs]
+        chip.title = CLAUDE_STATUS_TITLE[cs]
+        wrap.appendChild(chip)
+      }
     }
   }
   if (node.kind === 'folder' || node.kind === 'project') {

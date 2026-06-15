@@ -1,6 +1,7 @@
 import { sqlPanes, paneActions, settings, uid, saveSoon } from './state'
 import type { DbConnection, DbEngine, DbConnNode, DbNode } from './types'
-import { createSqlEditor, type SqlEditor, SQL_THEME_NAMES, DEFAULT_SQL_THEME } from './sqlEditor'
+import { createSqlEditor, type SqlEditor } from './sqlEditor'
+import { ALL_THEME_NAMES, currentThemeName, applyTheme } from './monacoSetup'
 import { setupPaneDnd } from './pane'
 import { promptText } from './dialog'
 import type { DbObjects, DbColumn } from '../../preload/api'
@@ -32,6 +33,9 @@ function flattenConns(nodes: DbNode[] = settings.dbTree): DbConnNode[] {
   }
   return out
 }
+
+// Per-pane Monaco editor teardown (dispose on close).
+const sqlEditors = new Map<string, SqlEditor>()
 
 // Per-pane caches.
 const paneObjCache = new Map<string, Map<string, DbObjects>>()
@@ -133,7 +137,7 @@ export function createSqlPane(opts: {
   const themeSel = document.createElement('select')
   themeSel.className = 'settings-select db-theme-select'
   themeSel.title = 'Editor theme'
-  for (const t of SQL_THEME_NAMES) {
+  for (const t of ALL_THEME_NAMES) {
     const o = document.createElement('option')
     o.value = t
     o.textContent = t
@@ -160,7 +164,8 @@ export function createSqlPane(opts: {
   // ---- state ----
   let currentConnId: string | null = opts.connId ?? null
   let fileName: string | null = opts.fileName ?? null
-  let themeName = opts.themeName && SQL_THEME_NAMES.includes(opts.themeName) ? opts.themeName : DEFAULT_SQL_THEME
+  // Theme is global to Monaco; reflect the current global theme.
+  let themeName = currentThemeName()
   themeSel.value = themeName
 
   // parsed-select context for the last run + sort state — drives row actions
@@ -331,6 +336,7 @@ export function createSqlPane(opts: {
     themeName,
     onRun: () => void run()
   })
+  sqlEditors.set(id, editor)
 
   rebuildConnOptions()
   const initialConn = connOf()
@@ -350,7 +356,8 @@ export function createSqlPane(opts: {
 
   themeSel.addEventListener('change', () => {
     themeName = themeSel.value
-    editor.setTheme(themeName)
+    settings.editorTheme = themeName
+    void applyTheme(themeName)
     updateSnap()
     saveSoon()
   })
@@ -407,6 +414,8 @@ export function createSqlPane(opts: {
 }
 
 export function destroySqlPane(id: string): void {
+  sqlEditors.get(id)?.dispose()
+  sqlEditors.delete(id)
   sqlPanes.delete(id)
   paneObjCache.delete(id)
   paneColCache.delete(id)

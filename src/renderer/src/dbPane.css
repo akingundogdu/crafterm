@@ -28,8 +28,14 @@
 .sql-pane .db-query-editor {
   flex: 0 0 38%;
   min-height: 120px;
+  overflow: hidden;
   /* keep the code area visually distinct (terminal-dark) */
   background: var(--bg-term);
+}
+.sql-pane .db-query-editor .monaco-editor,
+.sql-pane .db-query-editor .monaco-editor .overflow-guard {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .sql-pane .db-result {

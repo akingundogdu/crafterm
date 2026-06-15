@@ -129,7 +129,7 @@ export interface SqlPane {
   el: HTMLElement
   connId: string | null
   fileName: string | null
-  themeName: string // CodeMirror theme name (see SQL_THEME_NAMES)
+  themeName: string // Monaco editor theme name (see SQL_THEME_NAMES)
   getCode(): string
   focus(): void
 }
@@ -161,6 +161,26 @@ export interface FilePane {
   // Cmd +/- font zoom for this pane (mirrors the terminal/doc/diff pane behavior).
   setFont(delta: number): void
   resetFont(): void
+}
+
+// An editable code editor pane (CodeMirror 6) opened from the Files panel.
+// Syntax-highlights by file extension and saves back to disk on Cmd+S.
+export interface CodePane {
+  id: string
+  el: HTMLElement
+  // Absolute path of the file currently being edited.
+  readonly path: string
+  // Current theme name (shared palette set with the SQL editor).
+  themeName: string
+  // True while the buffer has unsaved edits.
+  isDirty(): boolean
+  // Reopen this pane on a different file (single-editor reuse on file clicks);
+  // optionally reveal a line (go-to-definition).
+  openFile(path: string, line?: number): void
+  // Cmd +/- font zoom for this pane (mirrors the terminal/doc/diff pane behavior).
+  setFont(delta: number): void
+  resetFont(): void
+  focus(): void
 }
 
 export type NodeColor = string | null
@@ -319,7 +339,9 @@ export const BUILTIN_ACTIONS: { id: string; label: string }[] = [
   { id: 'runningDevices', label: 'Running devices' }
 ]
 
-export type DailyPlanStatus = 'backlog' | 'todo' | 'wip' | 'done'
+// 'review' (code review) and 'test' are intermediate statuses with no board
+// column of their own — their tasks render in the In Progress (wip) column.
+export type DailyPlanStatus = 'backlog' | 'todo' | 'wip' | 'review' | 'test' | 'done'
 export type DailyPlanPriority = 'low' | 'medium' | 'high'
 
 export interface DailyPlanTask {
@@ -333,7 +355,7 @@ export interface DailyPlanTask {
   tagIds: string[]
   order: number // position within (date, status) for drag-drop ordering
   projectId?: string // owning ProjectNode id (gives cwd + issue-key prefix)
-  issueKey?: string // generated once on "Open in terminal" (e.g. CRF-12)
+  issueKey?: string // stable key assigned once on task creation from the project prefix (e.g. CRF-12)
   worktreeSlug?: string // optional suffix appended to the issue key for the worktree branch/name (e.g. CRF-12-slug)
   createdAt: number
   updatedAt: number

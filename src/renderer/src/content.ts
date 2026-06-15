@@ -1,5 +1,5 @@
 import type { LayoutNode } from './types'
-import { panes, browsers, docs, sqlPanes, diffPanes, filePanes, state, saveSoon, poppedOut } from './state'
+import { panes, browsers, docs, sqlPanes, diffPanes, filePanes, codePanes, state, saveSoon, poppedOut } from './state'
 import { findTab } from './tree'
 import { mountPanes } from './pane'
 
@@ -38,7 +38,8 @@ function buildNode(node: LayoutNode): HTMLElement {
       docs.get(node.paneId)?.el ??
       sqlPanes.get(node.paneId)?.el ??
       diffPanes.get(node.paneId)?.el ??
-      filePanes.get(node.paneId)?.el
+      filePanes.get(node.paneId)?.el ??
+      codePanes.get(node.paneId)?.el
     if (!el) {
       el = document.createElement('div')
       el.className = 'pane-box'

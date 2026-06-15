@@ -17,6 +17,7 @@ import { flattenProjects, removeProject } from './catalog'
 import { makeProject } from './tree'
 import { reconcileWorktrees, purgeWorktrees } from './worktrees'
 import { applyAppearance } from './pane'
+import { ALL_THEME_NAMES, applyTheme } from './monacoSetup'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from './sidebar'
 import { pickFolderPath } from './pickers'
 import { makeCloseButton, promptForm, promptText } from './dialog'
@@ -452,6 +453,17 @@ function buildAppearancePanel(panel: HTMLElement): void {
     }
   })
   buildBackgroundControl(panel)
+  labeledSelect(
+    panel,
+    'Code editor theme',
+    ALL_THEME_NAMES.map((n) => [n, n] as [string, string]),
+    settings.editorTheme,
+    (v) => {
+      settings.editorTheme = v
+      void applyTheme(v)
+      saveSoon()
+    }
+  )
 }
 
 function buildBackgroundControl(panel: HTMLElement): void {

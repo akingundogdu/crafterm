@@ -26,7 +26,7 @@ import { promptForm, promptConfirm, makeCloseButton } from './dialog'
 import { collectBackgroundProcesses, killProcess, openProcessView } from './bgproc'
 import type { CollectedProcess } from './bgproc'
 
-function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLElement; close: () => void } {
+export function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLElement; close: () => void } {
   const overlay = document.createElement('div')
   overlay.className = 'modal-overlay'
   const modal = document.createElement('div')
@@ -42,7 +42,7 @@ function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLEleme
 }
 
 // Shared "contains" search box for list modals. `onInput` re-renders the list.
-function makeSearchInput(placeholder: string, onInput: () => void): HTMLInputElement {
+export function makeSearchInput(placeholder: string, onInput: () => void): HTMLInputElement {
   const input = document.createElement('input')
   input.className = 'picker-input'
   input.type = 'text'
@@ -1630,7 +1630,7 @@ export async function showFileFinder(opts: {
 // zsh alias/function lookup spawns an interactive shell (~seconds), so cache it
 // for the session — the first open pays the cost, the rest are instant.
 let zshCmdCache: { name: string; value: string }[] | null = null
-async function loadZshCommands(): Promise<{ name: string; value: string }[]> {
+export async function loadZshCommands(): Promise<{ name: string; value: string }[]> {
   if (!zshCmdCache) zshCmdCache = await window.crafterm.zshCommands()
   return zshCmdCache
 }
@@ -2521,7 +2521,7 @@ export async function runUpdate(): Promise<void> {
 // Cmd+J. Fuzzy-substring match across projects, features, open panes, notebook
 // docs, bookmarks, plan files, and accounts. Hitting Enter dispatches to the
 // right opener for the picked entry's source.
-interface GsEntry {
+export interface GsEntry {
   source:
     | 'project'
     | 'feature'
@@ -2537,7 +2537,7 @@ interface GsEntry {
   open: () => void
 }
 
-async function buildGlobalSearchIndex(): Promise<GsEntry[]> {
+export async function buildGlobalSearchIndex(): Promise<GsEntry[]> {
   const out: GsEntry[] = []
   // projects + their features
   for (const p of flattenProjects(state.tree)) {
@@ -2639,7 +2639,7 @@ async function buildGlobalSearchIndex(): Promise<GsEntry[]> {
   return out
 }
 
-const SOURCE_LABEL: Record<GsEntry['source'], string> = {
+export const SOURCE_LABEL: Record<GsEntry['source'], string> = {
   project: 'PROJECT',
   feature: 'FEATURE',
   pane: 'PANE',
