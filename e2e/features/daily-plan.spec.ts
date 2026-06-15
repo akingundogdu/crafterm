@@ -106,3 +106,39 @@ test('daily plan: add a task, delete one, and restore on relaunch', async () => 
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+const TAG = `e2e-tag-${Date.now()}`
+
+test('daily plan: create a tag in the task form and persist it (daily-tag)', async () => {
+  const dir = freshDir()
+  let app: ElectronApplication | null = null
+  try {
+    const s = await launch(dir)
+    app = s.app
+    const win = s.win
+    await createProject(win, PROJECT)
+    const board = await openDailyPlan(win)
+
+    await board.getByRole('button', { name: '+ New task' }).click()
+    const form = win.locator('.daily-plan-form-overlay')
+    await expect(form).toBeVisible()
+    await form.locator('.daily-plan-title-input').fill(`Tagged ${TAG}`)
+    await form.locator('select', { has: win.locator('option', { hasText: 'Select a project' }) }).selectOption({ label: PROJECT })
+
+    // create a brand-new tag inline: type the name, then click the "+ Create" option
+    await form.locator('.daily-plan-tag-input').fill(TAG)
+    await form.locator('.daily-plan-tag-option.create').click()
+    await form.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(form).toBeHidden()
+
+    await waitForState(dir, (st) => (st.dailyPlan?.tags ?? []).some((t: any) => t.name === TAG))
+    const st = readState(dir)!
+    const tag = (st.dailyPlan?.tags ?? []).find((t: any) => t.name === TAG)
+    const task = (st.dailyPlan?.tasks ?? []).find((t: any) => t.title === `Tagged ${TAG}`)
+    expect(tag, 'tag persisted').toBeTruthy()
+    expect(task?.tagIds, 'tag assigned to the task').toContain(tag.id)
+  } finally {
+    if (app) await app.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
