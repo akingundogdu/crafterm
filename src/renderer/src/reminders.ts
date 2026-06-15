@@ -2,6 +2,7 @@ import { settings, saveSoon, pushNotification, uid } from './state'
 import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from './types'
 import { makeCloseButton } from './dialog'
 import { createDateField } from '@crafterm/ui'
+import { appService } from './services/ipc'
 
 const DAY = 86_400_000
 const WEEK = 7 * DAY
@@ -168,8 +169,8 @@ function fire(r: Reminder): void {
     reminderText: r.text,
     payload: r.payload
   })
-  window.crafterm.notify('Reminder', r.text)
-  if (settings.notifSound) window.crafterm.playSound(settings.notifSound)
+  appService.notify('Reminder', r.text)
+  if (settings.notifSound) appService.playSound(settings.notifSound)
 }
 
 // Re-arm a reminder (or create one) from a snooze action on its notification card.

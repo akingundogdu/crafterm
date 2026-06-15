@@ -6,6 +6,7 @@ import { PALETTE_SEED } from './palette-seed'
 import { allTabs, panesInLayout } from './tree'
 import type { LayoutNode, NodeStatus } from './types'
 import type { SavedState, SavedSidebarNode, SavedNode } from '../../preload/api'
+import { storeService } from './services/ipc'
 
 // ---- Live state (mutated in place; modules import these singletons) ----
 
@@ -499,7 +500,7 @@ function persist(): void {
     sidebar: settings.sidebar,
     notifications: serializeNotifications()
   }
-  window.crafterm.saveState(data)
+  storeService.save(data)
   saveStatus.pending = false
   saveStatus.lastSavedAt = Date.now()
   emitSaveStatus()

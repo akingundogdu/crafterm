@@ -25,6 +25,7 @@ import { actionMenuSearchEntries } from './sidebar'
 import { promptForm, promptConfirm, makeCloseButton } from './dialog'
 import { collectBackgroundProcesses, killProcess, openProcessView } from './bgproc'
 import type { CollectedProcess } from './bgproc'
+import { terminalService, gitService, fsService, claudeService, notebookService, plansService, iosService, appService } from './services/ipc'
 
 export function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLElement; close: () => void } {
   const overlay = document.createElement('div')
@@ -55,7 +56,7 @@ export function makeSearchInput(placeholder: string, onInput: () => void): HTMLI
 // ---- Plans: list ~/.claude/plans and open one in the Markdown app ----
 
 export async function showPlansModal(): Promise<void> {
-  const plans = await window.crafterm.listPlans()
+  const plans = await plansService.list()
   const { modal, close } = overlayModal('list-modal')
 
   const h = document.createElement('h2')
@@ -157,7 +158,7 @@ function baseName(p: string): string {
 
 export async function showWorktreeDashboard(): Promise<void> {
   const cwd = state.activePaneId ? panes.get(state.activePaneId)?.cwd ?? undefined : undefined
-  const listing = await window.crafterm.listWorktrees(cwd)
+  const listing = await gitService.listWorktrees(cwd)
   const { modal, close } = overlayModal('picker-modal')
 
   const h = document.createElement('h2')
@@ -355,7 +356,7 @@ export function showRunningDevicesDashboard(): void {
   modal.append(search, list)
 
   const stopApp = async (c: CollectedProcess): Promise<void> => {
-    await window.crafterm.iosWorktreeStop(c.proc.cwd, c.project?.iosConfig)
+    await iosService.worktreeStop(c.proc.cwd, c.project?.iosConfig)
     killProcess(c.proc.stableId)
     render()
   }
@@ -865,7 +866,7 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
       })
     }
     const load = async (p?: string): Promise<void> => {
-      const listing = await window.crafterm.listDir(p)
+      const listing = await fsService.listDir(p)
       dirs = listing.dirs
       parent = listing.parent
       current = listing.path
@@ -963,12 +964,12 @@ export async function showAllMarkdown(): Promise<void> {
     list.replaceChildren()
     countEl.textContent = 'Loading...'
     if (value === ALL) {
-      const results = await Promise.all(folders.map((f) => window.crafterm.findAllMarkdown(f)))
+      const results = await Promise.all(folders.map((f) => fsService.findAllMarkdown(f)))
       const byPath = new Map<string, { path: string; name: string }>()
       results.forEach((r) => r.files.forEach((f) => byPath.set(f.path, f)))
       files = [...byPath.values()]
     } else {
-      const res = await window.crafterm.findAllMarkdown(value)
+      const res = await fsService.findAllMarkdown(value)
       files = res.files
     }
     sel = 0
@@ -1537,13 +1538,13 @@ export async function showFileFinder(opts: {
     countEl.textContent = 'Loading...'
     if (value === ALL) {
       const results = await Promise.all(
-        folders.map((f) => window.crafterm.findFiles(f, settings.explorerExclude))
+        folders.map((f) => fsService.findFiles(f, settings.explorerExclude))
       )
       const byPath = new Map<string, { path: string; name: string }>()
       results.forEach((r) => r.files.forEach((f) => byPath.set(f.path, f)))
       files = [...byPath.values()]
     } else {
-      const res = await window.crafterm.findFiles(value, settings.explorerExclude)
+      const res = await fsService.findFiles(value, settings.explorerExclude)
       files = res.files
     }
     sel = 0
@@ -1631,7 +1632,7 @@ export async function showFileFinder(opts: {
 // for the session — the first open pays the cost, the rest are instant.
 let zshCmdCache: { name: string; value: string }[] | null = null
 export async function loadZshCommands(): Promise<{ name: string; value: string }[]> {
-  if (!zshCmdCache) zshCmdCache = await window.crafterm.zshCommands()
+  if (!zshCmdCache) zshCmdCache = await appService.zshCommands()
   return zshCmdCache
 }
 
@@ -1679,7 +1680,7 @@ export async function showCommandPalette(): Promise<void> {
     const id = state.activePaneId
     if (id) {
       selectPane(id)
-      window.crafterm.input(id, c.value)
+      terminalService.input(id, c.value)
     }
     close()
   }
@@ -1770,7 +1771,7 @@ export async function showCommandPalette(): Promise<void> {
 // Discovers any `claude-switch-<name>` alias/function (e.g. `cswap --switch-to N`)
 // and runs the chosen one in a new terminal. New Claude terminals then use it.
 export async function showClaudeAccountSwitcher(): Promise<void> {
-  const cmds = await window.crafterm.zshCommands()
+  const cmds = await appService.zshCommands()
   const accounts = cmds
     .filter((c) => /^claude-switch-/.test(c.name))
     .map((c) => ({ name: c.name, label: c.name.replace(/^claude-switch-/, ''), value: c.value }))
@@ -1837,7 +1838,7 @@ function relTime(ms: number): string {
 }
 
 export async function showClaudeSessionResume(): Promise<void> {
-  const sessions = await window.crafterm.claudeSessions()
+  const sessions = await claudeService.sessions()
   const { modal, close } = overlayModal('picker-modal picker-modal-wide')
 
   const h = document.createElement('h2')
@@ -2183,7 +2184,7 @@ export async function showFolderPicker(): Promise<void> {
   }
 
   const load = async (p?: string): Promise<void> => {
-    const listing = await window.crafterm.listDir(p)
+    const listing = await fsService.listDir(p)
     dirs = listing.dirs
     parent = listing.parent
     sel = 0
@@ -2239,12 +2240,12 @@ export async function showStashManager(paneId: string): Promise<void> {
   // Run a git command in the pane's own terminal so its output is visible.
   const runInPane = (cmd: string): void => {
     selectPane(paneId)
-    window.crafterm.input(paneId, cmd + '\r')
+    terminalService.input(paneId, cmd + '\r')
   }
 
   let allStashes: { ref: string; description: string }[] = []
   const reload = async (): Promise<void> => {
-    allStashes = await window.crafterm.gitStashList(paneId)
+    allStashes = await gitService.stashList(paneId)
     renderList()
   }
   const renderList = (): void => {
@@ -2308,7 +2309,7 @@ export async function showStashManager(paneId: string): Promise<void> {
 // ---- Branch checkout: search the pane's repo branches, checkout the chosen one ----
 
 export async function showBranchCheckout(paneId: string): Promise<void> {
-  const branches = await window.crafterm.gitBranches(paneId)
+  const branches = await gitService.branches(paneId)
   const { modal, close } = overlayModal('picker-modal')
 
   const h = document.createElement('h2')
@@ -2320,7 +2321,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   actions.className = 'git-quick-actions'
   const runInPane = (cmd: string): void => {
     selectPane(paneId)
-    window.crafterm.input(paneId, cmd + '\r')
+    terminalService.input(paneId, cmd + '\r')
     close()
   }
   const addChip = (label: string, cmd: string, title: string): void => {
@@ -2364,7 +2365,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   }
   const checkout = (branch: string): void => {
     selectPane(paneId)
-    window.crafterm.input(paneId, `git checkout '${branch}'\r`)
+    terminalService.input(paneId, `git checkout '${branch}'\r`)
     close()
   }
   const highlight = (): void => {
@@ -2496,7 +2497,7 @@ export async function runUpdate(): Promise<void> {
   // Build the new bundle (runs in main; can take a while).
   const s2 = step('Building new bundle…')
   const cmd = settings.updateCommand.trim() || 'run-crafterm-deploy'
-  const res = await window.crafterm.deployBuild(repo, cmd)
+  const res = await appService.deployBuild(repo, cmd)
   if (!res.ok) {
     s2.fail(res.error || 'Build failed. See ~/.crafterm/deploy.log for details.')
     return
@@ -2509,12 +2510,12 @@ export async function runUpdate(): Promise<void> {
   // that. Children that ignore SIGHUP are force-killed after 5s in the main
   // process, so this resolves promptly.
   const s3 = step('Closing sessions…')
-  await window.crafterm.deployKillAllPtys()
+  await appService.deployKillAllPtys()
   s3.done()
 
   // Swap the installed app + relaunch (detached); the app quits right after.
   step('Restarting…')
-  await window.crafterm.deploySwap(repo)
+  await appService.deploySwap(repo)
 }
 
 // ---- Spotlight: global search across every navigable surface ---------------
@@ -2604,7 +2605,7 @@ export async function buildGlobalSearchIndex(): Promise<GsEntry[]> {
   }
   // notebook tree (flat)
   try {
-    const tree = await window.crafterm.nbTree()
+    const tree = await notebookService.tree()
     const walk = (nodes: typeof tree, parent: string): void => {
       for (const n of nodes) {
         const path = parent ? `${parent}/${n.name}` : n.name

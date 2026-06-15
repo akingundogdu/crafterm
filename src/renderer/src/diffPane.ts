@@ -1,5 +1,6 @@
 import { diffPanes, panes, state, paneActions, uid, pushNotification } from './state'
 import { setupPaneDnd } from './pane'
+import { terminalService, prService } from './services/ipc'
 
 // A read-only PR diff pane. Shows one file at a time (prev/next + searchable file
 // list). Click / click-drag / shift-click selects a contiguous line range; a
@@ -204,7 +205,7 @@ export function createDiffPane(opts: {
       plus.title = 'Open a terminal first'
       return
     }
-    window.crafterm.input(target, ref + ' ')
+    terminalService.input(target, ref + ' ')
     paneActions.select(target)
     panes.get(target)?.term.focus()
   }
@@ -261,7 +262,7 @@ export function createDiffPane(opts: {
       sendBtn.disabled = true
       sendBtn.textContent = 'Sending…'
       err.textContent = ''
-      const r = await window.crafterm.prComment(
+      const r = await prService.comment(
         opts.cwd,
         opts.prNumber,
         range.path,
@@ -492,7 +493,7 @@ export function createDiffPane(opts: {
   // ---- load ----
   const load = async (): Promise<void> => {
     body.textContent = 'Loading diff…'
-    const res = await window.crafterm.prDiff(opts.cwd, opts.prNumber)
+    const res = await prService.diff(opts.cwd, opts.prNumber)
     if (!res.ok) {
       body.textContent = res.error || 'Failed to load diff.'
       return

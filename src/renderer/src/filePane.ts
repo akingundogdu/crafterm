@@ -1,5 +1,6 @@
 import { filePanes, panes, state, paneActions, uid } from './state'
 import { setupPaneDnd } from './pane'
+import { terminalService, fsService } from './services/ipc'
 
 // A read-only file viewer pane opened from the Files panel. Shows one plain file
 // with line numbers; click / click-drag / shift-click selects a contiguous line
@@ -71,7 +72,7 @@ export function createFilePane(opts: { path: string; targetPaneId: string | null
   revealBtn.title = 'Show in Finder'
   revealBtn.addEventListener('click', (e) => {
     e.stopPropagation()
-    window.crafterm.revealPath(opts.path)
+    fsService.revealPath(opts.path)
   })
   const reload = document.createElement('button')
   reload.className = 'diff-hbtn'
@@ -134,7 +135,7 @@ export function createFilePane(opts: { path: string; targetPaneId: string | null
       plus.title = 'Open a terminal first'
       return
     }
-    window.crafterm.input(target, ref + ' ')
+    terminalService.input(target, ref + ' ')
     paneActions.select(target)
     panes.get(target)?.term.focus()
   }
@@ -230,7 +231,7 @@ export function createFilePane(opts: { path: string; targetPaneId: string | null
   // ---- load ----
   const load = async (): Promise<void> => {
     body.textContent = 'Loading file…'
-    const res = await window.crafterm.readText(opts.path)
+    const res = await fsService.readText(opts.path)
     if (!res.ok) {
       body.textContent = res.error || 'Failed to load file.'
       return

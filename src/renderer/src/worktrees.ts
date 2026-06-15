@@ -13,6 +13,7 @@ import { flattenProjects } from './catalog'
 import { archiveTab } from './commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
 import { promptForm, promptConfirm } from './dialog'
+import { gitService, appService } from './services/ipc'
 
 const RECONCILE_INTERVAL_MS = 20_000
 let started = false
@@ -56,7 +57,7 @@ async function reconcileProject(p: ProjectNode): Promise<boolean> {
     changed = true
   }
 
-  const listing = await window.crafterm.listWorktrees(p.path)
+  const listing = await gitService.listWorktrees(p.path)
   // `git worktree list` reports the MAIN checkout as its first entry. The project
   // node already represents that checkout, so it must not also appear as a linked
   // worktree — drop it here so the container holds only real worktrees (and any
@@ -235,10 +236,10 @@ export async function ensureWorktreeForBranch(
     p.iosConfig?.worktreesDir?.trim() || `${repo.split('/').slice(0, -1).join('/')}/worktrees`
   )
   const path = `${worktreesDir}/${branch}`
-  const listing = await window.crafterm.listWorktrees(repo)
+  const listing = await gitService.listWorktrees(repo)
   const exists = (listing?.worktrees ?? []).some((w) => norm(w.path) === path)
   if (!exists) {
-    const ok = await window.crafterm.worktreeAdd(repo, path, branch, 'main')
+    const ok = await gitService.worktreeAdd(repo, path, branch, 'main')
     if (!ok) return null
   }
   // Wait deterministically for the node to materialize: reconcile, then poll
@@ -359,7 +360,7 @@ export async function removeWorktree(
   )
   // Distinct error sound so a failed removal is audibly different from the
   // regular notification chime.
-  if (settings.notifSound) window.crafterm.playSound('Basso')
+  if (settings.notifSound) appService.playSound('Basso')
   return false
 }
 

@@ -2,6 +2,7 @@ import type { PullRequest, WorkflowRun, DeploymentStatus } from '../../preload/a
 import { state, panes, settings, saveSoon, pushNotification } from './state'
 import { openLink, runInSplit, openPrDiff } from './commands'
 import { makeCloseButton, promptConfirm } from './dialog'
+import { prService } from './services/ipc'
 
 const viewEl = (): HTMLElement => document.getElementById('notif-pr-view')!
 
@@ -182,7 +183,7 @@ async function doMerge(pr: PullRequest, cwd: string): Promise<void> {
     confirmText: 'Squash & merge'
   })
   if (!ok) return
-  const r = await window.crafterm.prMerge(cwd, pr.number, 'squash')
+  const r = await prService.merge(cwd, pr.number, 'squash')
   if (!r.ok) showTextModal('Merge failed', r.error || 'unknown error')
   else pushNotification('', `PR #${pr.number} merged`, 'pr', pr.title)
   void renderPr()
@@ -267,7 +268,7 @@ export async function renderPr(): Promise<void> {
     listEl.innerHTML = '<div class="notif-empty">Open a terminal in a GitHub repo to see its PRs.</div>'
     return
   }
-  const avail = await window.crafterm.prAvailable(cwd)
+  const avail = await prService.available(cwd)
   if (!avail.ok) {
     listEl.replaceChildren()
     const e = document.createElement('div')
@@ -281,7 +282,7 @@ export async function renderPr(): Promise<void> {
 }
 
 async function renderPrList(listEl: HTMLElement, cwd: string, repo: string): Promise<void> {
-  const res = await window.crafterm.prList(cwd)
+  const res = await prService.list(cwd)
   listEl.replaceChildren()
   if (!res.ok) {
     listEl.innerHTML = `<div class="notif-empty">${res.error || 'Failed to load PRs.'}</div>`
@@ -334,7 +335,7 @@ async function renderAllPrs(listEl: HTMLElement): Promise<void> {
   loading.textContent = 'Loading…'
   listEl.appendChild(loading)
 
-  const res = await window.crafterm.prListAll(settings.codeRoot, paths)
+  const res = await prService.listAll(settings.codeRoot, paths)
   loading.remove()
   if (!res.ok) {
     listEl.insertAdjacentHTML('beforeend', `<div class="notif-empty">${res.error || 'Failed to load PRs.'}</div>`)
@@ -384,7 +385,7 @@ async function renderAllDeployments(listEl: HTMLElement): Promise<void> {
   loading.textContent = 'Loading…'
   listEl.appendChild(loading)
 
-  const res = await window.crafterm.ghDeploysAll(settings.codeRoot, paths)
+  const res = await prService.deploysAll(settings.codeRoot, paths)
   loading.remove()
   if (!res.ok) {
     listEl.insertAdjacentHTML('beforeend', `<div class="notif-empty">${res.error || 'Failed to load deployments.'}</div>`)
@@ -455,7 +456,7 @@ async function showProjectPicker(): Promise<void> {
 
   const selected = new Set(settings.prProjects)
 
-  const res = await window.crafterm.prRepos(settings.codeRoot)
+  const res = await prService.repos(settings.codeRoot)
   if (!res.ok) {
     list.replaceChildren()
     const e = document.createElement('div')
@@ -580,7 +581,7 @@ interface RunJob {
 }
 
 async function showRunJobs(cwd: string, run: WorkflowRun): Promise<void> {
-  const raw = await window.crafterm.ghRunJobs(cwd, run.id)
+  const raw = await prService.runJobs(cwd, run.id)
   let text = raw
   try {
     const data = JSON.parse(raw) as { jobs?: RunJob[] }
@@ -695,8 +696,8 @@ function deployCard(d: DeploymentStatus): HTMLElement {
 
 async function renderDeployments(listEl: HTMLElement, cwd: string, repo: string): Promise<void> {
   const [dep, runs] = await Promise.all([
-    window.crafterm.ghDeployments(cwd),
-    window.crafterm.ghRuns(cwd)
+    prService.deployments(cwd),
+    prService.runs(cwd)
   ])
   listEl.replaceChildren()
 

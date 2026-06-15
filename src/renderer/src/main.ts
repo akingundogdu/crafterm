@@ -80,6 +80,7 @@ import { showImproveModal } from './improve'
 import { databaseNewProject } from './database'
 import { renderDocker } from './docker'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, isRecording } from './keybindings'
+import { terminalService, claudeService, plansService, appService, storeService } from './services/ipc'
 
 // New terminals: if the selected container (project or folder) has a command
 // defined, open a terminal there and run it (project command runs in the
@@ -165,7 +166,7 @@ paneActions.splitWithProject = (id) => {
 }
 paneActions.runApp = (project, app) => showRunApp(project, app)
 paneActions.openPlanInGroup = (originPaneId, absPath) => openMarkdownInGroup(originPaneId, absPath)
-paneActions.clarify = (paneId) => window.crafterm.input(paneId, '/run-clarify\r')
+paneActions.clarify = (paneId) => terminalService.input(paneId, '/run-clarify\r')
 paneActions.assignDailyTask = (paneId) => assignPaneToTask(paneId)
 paneActions.dailyTaskLabel = (taskId) => dailyTaskLabel(taskId)
 paneActions.dailyTaskIssueKey = (taskId) => dailyTaskIssueKey(taskId)
@@ -177,7 +178,7 @@ paneActions.markTaskTest = (paneId) => markPaneTaskTest(paneId)
 paneActions.reactivateTab = (tabId) => void reactivateTab(tabId)
 
 // ---- PTY stream wiring ----
-window.crafterm.onData((id, data) => {
+terminalService.onData((id, data) => {
   const p = panes.get(id)
   if (!p) return
   p.term.write(data)
@@ -193,22 +194,22 @@ window.crafterm.onData((id, data) => {
 // While quitting, the main process kills every PTY; ignore those exits so we
 // don't tear down the tree and overwrite the saved session with an empty one.
 let quitting = false
-window.crafterm.onAppQuitting(() => {
+appService.onAppQuitting(() => {
   quitting = true
   persistNow() // flush the current (still-intact) tree before any pane closes
 })
 // macOS hides the traffic lights while fullscreen — reflect that on the body so
 // the content-statusbar can drop its left clearance when not needed.
-window.crafterm.onFullscreenChange((isFull) => {
+appService.onFullscreenChange((isFull) => {
   document.body.classList.toggle('window-fullscreen', isFull)
 })
-window.crafterm.onExit((id) => {
+terminalService.onExit((id) => {
   if (!quitting) closePane(id)
 })
 // A background process finished — mark it done in its worktree's process list.
-window.crafterm.onProcExit((id, code) => onProcessExit(id, code))
+terminalService.onProcExit((id, code) => onProcessExit(id, code))
 // Clicking a native notification focuses the pane that fired it.
-window.crafterm.onFocusPane((id) => {
+terminalService.onFocusPane((id) => {
   if (!panes.has(id)) return
   selectPane(id)
   // A notification click fires this while the OS is still bringing the window to
@@ -217,9 +218,9 @@ window.crafterm.onFocusPane((id) => {
   setTimeout(() => panes.get(id)?.term.focus(), 80)
 })
 // A pop-out window confirmed its close: kill the pane and drop its placeholder.
-window.crafterm.onPopoutKilled((id) => killPoppedPane(id))
+terminalService.onPopoutKilled((id) => killPoppedPane(id))
 // Cmd+W comes from a menu accelerator so it also works while a browser pane is focused.
-window.crafterm.onCloseActivePane(() => {
+terminalService.onCloseActivePane(() => {
   if (state.activePaneId) void confirmAndClosePane(state.activePaneId)
 })
 
@@ -407,7 +408,7 @@ window.setInterval(() => {
 // A session jsonl under this cwd changed (most importantly a /rename): re-read
 // the title for every Claude pane on that cwd so the sidebar reflects it
 // instantly, without waiting for the 4s poll.
-window.crafterm.onClaudeSessionsChanged((cwd) => {
+claudeService.onSessionsChanged((cwd) => {
   panes.forEach((p) => {
     if (p.claude && p.cwd === cwd && p.claudeSessionId && !p.titleLocked) {
       void applyClaudeSessionTitle(p)
@@ -418,7 +419,7 @@ window.crafterm.onClaudeSessionsChanged((cwd) => {
 // Live plan-file refresh: a file landed in <repo>/docs/plans → re-fetch every
 // pane's plan list. Cheap (one readdir per pane in main); the periodic poll is
 // the safety net while this is the responsive path.
-window.crafterm.onPlansChanged(() => {
+plansService.onChanged(() => {
   panes.forEach((p) => void refreshPanePlans(p))
 })
 
@@ -444,7 +445,7 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
     // and `claude --resume` — open in the right project directory.
     let cwd = n.cwd
     if (!cwd && n.claude && n.claudeSessionId) {
-      cwd = (await window.crafterm.claudeSessionCwd(n.claudeSessionId)) ?? undefined
+      cwd = (await claudeService.sessionCwd(n.claudeSessionId)) ?? undefined
     }
     const id = await createPane(cwd, { stableId: n.stableId })
     const p = panes.get(id)
@@ -468,12 +469,12 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
       }
       // Resume the exact session if we captured its id, else the latest in this cwd.
       const cmd = n.claudeSessionId ? `claude --resume ${n.claudeSessionId}` : 'claude --continue'
-      setTimeout(() => window.crafterm.input(id, cmd + '\r'), 500)
+      setTimeout(() => terminalService.input(id, cmd + '\r'), 500)
     } else if (p && n.lastCommand) {
       // Raw terminal: pre-type the last command WITHOUT a trailing CR so the user
       // sees it at the prompt and decides whether to run it (never auto-execute —
       // the last command could be destructive).
-      setTimeout(() => window.crafterm.input(id, n.lastCommand!), 600)
+      setTimeout(() => terminalService.input(id, n.lastCommand!), 600)
     }
     if (n.bgColor) setPaneBackground(id, n.bgColor)
     if (p) {
@@ -633,11 +634,11 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
 
 async function init(): Promise<void> {
   // If we just relaunched after a self-update, cover the restore with an overlay.
-  const wasUpdating = await window.crafterm.deployWasUpdating()
+  const wasUpdating = await appService.deployWasUpdating()
   const updateOverlay = document.getElementById('update-overlay')
   if (wasUpdating && updateOverlay) updateOverlay.hidden = false
 
-  const saved = await window.crafterm.loadState()
+  const saved = await storeService.load()
   if (saved) loadSettings(saved)
   if (!settings.actionMenu.length) settings.actionMenu = seedActionMenu()
 

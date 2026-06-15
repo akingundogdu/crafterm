@@ -3,6 +3,7 @@ import type { TimeEntry } from './types'
 import { promptText, makeCloseButton } from './dialog'
 import { updatePaneStatus } from './pane'
 import { flattenProjects, findProjectByPath, findFeature } from './catalog'
+import { appService } from './services/ipc'
 
 const IDLE_MS = 5 * 60_000 // no activity this long ⇒ stop auto-counting
 
@@ -221,8 +222,8 @@ function finishPomodoro(): void {
   const projectPath = active?.projectPath
   const featureId = active?.featureId ?? null
   stopActive()
-  window.crafterm.notify('Pomodoro done', `${proj?.name ?? 'Session'} · time logged`)
-  if (settings.notifSound) window.crafterm.playSound(settings.notifSound)
+  appService.notify('Pomodoro done', `${proj?.name ?? 'Session'} · time logged`)
+  if (settings.notifSound) appService.playSound(settings.notifSound)
   // Re-arm the same countdown for repeating pomodoros (no project select needed).
   if (repeat && ms && projectPath) {
     active = { projectPath, featureId, start: Date.now(), pomodoroMs: ms, repeat: true }

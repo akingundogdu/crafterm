@@ -5,6 +5,7 @@ import { makeCloseButton, promptText } from './dialog'
 import { openSqlInSplit } from './commands'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
 import './database.css'
+import { dbService } from './services/ipc'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object
 // introspection under each connection, a Queries section of saved .sql files,
@@ -112,8 +113,8 @@ function ensureConnLoaded(conn: DbConnection): void {
   if (objCache.has(conn.id)) return
   void (async () => {
     const [objs, queries] = await Promise.all([
-      window.crafterm.dbObjects(conn),
-      window.crafterm.dbqList(conn.id)
+      dbService.objects(conn),
+      dbService.savedList(conn.id)
     ])
     objCache.set(conn.id, objs)
     queriesCache.set(conn.id, queries)
@@ -131,13 +132,13 @@ async function renameConn(c: DbConnNode): Promise<void> {
 
 function deleteQuery(conn: DbConnection, fileName: string): void {
   void (async () => {
-    await window.crafterm.dbqDelete(conn.id, fileName)
+    await dbService.savedDelete(conn.id, fileName)
     await reloadQueries(conn.id)
   })()
 }
 function openQueryFile(conn: DbConnection, fileName: string): void {
   void (async () => {
-    const sql = await window.crafterm.dbqRead(conn.id, fileName)
+    const sql = await dbService.savedRead(conn.id, fileName)
     openSqlInSplit({ connId: conn.id, sql, fileName })
   })()
 }
@@ -312,7 +313,7 @@ const adapter: TreeAdapter<DbTreeNode> = {
           danger: true,
           run: () => {
             removeNode(n.c.id)
-            void window.crafterm.dbDisconnect(n.c.conn.id)
+            void dbService.disconnect(n.c.conn.id)
             saveSoon()
             void refresh()
           }
@@ -363,7 +364,7 @@ async function refresh(): Promise<void> {
 
 // Reload a connection's saved-query list and re-render (after save/delete).
 async function reloadQueries(connId: string): Promise<void> {
-  queriesCache.set(connId, await window.crafterm.dbqList(connId))
+  queriesCache.set(connId, await dbService.savedList(connId))
   await refresh()
 }
 
@@ -527,7 +528,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
     void (async () => {
       status.textContent = 'Testing…'
       status.className = 'db-conn-status'
-      const r = await window.crafterm.dbConnect(build())
+      const r = await dbService.connect(build())
       status.textContent = r.ok ? 'Connected ✓' : `Failed: ${r.error}`
       status.className = 'db-conn-status ' + (r.ok ? 'ok' : 'err')
     })()

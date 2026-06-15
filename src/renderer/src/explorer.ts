@@ -3,6 +3,7 @@ import { openMarkdownFile, openCodeEditor } from './commands'
 import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from '@crafterm/ui'
 import { promptText, promptConfirm } from './dialog'
 import type { SidebarNode } from './types'
+import { gitService, fsService } from './services/ipc'
 
 function treeEl(): HTMLElement {
   return document.getElementById('explorer-tree')!
@@ -205,7 +206,7 @@ let gitStatus: Record<string, GitKind> = {}
 let currentRoot = ''
 
 async function loadDir(path: string): Promise<Entry[]> {
-  const { entries } = await window.crafterm.listEntries(path)
+  const { entries } = await fsService.listEntries(path)
   const visible = entries.filter((e) => !isExcluded(e.name))
   childrenCache.set(path, visible)
   return visible
@@ -246,7 +247,7 @@ function parentDir(p: string): string {
 
 // Re-read the affected directory + git status, then re-render the tree.
 async function refreshAfterChange(dir: string): Promise<void> {
-  gitStatus = (await window.crafterm.gitFileStatus(currentRoot)) as Record<string, GitKind>
+  gitStatus = (await gitService.fileStatus(currentRoot)) as Record<string, GitKind>
   if (childrenCache.has(dir) || dir === currentRoot) await loadDir(dir)
   rerenderTree()
 }
@@ -264,7 +265,7 @@ async function newFile(dir: string): Promise<void> {
   })
   if (!name || !name.trim()) return
   const path = dir.replace(/\/$/, '') + '/' + name.trim()
-  if (!(await window.crafterm.createFile(path))) return void showError(`Could not create “${name.trim()}”.`)
+  if (!(await fsService.createFile(path))) return void showError(`Could not create “${name.trim()}”.`)
   expanded.add(dir)
   await refreshAfterChange(dir)
   openFile(path)
@@ -279,7 +280,7 @@ async function newFolder(dir: string): Promise<void> {
   })
   if (!name || !name.trim()) return
   const path = dir.replace(/\/$/, '') + '/' + name.trim()
-  if (!(await window.crafterm.mkdir(path))) return void showError(`Could not create “${name.trim()}”.`)
+  if (!(await fsService.mkdir(path))) return void showError(`Could not create “${name.trim()}”.`)
   expanded.add(dir)
   await refreshAfterChange(dir)
 }
@@ -289,7 +290,7 @@ async function renameEntry(e: Entry): Promise<void> {
   if (!name || !name.trim() || name.trim() === e.name) return
   const dir = parentDir(e.path)
   const to = dir + '/' + name.trim()
-  if (!(await window.crafterm.renamePath(e.path, to))) return void showError(`Could not rename to “${name.trim()}”.`)
+  if (!(await fsService.renamePath(e.path, to))) return void showError(`Could not rename to “${name.trim()}”.`)
   expanded.delete(e.path)
   childrenCache.delete(e.path)
   await refreshAfterChange(dir)
@@ -302,7 +303,7 @@ async function deleteEntry(e: Entry): Promise<void> {
     confirmText: 'Delete'
   })
   if (!ok) return
-  if (!(await window.crafterm.trashPath(e.path))) return void showError(`Could not delete “${e.name}”.`)
+  if (!(await fsService.trashPath(e.path))) return void showError(`Could not delete “${e.name}”.`)
   expanded.delete(e.path)
   childrenCache.delete(e.path)
   await refreshAfterChange(parentDir(e.path))
@@ -316,7 +317,7 @@ function buildMenu(e: Entry): TreeMenuItem[] {
   } else {
     items.push({ label: 'Open in new page', run: () => openCodeEditor(e.path, { newPage: true }) })
   }
-  items.push({ label: 'Open in Finder', run: () => window.crafterm.revealPath(e.path) })
+  items.push({ label: 'Open in Finder', run: () => fsService.revealPath(e.path) })
   items.push({ label: 'Rename…', run: () => void renameEntry(e) })
   items.push({
     label: `Exclude “${e.name}”`,
@@ -354,7 +355,7 @@ async function renderSearch(root: string, query: string): Promise<void> {
   const el = treeEl()
   el.replaceChildren()
   const q = query.toLowerCase()
-  const res = await window.crafterm.findFiles(root, settings.explorerExclude)
+  const res = await fsService.findFiles(root, settings.explorerExclude)
   const matches = res.files.filter((f) => f.name.toLowerCase().includes(q)).slice(0, 500)
   if (!matches.length) {
     el.insertAdjacentHTML('beforeend', '<div class="explorer-empty" style="padding-left:6px">no matches</div>')
@@ -406,7 +407,7 @@ export async function renderExplorer(): Promise<void> {
   }
   if (!treeview) treeview = createTreeView<Entry>(el, adapter)
   // Refresh git decorations + the root listing, then render.
-  gitStatus = (await window.crafterm.gitFileStatus(root)) as Record<string, GitKind>
+  gitStatus = (await gitService.fileStatus(root)) as Record<string, GitKind>
   if (!childrenCache.has(root)) await loadDir(root)
   rerenderTree()
 }

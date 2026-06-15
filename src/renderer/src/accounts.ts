@@ -1,6 +1,7 @@
 import type { AccountEntry, AccountField } from './types'
 import { settings, saveSoon, uid } from './state'
 import { makeCloseButton, promptConfirm } from './dialog'
+import { secretsService } from './services/ipc'
 
 // One sidebar mode for both 'account' (full credential ledger row) and 'secret'
 // (env-var-style single value). Cards share rendering; the kind toggles which
@@ -97,7 +98,7 @@ function accountCard(a: AccountEntry): HTMLElement {
     })
     if (!ok) return
     settings.accounts = settings.accounts.filter((x) => x.id !== a.id)
-    await window.crafterm.secretDelete(a.id)
+    await secretsService.delete(a.id)
     saveSoon()
     renderAccounts()
   })
@@ -142,7 +143,7 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
   copy.addEventListener('click', async () => {
     let v = f.value ?? ''
     if (f.secret) {
-      const stored = await window.crafterm.secretGet(a.id, f.key)
+      const stored = await secretsService.get(a.id, f.key)
       if (stored == null) {
         copy.textContent = 'Unavailable'
         setTimeout(() => (copy.textContent = 'Copy'), 1100)
@@ -164,7 +165,7 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
         reveal.textContent = 'Show'
         return
       }
-      const stored = await window.crafterm.secretGet(a.id, f.key)
+      const stored = await secretsService.get(a.id, f.key)
       val.textContent = stored ?? '(not stored yet)'
       val.classList.add('shown')
       reveal.textContent = 'Hide'
@@ -321,7 +322,7 @@ function showAccountForm(existing?: AccountEntry, defaultKind: 'account' | 'secr
       if (!p.rawValue) continue
       const key = p.key.trim()
       if (!key) continue
-      await window.crafterm.secretSet(draft.id, key, p.rawValue)
+      await secretsService.set(draft.id, key, p.rawValue)
     }
     if (existing) {
       const i = settings.accounts.findIndex((x) => x.id === existing.id)

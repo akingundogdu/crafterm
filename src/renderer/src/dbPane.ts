@@ -11,6 +11,7 @@ import {
   type SortState
 } from './dbResultGrid'
 import './dbPane.css'
+import { dbService } from './services/ipc'
 
 // SQL query pane: the workbench (toolbar + editor + result grid) shown as a
 // first-class pane (split next to the active pane), replacing the old modal.
@@ -222,7 +223,7 @@ export function createSqlPane(opts: {
     editor.setSchema(conn.engine, schemaFor(id, conn))
     if (!connObjs.has(conn.id)) {
       void (async () => {
-        const o = await window.crafterm.dbObjects(conn)
+        const o = await dbService.objects(conn)
         connObjs!.set(conn.id, o)
         editor.setSchema(conn.engine, schemaFor(id, conn))
       })()
@@ -239,7 +240,7 @@ export function createSqlPane(opts: {
     const key = `${conn.id}:${table}`
     const cached = cache.get(key)
     if (cached) return cached
-    const r = await window.crafterm.dbColumns(conn, table)
+    const r = await dbService.columns(conn, table)
     const cols = r.error ? [] : r.columns
     cache.set(key, cols)
     return cols
@@ -270,7 +271,7 @@ export function createSqlPane(opts: {
           : userSql
 
     const t0 = performance.now()
-    const res = await window.crafterm.dbQuery(conn, sqlToRun)
+    const res = await dbService.query(conn, sqlToRun)
     const ms = Math.round(performance.now() - t0)
 
     if (res.error) {
@@ -380,7 +381,7 @@ export function createSqlPane(opts: {
       })
       if (!nm) return
       fileName = nm.endsWith('.sql') ? nm : nm + '.sql'
-      await window.crafterm.dbqWrite(conn.id, fileName, editor.getValue())
+      await dbService.savedWrite(conn.id, fileName, editor.getValue())
       saveSoon()
       window.dispatchEvent(new CustomEvent('crafterm:dbq-changed', { detail: { connId: conn.id } }))
     })()

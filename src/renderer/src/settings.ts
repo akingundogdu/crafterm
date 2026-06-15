@@ -31,6 +31,7 @@ import {
   setRecording,
   isModifierKey
 } from './keybindings'
+import { appService } from './services/ipc'
 
 // Quick background presets (black default + a few dark tones); a custom color
 // picker covers anything else.
@@ -1750,7 +1751,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
   sel.addEventListener('change', () => {
     settings.notifSound = sel.value
     saveSoon()
-    if (sel.value) window.crafterm.playSound(sel.value) // preview
+    if (sel.value) appService.playSound(sel.value) // preview
   })
   soundRow.appendChild(sel)
   panel.appendChild(soundRow)

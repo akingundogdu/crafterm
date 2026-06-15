@@ -14,6 +14,7 @@ import type {
   SidebarNode,
   PaneRole
 } from './types'
+import { terminalService } from './services/ipc'
 
 // A node that can own hidden background shells: a worktree (iOS build/run) or a
 // project (e.g. a `git worktree add` before the worktree node exists).
@@ -101,7 +102,7 @@ export async function startBackgroundProcess(
     cwd,
     target: spec.target
   })
-  await window.crafterm.procStart({ stableId, command: spec.command, cwd })
+  await terminalService.procStart({ stableId, command: spec.command, cwd })
   requestSidebar()
   saveSoon()
   return stableId
@@ -153,8 +154,8 @@ export async function openProcessView(stableId: string): Promise<void> {
   const id = await createPane(found.proc.cwd, { attachId: stableId })
   const p = panes.get(id)
   if (p) p.role = found.proc.role
-  window.crafterm.procAttach(stableId)
-  const buffer = await window.crafterm.procBuffer(stableId)
+  terminalService.procAttach(stableId)
+  const buffer = await terminalService.procBuffer(stableId)
   if (buffer && p) p.term.write(buffer)
 
   // Open as a split beside the active terminal — NOT a standalone Free tab.
@@ -190,7 +191,7 @@ export async function openProcessView(stableId: string): Promise<void> {
 // Stop a background process for good: kill its PTY (clears the buffer in main) and
 // drop it from the worktree's process list.
 export function killProcess(stableId: string): void {
-  window.crafterm.kill(stableId)
+  terminalService.kill(stableId)
   const found = findProcess(stableId)
   if (found && found.holder.processes) {
     found.holder.processes = found.holder.processes.filter((p) => p.stableId !== stableId)

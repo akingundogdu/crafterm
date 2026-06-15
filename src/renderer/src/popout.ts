@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { settings, loadSettings, resolveTheme, applyBgColor } from './state'
 import { promptConfirm } from './dialog'
+import { terminalService, storeService } from './services/ipc'
 
 // A pop-out window hosts a single terminal pane. The PTY already exists in the
 // main process (created by the main window); we adopt it so its output streams
@@ -14,7 +15,7 @@ const id = new URLSearchParams(location.search).get('id') || ''
 const BUSY_MS = 700
 
 async function main(): Promise<void> {
-  const saved = await window.crafterm.loadState()
+  const saved = await storeService.load()
   if (saved) loadSettings(saved)
   applyBgColor()
 
@@ -40,7 +41,7 @@ async function main(): Promise<void> {
       !e.ctrlKey &&
       !e.altKey
     ) {
-      window.crafterm.input(id, '\x1b\r')
+      terminalService.input(id, '\x1b\r')
       return false
     }
     return true
@@ -48,27 +49,27 @@ async function main(): Promise<void> {
 
   term.open(host)
 
-  window.crafterm.adoptPane(id) // route this pane's output to this window
+  terminalService.adoptPane(id) // route this pane's output to this window
 
   let lastData = 0
-  window.crafterm.onData((dataId, data) => {
+  terminalService.onData((dataId, data) => {
     if (dataId !== id) return
     term.write(data)
     lastData = Date.now()
   })
-  term.onData((d) => window.crafterm.input(id, d))
+  term.onData((d) => terminalService.input(id, d))
   term.onTitleChange((t) => {
     if (t) document.title = t
   })
-  window.crafterm.onExit((exitId) => {
-    if (exitId === id) window.crafterm.popoutConfirmClose(id) // shell exited: tear down
+  terminalService.onExit((exitId) => {
+    if (exitId === id) terminalService.popoutConfirmClose(id) // shell exited: tear down
   })
 
   const doFit = (): void => {
     if (!host.clientWidth) return
     try {
       fit.fit()
-      window.crafterm.resize(id, term.cols, term.rows)
+      terminalService.resize(id, term.cols, term.rows)
     } catch {
       /* resize can throw if the pty just died — safe to ignore */
     }
@@ -79,7 +80,7 @@ async function main(): Promise<void> {
 
   // Native close button: the main process asks us to confirm first (kill the
   // pane). Only prompt if a process appears to be running.
-  window.crafterm.onPopoutConfirmClose(async (closeId) => {
+  terminalService.onPopoutConfirmClose(async (closeId) => {
     if (closeId !== id) return
     const running = Date.now() - lastData < BUSY_MS
     if (running) {
@@ -90,7 +91,7 @@ async function main(): Promise<void> {
       })
       if (!ok) return
     }
-    window.crafterm.popoutConfirmClose(id)
+    terminalService.popoutConfirmClose(id)
   })
 }
 

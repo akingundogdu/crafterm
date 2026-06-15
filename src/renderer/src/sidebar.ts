@@ -70,6 +70,7 @@ import {
   notebookSelectFirst
 } from './notebook'
 import './sidebar.css'
+import { fsService } from './services/ipc'
 
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!
@@ -965,7 +966,7 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
         )
     })
     for (const it of iosWorktreeMenuItems(node)) items.push(it)
-    items.push({ label: 'Reveal in Finder', run: () => window.crafterm.revealPath(wt) })
+    items.push({ label: 'Reveal in Finder', run: () => fsService.revealPath(wt) })
     if (proj) {
       items.push({ label: 'Delete worktree', danger: true, run: () => void removeWorktree(proj, wt) })
     }

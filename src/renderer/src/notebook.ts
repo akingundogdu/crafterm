@@ -10,6 +10,7 @@ import { showRemindModal } from './reminders'
 import { renderDailyCompact } from './dailyPlan'
 import { renderMeetingNotes } from './meetingNotes'
 import './notebook.css'
+import { fsService, notebookService, plansService } from './services/ipc'
 
 const FOLDER_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1.6 4.4c0-.6.4-1 1-1h3.1l1.2 1.4H13.4c.6 0 1 .4 1 1V11.6c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1z" fill="currentColor"/></svg>'
@@ -79,7 +80,7 @@ function buildMenu(n: NbNode): ContextMenuItem[] {
     items.push({ label: 'New note', run: () => void addNote(n.path) })
     items.push({ label: 'New folder', run: () => void addFolder(n.path) })
   }
-  items.push({ label: 'Show in Finder', run: () => window.crafterm.nbReveal(n.path) })
+  items.push({ label: 'Show in Finder', run: () => notebookService.reveal(n.path) })
   items.push({
     label: 'Remind me…',
     run: () =>
@@ -112,7 +113,7 @@ function buildActions(n: NbNode): HTMLElement {
   actions.append(
     actBtn('⤴', 'Show in Finder', (e) => {
       e.stopPropagation()
-      window.crafterm.nbReveal(n.path)
+      notebookService.reveal(n.path)
     }),
     actBtn('✎', 'Rename', (e) => {
       e.stopPropagation()
@@ -223,7 +224,7 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
 
 async function refresh(): Promise<void> {
   if (!treeview || !linkedHost) return
-  const tree = await window.crafterm.nbTree()
+  const tree = await notebookService.tree()
   renderLinked(linkedHost)
   treeview.render(tree)
   if (openPath) highlightActive()
@@ -256,7 +257,7 @@ async function renderPlansTab(host: HTMLElement): Promise<void> {
     .map((p) => p.path)
     .filter((p): p is string => !!p && p.trim().length > 0)
   try {
-    planItems = await window.crafterm.scanPlans(paths)
+    planItems = await plansService.scan(paths)
   } catch {
     planItems = []
   }
@@ -327,7 +328,7 @@ function renderPlanRow(p: { project: string; name: string; path: string; mtime: 
     }),
     actBtn('⤴', 'Show in Finder', (e) => {
       e.stopPropagation()
-      window.crafterm.revealPath(p.path)
+      fsService.revealPath(p.path)
     })
   )
   top.append(icon, name, actions)
@@ -355,7 +356,7 @@ export function notebookSelectFirst(): void {
 
 function openLinked(path: string): void {
   if (MD_RE.test(path)) openMarkdownFile(path)
-  else window.crafterm.openPath(path)
+  else fsService.openPath(path)
 }
 
 function unlink(path: string): void {
@@ -394,7 +395,7 @@ function renderLinked(host: HTMLElement): void {
     actions.append(
       actBtn('⤴', 'Show in Finder', (e) => {
         e.stopPropagation()
-        window.crafterm.openPath(f.path.slice(0, f.path.lastIndexOf('/')) || f.path)
+        fsService.openPath(f.path.slice(0, f.path.lastIndexOf('/')) || f.path)
       }),
       actBtn('✕', 'Unlink', (e) => {
         e.stopPropagation()
@@ -457,7 +458,7 @@ function moveColor(from: string, to: string): void {
 async function doMove(src: string, targetId: string, pos: DropPos): Promise<void> {
   const destDir = pos === 'inside' ? targetId : parentOf(targetId)
   if (destDir === parentOf(src) && pos !== 'inside') return // same folder, no-op
-  const ok = await window.crafterm.nbMove(src, destDir)
+  const ok = await notebookService.move(src, destDir)
   if (!ok) return
   const newPath = joinPath(destDir, basename(src))
   moveColor(src, newPath)
@@ -473,7 +474,7 @@ async function doRename(node: NbNode, rawName: string): Promise<void> {
     const ext = node.name.match(MD_RE)?.[0] ?? '.md'
     name = name + ext
   }
-  const ok = await window.crafterm.nbRename(node.path, name)
+  const ok = await notebookService.rename(node.path, name)
   if (!ok) return
   const newPath = joinPath(parentOf(node.path), name)
   moveColor(node.path, newPath)
@@ -485,7 +486,7 @@ async function doRename(node: NbNode, rawName: string): Promise<void> {
 async function renamePath(path: string, current: string): Promise<void> {
   const name = await promptText({ title: 'Rename', label: 'Name', value: current, confirmText: 'Rename' })
   if (!name || name === current) return
-  const ok = await window.crafterm.nbRename(path, name)
+  const ok = await notebookService.rename(path, name)
   if (!ok) return
   const newPath = joinPath(parentOf(path), name)
   moveColor(path, newPath)
@@ -495,7 +496,7 @@ async function renamePath(path: string, current: string): Promise<void> {
 }
 
 async function deleteNode(node: NbNode): Promise<void> {
-  await window.crafterm.nbDelete(node.path)
+  await notebookService.delete(node.path)
   delete settings.notebookColors[node.path]
   saveSoon()
   await refresh()
@@ -529,7 +530,7 @@ export function notebookRenameSelected(): void {
 async function addFolder(parent: string): Promise<void> {
   const name = await promptText({ title: 'New folder', label: 'Name', confirmText: 'Create' })
   if (!name) return
-  await window.crafterm.nbMkdir(joinPath(parent, name))
+  await notebookService.mkdir(joinPath(parent, name))
   if (parent) expanded.add(parent)
   await refresh()
 }
@@ -538,7 +539,7 @@ async function addNote(parent: string): Promise<void> {
   const name = await promptText({ title: 'New note', label: 'Name', placeholder: 'note', confirmText: 'Create' })
   if (!name) return
   const rel = joinPath(parent, name)
-  await window.crafterm.nbCreate(rel)
+  await notebookService.create(rel)
   if (parent) expanded.add(parent)
   const notePath = MD_RE.test(rel) ? rel : rel + '.md'
   openPath = notePath

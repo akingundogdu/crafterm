@@ -14,6 +14,7 @@ import { showDailyPlanModal } from './dailyPlan'
 import { openMeetingNote } from './meetingNotes'
 import { renderTime, initTime, startAutoTracker } from './time'
 import { runUpdate } from './pickers'
+import { terminalService, claudeService, secretsService, appService } from './services/ipc'
 
 const appEl = document.getElementById('app')!
 const listEl = document.getElementById('notif-list')!
@@ -131,12 +132,12 @@ async function fetchRealUsage(force: boolean): Promise<RealUsage> {
   let fallbackToken: string | null = null
   if (auth.fallbackSecretId && auth.fallbackSecretKey) {
     try {
-      fallbackToken = await window.crafterm.secretGet(auth.fallbackSecretId, auth.fallbackSecretKey)
+      fallbackToken = await secretsService.get(auth.fallbackSecretId, auth.fallbackSecretKey)
     } catch {
       fallbackToken = null
     }
   }
-  return window.crafterm.claudeRealUsage({
+  return claudeService.realUsage({
     keychainService: auth.keychainService,
     fallbackToken,
     force
@@ -274,7 +275,7 @@ function initStatusbarVersion(): void {
       chip.title = base ? `Crafterm v${base} · click to deploy` : 'Crafterm'
       return
     }
-    const repoGit = await window.crafterm.repoGit(repo)
+    const repoGit = await appService.repoGit(repo)
     needsRedeploy = !!repoGit && (repoGit.commit !== built.commit || repoGit.dirty)
     chip.classList.toggle('has-update', needsRedeploy)
     if (needsRedeploy && repoGit) {
@@ -290,12 +291,12 @@ function initStatusbarVersion(): void {
 
   const refresh = async (): Promise<void> => {
     try {
-      base = (await window.crafterm.appVersion()) || ''
-      built = await window.crafterm.appBuildInfo()
+      base = (await appService.version()) || ''
+      built = await appService.buildInfo()
       const repo = settings.repoPath.trim()
       // The displayed "+N" is the live save counter (ticks up as code changes);
       // fall back to the built-from commit count when no source repo is set.
-      counter = repo ? await window.crafterm.appBuildCounter(repo) : null
+      counter = repo ? await appService.buildCounter(repo) : null
       if (textEl) {
         const n = counter ?? built?.commitCount ?? null
         const suffix = n != null ? `+${n}` : ''
@@ -523,7 +524,7 @@ export function renderNotifications(): void {
       // currently popped out into a separate window, focus that window instead
       // of the (placeholder) docked pane — otherwise the click is a no-op.
       card.addEventListener('click', () => {
-        if (poppedOut.has(n.paneId)) window.crafterm.popoutFocus(n.paneId)
+        if (poppedOut.has(n.paneId)) terminalService.popoutFocus(n.paneId)
         else if (panes.has(n.paneId)) selectPane(n.paneId)
         dismiss(n.id)
       })
@@ -627,7 +628,7 @@ function resolvePayloadOpener(
     return {
       label: 'Go to pane',
       open: () => {
-        if (poppedOut.has(payload.paneId)) window.crafterm.popoutFocus(payload.paneId)
+        if (poppedOut.has(payload.paneId)) terminalService.popoutFocus(payload.paneId)
         else selectPane(payload.paneId)
       }
     }

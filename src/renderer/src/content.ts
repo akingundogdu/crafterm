@@ -2,6 +2,7 @@ import type { LayoutNode } from './types'
 import { panes, browsers, docs, sqlPanes, diffPanes, filePanes, codePanes, state, saveSoon, poppedOut } from './state'
 import { findTab } from './tree'
 import { mountPanes } from './pane'
+import { terminalService } from './services/ipc'
 
 const contentEl = document.getElementById('content')!
 
@@ -17,7 +18,7 @@ function buildPlaceholder(paneId: string): HTMLElement {
   const btn = document.createElement('button')
   btn.className = 'settings-inline-btn'
   btn.textContent = 'Focus window'
-  btn.addEventListener('click', () => window.crafterm.popoutFocus(paneId))
+  btn.addEventListener('click', () => terminalService.popoutFocus(paneId))
   inner.append(label, btn)
   el.appendChild(inner)
   return el

@@ -68,6 +68,7 @@ import { createFilePane, destroyFilePane } from './filePane'
 import { createCodePane, destroyCodePane } from './codePane'
 import { promptText, promptForm, promptConfirm, promptCloseActions } from './dialog'
 import { removeWorktree, worktreeForCwd } from './worktrees'
+import { terminalService, fsService } from './services/ipc'
 
 function focusActivePane(): void {
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
@@ -85,7 +86,7 @@ function activeCwd(): string | undefined {
 async function liveCwd(paneId: string | null | undefined): Promise<string | undefined> {
   if (!paneId) return undefined
   try {
-    const info = await window.crafterm.paneInfo(paneId)
+    const info = await terminalService.paneInfo(paneId)
     if (info?.cwd) {
       const p = panes.get(paneId)
       if (p) p.cwd = info.cwd
@@ -266,7 +267,7 @@ async function createTab(
   // `claude` (see withClaudeSessionId). A no-op for non-Claude commands.
   const command = built ? withClaudeSessionId(built, paneId) : built
   // Let the login shell finish its init before injecting the command.
-  if (command) setTimeout(() => window.crafterm.input(paneId, command + '\r'), 350)
+  if (command) setTimeout(() => terminalService.input(paneId, command + '\r'), 350)
 }
 
 function folderNodeById(id: string): FolderNode | ProjectNode | WorktreeNode | null {
@@ -458,7 +459,7 @@ export async function runApplications(
   saveSoon()
   // let each login shell finish init before injecting its command
   for (const { paneId, cmd } of toRun) {
-    setTimeout(() => window.crafterm.input(paneId, cmd + '\r'), 350)
+    setTimeout(() => terminalService.input(paneId, cmd + '\r'), 350)
   }
 }
 
@@ -556,7 +557,7 @@ export async function createFeature(
   focusActivePane()
   saveSoon()
   for (const { paneId, cmd } of toRun) {
-    setTimeout(() => window.crafterm.input(paneId, cmd + '\r'), 350)
+    setTimeout(() => terminalService.input(paneId, cmd + '\r'), 350)
   }
 }
 
@@ -698,7 +699,7 @@ export async function splitProjectRight(
   if (pane && 'kind' in p && p.kind === 'project') pane.projectId = p.id
   if (placeSplit(newPaneId, 'row')) {
     focusActivePane()
-    if (command) setTimeout(() => window.crafterm.input(newPaneId, command + '\r'), 350)
+    if (command) setTimeout(() => terminalService.input(newPaneId, command + '\r'), 350)
   }
 }
 
@@ -728,7 +729,7 @@ export async function splitWithIde(absPath: string): Promise<void> {
   const ide = settings.commands.ide?.trim() || 'ide'
   // Single-quote the path so paths with spaces still work; escape embedded quotes.
   const quoted = `'${absPath.replace(/'/g, `'\\''`)}'`
-  setTimeout(() => window.crafterm.input(newPaneId, `${ide} ${quoted}\r`), 350)
+  setTimeout(() => terminalService.input(newPaneId, `${ide} ${quoted}\r`), 350)
 }
 
 // Cmd+Shift+D: split the active pane and auto-run Claude in the new pane.
@@ -742,7 +743,7 @@ export async function splitActivePaneWithClaude(): Promise<void> {
   const command = withClaudeSessionId('claude', newPaneId)
   if (placeSplit(newPaneId, 'row')) {
     focusActivePane()
-    setTimeout(() => window.crafterm.input(newPaneId, command + '\r'), 350)
+    setTimeout(() => terminalService.input(newPaneId, command + '\r'), 350)
   }
 }
 
@@ -786,7 +787,7 @@ export async function openLink(target: string): Promise<void> {
     // Resolve against the active cwd and its ancestors so a relative path that
     // already contains the project folder name (e.g. "pkg/docs/x.md" while cwd
     // is inside "pkg") still finds the file instead of opening a blank pane.
-    const abs = await window.crafterm.resolveFile(activeCwd() ?? '', target)
+    const abs = await fsService.resolveFile(activeCwd() ?? '', target)
     if (abs) openMarkdownFile(abs)
     else await promptConfirm({ title: 'File not found', message: target, confirmText: 'OK' })
     return
@@ -987,7 +988,7 @@ export async function runInSplit(command: string): Promise<void> {
   const paneId = await createPane(activeCwd())
   if (placeSplit(paneId, 'row')) {
     focusActivePane()
-    setTimeout(() => window.crafterm.input(paneId, command + '\r'), 350)
+    setTimeout(() => terminalService.input(paneId, command + '\r'), 350)
   }
 }
 
@@ -1047,7 +1048,7 @@ export function popOutPane(paneId: string): void {
   if (!panes.has(paneId) || poppedOut.has(paneId)) return
   const p = panes.get(paneId)!
   poppedOut.add(paneId)
-  void window.crafterm.popoutOpen(paneId, p.title || 'Terminal')
+  void terminalService.popoutOpen(paneId, p.title || 'Terminal')
   renderContent()
 }
 
@@ -1066,7 +1067,7 @@ export function archiveTab(tab: TabNode): void {
   tab.dormantRoot = serializeLayout(tab.root)
   panesInLayout(tab.root).forEach((id) => {
     destroyPane(id)
-    window.crafterm.kill(id)
+    terminalService.kill(id)
   })
   tab.root = { type: 'leaf', paneId: '' }
   tab.status = 'archived'
@@ -1129,7 +1130,7 @@ export function closePane(paneId: string): void {
     destroyCodePane(paneId)
   } else {
     destroyPane(paneId)
-    window.crafterm.kill(paneId)
+    terminalService.kill(paneId)
   }
 
   const tab = owningTab
@@ -1384,7 +1385,7 @@ export async function createWorktreeFromPane(paneId: string): Promise<void> {
     focusActivePane()
     const base = form.base || 'main'
     setTimeout(
-      () => window.crafterm.input(newPaneId, `run-create-worktree ${shellQuote(form.name)} ${shellQuote(base)}\r`),
+      () => terminalService.input(newPaneId, `run-create-worktree ${shellQuote(form.name)} ${shellQuote(base)}\r`),
       350
     )
   }
@@ -1451,7 +1452,7 @@ export async function gitActionFromPane(paneId: string, action: GitAction): Prom
 
   // Run in the pane's OWN terminal (no new split): focus it and type the command.
   selectPane(paneId)
-  window.crafterm.input(paneId, command + '\r')
+  terminalService.input(paneId, command + '\r')
 }
 
 export function cyclePane(dir: number): void {

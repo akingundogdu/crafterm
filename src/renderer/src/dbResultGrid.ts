@@ -1,6 +1,7 @@
 import type { DbColumn } from '../../preload/api'
 import type { DbConnection, DbEngine } from './types'
 import { makeCloseButton, promptConfirm } from './dialog'
+import { dbService } from './services/ipc'
 
 // Result grid renderer with optional row-level actions (edit/delete/insert)
 // and column-header sort. The host pane parses the user's SQL and supplies
@@ -268,7 +269,7 @@ async function deleteRow(
   })
   if (!ok) return
   const sql = `DELETE FROM ${quoteIdent(ctx.table, engine)} WHERE ${pkParts.join(' AND ')}`
-  const res = await window.crafterm.dbQuery(ctx.conn, sql)
+  const res = await dbService.query(ctx.conn, sql)
   if (res.error) {
     alert('Delete failed: ' + res.error)
     return
@@ -326,7 +327,7 @@ async function openEditModal(
   if (!pkParts.length) return
 
   const sql = `UPDATE ${quoteIdent(ctx.table, engine)} SET ${setParts.join(', ')} WHERE ${pkParts.join(' AND ')}`
-  const res = await window.crafterm.dbQuery(ctx.conn, sql)
+  const res = await dbService.query(ctx.conn, sql)
   if (res.error) {
     alert('Update failed: ' + res.error)
     return
@@ -369,7 +370,7 @@ async function openInsertModal(ctx: EditableContext): Promise<void> {
     return
   }
   const sql = `INSERT INTO ${quoteIdent(ctx.table, engine)} (${cols.join(', ')}) VALUES (${lits.join(', ')})`
-  const res = await window.crafterm.dbQuery(ctx.conn, sql)
+  const res = await dbService.query(ctx.conn, sql)
   if (res.error) {
     alert('Insert failed: ' + res.error)
     return

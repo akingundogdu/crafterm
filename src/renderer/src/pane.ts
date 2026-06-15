@@ -35,6 +35,7 @@ import {
   findApp,
   flattenProjects
 } from './catalog'
+import { terminalService, fsService, claudeService, notebookService, plansService, appService } from './services/ipc'
 
 type DropZoneName = 'left' | 'right' | 'top' | 'bottom'
 
@@ -135,7 +136,7 @@ function pushResize(pane: Pane): void {
   if (cols === pane.lastCols && rows === pane.lastRows) return
   pane.lastCols = cols
   pane.lastRows = rows
-  window.crafterm.resize(pane.id, cols, rows)
+  terminalService.resize(pane.id, cols, rows)
 }
 
 export async function createPane(
@@ -151,7 +152,7 @@ export async function createPane(
   // in main; closing this view must not kill it.
   const id = opts?.attachId
     ? opts.attachId
-    : await window.crafterm.createPty({ cwd, env, shell: opts?.shell })
+    : await terminalService.createPty({ cwd, env, shell: opts?.shell })
 
   const term = new Terminal({
     fontFamily: settings.font.family,
@@ -267,7 +268,7 @@ export async function createPane(
       !e.ctrlKey
     ) {
       e.preventDefault()
-      window.crafterm.input(id, '\x1b[200~\r\x1b[201~')
+      terminalService.input(id, '\x1b[200~\r\x1b[201~')
       return false
     }
     return true
@@ -276,7 +277,7 @@ export async function createPane(
   term.registerLinkProvider(makeLinkProvider(term))
   let cmdBuf = ''
   term.onData((data) => {
-    window.crafterm.input(id, data)
+    terminalService.input(id, data)
     pane.lastActivity = Date.now() // keystrokes count as activity (idle detection)
     if (data.startsWith('\x1b')) return // skip arrow/nav/escape sequences
     for (const ch of data) {
@@ -464,7 +465,7 @@ export function buildPaneMenu(
   }
   item('Open in Finder', () => {
     const cwd = panes.get(paneId)?.cwd
-    if (cwd) window.crafterm.openPath(cwd)
+    if (cwd) fsService.openPath(cwd)
   })
   item('Open URL in browser…', () => paneActions.openUrl())
   item('Track time…', () => paneActions.trackTime(paneId))
@@ -493,7 +494,7 @@ export function buildPaneMenu(
       for (const rc of cmds) {
         const cmdStr = rc.command.trim()
         if (!cmdStr) continue
-        item(rc.name || cmdStr, () => window.crafterm.input(paneId, cmdStr + '\r'))
+        item(rc.name || cmdStr, () => terminalService.input(paneId, cmdStr + '\r'))
       }
     }
     // cwd is under `base` (same dir or a descendant). Empty base never matches.
@@ -556,7 +557,7 @@ export function buildPaneMenu(
     for (const c of settings.sshConnections) {
       const target = c.user ? `${c.user}@${c.host}` : c.host
       const cmd = c.port ? `ssh -p ${c.port} ${target}` : `ssh ${target}`
-      item(c.label || target, () => window.crafterm.input(paneId, cmd + '\r'))
+      item(c.label || target, () => terminalService.input(paneId, cmd + '\r'))
     }
   }
 
@@ -699,7 +700,7 @@ export function createBrowserPane(url: string): string {
   })
   ext.addEventListener('click', (e) => {
     e.stopPropagation()
-    window.crafterm.openExternal(bp.url)
+    appService.openExternal(bp.url)
   })
   webview.addEventListener('page-title-updated', (e) => {
     const t = (e as unknown as { title?: string }).title
@@ -746,8 +747,8 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
   revealBtn.title = 'Show in Finder'
   revealBtn.addEventListener('click', (e) => {
     e.stopPropagation()
-    if (absolute) window.crafterm.revealPath(source)
-    else window.crafterm.nbReveal(source)
+    if (absolute) fsService.revealPath(source)
+    else notebookService.reveal(source)
   })
   const refreshBtn = document.createElement('button')
   refreshBtn.className = 'pane-btn'
@@ -782,7 +783,7 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
   // Re-read the file from disk and re-render (skips re-render while editing so
   // unsaved edits aren't clobbered). Used for initial load and the ⟳ button.
   const reload = async (): Promise<void> => {
-    const content = await (absolute ? window.crafterm.readMd(source) : window.crafterm.nbRead(source))
+    const content = await (absolute ? fsService.readMd(source) : notebookService.read(source))
     raw = content
     if (!editing) {
       editor.value = content
@@ -793,8 +794,8 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
   // External files (opened from the terminal) write back through fs:writeMd;
   // notebook files go through the notebook store.
   const saveDoc = (text: string): void => {
-    if (absolute) void window.crafterm.writeMd(source, text)
-    else window.crafterm.nbWrite(source, text)
+    if (absolute) void fsService.writeMd(source, text)
+    else notebookService.write(source, text)
   }
   refreshBtn.addEventListener('click', (e) => {
     e.stopPropagation()
@@ -907,7 +908,7 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
         const m = buildMention()
         const tgt = targetTerminal()
         if (!m || !tgt) return
-        window.crafterm.input(tgt.id, m + ' ')
+        terminalService.input(tgt.id, m + ' ')
         paneActions.select(tgt.id)
         panes.get(tgt.id)?.term.focus()
         menu.style.display = 'none'
@@ -1060,8 +1061,8 @@ function notifyPane(pane: Pane, body: string, event: 'question' | 'done'): boole
   const unattended = !document.hasFocus() || state.activePaneId !== pane.id
   if (!unattended || now - pane.lastNotify < 2000) return false
   pane.lastNotify = now
-  window.crafterm.notify('Crafterm', body, pane.id) // paneId lets a click focus this pane
-  window.crafterm.playEventSound(event)
+  appService.notify('Crafterm', body, pane.id) // paneId lets a click focus this pane
+  appService.playEventSound(event)
   // Also drop a card in the right notification panel, tagged with its folder path
   // and the same git/cwd detail the sidebar shows when the terminal is pinned.
   const tab = findTabByPane(state.tree, pane.id)
@@ -1133,7 +1134,7 @@ export function isPlanOwnedByPane(
 
 export async function refreshPanePlans(pane: Pane): Promise<void> {
   const plans =
-    pane.cwd && pane.branch ? await window.crafterm.plansForBranch(pane.cwd, pane.branch) : []
+    pane.cwd && pane.branch ? await plansService.forBranch(pane.cwd, pane.branch) : []
   const sig = (
     a: { path: string; ownerStableId: string | null; ownerSessionId: string | null }[]
   ): string => a.map((x) => `${x.path}|${x.ownerStableId ?? ''}|${x.ownerSessionId ?? ''}`).join('§')
@@ -1167,7 +1168,7 @@ export async function refreshPanePlans(pane: Pane): Promise<void> {
       const liveSince = pane.claudeSpawnedAt ?? Number.POSITIVE_INFINITY
       const fresh = newlyOwned.filter((p) => p.mtime >= liveSince)
       if (fresh.length && pane.claude && pane.cwd && pane.claudeSessionId) {
-        const mode = await window.crafterm.claudePermissionMode(pane.cwd, pane.claudeSessionId)
+        const mode = await claudeService.permissionMode(pane.cwd, pane.claudeSessionId)
         if (mode === 'plan') {
           for (const plan of fresh) {
             // Auto-open disabled: plan stays listed under the terminal node
@@ -1194,7 +1195,7 @@ export async function refreshClaudeStatus(pane: Pane): Promise<void> {
     return
   }
   try {
-    const s = await window.crafterm.claudeSessionStatus(pane.cwd, pane.claudeSessionId)
+    const s = await claudeService.sessionStatus(pane.cwd, pane.claudeSessionId)
     let next = s ?? undefined
     // Reconcile the JSONL state with the terminal tail using the SAME question
     // heuristic the notification sound uses (looksLikeClaudeQuestion). The JSONL
@@ -1218,7 +1219,7 @@ export async function refreshClaudeStatus(pane: Pane): Promise<void> {
 export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
   if (!pane.cwd || !pane.claudeSessionId || pane.titleLocked) return
   try {
-    const title = await window.crafterm.claudeSessionTitle(pane.cwd, pane.claudeSessionId)
+    const title = await claudeService.sessionTitle(pane.cwd, pane.claudeSessionId)
     if (!title) return
     if (pane.title !== title) {
       pane.title = title
@@ -1233,7 +1234,7 @@ export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
 }
 
 export async function refreshPaneInfo(pane: Pane): Promise<void> {
-  const info = await window.crafterm.paneInfo(pane.id, pane.stableId)
+  const info = await terminalService.paneInfo(pane.id, pane.stableId)
   // A null cwd means we couldn't read the pane (lsof timed out under heavy load,
   // or the pty is gone) — never overwrite a known-good cwd/branch/worktree with
   // it. Persisting an empty location is exactly what made every terminal reopen
@@ -1259,7 +1260,7 @@ export async function refreshPaneInfo(pane: Pane): Promise<void> {
   // whichever jsonl happens to be newest globally for the cwd.
   if (pane.claude && pane.cwd && !pane.claudeSessionLocked) {
     const since = pane.claudeSpawnedAt ?? 0
-    const sid = await window.crafterm.claudeLatestSession(pane.cwd, since)
+    const sid = await claudeService.latestSession(pane.cwd, since)
     if (sid) {
       if (sid !== pane.claudeSessionId) pane.claudeSessionId = sid
       pane.claudeSessionLocked = true
@@ -1280,7 +1281,7 @@ export async function refreshPaneInfo(pane: Pane): Promise<void> {
   // instantly (the watcher re-reads the title on jsonl change). Idempotent in
   // main, so calling every tick is cheap.
   if (pane.claude && pane.cwd && pane.claudeSessionId) {
-    void window.crafterm.watchClaudeSessions(pane.cwd)
+    void claudeService.watchSessions(pane.cwd)
   }
   requestStatuses()
   if (cwdChanged) saveSoon() // persist the latest cwd so restore reopens here

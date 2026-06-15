@@ -4,6 +4,7 @@ import { setupPaneDnd } from './pane'
 import { createCodeEditor, type CodeEditor } from './codeEditor'
 import { ALL_THEME_NAMES, currentThemeName, applyTheme } from './monacoSetup'
 import { DEFAULT_EDITOR_THEME } from './editorThemes'
+import { terminalService, fsService } from './services/ipc'
 
 // An editable code editor pane (Monaco) opened from the Files panel.
 // Syntax-highlights by file extension, supports Cmd +/- zoom, and saves the
@@ -116,7 +117,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     const m = buildMention()
     const tgt = targetTerminalFor(id)
     if (!m || !tgt) return
-    window.crafterm.input(tgt.id, m + ' ')
+    terminalService.input(tgt.id, m + ' ')
     paneActions.select(tgt.id)
     panes.get(tgt.id)?.term.focus()
   }
@@ -143,7 +144,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
   revealBtn.title = 'Show in Finder'
   revealBtn.addEventListener('click', (e) => {
     e.stopPropagation()
-    window.crafterm.revealPath(path)
+    fsService.revealPath(path)
   })
   const reload = document.createElement('button')
   reload.className = 'diff-hbtn'
@@ -183,7 +184,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
 
   const save = async (): Promise<void> => {
     if (!editor) return
-    const ok = await window.crafterm.writeText(path, editor.getValue())
+    const ok = await fsService.writeText(path, editor.getValue())
     if (ok) {
       setDirty(false)
       saveBtn.textContent = '✓'
@@ -207,7 +208,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     editor = null
     body.replaceChildren()
     body.textContent = 'Loading file…'
-    const res = await window.crafterm.readText(path)
+    const res = await fsService.readText(path)
     body.replaceChildren()
     if (!res.ok) {
       body.textContent = res.error || 'Failed to load file.'

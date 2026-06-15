@@ -4,6 +4,7 @@ import type { DockerRow, DockerKind } from '../../preload/api'
 import { openTerminalRunning } from './commands'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { settings, resolveTheme } from './state'
+import { terminalService, dockerService } from './services/ipc'
 
 type SubTab = 'containers' | 'images' | 'volumes' | 'networks' | 'compose'
 
@@ -65,7 +66,7 @@ interface EmbeddedTerm {
 // shell has settled. Output is routed to this xterm by a pty-id-filtered
 // onData/onExit listener so it never collides with the main `panes` stream.
 async function makeEmbeddedTerm(hostEl: HTMLElement, command: string): Promise<EmbeddedTerm> {
-  const id = await window.crafterm.createPty({})
+  const id = await terminalService.createPty({})
   const term = new Terminal({
     fontFamily: settings.font.family,
     fontSize: settings.font.size,
@@ -79,13 +80,13 @@ async function makeEmbeddedTerm(hostEl: HTMLElement, command: string): Promise<E
   const sync = (): void => {
     try {
       fit.fit()
-      window.crafterm.resize(id, term.cols, term.rows)
+      terminalService.resize(id, term.cols, term.rows)
     } catch {
       /* fit can throw before the host is laid out — safe to ignore */
     }
   }
   sync()
-  term.onData((d) => window.crafterm.input(id, d))
+  term.onData((d) => terminalService.input(id, d))
   let exited = false
   const onData = (pid: string, data: string): void => {
     if (pid === id) term.write(data)
@@ -96,15 +97,15 @@ async function makeEmbeddedTerm(hostEl: HTMLElement, command: string): Promise<E
       term.write('\r\n\x1b[2m[process exited]\x1b[0m')
     }
   }
-  window.crafterm.onData(onData)
-  window.crafterm.onExit(onExit)
+  terminalService.onData(onData)
+  terminalService.onExit(onExit)
   const ro = new ResizeObserver(() => sync())
   ro.observe(hostEl)
-  setTimeout(() => window.crafterm.input(id, command + '\r'), 350)
+  setTimeout(() => terminalService.input(id, command + '\r'), 350)
   return {
     dispose: () => {
       ro.disconnect()
-      if (!exited) window.crafterm.kill(id)
+      if (!exited) terminalService.kill(id)
       term.dispose()
     }
   }
@@ -312,7 +313,7 @@ function showDetailModal(opts: {
     const panel = panels.get(key)!
     if (key === 'inspect') {
       panel.textContent = 'Loading…'
-      void window.crafterm.dockerInspect(kind, id).then((raw) => renderInspectInto(panel, kind, raw))
+      void dockerService.inspect(kind, id).then((raw) => renderInspectInto(panel, kind, raw))
     } else if (key === 'logs') {
       const termHost = document.createElement('div')
       termHost.className = 'docker-term-host'
@@ -356,7 +357,7 @@ export async function renderDocker(el: HTMLElement): Promise<void> {
   el.replaceChildren()
   el.classList.add('docker-mode')
 
-  const avail = await window.crafterm.dockerAvailable()
+  const avail = await dockerService.available()
   if (!avail.ok) {
     const empty = document.createElement('div')
     empty.className = 'docker-empty'
@@ -420,7 +421,7 @@ async function act(
     })
     if (!ok) return
   }
-  const r = await window.crafterm.dockerAction(kind, action, id, configFile)
+  const r = await dockerService.action(kind, action, id, configFile)
   if (!r.ok) showTextModal('Action failed', r.error || 'unknown error')
   reload()
 }
@@ -502,7 +503,7 @@ function fillEmpty(list: HTMLElement, label: string): void {
 // ---- per-tab renderers ---------------------------------------------------
 
 async function renderContainers(list: HTMLElement): Promise<void> {
-  const [rows] = await Promise.all([window.crafterm.dockerContainers()])
+  const [rows] = await Promise.all([dockerService.containers()])
   list.replaceChildren()
   if (!rows.length) return fillEmpty(list, 'No containers')
   // Stats load in the background and merge in without blocking the list.
@@ -554,7 +555,7 @@ async function renderContainers(list: HTMLElement): Promise<void> {
 }
 
 async function loadStats(): Promise<void> {
-  const rows = await window.crafterm.dockerStats()
+  const rows = await dockerService.stats()
   stats.clear()
   for (const s of rows) {
     const id = f(s, 'ID', 'Container')
@@ -581,7 +582,7 @@ function mergeStats(): void {
 }
 
 async function renderImages(list: HTMLElement): Promise<void> {
-  const rows = await window.crafterm.dockerImages()
+  const rows = await dockerService.images()
   list.replaceChildren()
   if (!rows.length) return fillEmpty(list, 'No images')
   for (const im of rows) {
@@ -609,7 +610,7 @@ async function renderImages(list: HTMLElement): Promise<void> {
 }
 
 async function renderVolumes(list: HTMLElement): Promise<void> {
-  const rows = await window.crafterm.dockerVolumes()
+  const rows = await dockerService.volumes()
   list.replaceChildren()
   if (!rows.length) return fillEmpty(list, 'No volumes')
   for (const v of rows) {
@@ -633,7 +634,7 @@ async function renderVolumes(list: HTMLElement): Promise<void> {
 }
 
 async function renderNetworks(list: HTMLElement): Promise<void> {
-  const rows = await window.crafterm.dockerNetworks()
+  const rows = await dockerService.networks()
   list.replaceChildren()
   if (!rows.length) return fillEmpty(list, 'No networks')
   for (const n of rows) {
@@ -661,7 +662,7 @@ async function renderNetworks(list: HTMLElement): Promise<void> {
 }
 
 async function renderCompose(list: HTMLElement): Promise<void> {
-  const rows = await window.crafterm.dockerCompose()
+  const rows = await dockerService.compose()
   list.replaceChildren()
   if (!rows.length) return fillEmpty(list, 'No compose projects')
   for (const p of rows) {
@@ -697,7 +698,7 @@ function appendPrune(list: HTMLElement, target: string, label: string): void {
   btn.addEventListener('click', async () => {
     const ok = await promptConfirm({ title: label, message: `${label}? This cannot be undone.`, confirmText: 'Prune' })
     if (!ok) return
-    const r = await window.crafterm.dockerPrune(target)
+    const r = await dockerService.prune(target)
     if (!r.ok) showTextModal('Prune failed', r.error || 'unknown error')
     reload()
   })

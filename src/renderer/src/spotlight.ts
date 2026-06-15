@@ -23,6 +23,7 @@ import { KEYBINDINGS, effectiveCombo, comboFromEvent, comboLabel } from './keybi
 import { showDailyPlanModal } from './dailyPlan'
 import { openReminderForm } from './reminders'
 import { paneStatus } from './pane'
+import { terminalService, fsService, plansService, appService } from './services/ipc'
 
 // Unified "Search Everywhere" spotlight: one cmd+P surface with WebStorm-style
 // tabs (All, Files, Commands, Claude, Terminals, Shortcuts, Plans, Bookmarks,
@@ -452,7 +453,7 @@ async function loadFiles(): Promise<SpotEntry[]> {
   const folders = settings.commands.mdFolders
   if (!folders.length) return []
   const results = await Promise.all(
-    folders.map((f) => window.crafterm.findFiles(f, settings.explorerExclude))
+    folders.map((f) => fsService.findFiles(f, settings.explorerExclude))
   )
   const byPath = new Map<string, { path: string; name: string }>()
   results.forEach((r) => r.files.forEach((f) => byPath.set(f.path, f)))
@@ -475,7 +476,7 @@ async function loadCommands(): Promise<SpotEntry[]> {
     const id = state.activePaneId
     if (!id) return
     selectPane(id)
-    window.crafterm.input(id, value)
+    terminalService.input(id, value)
   }
   return [
     ...zsh.map((c) => ({
@@ -510,7 +511,7 @@ async function loadPlans(): Promise<SpotEntry[]> {
     }
   }
   try {
-    const plans = await window.crafterm.listPlans()
+    const plans = await plansService.list()
     for (const p of plans) {
       if (seen.has(p.path)) continue
       seen.add(p.path)
@@ -528,7 +529,7 @@ async function loadPlans(): Promise<SpotEntry[]> {
 }
 
 async function loadBacklog(): Promise<SpotEntry[]> {
-  const res = await window.crafterm.backlogRead()
+  const res = await appService.backlogRead()
   if (!res) return []
   return res.items.map((it) => ({
     source: 'backlog' as const,

@@ -12,6 +12,7 @@ import { showContextMenu, type ContextMenuItem } from '@crafterm/ui'
 import { isWorktreeFolder, worktreeProjectOf } from './worktrees'
 import { startBackgroundProcess } from './bgproc'
 import { findById, ancestorFolders } from './tree'
+import { iosService } from './services/ipc'
 
 type RunTarget = { kind: 'device' | 'simulator'; name: string; udid: string; scheme?: string }
 
@@ -87,13 +88,13 @@ export async function iosWorktreeEnvFor(parentId: string): Promise<Record<string
 }
 
 async function ensureScript(): Promise<string> {
-  if (!scriptPath) scriptPath = await window.crafterm.iosWorktreeScript()
+  if (!scriptPath) scriptPath = await iosService.worktreeScript()
   return scriptPath
 }
 
 async function fetchReport(p: ProjectNode): Promise<void> {
   if (!p.path) return
-  const rep = await window.crafterm.iosWorktreeReport(p.path, p.iosConfig)
+  const rep = await iosService.worktreeReport(p.path, p.iosConfig)
   if (!rep) return
   let changed = false
   for (const w of rep.worktrees) {
@@ -173,7 +174,7 @@ async function runTarget(wt: WorktreeNode, p: ProjectNode, target: RunTarget | n
 // menu is instant; each list carries a "Refresh" item that clears its cache and
 // re-fetches without closing the menu (the keepOpen mechanism in contextmenu). ---
 const schemeCache = new Map<string, string[]>()
-type Targets = Awaited<ReturnType<typeof window.crafterm.iosListTargets>>
+type Targets = Awaited<ReturnType<typeof iosService.listTargets>>
 let targetsCache: Targets | null = null
 
 const REFRESH_LABEL = '↻ Refresh'
@@ -181,14 +182,14 @@ const REFRESH_LABEL = '↻ Refresh'
 async function loadSchemes(p: ProjectNode): Promise<string[]> {
   const cached = schemeCache.get(p.path)
   if (cached) return cached
-  const schemes = await window.crafterm.iosListSchemes(p.path, p.iosConfig)
+  const schemes = await iosService.listSchemes(p.path, p.iosConfig)
   schemeCache.set(p.path, schemes)
   return schemes
 }
 
 async function loadTargets(): Promise<Targets> {
   if (targetsCache) return targetsCache
-  targetsCache = await window.crafterm.iosListTargets()
+  targetsCache = await iosService.listTargets()
   return targetsCache
 }
 
@@ -272,7 +273,7 @@ export function iosWorktreeMenuItems(node: SidebarNode): ContextMenuItem[] {
     { label: 'Status', run: () => void runScriptBg(wt, p, 'status', 'Status') },
     {
       label: 'Stop',
-      run: () => void window.crafterm.iosWorktreeStop(wtPath, p.iosConfig).then(() => fetchReport(p))
+      run: () => void iosService.worktreeStop(wtPath, p.iosConfig).then(() => fetchReport(p))
     },
     {
       label: 'Clean (uninstall + remove build)',

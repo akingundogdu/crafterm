@@ -1,4 +1,5 @@
 import { monaco, ensureThemes, currentThemeId, applyTheme } from './monacoSetup'
+import { fsService } from './services/ipc'
 
 // Monaco-backed code editor pane: VSCode's editor engine (TextMate-grade
 // highlighting + full TS/JS IntelliSense out of the box). Worker wiring + themes
@@ -115,7 +116,7 @@ function ensureImportNavigation(): void {
         }
       }
       if (!spec) return null
-      const res = await window.crafterm.resolveImport(fromFile, spec, symbol)
+      const res = await fsService.resolveImport(fromFile, spec, symbol)
       if (!res) return null
       return [{ uri: monaco.Uri.file(res.path), range: new monaco.Range(res.line, 1, res.line, 1) }]
     }
