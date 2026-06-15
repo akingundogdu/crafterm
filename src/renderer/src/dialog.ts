@@ -1,18 +1,22 @@
+// Modal prompts, rebuilt on the @crafterm/ui modal primitives. Same exported
+// signatures, same DOM/classes, same behavior — callers are unchanged.
+import { createButton, createField, createInput, createModal, createSelect, CREATE_OPTION } from '@crafterm/ui'
+
 // A reusable "×" close button pinned to a modal's top-right corner.
 // Pass the modal's close handler; the caller appends it to the `.modal` element.
 export function makeCloseButton(onClose: () => void): HTMLButtonElement {
-  const btn = document.createElement('button')
-  btn.className = 'modal-close'
-  btn.type = 'button'
-  btn.setAttribute('aria-label', 'Close')
-  btn.title = 'Close (Esc)'
-  btn.textContent = '×'
-  btn.addEventListener('click', onClose)
-  return btn
+  return createButton({
+    text: '×',
+    className: 'modal-close',
+    type: 'button',
+    ariaLabel: 'Close',
+    title: 'Close (Esc)',
+    onClick: onClose
+  })
 }
 
-// Small modal text prompt (reuses the .modal styling). Resolves the trimmed
-// value, or null when cancelled / left empty.
+// Small modal text prompt. Resolves the trimmed value, or null when cancelled /
+// left empty.
 export function promptText(opts: {
   title: string
   label: string
@@ -21,55 +25,25 @@ export function promptText(opts: {
   confirmText?: string
 }): Promise<string | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.className = 'modal-overlay'
-    const modal = document.createElement('div')
-    modal.className = 'modal prompt-modal'
-
-    const h = document.createElement('h2')
-    h.textContent = opts.title
-    modal.appendChild(h)
-
-    const field = document.createElement('div')
-    field.className = 'field'
-    const lab = document.createElement('label')
-    lab.textContent = opts.label
-    const input = document.createElement('input')
-    input.type = 'text'
-    input.value = opts.value ?? ''
-    if (opts.placeholder) input.placeholder = opts.placeholder
-    field.append(lab, input)
-    modal.appendChild(field)
-
-    const actions = document.createElement('div')
-    actions.className = 'modal-actions'
-    const cancel = document.createElement('button')
-    cancel.textContent = 'Cancel'
-    const ok = document.createElement('button')
-    ok.className = 'primary'
-    ok.textContent = opts.confirmText ?? 'OK'
-    actions.append(cancel, ok)
-    modal.appendChild(actions)
-
-    overlay.appendChild(modal)
-    document.body.appendChild(overlay)
+    const input = createInput({ value: opts.value, placeholder: opts.placeholder })
+    const m = createModal({ title: opts.title, confirmText: opts.confirmText })
+    m.append(createField(opts.label, input))
+    m.mount()
 
     let done = false
     const close = (result: string | null): void => {
       if (done) return
       done = true
-      overlay.remove()
+      m.close()
       resolve(result)
     }
     const submit = (): void => {
       const v = input.value.trim()
       close(v ? v : null)
     }
-    ok.addEventListener('click', submit)
-    cancel.addEventListener('click', () => close(null))
-    overlay.addEventListener('mousedown', (e) => {
-      if (e.target === overlay) close(null)
-    })
+    m.onClose(() => close(null))
+    m.confirmBtn.addEventListener('click', submit)
+    m.cancelBtn.addEventListener('click', () => close(null))
     input.addEventListener('keydown', (e) => {
       e.stopPropagation()
       if (e.key === 'Enter') submit()
@@ -87,50 +61,30 @@ export function promptConfirm(opts: {
   confirmText?: string
 }): Promise<boolean> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.className = 'modal-overlay'
-    const modal = document.createElement('div')
-    modal.className = 'modal prompt-modal'
-
-    const h = document.createElement('h2')
-    h.textContent = opts.title
     const msg = document.createElement('div')
     msg.className = 'confirm-message'
     msg.textContent = opts.message
-    modal.append(h, msg)
-
-    const actions = document.createElement('div')
-    actions.className = 'modal-actions'
-    const cancel = document.createElement('button')
-    cancel.textContent = 'Cancel'
-    const ok = document.createElement('button')
-    ok.className = 'primary'
-    ok.textContent = opts.confirmText ?? 'OK'
-    actions.append(cancel, ok)
-    modal.appendChild(actions)
-    overlay.appendChild(modal)
-    document.body.appendChild(overlay)
+    const m = createModal({ title: opts.title, confirmText: opts.confirmText })
+    m.append(msg)
+    m.mount()
 
     let done = false
     const close = (v: boolean): void => {
       if (done) return
       done = true
-      overlay.remove()
+      m.close()
       resolve(v)
     }
-    ok.addEventListener('click', () => close(true))
-    cancel.addEventListener('click', () => close(false))
-    overlay.addEventListener('mousedown', (e) => {
-      if (e.target === overlay) close(false)
-    })
-    const onKey = (e: KeyboardEvent): void => {
+    m.onClose(() => close(false))
+    m.confirmBtn.addEventListener('click', () => close(true))
+    m.cancelBtn.addEventListener('click', () => close(false))
+    m.modal.tabIndex = -1
+    m.modal.addEventListener('keydown', (e) => {
       e.stopPropagation()
       if (e.key === 'Enter') close(true)
       else if (e.key === 'Escape') close(false)
-    }
-    modal.tabIndex = -1
-    modal.addEventListener('keydown', onKey)
-    ok.focus()
+    })
+    m.confirmBtn.focus()
   })
 }
 
@@ -145,14 +99,11 @@ export function promptCloseActions(opts: {
   worktree?: { branch: string; path: string }
 }): Promise<{ markDone: boolean; deleteWorktree: boolean } | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.className = 'modal-overlay'
-    const modal = document.createElement('div')
-    modal.className = 'modal prompt-modal close-actions-modal'
-
-    const h = document.createElement('h2')
-    h.textContent = opts.title
-    modal.appendChild(h)
+    const m = createModal({
+      title: opts.title,
+      className: 'close-actions-modal',
+      confirmText: opts.confirmText ?? 'Close'
+    })
 
     // Build a switch row: label text + optional detail, with a checked toggle.
     const makeSwitchRow = (
@@ -195,7 +146,7 @@ export function promptCloseActions(opts: {
       detail.appendChild(title)
       const { row, input } = makeSwitchRow('Mark task as done', detail)
       taskInput = input
-      modal.appendChild(row)
+      m.append(row)
     }
 
     let wtInput: HTMLInputElement | null = null
@@ -211,51 +162,33 @@ export function promptCloseActions(opts: {
       detail.append(branch, path)
       const { row, input } = makeSwitchRow('Delete worktree (branch is kept)', detail)
       wtInput = input
-      modal.appendChild(row)
+      m.append(row)
     }
 
-    const actions = document.createElement('div')
-    actions.className = 'modal-actions'
-    const cancel = document.createElement('button')
-    cancel.textContent = 'Cancel'
-    const ok = document.createElement('button')
-    ok.className = 'primary'
-    ok.textContent = opts.confirmText ?? 'Close'
-    actions.append(cancel, ok)
-    modal.appendChild(actions)
-
-    overlay.appendChild(modal)
-    document.body.appendChild(overlay)
+    m.mount()
 
     let done = false
-    const close = (
-      result: { markDone: boolean; deleteWorktree: boolean } | null
-    ): void => {
+    const close = (result: { markDone: boolean; deleteWorktree: boolean } | null): void => {
       if (done) return
       done = true
-      overlay.remove()
+      m.close()
       resolve(result)
     }
-    ok.addEventListener('click', () =>
+    m.onClose(() => close(null))
+    m.confirmBtn.addEventListener('click', () =>
       close({ markDone: !!taskInput?.checked, deleteWorktree: !!wtInput?.checked })
     )
-    cancel.addEventListener('click', () => close(null))
-    overlay.addEventListener('mousedown', (e) => {
-      if (e.target === overlay) close(null)
-    })
-    const onKey = (e: KeyboardEvent): void => {
+    m.cancelBtn.addEventListener('click', () => close(null))
+    m.modal.tabIndex = -1
+    m.modal.addEventListener('keydown', (e) => {
       e.stopPropagation()
-      if (e.key === 'Enter') ok.click()
+      if (e.key === 'Enter') m.confirmBtn.click()
       else if (e.key === 'Escape') close(null)
-    }
-    modal.tabIndex = -1
-    modal.addEventListener('keydown', onKey)
-    ok.focus()
+    })
+    m.confirmBtn.focus()
   })
 }
 
-// Multi-field modal form. Resolves a map of trimmed values, or null if cancelled.
-// The first listed field must be non-empty to confirm.
 // Modal dropdown picker. Resolves the chosen value ('' for the empty/none
 // option), or null when cancelled. With `allowCreate`, a "+ New…" choice opens
 // a text prompt and resolves the typed value.
@@ -269,65 +202,25 @@ export function promptSelect(opts: {
   confirmText?: string
 }): Promise<string | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.className = 'modal-overlay'
-    const modal = document.createElement('div')
-    modal.className = 'modal prompt-modal'
-
-    const h = document.createElement('h2')
-    h.textContent = opts.title
-    modal.appendChild(h)
-
-    const field = document.createElement('div')
-    field.className = 'field'
-    const lab = document.createElement('label')
-    lab.textContent = opts.label
-    const sel = document.createElement('select')
-    const CREATE = ' __create__'
-    if (opts.emptyLabel != null) {
-      const o = document.createElement('option')
-      o.value = ''
-      o.textContent = opts.emptyLabel
-      sel.appendChild(o)
-    }
-    for (const v of opts.options) {
-      const o = document.createElement('option')
-      o.value = v
-      o.textContent = v
-      sel.appendChild(o)
-    }
-    if (opts.allowCreate) {
-      const o = document.createElement('option')
-      o.value = CREATE
-      o.textContent = '+ New…'
-      sel.appendChild(o)
-    }
-    sel.value = opts.value ?? ''
-    field.append(lab, sel)
-    modal.appendChild(field)
-
-    const actions = document.createElement('div')
-    actions.className = 'modal-actions'
-    const cancel = document.createElement('button')
-    cancel.textContent = 'Cancel'
-    const ok = document.createElement('button')
-    ok.className = 'primary'
-    ok.textContent = opts.confirmText ?? 'OK'
-    actions.append(cancel, ok)
-    modal.appendChild(actions)
-
-    overlay.appendChild(modal)
-    document.body.appendChild(overlay)
+    const sel = createSelect({
+      options: opts.options,
+      value: opts.value,
+      emptyLabel: opts.emptyLabel,
+      allowCreate: opts.allowCreate
+    })
+    const m = createModal({ title: opts.title, confirmText: opts.confirmText })
+    m.append(createField(opts.label, sel))
+    m.mount()
 
     let done = false
     const close = (result: string | null): void => {
       if (done) return
       done = true
-      overlay.remove()
+      m.close()
       resolve(result)
     }
     const submit = (): void => {
-      if (sel.value === CREATE) {
+      if (sel.value === CREATE_OPTION) {
         void promptText({
           title: opts.title,
           label: 'New ' + opts.label,
@@ -338,11 +231,9 @@ export function promptSelect(opts: {
       }
       close(sel.value)
     }
-    ok.addEventListener('click', submit)
-    cancel.addEventListener('click', () => close(null))
-    overlay.addEventListener('mousedown', (e) => {
-      if (e.target === overlay) close(null)
-    })
+    m.onClose(() => close(null))
+    m.confirmBtn.addEventListener('click', submit)
+    m.cancelBtn.addEventListener('click', () => close(null))
     sel.addEventListener('keydown', (e) => {
       e.stopPropagation()
       if (e.key === 'Enter') submit()
@@ -352,54 +243,28 @@ export function promptSelect(opts: {
   })
 }
 
+// Multi-field modal form. Resolves a map of trimmed values, or null if cancelled.
+// The first listed field must be non-empty to confirm.
 export function promptForm(opts: {
   title: string
   fields: { key: string; label: string; value?: string; placeholder?: string }[]
   confirmText?: string
 }): Promise<Record<string, string> | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.className = 'modal-overlay'
-    const modal = document.createElement('div')
-    modal.className = 'modal prompt-modal'
-
-    const h = document.createElement('h2')
-    h.textContent = opts.title
-    modal.appendChild(h)
-
+    const m = createModal({ title: opts.title, confirmText: opts.confirmText })
     const inputs: Record<string, HTMLInputElement> = {}
     for (const f of opts.fields) {
-      const field = document.createElement('div')
-      field.className = 'field'
-      const lab = document.createElement('label')
-      lab.textContent = f.label
-      const input = document.createElement('input')
-      input.type = 'text'
-      input.value = f.value ?? ''
-      if (f.placeholder) input.placeholder = f.placeholder
-      field.append(lab, input)
-      modal.appendChild(field)
+      const input = createInput({ value: f.value, placeholder: f.placeholder })
+      m.append(createField(f.label, input))
       inputs[f.key] = input
     }
-
-    const actions = document.createElement('div')
-    actions.className = 'modal-actions'
-    const cancel = document.createElement('button')
-    cancel.textContent = 'Cancel'
-    const ok = document.createElement('button')
-    ok.className = 'primary'
-    ok.textContent = opts.confirmText ?? 'OK'
-    actions.append(cancel, ok)
-    modal.appendChild(actions)
-
-    overlay.appendChild(modal)
-    document.body.appendChild(overlay)
+    m.mount()
 
     let done = false
     const close = (result: Record<string, string> | null): void => {
       if (done) return
       done = true
-      overlay.remove()
+      m.close()
       resolve(result)
     }
     const submit = (): void => {
@@ -408,11 +273,9 @@ export function promptForm(opts: {
       if (!out[opts.fields[0].key]) return // first field is required
       close(out)
     }
-    ok.addEventListener('click', submit)
-    cancel.addEventListener('click', () => close(null))
-    overlay.addEventListener('mousedown', (e) => {
-      if (e.target === overlay) close(null)
-    })
+    m.onClose(() => close(null))
+    m.confirmBtn.addEventListener('click', submit)
+    m.cancelBtn.addEventListener('click', () => close(null))
     for (const f of opts.fields) {
       inputs[f.key].addEventListener('keydown', (e) => {
         e.stopPropagation()
