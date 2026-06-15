@@ -1,6 +1,6 @@
 import type { Bookmark } from './types'
-import { settings, uid } from './state'
-import { persistence } from './services/storage/persistence.service'
+import { uid } from './state'
+import { bookmarkRepo, reminderRepo } from './services/storage/repositories'
 import { openLink } from './commands'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { snoozeReminder, snoozeOptions } from './reminders'
@@ -10,7 +10,7 @@ const viewEl = (): HTMLElement => document.getElementById('notif-bm-view')!
 // The soonest still-armed reminder linked to a bookmark, or null. Used to show a
 // "reminded" chip on the card.
 function bookmarkReminder(bookmarkId: string): { time: number } | null {
-  const matches = settings.reminders.filter(
+  const matches = reminderRepo.query(
     (r) => r.enabled && r.payload?.kind === 'bookmark' && r.payload.bookmarkId === bookmarkId
   )
   if (!matches.length) return null
@@ -134,8 +134,9 @@ function showForm(existing?: Bookmark): void {
       existing.title = title || content.slice(0, 40)
       existing.content = content
       existing.tags = tags
+      bookmarkRepo.upsert(existing)
     } else {
-      settings.bookmarks.unshift({
+      bookmarkRepo.upsert({
         id: uid('bm'),
         type: typeSel.value as Bookmark['type'],
         title: title || content.slice(0, 40),
@@ -144,7 +145,6 @@ function showForm(existing?: Bookmark): void {
         createdAt: Date.now()
       })
     }
-    persistence.save()
     close()
     renderBookmarks()
   })
@@ -272,8 +272,7 @@ function card(bm: Bookmark): HTMLElement {
   del.addEventListener('click', async () => {
     const ok = await promptConfirm({ title: 'Delete bookmark', message: bm.title, confirmText: 'Delete' })
     if (!ok) return
-    settings.bookmarks = settings.bookmarks.filter((b) => b.id !== bm.id)
-    persistence.save()
+    bookmarkRepo.remove(bm.id)
     renderBookmarks()
   })
   acts.append(remind, edit, del)
@@ -337,7 +336,7 @@ export function renderBookmarks(): void {
 
   const renderList = (): void => {
     list.replaceChildren()
-    const items = settings.bookmarks.filter((b) => {
+    const items = bookmarkRepo.getAll().filter((b) => {
       if (typeFilter !== 'all' && b.type !== typeFilter) return false
       if (tagFilter && !b.tags.includes(tagFilter)) return false
       if (query) {
@@ -348,7 +347,7 @@ export function renderBookmarks(): void {
     })
     if (!items.length) {
       list.innerHTML = `<div class="notif-empty">${
-        settings.bookmarks.length ? 'No matching bookmarks' : 'No bookmarks yet. Add a link, text, code, or snippet.'
+        bookmarkRepo.getAll().length ? 'No matching bookmarks' : 'No bookmarks yet. Add a link, text, code, or snippet.'
       }</div>`
       return
     }

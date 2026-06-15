@@ -35,6 +35,7 @@ import {
   flattenProjects
 } from './catalog'
 import { terminalService, fsService, claudeService, notebookService, plansService, appService } from './services/ipc'
+import { sshConnectionRepo } from './services/storage/repositories'
 
 type DropZoneName = 'left' | 'right' | 'top' | 'bottom'
 
@@ -551,9 +552,9 @@ export function buildPaneMenu(
 
   // SSH connections (only for terminal panes — sends the ssh command into the
   // current PTY instead of spawning a new terminal, per user request).
-  if (opts.bg !== false && settings.sshConnections.length) {
+  if (opts.bg !== false && sshConnectionRepo.getAll().length) {
     section('SSH')
-    for (const c of settings.sshConnections) {
+    for (const c of sshConnectionRepo.getAll()) {
       const target = c.user ? `${c.user}@${c.host}` : c.host
       const cmd = c.port ? `ssh -p ${c.port} ${target}` : `ssh ${target}`
       item(c.label || target, () => terminalService.input(paneId, cmd + '\r'))

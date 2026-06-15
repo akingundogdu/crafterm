@@ -68,6 +68,7 @@ import { createCodePane, destroyCodePane } from './codePane'
 import { promptText, promptForm, promptConfirm, promptCloseActions } from './dialog'
 import { removeWorktree, worktreeForCwd } from './worktrees'
 import { terminalService, fsService } from './services/ipc'
+import { dailyTaskRepo } from './services/storage/repositories'
 
 function focusActivePane(): void {
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
@@ -1011,7 +1012,7 @@ export async function confirmAndClosePane(paneId: string): Promise<void> {
   // show a single modal with switches (both ON by default) rather than closing
   // silently — the user can flip a switch off to skip that action.
   const task = p?.dailyTaskId
-    ? settings.dailyPlan.tasks.find((t) => t.id === p.dailyTaskId && t.status !== 'done')
+    ? dailyTaskRepo.getAll().find((t) => t.id === p.dailyTaskId && t.status !== 'done')
     : undefined
   const wt = p?.cwd ? worktreeForCwd(p.cwd) : null
 

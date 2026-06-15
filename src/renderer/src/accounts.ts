@@ -1,6 +1,6 @@
 import type { AccountEntry, AccountField } from './types'
-import { settings, uid } from './state'
-import { persistence } from './services/storage/persistence.service'
+import { uid } from './state'
+import { accountRepo } from './services/storage/repositories'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { secretsService } from './services/ipc'
 
@@ -25,7 +25,8 @@ function tagChip(text: string): HTMLElement {
 
 function filterEntries(): AccountEntry[] {
   const q = query.trim().toLowerCase()
-  return settings.accounts
+  return accountRepo
+    .getAll()
     .filter((a) => kindFilter === 'all' || a.kind === kindFilter)
     .filter((a) => {
       if (!q) return true
@@ -98,9 +99,8 @@ function accountCard(a: AccountEntry): HTMLElement {
       confirmText: 'Delete'
     })
     if (!ok) return
-    settings.accounts = settings.accounts.filter((x) => x.id !== a.id)
+    accountRepo.remove(a.id)
     await secretsService.delete(a.id)
-    persistence.save()
     renderAccounts()
   })
   acts.append(edit, del)
@@ -325,13 +325,7 @@ function showAccountForm(existing?: AccountEntry, defaultKind: 'account' | 'secr
       if (!key) continue
       await secretsService.set(draft.id, key, p.rawValue)
     }
-    if (existing) {
-      const i = settings.accounts.findIndex((x) => x.id === existing.id)
-      if (i >= 0) settings.accounts[i] = draft
-    } else {
-      settings.accounts.unshift(draft)
-    }
-    persistence.save()
+    accountRepo.upsert(draft)
     close()
     renderAccounts()
   })
@@ -366,7 +360,7 @@ export function renderAccounts(): void {
     el.insertAdjacentHTML(
       'beforeend',
       `<div class="empty-hint">${
-        settings.accounts.length === 0
+        accountRepo.getAll().length === 0
           ? 'No accounts yet. Use the + buttons below to add an account or secret.'
           : 'No matches'
       }</div>`

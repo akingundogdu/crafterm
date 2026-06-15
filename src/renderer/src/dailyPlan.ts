@@ -6,8 +6,9 @@ import type {
   ProjectNode,
   SidebarNode
 } from './types'
-import { settings, state, panes, uid } from './state'
+import { state, panes, uid } from './state'
 import { persistence } from './services/storage/persistence.service'
+import { dailyTaskRepo, dailyTagRepo } from './services/storage/repositories'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { showRemindModal } from './reminders'
 import { findProjectById } from './catalog'
@@ -54,8 +55,8 @@ const TAG_PALETTE = [
 ]
 
 function nextTagColor(): string {
-  const used = new Set(settings.dailyPlan.tags.map((t) => t.color))
-  return TAG_PALETTE.find((c) => !used.has(c)) ?? TAG_PALETTE[settings.dailyPlan.tags.length % TAG_PALETTE.length]
+  const used = new Set(dailyTagRepo.getAll().map((t) => t.color))
+  return TAG_PALETTE.find((c) => !used.has(c)) ?? TAG_PALETTE[dailyTagRepo.getAll().length % TAG_PALETTE.length]
 }
 
 function todayKey(): string {
@@ -115,7 +116,7 @@ function formatHeader(date: string): string {
 }
 
 function tasksFor(date: string): DailyPlanTask[] {
-  return settings.dailyPlan.tasks.filter((t) => t.date === date)
+  return dailyTaskRepo.getAll().filter((t) => t.date === date)
 }
 
 // Active board scope: a single day, or the last N days up to today.
@@ -143,7 +144,7 @@ function tasksForScope(): DailyPlanTask[] {
           const span = selectedRange === '3d' ? 3 : 7
           const today = todayKey()
           const start = shiftDays(today, -(span - 1))
-          return settings.dailyPlan.tasks.filter((t) => t.date >= start && t.date <= today)
+          return dailyTaskRepo.getAll().filter((t) => t.date >= start && t.date <= today)
         })()
   return inScope
     .filter(matchesTagFilter)
@@ -151,7 +152,7 @@ function tasksForScope(): DailyPlanTask[] {
 }
 
 function tagById(id: string): DailyPlanTag | undefined {
-  return settings.dailyPlan.tags.find((t) => t.id === id)
+  return dailyTagRepo.getAll().find((t) => t.id === id)
 }
 
 // Assign the task a stable issue key (e.g. CRF-12) from its project's prefix.
@@ -164,13 +165,13 @@ function assignIssueKey(task: DailyPlanTask): string | null {
   if (!prefix) return null
   const re = new RegExp(`^${prefix}-(\\d+)$`)
   let max = 0
-  for (const t of settings.dailyPlan.tasks) {
+  for (const t of dailyTaskRepo.getAll()) {
     const m = t.issueKey?.match(re)
     if (m) max = Math.max(max, parseInt(m[1], 10))
   }
   task.issueKey = `${prefix}-${max + 1}`
   task.updatedAt = Date.now()
-  persistence.save()
+  dailyTaskRepo.upsert(task)
   return task.issueKey
 }
 
@@ -242,7 +243,7 @@ async function openTaskInTerminal(
   if (task.status !== 'wip' && task.status !== 'done') {
     task.status = 'wip'
     task.updatedAt = Date.now()
-    persistence.save()
+    dailyTaskRepo.upsert(task)
   }
   onChange()
   const desc = task.description?.trim()
@@ -276,7 +277,7 @@ async function openTaskInTerminal(
 // ---- Terminal ↔ daily-task assignment (todo50) -------------------------
 
 function taskById(id: string): DailyPlanTask | undefined {
-  return settings.dailyPlan.tasks.find((t) => t.id === id)
+  return dailyTaskRepo.getAll().find((t) => t.id === id)
 }
 
 const STATUS_LABEL: Record<DailyPlanStatus, string> = {
@@ -322,7 +323,7 @@ export function markPaneTaskDone(paneId: string): void {
   if (!t || t.status === 'done') return
   t.status = 'done'
   t.updatedAt = Date.now()
-  persistence.save()
+  dailyTaskRepo.upsert(t)
   refreshPaneDailyTask(paneId)
   activeDailyRerender?.()
   void offerDeleteTaskWorktree(t) // todo7
@@ -336,7 +337,7 @@ export function markPaneTaskReview(paneId: string): void {
   if (!t || t.status === 'review' || t.status === 'done') return
   t.status = 'review'
   t.updatedAt = Date.now()
-  persistence.save()
+  dailyTaskRepo.upsert(t)
   refreshPaneDailyTask(paneId)
   activeDailyRerender?.()
 }
@@ -349,7 +350,7 @@ export function markPaneTaskTest(paneId: string): void {
   if (!t || t.status === 'test' || t.status === 'done') return
   t.status = 'test'
   t.updatedAt = Date.now()
-  persistence.save()
+  dailyTaskRepo.upsert(t)
   refreshPaneDailyTask(paneId)
   activeDailyRerender?.()
 }
@@ -433,7 +434,7 @@ export function assignPaneToTask(paneId: string): void {
   modal.appendChild(list)
 
   // Candidate tasks: not done, most recent first, capped.
-  const candidates = settings.dailyPlan.tasks
+  const candidates = dailyTaskRepo.getAll()
     .filter((t) => t.status !== 'done')
     .sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt)
 
@@ -526,7 +527,7 @@ export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): 
 
   // Deep-link: open the edit form for a specific task (e.g. from a reminder card).
   if (focusTaskId) {
-    const task = settings.dailyPlan.tasks.find((t) => t.id === focusTaskId)
+    const task = dailyTaskRepo.getAll().find((t) => t.id === focusTaskId)
     if (task) showTaskForm(task, render)
   }
 }
@@ -779,7 +780,7 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
   })
 
   // Tag filter (multi-select, OR semantics). Only meaningful when tags exist.
-  if (settings.dailyPlan.tags.length) {
+  if (dailyTagRepo.getAll().length) {
     const filterBtn = document.createElement('button')
     filterBtn.className = 'daily-plan-secondary-btn daily-tagfilter-btn' + (tagFilter.size ? ' active' : '')
     filterBtn.textContent = tagFilter.size ? `Filter tags (${tagFilter.size})` : 'Filter tags'
@@ -836,7 +837,7 @@ function openTagFilterPopover(anchor: HTMLElement, rerender: () => void): void {
   head.appendChild(clear)
   pop.appendChild(head)
 
-  for (const tag of settings.dailyPlan.tags) {
+  for (const tag of dailyTagRepo.getAll()) {
     const row = document.createElement('button')
     row.className = 'daily-tagfilter-row' + (tagFilter.has(tag.id) ? ' active' : '')
     const swatch = document.createElement('span')
@@ -1047,9 +1048,7 @@ function renderCard(task: DailyPlanTask, rerender: () => void): HTMLElement {
       confirmText: 'Delete'
     })
     if (!ok) return
-    const idx = settings.dailyPlan.tasks.findIndex((t) => t.id === task.id)
-    if (idx >= 0) settings.dailyPlan.tasks.splice(idx, 1)
-    persistence.save()
+    dailyTaskRepo.remove(task.id)
     rerender()
   })
 
@@ -1133,7 +1132,7 @@ function wireDropTarget(body: HTMLElement, status: DailyPlanStatus, rerender: ()
     body.classList.remove('drop-target')
     const id = e.dataTransfer?.getData('text/plain') ?? ''
     if (!id) return
-    const task = settings.dailyPlan.tasks.find((t) => t.id === id)
+    const task = dailyTaskRepo.getAll().find((t) => t.id === id)
     if (!task) return
 
     const before = findInsertBefore(body, e.clientY)
@@ -1143,7 +1142,7 @@ function wireDropTarget(body: HTMLElement, status: DailyPlanStatus, rerender: ()
     if (selectedRange === 'day') task.date = selectedDate
     task.updatedAt = Date.now()
     reorderWithin(task, status, before)
-    persistence.save()
+    dailyTaskRepo.upsert(task)
     rerender()
   })
 }
@@ -1158,7 +1157,7 @@ function findInsertBefore(body: HTMLElement, y: number): string | null {
 }
 
 function reorderWithin(task: DailyPlanTask, status: DailyPlanStatus, beforeId: string | null): void {
-  const peers = settings.dailyPlan.tasks
+  const peers = dailyTaskRepo.getAll()
     .filter((t) => t.date === task.date && t.status === status && t.id !== task.id)
     .sort((a, b) => a.order - b.order)
   const insertIdx = beforeId == null ? peers.length : peers.findIndex((t) => t.id === beforeId)
@@ -1382,7 +1381,7 @@ function showTaskForm(
       existing.worktreeSlug = sanitizeSlug(slugInput.value) || undefined
       existing.updatedAt = now
       assignIssueKey(existing)
-      persistence.save()
+      dailyTaskRepo.upsert(existing)
       return existing
     }
     const newTask: DailyPlanTask = {
@@ -1400,11 +1399,10 @@ function showTaskForm(
       createdAt: now,
       updatedAt: now
     }
-    settings.dailyPlan.tasks.push(newTask)
+    dailyTaskRepo.upsert(newTask)
     // Assign the stable issue key immediately on creation (idempotent — it stays
     // fixed for the task's lifetime).
     assignIssueKey(newTask)
-    persistence.save()
     return newTask
   }
 
@@ -1461,7 +1459,7 @@ function showTaskForm(
 }
 
 function nextOrder(date: string, status: DailyPlanStatus): number {
-  const peers = settings.dailyPlan.tasks.filter((t) => t.date === date && t.status === status)
+  const peers = dailyTaskRepo.getAll().filter((t) => t.date === date && t.status === status)
   return peers.length ? Math.max(...peers.map((t) => t.order)) + 1 : 0
 }
 
@@ -1524,7 +1522,7 @@ function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
     dropdown.innerHTML = ''
     activeIndex = -1
     const q = input.value.trim().toLowerCase()
-    const matches = settings.dailyPlan.tags
+    const matches = dailyTagRepo.getAll()
       .filter((t) => !selectedIds.includes(t.id) && (!q || t.name.toLowerCase().includes(q)))
       .slice(0, 20)
     for (const tag of matches) {
@@ -1546,7 +1544,7 @@ function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
       })
       dropdown.appendChild(row)
     }
-    const exact = settings.dailyPlan.tags.some((t) => t.name.toLowerCase() === q)
+    const exact = dailyTagRepo.getAll().some((t) => t.name.toLowerCase() === q)
     if (q && !exact) {
       const create = document.createElement('button')
       create.className = 'daily-plan-tag-option create'
@@ -1558,10 +1556,9 @@ function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
           name: input.value.trim(),
           color: nextTagColor()
         }
-        settings.dailyPlan.tags.push(tag)
+        dailyTagRepo.upsert(tag)
         selectedIds.push(tag.id)
         input.value = ''
-        persistence.save()
         renderChips()
         renderDropdown()
         input.focus()
@@ -1584,11 +1581,10 @@ function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
   const selectOrCreate = (): void => {
     const name = input.value.trim()
     if (!name) return
-    let tag = settings.dailyPlan.tags.find((t) => t.name.toLowerCase() === name.toLowerCase())
+    let tag = dailyTagRepo.getAll().find((t) => t.name.toLowerCase() === name.toLowerCase())
     if (!tag) {
       tag = { id: uid('tag'), name, color: nextTagColor() }
-      settings.dailyPlan.tags.push(tag)
-      persistence.save()
+      dailyTagRepo.upsert(tag)
     }
     if (!selectedIds.includes(tag.id)) selectedIds.push(tag.id)
     input.value = ''
@@ -1667,14 +1663,14 @@ function showManageTagsModal(rerender: () => void): void {
 
   const renderList = (): void => {
     list.innerHTML = ''
-    if (!settings.dailyPlan.tags.length) {
+    if (!dailyTagRepo.getAll().length) {
       const empty = document.createElement('div')
       empty.className = 'daily-plan-tags-empty'
       empty.textContent = 'No tags yet. Create one from the task form.'
       list.appendChild(empty)
       return
     }
-    for (const tag of settings.dailyPlan.tags) {
+    for (const tag of dailyTagRepo.getAll()) {
       const row = document.createElement('div')
       row.className = 'daily-plan-tag-row'
 
@@ -1684,7 +1680,7 @@ function showManageTagsModal(rerender: () => void): void {
       color.className = 'daily-plan-tag-color'
       color.addEventListener('change', () => {
         tag.color = color.value
-        persistence.save()
+        dailyTagRepo.upsert(tag)
       })
 
       const name = document.createElement('input')
@@ -1695,7 +1691,7 @@ function showManageTagsModal(rerender: () => void): void {
         const v = name.value.trim()
         if (v) {
           tag.name = v
-          persistence.save()
+          dailyTagRepo.upsert(tag)
         } else {
           name.value = tag.name
         }
@@ -1711,13 +1707,13 @@ function showManageTagsModal(rerender: () => void): void {
           confirmText: 'Delete'
         })
         if (!ok) return
-        const i = settings.dailyPlan.tags.findIndex((t) => t.id === tag.id)
-        if (i >= 0) settings.dailyPlan.tags.splice(i, 1)
-        for (const t of settings.dailyPlan.tasks) {
+        dailyTagRepo.remove(tag.id)
+        for (const t of dailyTaskRepo.getAll()) {
+          if (!t.tagIds.includes(tag.id)) continue
           t.tagIds = t.tagIds.filter((id) => id !== tag.id)
+          dailyTaskRepo.upsert(t)
         }
         tagFilter.delete(tag.id) // drop from the active filter so the board isn't stranded empty
-        persistence.save()
         renderList()
       })
 
@@ -1793,7 +1789,7 @@ function changelogRangeDateLabel(id: string): string {
 function buildChangelogMarkdown(rangeId: string): string {
   const { from, to } = changelogWindow(rangeId)
   const inWindow = (ms: number): boolean => ms >= from && ms < to
-  const done = settings.dailyPlan.tasks
+  const done = dailyTaskRepo.getAll()
     .filter(
       (t) =>
         t.status === 'done' &&

@@ -1,6 +1,6 @@
 import type { MeetingNote } from './types'
-import { settings, state, uid } from './state'
-import { persistence } from './services/storage/persistence.service'
+import { state, uid } from './state'
+import { meetingNoteRepo } from './services/storage/repositories'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { flattenProjects, findProjectById } from './catalog'
 import { showRemindModal } from './reminders'
@@ -33,7 +33,7 @@ function formatDate(s: string): string {
 
 // Notes sorted newest-first (by date, then creation time).
 function sortedNotes(): MeetingNote[] {
-  return settings.meetingNotes.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
+  return meetingNoteRepo.getAll().slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
 }
 
 // Group notes by their project name; notes without a project fall into a
@@ -131,7 +131,7 @@ export function openNewMeeting(): void {
 
 // Deep-link: open the edit form for a specific note (e.g. from a reminder card).
 export function openMeetingNote(noteId: string): void {
-  const note = settings.meetingNotes.find((n) => n.id === noteId)
+  const note = meetingNoteRepo.get(noteId)
   if (!note) return
   showMeetingForm(note, () => activeRerender?.())
 }
@@ -169,7 +169,7 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
     note.archived = !note.archived
     note.updatedAt = Date.now()
     if (note.archived) archivedOpen = true
-    persistence.save()
+    meetingNoteRepo.upsert(note)
     rerender()
   })
   const del = document.createElement('button')
@@ -184,9 +184,7 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
       confirmText: 'Delete'
     })
     if (!ok) return
-    const i = settings.meetingNotes.findIndex((n) => n.id === note.id)
-    if (i >= 0) settings.meetingNotes.splice(i, 1)
-    persistence.save()
+    meetingNoteRepo.remove(note.id)
     rerender()
   })
   actions.append(remind, arch, del)
@@ -325,8 +323,9 @@ function showMeetingForm(existing: MeetingNote | null, onSaved: () => void): voi
       existing.notes = notes
       existing.projectId = projSel.value || undefined
       existing.updatedAt = now
+      meetingNoteRepo.upsert(existing)
     } else {
-      settings.meetingNotes.push({
+      meetingNoteRepo.upsert({
         id: uid('mtg'),
         title,
         date: dateInput.value || todayKey(),
@@ -337,7 +336,6 @@ function showMeetingForm(existing: MeetingNote | null, onSaved: () => void): voi
         updatedAt: now
       })
     }
-    persistence.save()
     return true
   }
 

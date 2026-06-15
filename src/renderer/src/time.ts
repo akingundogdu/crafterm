@@ -5,6 +5,7 @@ import { promptText, makeCloseButton } from './dialog'
 import { updatePaneStatus } from './pane'
 import { flattenProjects, findProjectByPath, findFeature } from './catalog'
 import { appService } from './services/ipc'
+import { timeEntryRepo } from './services/storage/repositories'
 import {
   fmtClock,
   fmtHM,
@@ -92,7 +93,7 @@ function renderSummary(): void {
     active && { projectPath: active.projectPath, ms: now - active.start },
     autoSession && { projectPath: autoSession.projectPath, ms: now - autoSession.start }
   ].filter((o): o is { projectPath: string; ms: number } => !!o)
-  const byProj = sumByProject(settings.timeEntries, startOfToday(now), ongoing)
+  const byProj = sumByProject(timeEntryRepo.getAll(), startOfToday(now), ongoing)
   if (!byProj.size) {
     sum.insertAdjacentHTML('beforeend', '<div class="notif-empty">No time logged today</div>')
     return
@@ -150,7 +151,7 @@ function stopActive(): void {
   if (active) {
     const dur = Date.now() - active.start
     if (dur >= 1000) {
-      settings.timeEntries.push({
+      timeEntryRepo.upsert({
         id: uid('te'),
         projectPath: active.projectPath,
         featureId: active.featureId || undefined,
@@ -165,7 +166,6 @@ function stopActive(): void {
     clearInterval(ticker)
     ticker = null
   }
-  persistence.save()
 }
 
 // Manual Start/Stop button.
@@ -281,7 +281,7 @@ function showReport(): void {
       chipsRow.appendChild(c)
     })
 
-    const byProj = reportByProject(settings.timeEntries, rangeStart(range))
+    const byProj = reportByProject(timeEntryRepo.getAll(), rangeStart(range))
 
     body.replaceChildren()
     if (!byProj.size) {
@@ -339,7 +339,7 @@ function closeAutoSession(): void {
   if (!autoSession) return
   const dur = Date.now() - autoSession.start
   if (dur >= 1000) {
-    settings.timeEntries.push({
+    timeEntryRepo.upsert({
       id: uid('te'),
       projectPath: autoSession.projectPath,
       featureId: autoSession.featureId || undefined,
@@ -347,7 +347,6 @@ function closeAutoSession(): void {
       end: Date.now(),
       source: 'auto'
     })
-    persistence.save()
   }
   autoSession = null
 }

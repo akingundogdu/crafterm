@@ -1,4 +1,5 @@
 import { settings, panes, state, hooks } from './state'
+import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from './services/storage/repositories'
 import {
   overlayModal,
   makeSearchInput,
@@ -432,7 +433,7 @@ function buildProjects(): SpotEntry[] {
 }
 
 function buildDailyTasks(): SpotEntry[] {
-  return settings.dailyPlan.tasks.map((t) => ({
+  return dailyTaskRepo.getAll().map((t) => ({
     source: 'task' as const,
     label: t.title,
     detail: `${t.status} · ${t.date}`,
@@ -441,7 +442,7 @@ function buildDailyTasks(): SpotEntry[] {
 }
 
 function buildReminders(): SpotEntry[] {
-  return settings.reminders.map((r) => ({
+  return reminderRepo.getAll().map((r) => ({
     source: 'reminder' as const,
     label: r.text,
     detail: new Date(r.time).toLocaleString(),
@@ -485,7 +486,7 @@ async function loadCommands(): Promise<SpotEntry[]> {
       detail: c.value || 'zsh',
       run: () => insert(c.value || c.name)
     })),
-    ...settings.paletteCommands.map((c) => ({
+    ...paletteCommandRepo.getAll().map((c) => ({
       source: 'command' as const,
       label: c.name,
       detail: `${c.category} · ${c.command}`,

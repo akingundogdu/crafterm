@@ -17,6 +17,7 @@ import {
 } from './state'
 import { persistence } from './services/storage/persistence.service'
 import { loadSettings, migrateLegacyState, seedActionMenu } from './services/storage/settings.service'
+import { actionMenuRepo } from './services/storage/repositories'
 import { firstPaneOf, allTabs, findById } from './tree'
 import { flattenProjects } from './catalog'
 import {
@@ -654,7 +655,7 @@ async function init(): Promise<void> {
 
   const saved = await storeService.load()
   if (saved) loadSettings(saved)
-  if (!settings.actionMenu.length) settings.actionMenu = seedActionMenu()
+  if (!actionMenuRepo.getAll().length) settings.actionMenu = seedActionMenu()
 
   applyBgColor()
   applyDocFont()

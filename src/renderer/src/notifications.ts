@@ -24,6 +24,7 @@ import { renderTime, initTime, startAutoTracker } from './time'
 import { runUpdate } from './pickers'
 import { terminalService, claudeService, secretsService, appService } from './services/ipc'
 import { fmtResetTime, usageErrorShort, usageErrorLong } from './services/domain/usage'
+import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo } from './services/storage/repositories'
 
 const appEl = document.getElementById('app')!
 const listEl = document.getElementById('notif-list')!
@@ -603,7 +604,7 @@ function resolvePayloadOpener(
 ): { label: string; open: () => void } | null {
   if (!payload) return null
   if (payload.kind === 'bookmark') {
-    const bm = settings.bookmarks.find((b) => b.id === payload.bookmarkId)
+    const bm = bookmarkRepo.get(payload.bookmarkId)
     if (!bm) return null
     return {
       label: bm.type === 'link' ? 'Open' : 'Show',
@@ -627,7 +628,7 @@ function resolvePayloadOpener(
     }
   }
   if (payload.kind === 'dailyTask') {
-    const t = settings.dailyPlan.tasks.find((x) => x.id === payload.taskId)
+    const t = dailyTaskRepo.get(payload.taskId)
     if (!t) return null
     return {
       label: 'Open task',
@@ -641,7 +642,7 @@ function resolvePayloadOpener(
     }
   }
   if (payload.kind === 'meetingNote') {
-    const n = settings.meetingNotes.find((x) => x.id === payload.noteId)
+    const n = meetingNoteRepo.get(payload.noteId)
     if (!n) return null
     return {
       label: 'Open meeting',

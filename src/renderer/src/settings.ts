@@ -29,6 +29,7 @@ import {
   isModifierKey
 } from './keybindings'
 import { appService } from './services/ipc'
+import { paletteCommandRepo, accountRepo, actionMenuRepo } from './services/storage/repositories'
 
 // Quick background presets (black default + a few dark tones); a custom color
 // picker covers anything else.
@@ -1529,7 +1530,7 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
 
   const render = (): void => {
     list.replaceChildren()
-    const cmds = settings.paletteCommands
+    const cmds = paletteCommandRepo.getAll()
     if (!cmds.length) {
       list.insertAdjacentHTML('beforeend', '<div class="field-hint">No commands yet.</div>')
       return
@@ -1564,8 +1565,7 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
           del.className = 'wt-act wt-remove'
           del.textContent = 'Delete'
           del.addEventListener('click', () => {
-            settings.paletteCommands = settings.paletteCommands.filter((x) => x.id !== c.id)
-            persistence.save()
+            paletteCommandRepo.remove(c.id)
             render()
           })
           row.append(txt, edit, del)
@@ -1597,13 +1597,7 @@ async function editPaletteCommand(existing?: PaletteCommand): Promise<void> {
     name: (values.name || '').trim() || command,
     command
   }
-  if (existing) {
-    const i = settings.paletteCommands.findIndex((x) => x.id === existing.id)
-    if (i >= 0) settings.paletteCommands[i] = cmd
-  } else {
-    settings.paletteCommands.push(cmd)
-  }
-  persistence.save()
+  paletteCommandRepo.upsert(cmd)
 }
 
 // Folders shown as filter chips in the Cmd+O markdown finder. Picked via the
@@ -1779,7 +1773,7 @@ function buildWorkspacePanel(panel: HTMLElement): void {
   // Fallback secret: any secret-typed field stored under Accounts. Value is the
   // (entryId :: fieldKey) pair; the renderer decrypts it at fetch time.
   const secretOptions: [string, string][] = [['', 'None']]
-  for (const a of settings.accounts) {
+  for (const a of accountRepo.getAll()) {
     for (const f of a.fields ?? []) {
       if (f.secret) secretOptions.push([`${a.id}::${f.key}`, `${a.label} / ${f.key}`])
     }
@@ -1876,9 +1870,11 @@ function buildActionMenuPanel(panel: HTMLElement): void {
     BUILTIN_ACTIONS.find((a) => a.id === id)?.label ?? '(unknown builtin)'
 
   const move = (i: number, delta: number): void => {
+    const arr = actionMenuRepo.getAll()
     const j = i + delta
-    if (j < 0 || j >= settings.actionMenu.length) return
-    const arr = settings.actionMenu
+    if (j < 0 || j >= arr.length) return
+    // Positional swap — ordering isn't expressible through the CRUD repo, so the
+    // physical array is reordered in place and persisted directly.
     ;[arr[i], arr[j]] = [arr[j], arr[i]]
     persistence.save()
     render()
@@ -1886,10 +1882,10 @@ function buildActionMenuPanel(panel: HTMLElement): void {
 
   const render = (): void => {
     list.replaceChildren()
-    if (!settings.actionMenu.length) {
+    if (!actionMenuRepo.getAll().length) {
       list.insertAdjacentHTML('beforeend', '<div class="field-hint">No items.</div>')
     }
-    settings.actionMenu.forEach((item, i) => {
+    actionMenuRepo.getAll().forEach((item, i) => {
       const row = document.createElement('div')
       row.className = 'action-menu-row' + (item.hidden ? ' hidden' : '')
 
@@ -1901,7 +1897,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
       const down = document.createElement('button')
       down.className = 'wt-act'
       down.textContent = '↓'
-      down.disabled = i === settings.actionMenu.length - 1
+      down.disabled = i === actionMenuRepo.getAll().length - 1
       down.addEventListener('click', () => move(i, 1))
 
       const txt = document.createElement('div')
@@ -1922,7 +1918,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
       hideBtn.textContent = item.hidden ? 'Show' : 'Hide'
       hideBtn.addEventListener('click', () => {
         item.hidden = !item.hidden
-        persistence.save()
+        actionMenuRepo.upsert(item)
         render()
       })
       const edit = document.createElement('button')
@@ -1933,8 +1929,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
       del.className = 'wt-act wt-remove'
       del.textContent = 'Delete'
       del.addEventListener('click', () => {
-        settings.actionMenu = settings.actionMenu.filter((x) => x !== item)
-        persistence.save()
+        actionMenuRepo.remove(item.id)
         render()
       })
 
@@ -1951,8 +1946,7 @@ function buildActionMenuPanel(panel: HTMLElement): void {
   addCmd.addEventListener('click', () => {
     void editActionItem().then((added) => {
       if (added) {
-        settings.actionMenu.push(added)
-        persistence.save()
+        actionMenuRepo.upsert(added)
         render()
       }
     })

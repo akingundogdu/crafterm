@@ -1,5 +1,5 @@
 import { settings, pushNotification, uid } from './state'
-import { persistence } from './services/storage/persistence.service'
+import { reminderRepo, bookmarkRepo, dailyTaskRepo } from './services/storage/repositories'
 import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from './types'
 import { makeCloseButton } from './dialog'
 import { createDateField } from '@crafterm/ui'
@@ -36,12 +36,12 @@ function createLinkedRecord(
       tags: [],
       createdAt: Date.now()
     }
-    settings.bookmarks.push(bm)
+    bookmarkRepo.upsert(bm)
     return { kind: 'bookmark', bookmarkId: bm.id }
   }
   if (category === 'dailyTask') {
     const date = ymdOf(ts)
-    const peers = settings.dailyPlan.tasks.filter((t) => t.date === date && t.status === 'todo')
+    const peers = dailyTaskRepo.query((t) => t.date === date && t.status === 'todo')
     const now = Date.now()
     const task: DailyPlanTask = {
       id: uid('task'),
@@ -54,7 +54,7 @@ function createLinkedRecord(
       createdAt: now,
       updatedAt: now
     }
-    settings.dailyPlan.tasks.push(task)
+    dailyTaskRepo.upsert(task)
     return { kind: 'dailyTask', taskId: task.id }
   }
   return undefined
@@ -178,7 +178,7 @@ function fire(r: Reminder): void {
 // Optional payload links the reminder to a bookmark / pane / notebook entry so
 // the eventual notification card can render an Open action.
 export function snoozeReminder(text: string, at: number, payload?: ReminderPayload): void {
-  settings.reminders.push({
+  reminderRepo.upsert({
     id: uid('rem'),
     text,
     time: at,
@@ -186,7 +186,6 @@ export function snoozeReminder(text: string, at: number, payload?: ReminderPaylo
     enabled: true,
     payload
   })
-  persistence.save()
   renderReminders()
 }
 
@@ -195,7 +194,7 @@ export function snoozeReminder(text: string, at: number, payload?: ReminderPaylo
 function tick(): void {
   const now = Date.now()
   let changed = false
-  for (const r of settings.reminders) {
+  for (const r of reminderRepo.getAll()) {
     if (r.enabled && r.time <= now) {
       fire(r)
       changed = true
@@ -205,12 +204,10 @@ function tick(): void {
         r.enabled = false
         r.firedAt = now
       }
+      reminderRepo.upsert(r)
     }
   }
-  if (changed) {
-    persistence.save()
-    renderReminders()
-  }
+  if (changed) renderReminders()
 }
 
 function reminderCard(r: Reminder, past: boolean): HTMLElement {
@@ -251,8 +248,7 @@ function reminderCard(r: Reminder, past: boolean): HTMLElement {
   del.className = 'wt-act wt-remove'
   del.textContent = 'Delete'
   del.addEventListener('click', () => {
-    settings.reminders = settings.reminders.filter((x) => x.id !== r.id)
-    persistence.save()
+    reminderRepo.remove(r.id)
     renderReminders()
   })
   actions.append(del)
@@ -263,10 +259,12 @@ function reminderCard(r: Reminder, past: boolean): HTMLElement {
 export function renderReminders(): void {
   const el = listEl()
   el.replaceChildren()
-  const upcoming = settings.reminders
+  const upcoming = reminderRepo
+    .getAll()
     .filter((r) => r.enabled)
     .sort((a, b) => a.time - b.time)
-  const past = settings.reminders
+  const past = reminderRepo
+    .getAll()
     .filter((r) => !r.enabled && r.firedAt)
     .sort((a, b) => (b.firedAt ?? 0) - (a.firedAt ?? 0))
 
@@ -408,12 +406,13 @@ export function openReminderForm(existing?: Reminder): void {
       existing.intervalMin = rep === 'interval' ? intervalMin : undefined
       existing.enabled = true
       existing.firedAt = undefined
+      reminderRepo.upsert(existing)
     } else {
       const category = typeSel.value as NonNullable<Reminder['category']>
       // Cross-create the linked record (bookmark / link / daily task) and point
       // the reminder's payload at it so the notification's Open jumps there.
       const payload = createLinkedRecord(category, body, ts)
-      settings.reminders.push({
+      reminderRepo.upsert({
         id: uid('rem'),
         text: body,
         time: ts,
@@ -424,7 +423,6 @@ export function openReminderForm(existing?: Reminder): void {
         payload
       })
     }
-    persistence.save()
     renderReminders()
     close()
   })

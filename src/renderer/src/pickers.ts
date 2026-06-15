@@ -33,6 +33,7 @@ import { promptForm, promptConfirm, makeCloseButton } from './dialog'
 import { collectBackgroundProcesses, killProcess, openProcessView } from './bgproc'
 import type { CollectedProcess } from './bgproc'
 import { terminalService, gitService, fsService, claudeService, notebookService, plansService, iosService, appService } from './services/ipc'
+import { sshConnectionRepo, paletteCommandRepo, bookmarkRepo, accountRepo } from './services/storage/repositories'
 
 export function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLElement; close: () => void } {
   const overlay = document.createElement('div')
@@ -478,13 +479,7 @@ async function editSshConnection(existing?: SshConnection): Promise<void> {
     password: values.password || undefined
   }
   conn.label = values.label || sshTarget(conn)
-  if (existing) {
-    const i = settings.sshConnections.findIndex((x) => x.id === existing.id)
-    if (i >= 0) settings.sshConnections[i] = conn
-  } else {
-    settings.sshConnections.push(conn)
-  }
-  persistence.save()
+  sshConnectionRepo.upsert(conn)
 }
 
 export function showSshConnections(): void {
@@ -509,7 +504,7 @@ export function showSshConnections(): void {
 
   const render = (): void => {
     list.replaceChildren()
-    if (!settings.sshConnections.length) {
+    if (!sshConnectionRepo.getAll().length) {
       const hint = document.createElement('div')
       hint.className = 'empty-hint'
       hint.textContent = 'No saved connections yet.'
@@ -517,7 +512,7 @@ export function showSshConnections(): void {
       return
     }
     const q = search.value.trim().toLowerCase()
-    const conns = settings.sshConnections.filter(
+    const conns = sshConnectionRepo.query(
       (c) => !q || `${c.label ?? ''} ${sshTarget(c)}`.toLowerCase().includes(q)
     )
     if (!conns.length) {
@@ -571,8 +566,7 @@ export function showSshConnections(): void {
           confirmText: 'Delete'
         }).then((ok) => {
           if (!ok) return
-          settings.sshConnections = settings.sshConnections.filter((x) => x.id !== c.id)
-          persistence.save()
+          sshConnectionRepo.remove(c.id)
           render()
         })
       })
@@ -1667,7 +1661,7 @@ export async function showCommandPalette(): Promise<void> {
   const zsh = await loadZshCommands()
   const all: Cmd[] = [
     ...zsh.map((c) => ({ category: 'zsh', name: c.name, value: c.value })),
-    ...settings.paletteCommands.map((c) => ({ category: c.category, name: c.name, value: c.command }))
+    ...paletteCommandRepo.getAll().map((c) => ({ category: c.category, name: c.name, value: c.command }))
   ]
   // Categories in first-seen order, with zsh guaranteed first.
   const categories: string[] = ['zsh']
@@ -2577,7 +2571,7 @@ export async function buildGlobalSearchIndex(): Promise<GsEntry[]> {
     })
   }
   // bookmarks
-  for (const bm of settings.bookmarks) {
+  for (const bm of bookmarkRepo.getAll()) {
     out.push({
       source: 'bookmark',
       label: bm.title,
@@ -2586,7 +2580,7 @@ export async function buildGlobalSearchIndex(): Promise<GsEntry[]> {
     })
   }
   // accounts
-  for (const a of settings.accounts) {
+  for (const a of accountRepo.getAll()) {
     out.push({
       source: 'account',
       label: a.label,

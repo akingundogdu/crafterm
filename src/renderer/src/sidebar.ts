@@ -72,6 +72,7 @@ import {
 } from './notebook'
 import './sidebar.css'
 import { fsService } from './services/ipc'
+import { actionMenuRepo } from './services/storage/repositories'
 
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!
@@ -168,7 +169,7 @@ const BUILTIN_ACTION_RUN: Record<string, () => void> = {
 // hidden rows and builtins whose id is no longer registered, mirroring the menu.
 export function actionMenuSearchEntries(): { label: string; run: () => void }[] {
   const out: { label: string; run: () => void }[] = []
-  for (const item of settings.actionMenu) {
+  for (const item of actionMenuRepo.getAll()) {
     if (item.hidden) continue
     if (item.kind === 'builtin' && !BUILTIN_ACTION_RUN[item.builtinId ?? '']) continue
     out.push({ label: item.title, run: () => runActionItem(item) })
@@ -203,7 +204,7 @@ function showActionsMenu(anchor: HTMLElement): void {
     })
     menu.appendChild(b)
   }
-  for (const item of settings.actionMenu) {
+  for (const item of actionMenuRepo.getAll()) {
     if (item.hidden) continue
     // Skip builtins whose id is no longer known (e.g. after a downgrade).
     if (item.kind === 'builtin' && !BUILTIN_ACTION_RUN[item.builtinId ?? '']) continue
