@@ -4,9 +4,15 @@ Every UI element/pattern in the app today, mapped to the reusable `@crafterm/ui`
 it should become. Per HR-2, we **build the component in `crafterm-ui` first, then consume it**
 in screens — no screen builds bespoke UI that bypasses the library.
 
-**Review this list together before Phase 1.** Columns: *Component* = proposed crafterm-ui
-name · *Today* = where it's reinvented now · *Tier* = P (build first, high reuse) / S (secondary) /
-F (feature-specific, stays in `screens/<feature>/components/`) / K (keep external, not crafterm-ui).
+**Reviewed with user 2026-06-05** — decisions recorded in §"Resolved decisions". Columns:
+*Component* = proposed crafterm-ui name · *Today* = where it's reinvented now · *Tier* = P
+(build first, high reuse) / S (secondary) / F (feature-specific, stays in
+`screens/<feature>/components/`) / K (keep external, not crafterm-ui).
+
+> **Visual fidelity (HR-1, decided):** the refactor makes **zero visual changes**. Every
+> crafterm-ui component reuses the existing `style.css` classes/markup byte-for-byte; existing
+> inconsistencies (button paddings, modal widths, chip styles) are **preserved exactly**, not
+> unified. A deliberate UI-consistency pass is out of scope for this refactor.
 
 ---
 
@@ -33,22 +39,22 @@ F (feature-specific, stays in `screens/<feature>/components/`) / K (keep externa
 
 | Component | Today | Source | Notes |
 |---|---|---|---|
-| **card** | notification, bookmark, PR, deployment, task, account, meeting-note, reminder cards | each feature hand-rolls | base card shell + header/body/actions slots |
+| **card variants** | notification, bookmark, PR, deployment, task, account, meeting-note, reminder cards | each feature hand-rolls | **decided: a few variants** (e.g. `list-card`, `form-card`, `status-card`) sharing internals, not one base |
 | **badge / chip / pill** | status pills (working/ask/idle), tags, category chips, issue-key chip, draft/mergeable/check badges, recency labels | scattered | variants by tone/color |
 | **status-dot** | sidebar, terminal switcher, claude dashboard, process rows | scattered | running/idle/attention/done colors |
 | **toolbar** | pane header, db pane, diff pane, code pane, settings header | scattered | left/right action groups |
 | **toast / inline-feedback** | "Copied"/"Saved ✓"/"⚠" flashes | scattered (1100ms reset) | transient confirm |
 | **color-picker / swatches** | pane bg, node color, theme grid, tag colors | scattered | swatch grid + custom hex |
 | **empty-state** | bookmarks, lists, explorer | scattered | icon + message |
-| **resizer / splitter** | sidebar, notif panel, split panes | `content.ts`, `sidebar.ts`, `notifications.ts` | drag handle (col/row), clamp |
+| **resizer** | sidebar, notif panel, split panes | `content.ts`, `sidebar.ts`, `notifications.ts` | **decided: one low-level drag-handle** emitting deltas; panel + split resizers are thin wrappers over it |
 | **progress-bar** | improve overview, update modal, time | `improve.ts` | labeled bar |
 | **count-badge** | folder child counts, tab counts | sidebar/improve | numeric badge |
 
-## C. Result grid (Tier S — specialized)
+## C. Result grid (Tier P — into crafterm-ui now, decided)
 
 | Component | Today | Source | Notes |
 |---|---|---|---|
-| **data-grid** | DB result grid (sort, edit/insert/delete row, formatting, pagination) | `dbResultGrid.ts` | reusable table; heavy, but one impl |
+| **data-grid** | DB result grid (sort, edit/insert/delete row, formatting, pagination) | `dbResultGrid.ts` | **decided: build in crafterm-ui now** as a reusable table (future consumers: docker stats, etc.) |
 
 ## D. Feature-specific children (Tier F — under screens/<feature>/components/)
 
@@ -74,8 +80,8 @@ Built **from** crafterm-ui primitives, not reusable app-wide:
 ## Build order proposal (Phase 1)
 1. overlay → 2. button → 3. input/field/select → 4. modal → 5. form → 6. search-box → 7. list → 8. tabs → 9. relocate treeview + context-menu + datepicker → 10. icons → then Tier S (card, badge, status-dot, toolbar, toast, color-picker, resizer, progress-bar) → data-grid.
 
-## Open questions for review
-1. Should **card** be one flexible base, or a few variants (notification/list/form-card)?
-2. **data-grid** — promote to crafterm-ui now, or keep in db-pane until a second consumer appears?
-3. **resizer** — one component covering both panel resizers and split resizers, or two?
-4. Any visual inconsistencies to deliberately unify now (button paddings, modal widths, chip styles) vs preserve exactly (HR-1)?
+## Resolved decisions (2026-06-05)
+1. **card** → **a few variants** (`list-card`/`form-card`/`status-card`) sharing internals, not one flexible base.
+2. **data-grid** → **build in crafterm-ui now** (Tier P), don't wait for a second consumer.
+3. **resizer** → **one low-level drag-handle primitive**; panel + split resizers are thin wrappers.
+4. **Visual fidelity** → **preserve exactly** (HR-1). No unification of paddings/widths/chip styles during the refactor; a UI-consistency pass is a separate, later effort.
