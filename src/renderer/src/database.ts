@@ -3,7 +3,7 @@ import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from './type
 import type { DbObjects } from '../../preload/api'
 import { makeCloseButton, promptText } from './dialog'
 import { openSqlInSplit } from './commands'
-import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from './treeview'
+import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
 import './database.css'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object

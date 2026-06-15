@@ -7,7 +7,7 @@
 // gestures. Styling lives in treeview.css (shared row classes); consumer-specific
 // slot visuals come from each consumer's own stylesheet.
 
-import { showContextMenu, type ContextMenuItem } from './contextmenu'
+import { showContextMenu, type ContextMenuItem } from '../context-menu/context-menu'
 import './treeview.css'
 
 export type DropPos = 'before' | 'after' | 'inside'

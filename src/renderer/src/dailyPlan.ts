@@ -13,7 +13,7 @@ import { findProjectById } from './catalog'
 import { openClaudeWithPrompt } from './commands'
 import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from './worktrees'
 import { refreshPaneDailyTask } from './pane'
-import { createDateField } from './datepicker'
+import { createDateField } from '@crafterm/ui'
 
 // Board columns. 'review' is intentionally absent — it's an intermediate status
 // whose tasks render under the In Progress (wip) column (see boardColumnOf).

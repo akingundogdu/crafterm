@@ -1,7 +1,7 @@
 import { settings, saveSoon, pushNotification, uid } from './state'
 import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from './types'
 import { makeCloseButton } from './dialog'
-import { createDateField } from './datepicker'
+import { createDateField } from '@crafterm/ui'
 
 const DAY = 86_400_000
 const WEEK = 7 * DAY

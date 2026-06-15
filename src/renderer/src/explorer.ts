@@ -1,6 +1,6 @@
 import { settings, state, panes, saveSoon } from './state'
 import { openMarkdownFile, openCodeEditor } from './commands'
-import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from './treeview'
+import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from '@crafterm/ui'
 import { promptText, promptConfirm } from './dialog'
 import type { SidebarNode } from './types'
 

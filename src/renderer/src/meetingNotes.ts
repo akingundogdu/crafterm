@@ -3,7 +3,7 @@ import { settings, state, saveSoon, uid } from './state'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { flattenProjects, findProjectById } from './catalog'
 import { showRemindModal } from './reminders'
-import { createDateField } from './datepicker'
+import { createDateField } from '@crafterm/ui'
 
 const ARCHIVE_SVG =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/></svg>'
