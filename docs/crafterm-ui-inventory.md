@@ -50,11 +50,11 @@ in screens — no screen builds bespoke UI that bypasses the library.
 | **progress-bar** | improve overview, update modal, time | `improve.ts` | labeled bar |
 | **count-badge** | folder child counts, tab counts | sidebar/improve | numeric badge |
 
-## C. Result grid (Tier P — into crafterm-ui now, decided)
+## C. Result grid (REVISED → Phase 6, after real-code review)
 
 | Component | Today | Source | Notes |
 |---|---|---|---|
-| **data-grid** | DB result grid (sort, edit/insert/delete row, formatting, pagination) | `dbResultGrid.ts` | **decided: build in crafterm-ui now** as a reusable table (future consumers: docker stats, etc.) |
+| **data-grid** | DB result grid (sort, edit/insert/delete row, formatting, pagination) | `dbResultGrid.ts` | **revised:** `dbResultGrid.ts` is DB-coupled (`DbColumn`/`DbConnection`/`DbEngine`) **and** imports renderer `dialog` → it cannot move to an app-agnostic library cleanly. Stays feature-local (db-pane); a generic `data-grid` is extracted in **Phase 6** when a 2nd consumer (e.g. docker stats) appears. |
 
 ## D. Feature-specific children (Tier F — under screens/<feature>/components/)
 
@@ -77,8 +77,20 @@ Built **from** crafterm-ui primitives, not reusable app-wide:
 
 ---
 
-## Build order proposal (Phase 1)
-1. overlay → 2. button → 3. input/field/select → 4. modal → 5. form → 6. search-box → 7. list → 8. tabs → 9. relocate treeview + context-menu + datepicker → 10. icons → then Tier S (card, badge, status-dot, toolbar, toast, color-picker, resizer, progress-bar) → data-grid.
+## Build order + status
+
+**Done in Phase 1 (verifiable, byte-identical — landed + tested):**
+- ✅ overlay, button, input, field, select, modal — modal stack
+- ✅ dialog.ts rebuilt on the stack (same signatures, callers unchanged; 21 tests)
+- ✅ search-box (faithful to `picker-input`)
+- ✅ relocated treeview + context-menu + datepicker into the library (9 importers retargeted)
+
+**Deferred to Phase 6 (JIT, when a consumer proves the API — building blind now can't be verified byte-identical, HR-1):**
+- `tabs` — consumers use *different* class names (`settings-subtab*` vs right-panel vs spotlight vs notebook); needs class-param API proven by the first consumer.
+- `list` — currently inlined per-picker with variations; no single shared impl to relocate.
+- `data-grid` — `dbResultGrid` is DB-coupled + dialog-dependent (see §C); generic version needs a 2nd consumer.
+- Tier-S new components (card variants, badge/chip, status-dot, toolbar, toast, color-picker, resizer, progress-bar) — APIs emerge from their first real usage.
+- `icons` — gather when first shared across migrated screens.
 
 ## Resolved decisions (2026-06-05)
 1. **card** → **a few variants** (`list-card`/`form-card`/`status-card`) sharing internals, not one flexible base.
