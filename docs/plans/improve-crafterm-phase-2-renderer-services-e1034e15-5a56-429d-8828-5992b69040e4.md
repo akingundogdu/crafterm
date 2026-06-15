@@ -23,6 +23,7 @@
 6. Extract pure logic into `services/domain/`: worktree path rules, plan-filename parsing (mirror `main/planFilename.ts`), time aggregation (`time.ts` math), token-usage shaping (renderer-side), command-palette seeding helpers.
 
 ### D. Domain model — table-oriented entities (§3.12, HIGH PRIORITY)
+> Follow the [Domain Model — Reference Example](./improve-crafterm-domain-model-example-e1034e15-5a56-429d-8828-5992b69040e4.md) as the template for every entity.
 7. Add **Zod** (dependency). Create `services/domain/model/` with **one module per entity**, modeled as DB-table-ready rows (see §3.12 for the entity list + rules). For each: a **Zod schema** (source of truth), the entity type via `z.infer` (collapses the live vs `Saved*` duality from `types.ts` + `api.d.ts`), default factory, (de)serialize.
 8. Apply table-readiness rules: stable string `id`; **reference-by-id, not nested embedding** for would-be tables (`Project` → separate `application`/`project-command`/`feature` entities with `projectId`; `DailyPlanData` → `daily-task` + `daily-tag`); flat scalar/enum fields; epoch timestamps.
 9. Model the recursive trees (`layout-node`, `sidebar-node`) as **node rows** (`id, parentId, position, type, payload`) so they migrate to a node table later (document-column fallback per tree if normalization is too costly).

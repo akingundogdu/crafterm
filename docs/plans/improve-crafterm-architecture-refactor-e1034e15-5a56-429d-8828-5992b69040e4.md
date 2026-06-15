@@ -367,6 +367,8 @@ Three tiers, orchestrated by Turborepo (`turbo run test`), each runnable in isol
 
 ### 3.12 Domain model & repositories (DB-migration-ready) — HIGH PRIORITY
 
+> **Worked example:** [Domain Model — Reference Example](./improve-crafterm-domain-model-example-e1034e15-5a56-429d-8828-5992b69040e4.md) — the concrete template (Zod schema, repository, tree-as-node-rows, future SQLite DDL) every entity follows.
+
 The model is modeled **now** as if each entity were already a database table, so the later JSON → SQLite migration (§10) is a backend swap, not a remodel. Today's state is one `SavedState` blob (arrays + two recursive trees) with parallel live/`Saved*` types and a hand-written serializer. We replace that with an explicit, table-oriented domain model + a repository seam.
 
 **Structure — one module per entity:**
