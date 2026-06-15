@@ -190,6 +190,14 @@
   color: var(--text-faint);
   background: rgba(255, 255, 255, 0.05);
 }
+.claude-status.claude-review {
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.16);
+}
+.claude-status.claude-test {
+  color: #2dd4bf;
+  background: rgba(45, 212, 191, 0.16);
+}
 
 /* per-row order number (Cmd+1..9 for the first nine) */
 .order-num {

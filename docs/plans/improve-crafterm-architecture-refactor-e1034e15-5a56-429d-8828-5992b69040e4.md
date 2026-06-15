@@ -70,6 +70,8 @@ env set; component tests touch no filesystem at all. (See §3.11.)
 | External UI library | **DEFERRED** (last phase) | shadcn/MUI need React → ruled out. Agnostic options (Franken UI / Shoelace / daisyUI) are a new dependency, postponed (see §6). |
 | CSS reorganization | **In scope** (Phase 8, final phase) | Split `style.css`, co-locate per-component CSS, add design tokens — after the code structure lands (see §3.5, §5). |
 | Behavior changes | **None** (HR-1) | Structural-only; verified against the `docs/features.md` checklist after each phase. |
+| Domain model | **Table-oriented entities + repositories** (§3.12) | Model each entity (daily-task, worktree, …) as a DB-table-ready row now, behind repository interfaces, so the future JSON→SQLite migration (§10) is a backend swap, not a remodel. |
+| Schema/validation | **Zod** (`z.infer` = single source of truth) | Per-entity Zod schema; TS type derived from it (kills live/`Saved*` duality); validates the JSON boundary on load. New dep (approved). |
 | Feature spec | **Refresh `docs/features.md`** into a verification checklist | HR-1; it is stale and missing newer features. |
 | Terminal | **Dedicated module + `docs/terminal-architecture.md`** | HR-3; core of the app, extra caution. |
 | Shell scripts | **`resources/scripts/templates/` with `{{placeholder}}`** | HR-4; no more inline command strings. |
@@ -276,7 +278,7 @@ Today feature modules call `window.crafterm.*` directly and sprinkle `saveSoon()
 
 1. **`services/ipc/*.service.ts`** — one typed module per IPC domain; the *only* place that touches `window.crafterm`. Feature code imports `gitService.listBranches(cwd)` instead of `window.crafterm.gitBranches(cwd)`. Makes the renderer testable and the IPC surface discoverable.
 2. **`services/storage/*`** — owns `SavedState` serialization, `saveSoon`/`persistNow`, settings load/migrate. Moved out of `state.ts` (which keeps only singletons + hooks). Features call `persistence.save()` not raw timers.
-3. **`services/domain/*`** — pure business logic with no DOM and no IPC transport concerns (e.g. plan-filename parsing already in `main/planFilename.ts`; worktree path rules; time aggregation; token-usage math currently inline in main).
+3. **`services/domain/*`** — pure business logic with no DOM and no IPC transport concerns (e.g. plan-filename parsing already in `main/planFilename.ts`; worktree path rules; time aggregation; token-usage math currently inline in main). **Includes `domain/model/*` (table-oriented entities + schemas) and `storage/repositories/*` (the JSON→SQLite swap seam) — see §3.12.**
 
 ### 3.5 CSS strategy (Phase 8 — final phase, in scope)
 
@@ -362,6 +364,35 @@ Three tiers, orchestrated by Turborepo (`turbo run test`), each runnable in isol
 - Component/unit tests touch no FS; any that must, go through the temp dir only.
 
 **Co-location:** `*.test.ts` next to the unit under test; Playwright specs under `e2e/`. Coverage is additive — tests are written for code as it moves into the new structure, not retrofitted all at once.
+
+### 3.12 Domain model & repositories (DB-migration-ready) — HIGH PRIORITY
+
+> **Worked example:** [Domain Model — Reference Example](./improve-crafterm-domain-model-example-e1034e15-5a56-429d-8828-5992b69040e4.md) — the concrete template (Zod schema, repository, tree-as-node-rows, future SQLite DDL) every entity follows.
+
+The model is modeled **now** as if each entity were already a database table, so the later JSON → SQLite migration (§10) is a backend swap, not a remodel. Today's state is one `SavedState` blob (arrays + two recursive trees) with parallel live/`Saved*` types and a hand-written serializer. We replace that with an explicit, table-oriented domain model + a repository seam.
+
+**Structure — one module per entity:**
+```
+src/renderer/src/services/domain/model/
+  daily-task.ts      worktree.ts        reminder.ts       bookmark.ts
+  account.ts         time-entry.ts      notification.ts   meeting-note.ts
+  project.ts  application.ts  project-command.ts  feature.ts
+  palette-command.ts ssh-connection.ts  db-connection.ts  db-group.ts
+  action-menu-item.ts  settings.ts
+  sidebar-node.ts    layout-node.ts     pane.ts
+```
+Each module exports: a **Zod schema** as the source of truth, the **entity type** derived from it (`type DailyTask = z.infer<typeof dailyTaskSchema>` — single, unified, kills the live vs `Saved*` duality), a **default factory**, and (de)serialize helpers. No behavior/methods on entities — plain rows. (Zod also pairs with `drizzle-zod` if the §10 SQLite step uses Drizzle.)
+
+**Table-readiness rules (apply to every entity):**
+1. **Stable string `id`** on every row (most already have one; add where missing).
+2. **Reference by id (FK-style), not nested embedding**, for anything that would become its own table. e.g. `Project` → `applications`, `project_commands`, `features` become separate entities with `projectId`, not nested arrays. `DailyPlanData` → `daily_tasks` (+ `daily_tags`) with `taskId`/`tagId`.
+3. **Flat scalar/enum fields**; timestamps as epoch numbers (already the `Date.now()` pattern). Enums stay string-literal unions.
+4. **Recursive trees** (split `LayoutNode`, `SidebarNode`) modeled as **node rows** — `{ id, parentId, position, type, ...payload }` — so they migrate to a `nodes`/`layout_nodes` table. (Document/JSON-column is the fallback if a tree proves too costly to normalize; decide per tree.)
+5. **No drift:** one type per entity; the serializer is generated from the schema, not hand-maintained in two places.
+
+**Repository seam (`services/storage/repositories/`):** one repository per entity/aggregate exposing CRUD-ish methods — `getAll()`, `get(id)`, `upsert(row)`, `remove(id)`, `query(filter)`. Phase-2 implementation is **JSON-backed** (reads the loaded state, writes through `persistence.service`). The future SQLite backend (§10) implements the **same repository interfaces** — entities and all callers stay unchanged. This is the single swap point for the DB migration.
+
+> **Why now:** doing the table-oriented modeling + repositories during this refactor (not after) means the JSON→SQLite step is "implement the repo interfaces against SQLite + one data migration," with no churn to features. Aligns with §10.
 
 ---
 
@@ -502,7 +533,9 @@ You asked to consider an agnostic library instead of going React. Options that w
 2. **Test framework** → **Vitest + happy-dom + Playwright E2E**, in scope. (§3.11)
 3. **Monorepo tooling** → **pnpm workspaces + Turborepo**. (§3.3, Phase 0)
 4. **Test isolation** → tests/E2E use `CRAFTERM_STATE_DIR` temp dir, never `~/.crafterm*`. (HR-5, §3.11)
-5. **External UI library** → deferred (Phase 9). (§6)
+5. **Domain model** → table-oriented entities + repositories, modeled now for the future SQLite swap. (§3.12, §10)
+6. **Schema/validation** → **Zod** (`z.infer` single source of truth). (§3.12, Phase 2)
+7. **External UI library** → deferred (Phase 9). (§6)
 
 *No open questions remain — ready to implement on approval.*
 
@@ -511,3 +544,15 @@ You asked to consider an agnostic library instead of going React. Options that w
 - Functional/behavioral changes to features — **forbidden by HR-1** (structure-only refactor).
 - Backlog items in `~/.crafterm/todo-list.json` (tracked separately).
 - Packaging/distribution changes (beyond shipping the new `resources/scripts/templates/`).
+- **Storage backend change (JSON → SQLite)** — see §10; a separate future project, not this refactor.
+
+## 10. Future considerations (NOT in this refactor)
+
+### Persistence backend: JSON → local SQLite
+Today state is one JSON blob at `~/.crafterm/crafterm-state.json`, rewritten wholesale on each debounced save. `better-sqlite3` is already a dependency (DB tool). Moving the app's own data to a local SQLite DB is **out of scope** (it's a behavior/architecture change → violates HR-1), but worth evaluating later.
+
+- **Pros:** incremental row writes (no full-file rewrite); crash-safe transactions/WAL (a half-write can't corrupt everything); queryable append-heavy data (notifications log, time tracking, command history, saved queries) without loading all into memory; better scaling + structured migrations.
+- **Cons:** more complexity (schema/queries/migrations); the core **split/sidebar trees** don't map to relational tables (you'd store them as JSON columns anyway → little gain there); `better-sqlite3` runs in **main**, but the renderer currently owns state → adds IPC round-trips or shifts state ownership; binary file is harder to inspect/hand-edit than JSON; one-time user-data migration carries risk to live `~/.crafterm`.
+- **Recommended shape (if pursued):** **hybrid** — keep JSON for small tree-shaped config/state (layout, settings, sidebar); move append-heavy/queryable data to SQLite. The table-oriented model (§3.12) already maps each entity 1:1 to a future table.
+- **Enabler:** the Phase 2 **repositories** (§3.12) are the single swap seam — the SQLite backend just implements the same repository interfaces + one data migration; entities and all callers stay unchanged. The refactor *enables* this without committing to it.
+- **Plan of record:** the user intends to do the SQLite migration **after** the main refactor lands. The table-ready modeling in §3.12 is done now precisely so that step is friction-free.

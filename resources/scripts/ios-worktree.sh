@@ -111,7 +111,7 @@ if [ -z "$SUFFIX" ]; then
   exit 1
 fi
 BUNDLE_ID="${BASE_BUNDLE_ID}.${SUFFIX}"
-DISPLAY_NAME="${DISPLAY_PREFIX} ${BRANCH##*/}"
+DISPLAY_NAME="${BRANCH##*/} ${DISPLAY_PREFIX}"
 DERIVED_DATA="$WORKTREE_ROOT/build"
 
 # To stderr so `report` keeps stdout as pure JSON; still visible in run/device panes.
@@ -242,7 +242,7 @@ for e in entries:
     built = bool(glob.glob(os.path.join(path, 'build', 'Build', 'Products', '*', '*.app')))
     out.append({
         'path': path, 'branch': branch, 'bundleId': bundle,
-        'displayName': '%s %s' % (prefix, branch.split('/')[-1]),
+        'displayName': '%s %s' % (branch.split('/')[-1], prefix),
         'built': built, 'installed': bundle in installed, 'running': bundle in running
     })
 print(json.dumps({'simUdid': sim, 'baseBundleId': base, 'scheme': scheme, 'worktrees': out}))

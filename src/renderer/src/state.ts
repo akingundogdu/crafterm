@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm'
-import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, ReminderDefaults, TimeEntry, DbNode, ActionMenuItem, Bookmark, DailyPlanData, DailyPlanTask, DailyPlanTag, MeetingNote, AccountEntry } from './types'
+import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, CodePane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, ReminderDefaults, TimeEntry, DbNode, ActionMenuItem, Bookmark, DailyPlanData, DailyPlanTask, DailyPlanTag, MeetingNote, AccountEntry } from './types'
 import { BUILTIN_ACTIONS } from './types'
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from './themes'
 import { PALETTE_SEED } from './palette-seed'
@@ -15,6 +15,7 @@ export const docs = new Map<string, DocPane>() // markdown note panes
 export const sqlPanes = new Map<string, SqlPane>() // SQL editor panes (db tool)
 export const diffPanes = new Map<string, DiffPane>() // PR diff panes (transient)
 export const filePanes = new Map<string, FilePane>() // file viewer panes (transient)
+export const codePanes = new Map<string, CodePane>() // editable code editor panes
 export const opened = new Set<string>()
 // Pane ids currently shown in a separate pop-out window (rendered as a
 // placeholder in the main layout; runtime only, never persisted).
@@ -70,6 +71,7 @@ export const settings = {
   } as Record<string, string>,
   font: { family: 'Menlo, Monaco, "Courier New", monospace', size: 13 } as Font,
   bgColor: '#000000', // terminal/app background; user-selectable, defaults to black
+  editorTheme: 'Default', // global Monaco theme name for the code + SQL editors
   docFontSize: 15, // markdown (notebook) doc font size; Cmd+/- when a doc is focused
   codeRoot: '', // base folder for the Cmd+P folder picker ('' = home)
   prProjects: [] as string[], // repo paths shown in the PR panel's "All projects" view
@@ -185,7 +187,8 @@ export const hooks = {
   updateActive: () => {}, // light: active-tab highlight only
   updatePaneHighlight: () => {}, // light: active-pane border only
   renderContent: () => {},
-  renderNotifications: () => {} // right notification panel
+  renderNotifications: () => {}, // right notification panel
+  runShortcut: (_id: string) => {} // run an editable keybinding action by id (wired in main.ts)
 }
 
 // Add a card to the right notification panel (newest first). `meta` carries the
@@ -236,6 +239,8 @@ export const paneActions = {
   dailyTaskStatus: (_taskId: string): string | null => null,
   viewTicketDetail: (_paneId: string) => {},
   markTaskDone: (_paneId: string) => {},
+  markTaskReview: (_paneId: string) => {},
+  markTaskTest: (_paneId: string) => {},
   // Reactivate an archived session: rebuild its dormant layout (panes + PTYs) and
   // clear the archived status. Wired in main.ts (needs buildLayout).
   reactivateTab: (_tabId: string) => {}
@@ -313,6 +318,10 @@ export function serializeLayout(node: import('./types').LayoutNode): SavedNode {
         }
       }
     }
+    const cp = codePanes.get(node.paneId)
+    if (cp) {
+      return { type: 'leaf', codePane: { path: cp.path, themeName: cp.themeName } }
+    }
     const p = panes.get(node.paneId)
     const leaf: SavedNode = { type: 'leaf' }
     if (p?.stableId) leaf.stableId = p.stableId // keep plan-file ownership across restarts
@@ -383,6 +392,7 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
   if (node.kind === 'project') {
     return {
       kind: 'project',
+      id: node.id,
       name: node.name,
       color: node.color,
       collapsed: node.collapsed,
@@ -441,7 +451,7 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
 
 // Bumped when the persisted shape changes. Main backs up the state file once
 // before loading any state whose schemaVersion is below this (migrate-on-load).
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 function persist(): void {
   const data: SavedState = {
@@ -451,6 +461,7 @@ function persist(): void {
     customTheme: settings.customTheme,
     font: settings.font,
     bgColor: settings.bgColor,
+    editorTheme: settings.editorTheme,
     docFontSize: settings.docFontSize,
     codeRoot: settings.codeRoot,
     prProjects: settings.prProjects,
@@ -508,6 +519,7 @@ export function loadSettings(saved: SavedState): void {
   }
   if (saved.customTheme) settings.customTheme = saved.customTheme
   if (saved.bgColor) settings.bgColor = saved.bgColor
+  if (typeof saved.editorTheme === 'string') settings.editorTheme = saved.editorTheme
   if (typeof saved.docFontSize === 'number') settings.docFontSize = saved.docFontSize
   if (typeof saved.codeRoot === 'string') settings.codeRoot = saved.codeRoot
   if (Array.isArray(saved.prProjects))

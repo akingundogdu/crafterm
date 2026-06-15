@@ -32,6 +32,12 @@ export interface SavedLeaf {
     fileName: string | null
     themeName?: string // CodeMirror theme name (defaults to "Default")
   }
+  // When set, this leaf is an editable code editor pane; restore re-opens the
+  // file from disk (unsaved edits are not persisted).
+  codePane?: {
+    path: string
+    themeName?: string
+  }
 }
 export interface SavedSplit {
   type: 'split'
@@ -113,6 +119,7 @@ export interface IosWorktreeReport {
 }
 export interface SavedProject {
   kind: 'project'
+  id?: string // stable primary key (persisted) — daily-task linkage keys on it
   name: string
   color: string | null
   collapsed: boolean
@@ -231,6 +238,7 @@ export interface SavedState {
   theme: string // a built-in name, or 'Custom'
   customTheme?: Record<string, string>
   bgColor?: string // user-chosen background color
+  editorTheme?: string // global Monaco theme name for the code + SQL editors
   docFontSize?: number // markdown doc font size
   codeRoot?: string // base folder for the Cmd+P folder picker
   prProjects?: string[] // repo paths shown in the PR panel's "All projects" view
@@ -315,7 +323,7 @@ export interface SavedState {
       description?: string
       date: string
       dueDate?: string
-      status: 'backlog' | 'todo' | 'wip' | 'done'
+      status: 'backlog' | 'todo' | 'wip' | 'review' | 'test' | 'done'
       priority: 'low' | 'medium' | 'high'
       tagIds: string[]
       order: number
@@ -440,6 +448,11 @@ export interface ClaudeRealUsage {
 export interface DirEntry {
   name: string
   path: string
+}
+export interface BacklogItem {
+  id: string
+  text: string
+  status: string
 }
 export interface DirListing {
   path: string
@@ -607,6 +620,30 @@ export interface CraftermApi {
   readMd(path: string): Promise<string>
   readText(path: string): Promise<{ ok: boolean; text?: string; error?: string }>
   writeMd(path: string, content: string): Promise<boolean>
+  // Write any text file back to disk (code editor save). Only overwrites an
+  // existing regular file; returns false on failure.
+  writeText(path: string, content: string): Promise<boolean>
+  // Git working-tree status for Files-tree decorations: absolute path → kind.
+  gitFileStatus(
+    cwd: string
+  ): Promise<Record<string, 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'>>
+  // Files-tree management. Each refuses to clobber an existing path and returns
+  // false on failure. `trashPath` moves to the system Trash (recoverable).
+  createFile(path: string): Promise<boolean>
+  mkdir(path: string): Promise<boolean>
+  renamePath(from: string, to: string): Promise<boolean>
+  trashPath(path: string): Promise<boolean>
+  // Read a monaco-themes theme JSON by display name (e.g. "Monokai"). Returns the
+  // parsed IStandaloneThemeData object, or null on failure.
+  monacoTheme(name: string): Promise<Record<string, unknown> | null>
+  // Resolve a relative import specifier (from `fromFile`) to an absolute source
+  // file + the declaration line of `symbol` (go-to-definition for imports).
+  // Returns null for bare modules or non-existent paths.
+  resolveImport(
+    fromFile: string,
+    spec: string,
+    symbol?: string
+  ): Promise<{ path: string; line: number } | null>
   gitStashList(id: string): Promise<{ ref: string; description: string }[]>
   gitBranches(id: string): Promise<string[]>
   claudeLatestSession(cwd?: string, since?: number): Promise<string | null>
@@ -652,6 +689,7 @@ export interface CraftermApi {
   secretDelete(entryId: string, key?: string): Promise<{ ok: boolean; error?: string }>
   todoRead(path?: string): Promise<string | null>
   todoWrite(path: string, content: string): Promise<boolean>
+  backlogRead(): Promise<{ path: string; items: BacklogItem[] } | null>
   zshCommands(): Promise<{ name: string; value: string }[]>
   dbConnect(config: DbConfig): Promise<{ ok: boolean; error?: string }>
   dbObjects(config: DbConfig): Promise<DbObjects>

@@ -7,3 +7,4 @@ dist
 
 # Local-only docs (kept on disk, not published)
 todo-list.md
+/docs/plans

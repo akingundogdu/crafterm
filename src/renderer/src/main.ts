@@ -1,8 +1,8 @@
 import '@xterm/xterm/css/xterm.css'
 import './style.css'
-import type { LayoutNode, SidebarNode, DiffPane } from './types'
+import type { LayoutNode, SidebarNode, DiffPane, CodePane } from './types'
 import type { SavedNode, SavedSidebarNode } from '../../preload/api'
-import { state, panes, docs, diffPanes, hooks, paneActions, loadSettings, migrateLegacyState, seedActionMenu, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
+import { state, panes, docs, diffPanes, codePanes, hooks, paneActions, loadSettings, migrateLegacyState, seedActionMenu, saveSoon, persistNow, uid, applyBgColor, applyDocFont, settings } from './state'
 import { firstPaneOf, allTabs, findById } from './tree'
 import { flattenProjects } from './catalog'
 import {
@@ -18,6 +18,9 @@ import {
   refreshPaneDailyTask
 } from './pane'
 import { createSqlPane } from './dbPane'
+import { createCodePane } from './codePane'
+import { setEditorOpenHandler } from './codeEditor'
+import { applyTheme } from './monacoSetup'
 import { renderContent, updatePaneHighlight } from './content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from './notifications'
 import { openTrackModal } from './time'
@@ -49,7 +52,9 @@ import {
   dailyTaskIssueKey,
   dailyTaskStatus,
   viewPaneTask,
-  markPaneTaskDone
+  markPaneTaskDone,
+  markPaneTaskReview,
+  markPaneTaskTest
 } from './dailyPlan'
 import { openNewMeeting } from './meetingNotes'
 import { openReminderForm } from './reminders'
@@ -67,6 +72,7 @@ import {
   showFeaturePicker,
   showGlobalSearch
 } from './pickers'
+import { showSpotlight } from './spotlight'
 import { startWorktreeReconcile } from './worktrees'
 import { onProcessExit } from './bgproc'
 import { startIosWorktreePoll } from './ios-worktree'
@@ -130,6 +136,7 @@ import {
   createWorktreeFromPane,
   gitActionFromPane,
   openMarkdownInGroup,
+  openCodeEditor,
   contextFolderId
 } from './commands'
 
@@ -165,6 +172,8 @@ paneActions.dailyTaskIssueKey = (taskId) => dailyTaskIssueKey(taskId)
 paneActions.dailyTaskStatus = (taskId) => dailyTaskStatus(taskId)
 paneActions.viewTicketDetail = (paneId) => viewPaneTask(paneId)
 paneActions.markTaskDone = (paneId) => markPaneTaskDone(paneId)
+paneActions.markTaskReview = (paneId) => markPaneTaskReview(paneId)
+paneActions.markTaskTest = (paneId) => markPaneTaskTest(paneId)
 paneActions.reactivateTab = (tabId) => void reactivateTab(tabId)
 
 // ---- PTY stream wiring ----
@@ -238,16 +247,23 @@ function activeIsDoc(): boolean {
 function activeDiffPane(): DiffPane | null {
   return state.activePaneId ? diffPanes.get(state.activePaneId) ?? null : null
 }
+function activeCodePane(): CodePane | null {
+  return state.activePaneId ? codePanes.get(state.activePaneId) ?? null : null
+}
 function zoomFont(delta: number): void {
+  const cp = activeCodePane()
   const dp = activeDiffPane()
-  if (dp) dp.setFont(delta)
+  if (cp) cp.setFont(delta)
+  else if (dp) dp.setFont(delta)
   else if (activeIsDoc()) adjustDocFontSize(delta)
   else if (sidebarHasFocus()) adjustSidebarFontSize(delta)
   else adjustActivePaneFontSize(delta) // only the focused terminal, not all
 }
 function zoomFontReset(): void {
+  const cp = activeCodePane()
   const dp = activeDiffPane()
-  if (dp) dp.resetFont()
+  if (cp) cp.resetFont()
+  else if (dp) dp.resetFont()
   else if (activeIsDoc()) resetDocFontSize()
   else if (sidebarHasFocus()) resetSidebarFontSize()
   else resetActivePaneFontSize()
@@ -274,6 +290,19 @@ const KEY_HANDLERS: Record<string, () => void> = {
   'split-claude': () => void splitActivePaneWithClaude(),
   'split-picker': () => showProjectPicker(null, { split: true }),
   'global-search': () => void showGlobalSearch(),
+  spotlight: () => void showSpotlight(),
+  'spotlight-files': () => void showSpotlight('files'),
+  'spotlight-commands': () => void showSpotlight('commands'),
+  'spotlight-claude': () => void showSpotlight('claude'),
+  'spotlight-terminals': () => void showSpotlight('terminals'),
+  'spotlight-shortcuts': () => void showSpotlight('shortcuts'),
+  'spotlight-plans': () => void showSpotlight('plans'),
+  'spotlight-bookmarks': () => void showSpotlight('bookmarks'),
+  'spotlight-apps': () => void showSpotlight('apps'),
+  'spotlight-tasks': () => void showSpotlight('tasks'),
+  'spotlight-projects': () => void showSpotlight('projects'),
+  'spotlight-notebooks': () => void showSpotlight('notebooks'),
+  'spotlight-accounts': () => void showSpotlight('accounts'),
   'cycle-next': () => cyclePane(1),
   'cycle-prev': () => cyclePane(-1),
   equalize: () => equalizePanes(),
@@ -291,6 +320,10 @@ const KEY_HANDLERS: Record<string, () => void> = {
   'run-apps': () => showRunAppsPicker(),
   'new-feature': () => showFeaturePicker()
 }
+
+// Let the spotlight's Shortcuts tab run any editable keybinding by id without
+// importing main.ts (avoids an import cycle).
+hooks.runShortcut = (id) => KEY_HANDLERS[id]?.()
 
 // True while any modal overlay (settings, improve, picker, dialog…) is mounted.
 // Used by the global keydown handler to suppress shortcuts that would otherwise
@@ -400,6 +433,10 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
         themeName: n.sqlPane.themeName
       })
       return { type: 'leaf', paneId: sqlId }
+    }
+    if (n.codePane) {
+      const codeId = createCodePane({ path: n.codePane.path, themeName: n.codePane.themeName })
+      return { type: 'leaf', paneId: codeId }
     }
     // cwd-aware resume: if the saved cwd was lost (e.g. wiped by a transient lsof
     // failure before an older build's hard kill) but we still have the Claude
@@ -517,7 +554,9 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
       const children = await buildSidebar(n.children)
       out.push({
         kind: 'project',
-        id: uid('p'),
+        // Reuse the persisted primary key so daily-task → project links survive a
+        // restart; old state without an id gets a fresh one (persisted next save).
+        id: n.id ?? uid('p'),
         name: n.name || 'Project',
         color: n.color ?? null,
         collapsed: !!n.collapsed,
@@ -604,6 +643,9 @@ async function init(): Promise<void> {
 
   applyBgColor()
   applyDocFont()
+  void applyTheme(settings.editorTheme) // global Monaco editor theme
+  // Route editor go-to-definition (cross-file imports) into our pane system.
+  setEditorOpenHandler((p, line) => openCodeEditor(p, { line }))
   applyOrientation()
   applySidebarFont()
   applySidebarCollapsed()

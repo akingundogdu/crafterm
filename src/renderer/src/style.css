@@ -686,6 +686,68 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   white-space: nowrap;
 }
 
+/* Spotlight (unified tabbed search) */
+.gs-badge.gs-file { background: rgba(88, 166, 255, 0.18); color: #79c0ff; }
+.gs-badge.gs-command { background: rgba(57, 197, 187, 0.18); color: #56d4cb; }
+.gs-badge.gs-claude { background: rgba(199, 116, 230, 0.18); color: #d2a8ff; }
+.gs-badge.gs-shortcut { background: rgba(110, 118, 129, 0.22); color: #adbac7; }
+.gs-badge.gs-app { background: rgba(63, 185, 80, 0.18); color: #56d364; }
+.gs-badge.gs-task { background: rgba(240, 198, 118, 0.18); color: #f0c674; }
+.gs-badge.gs-reminder { background: rgba(248, 178, 73, 0.18); color: #f0c674; }
+.gs-badge.gs-backlog { background: rgba(248, 81, 73, 0.18); color: #ff7b72; }
+
+.spot-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.spot-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+.spot-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.spot-tab.active {
+  background: rgba(88, 166, 255, 0.16);
+  color: var(--accent);
+  border-color: rgba(88, 166, 255, 0.3);
+}
+.spot-tab-combo {
+  font-size: 10px;
+  opacity: 0.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.spot-list {
+  max-height: 56vh;
+}
+.spot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+}
+.spot-row .gs-badge {
+  flex: 0 0 70px;
+}
+.spot-row .gs-detail {
+  margin-left: auto;
+}
+
 .acc-form-secret {
   font-size: 11px;
   color: var(--text-dim);
@@ -1980,6 +2042,108 @@ body.dragging-pane .pane-term {
   color: var(--text-dim);
   line-height: 1.5;
   margin: 4px 0 4px;
+}
+
+/* Wide "close terminal" modal with task/worktree action switches. */
+.close-actions-modal {
+  width: 520px;
+}
+.close-actions-modal h2 {
+  margin-bottom: 14px;
+}
+.close-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  background: var(--bg-term);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.close-action-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.close-action-head {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.close-action-detail {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.close-action-key {
+  flex: none;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+.close-action-title {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.close-action-path {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--text-mute);
+  word-break: break-all;
+}
+
+/* iOS-style toggle switch (checkbox-backed). */
+.switch {
+  position: relative;
+  flex: none;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.switch-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border-strong);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+}
+.switch input:checked + .switch-slider {
+  background: var(--accent);
+}
+.switch input:checked + .switch-slider::before {
+  transform: translateX(18px);
 }
 .field-col {
   flex-direction: column;
@@ -4129,6 +4293,73 @@ body.improve-window {
   padding-left: 8px;
 }
 
+/* Files tree (treeview): file-type icon tints, VSCode-style */
+.expl-ic svg {
+  width: 13px;
+  height: 13px;
+}
+.expl-ic-folder {
+  color: var(--accent, #58a6ff);
+}
+.expl-ic-default {
+  color: var(--text-mute);
+}
+.expl-ic-swift {
+  color: #f05138;
+}
+.expl-ic-ts {
+  color: #3178c6;
+}
+.expl-ic-js {
+  color: #e8d44d;
+}
+.expl-ic-json {
+  color: #cbcb41;
+}
+.expl-ic-md {
+  color: #58a6ff;
+}
+.expl-ic-web {
+  color: #e44d26;
+}
+.expl-ic-data {
+  color: #a0a0c0;
+}
+.expl-ic-img {
+  color: #a371f7;
+}
+.expl-ic-py {
+  color: #3572a5;
+}
+.expl-ic-go {
+  color: #00add8;
+}
+.expl-ic-rust {
+  color: #dea584;
+}
+.expl-ic-sh {
+  color: #4caf50;
+}
+.expl-ic-config {
+  color: #9aa0a6;
+}
+
+/* Files tree: git status decorations on the row label */
+.expl-git-modified > .tab-row > .tab-title {
+  color: #e2b340;
+}
+.expl-git-added > .tab-row > .tab-title,
+.expl-git-untracked > .tab-row > .tab-title {
+  color: #57ab5a;
+}
+.expl-git-deleted > .tab-row > .tab-title {
+  color: #e5534b;
+  text-decoration: line-through;
+}
+.expl-git-renamed > .tab-row > .tab-title {
+  color: #58a6ff;
+}
+
 /* time tracking (right panel → Time tab) */
 #notif-time-view {
   flex: 1;
@@ -5100,6 +5331,70 @@ body.improve-window {
   background: var(--bg-term);
   user-select: none;
 }
+/* ---- Code editor pane (Monaco) ---- */
+.code-body {
+  user-select: auto;
+  padding: 0;
+  overflow: hidden;
+}
+.code-body .monaco-editor,
+.code-body .monaco-editor .overflow-guard {
+  width: 100% !important;
+  height: 100% !important;
+}
+.code-dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 6px;
+  flex: 0 0 auto;
+}
+.diff-hbtn.code-save-dirty {
+  color: var(--accent);
+}
+/* Floating selection actions inside the editor (Cursor-style) */
+.code-sel-actions {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--elev-2, #1c2026);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transform: translateY(-6px);
+  z-index: 30;
+}
+.code-sel-btn {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.code-sel-btn:hover {
+  background: var(--accent-soft, rgba(88, 166, 255, 0.18));
+}
+.code-theme-sel {
+  height: 22px;
+  max-width: 130px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 0 4px;
+  cursor: pointer;
+  outline: none;
+}
+.code-theme-sel:hover {
+  border-color: var(--border-strong);
+}
+
 .diff-row {
   position: relative;
   display: flex;
@@ -5176,23 +5471,12 @@ body.improve-window {
 }
 
 /* Floating "+ chat" button shown over a markdown preview text selection. */
-.doc-chat-btn {
+/* Doc-pane floating selection menu: same look as the editor's, but pinned with
+   fixed positioning to the selection rect (not a Monaco content widget). */
+.doc-sel-menu {
   position: fixed;
   z-index: 50;
   transform: translateY(-100%);
-  padding: 3px 8px;
-  border: none;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.3;
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-.doc-chat-btn:hover {
-  filter: brightness(1.15);
 }
 
 /* Inline PR comment popover (fixed-positioned near the comment button). */
@@ -5715,6 +5999,56 @@ body.improve-window {
   gap: 14px;
   overflow: hidden;
   min-height: 0;
+}
+
+/* Changelog report modal */
+.changelog-modal {
+  width: min(640px, 92vw);
+}
+.changelog-projects {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: var(--bg-term);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.changelog-proj-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 5px;
+  white-space: pre;
+}
+.changelog-proj-row:hover {
+  background: var(--row-hover);
+}
+.changelog-proj-row input {
+  cursor: pointer;
+}
+.changelog-output {
+  width: 100%;
+  margin-top: 12px;
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 10px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+.changelog-output:focus {
+  border-color: var(--accent);
 }
 
 /* Daily plan rendered inside the narrow Notebook sub-tab: stack everything. */
@@ -6273,6 +6607,53 @@ body.improve-window {
   border: 1px solid var(--border-strong);
 }
 
+/* Worktree branch chip (issue key + slug) shown when a task carries a slug. */
+.daily-plan-card-branch {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(99, 102, 241, 0.14);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Required form field flagged on a failed save. */
+.daily-plan-form select.field-invalid,
+.daily-plan-form input.field-invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.4);
+}
+
+/* Code-review / test badge on a card sitting in the In Progress column. */
+.daily-plan-card-review,
+.daily-plan-card-test {
+  flex: none;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.daily-plan-card-review {
+  background: rgba(168, 85, 247, 0.16);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+.daily-plan-card-test {
+  background: rgba(45, 212, 191, 0.16);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.4);
+}
+
 /* ---- Meeting Notes (Notebook sub-tab) ---------------------------------- */
 .meeting-notes {
   display: flex;
@@ -6558,4 +6939,89 @@ body.improve-window {
   text-align: center;
   border: 1px dashed var(--border);
   border-radius: 7px;
+}
+
+/* ---- Spotlight: compact, translucent near-black, blurred modern theme ---- */
+.modal-overlay:has(.spotlight-modal) {
+  align-items: flex-start;
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+}
+.modal.spotlight-modal {
+  width: 860px;
+  max-width: 92vw;
+  margin-top: 11vh;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  background: rgba(12, 12, 14, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.62), inset 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+}
+.spotlight-modal .modal-close {
+  display: none;
+}
+.spotlight-modal .picker-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  padding: 4px 4px 10px;
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.spotlight-modal .picker-input::placeholder {
+  color: var(--text-mute);
+}
+.spotlight-modal .picker-input:focus {
+  border-bottom-color: rgba(120, 170, 255, 0.5);
+}
+.spotlight-modal .spot-tabs {
+  gap: 3px;
+  padding: 0 0 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.spotlight-modal .spot-tab {
+  padding: 3px 9px;
+  font-size: 11.5px;
+  border-radius: 7px;
+}
+.spotlight-modal .spot-tab.active {
+  background: rgba(88, 166, 255, 0.18);
+  color: var(--accent);
+  border-color: rgba(88, 166, 255, 0.32);
+}
+.spotlight-modal .spot-list,
+.spotlight-modal.picker-modal-wide .picker-list {
+  max-height: 52vh;
+}
+.spotlight-modal .spot-row {
+  padding: 6px 8px;
+  gap: 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  color: var(--text-dim);
+}
+.spotlight-modal .spot-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.spotlight-modal .spot-row.active {
+  background: rgba(88, 166, 255, 0.16);
+  color: var(--text);
+}
+.spotlight-modal .gs-label {
+  font-size: 12.5px;
+}
+.spotlight-modal .gs-detail {
+  font-size: 10.5px;
+  max-width: 440px;
+}
+.spotlight-modal .empty-hint {
+  padding: 18px 8px;
+  color: var(--text-mute);
+  font-size: 12px;
 }

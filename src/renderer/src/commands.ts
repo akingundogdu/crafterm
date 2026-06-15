@@ -16,6 +16,7 @@ import {
   sqlPanes,
   diffPanes,
   filePanes,
+  codePanes,
   poppedOut,
   state,
   settings,
@@ -64,7 +65,9 @@ import {
 import { createSqlPane, destroySqlPane } from './dbPane'
 import { createDiffPane, destroyDiffPane } from './diffPane'
 import { createFilePane, destroyFilePane } from './filePane'
-import { promptText, promptForm, promptConfirm } from './dialog'
+import { createCodePane, destroyCodePane } from './codePane'
+import { promptText, promptForm, promptConfirm, promptCloseActions } from './dialog'
+import { removeWorktree, worktreeForCwd } from './worktrees'
 
 function focusActivePane(): void {
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
@@ -843,12 +846,8 @@ export async function resumeClaudeSession(
   }
 }
 
-// Host a doc pane: split the active pane, or create a tab if there's none.
-function hostDoc(id: string, title: string): void {
-  if (state.activeTabId && state.activePaneId) {
-    placeSplit(id, 'row')
-    return
-  }
+// Host a doc pane in a brand-new tab (its own page).
+function hostDocInNewTab(id: string, title: string): void {
   const tab: TabNode = {
     kind: 'tab',
     id: uid('t'),
@@ -863,6 +862,15 @@ function hostDoc(id: string, title: string): void {
   state.activePaneId = id
   requestSidebar()
   renderContent()
+}
+
+// Host a doc pane: split the active pane, or create a tab if there's none.
+function hostDoc(id: string, title: string): void {
+  if (state.activeTabId && state.activePaneId) {
+    placeSplit(id, 'row')
+    return
+  }
+  hostDocInNewTab(id, title)
 }
 
 // Open a notebook markdown note (editable) in a split doc pane.
@@ -932,6 +940,48 @@ export function openFileViewer(absPath: string): void {
   hostDoc(createFilePane({ path: absPath, targetPaneId }), absPath.split('/').pop() || 'file')
 }
 
+// First real terminal pane inside a tab's layout (skips doc/code/sql/etc panes).
+function terminalPaneOf(tab: TabNode): string | null {
+  for (const pid of panesInLayout(tab.root)) if (panes.has(pid)) return pid
+  return null
+}
+
+// First existing code editor pane inside a tab's layout.
+function codePaneOf(tab: TabNode): string | null {
+  for (const pid of panesInLayout(tab.root)) if (codePanes.has(pid)) return pid
+  return null
+}
+
+// Open a file in the editable Monaco code editor pane (syntax highlight +
+// Cmd+S save). Used by the Files tree. Behavior, anchored on the sidebar's
+// active terminal tab (not whatever pane currently holds focus):
+//   • newPage → always host the editor in a brand-new tab.
+//   • reuse   → if the active tab already has a code editor, load the file there.
+//   • else    → split a new editor beside that tab's terminal pane.
+export function openCodeEditor(
+  absPath: string,
+  opts: { newPage?: boolean; line?: number } = {}
+): void {
+  const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
+  if (opts.newPage || !tab) {
+    hostDocInNewTab(
+      createCodePane({ path: absPath, line: opts.line }),
+      absPath.split('/').pop() || 'file'
+    )
+    return
+  }
+  const existing = codePaneOf(tab)
+  if (existing) {
+    codePanes.get(existing)?.openFile(absPath, opts.line)
+    selectPane(existing)
+    return
+  }
+  // Anchor the split on the tab's terminal so repeated clicks stay predictable.
+  const term = terminalPaneOf(tab)
+  if (term) state.activePaneId = term
+  hostDoc(createCodePane({ path: absPath, line: opts.line }), absPath.split('/').pop() || 'file')
+}
+
 // Run a one-off command in a new split terminal beside the active pane.
 export async function runInSplit(command: string): Promise<void> {
   const paneId = await createPane(activeCwd())
@@ -956,23 +1006,36 @@ export async function confirmAndClosePane(paneId: string): Promise<void> {
     })
     if (!ok) return
   }
-  // If this terminal is assigned to an unfinished daily task, offer to mark it
-  // done on close (todo50).
-  if (p?.dailyTaskId) {
-    const task = settings.dailyPlan.tasks.find((t) => t.id === p.dailyTaskId)
-    if (task && task.status !== 'done') {
-      const done = await promptConfirm({
-        title: 'Mark task done?',
-        message: `Move "${task.issueKey ? task.issueKey + ' · ' : ''}${task.title}" to Done?`,
-        confirmText: 'Mark done'
-      })
-      if (done) {
-        task.status = 'done'
-        task.updatedAt = Date.now()
-        saveSoon()
-      }
+  // Gather close-time actions: an unfinished daily task to mark done (todo50),
+  // and a git worktree this terminal lives in to remove. When either applies,
+  // show a single modal with switches (both ON by default) rather than closing
+  // silently — the user can flip a switch off to skip that action.
+  const task = p?.dailyTaskId
+    ? settings.dailyPlan.tasks.find((t) => t.id === p.dailyTaskId && t.status !== 'done')
+    : undefined
+  const wt = p?.cwd ? worktreeForCwd(p.cwd) : null
+
+  if (task || wt) {
+    const res = await promptCloseActions({
+      title: 'Close terminal?',
+      confirmText: 'Close',
+      task: task ? { issueKey: task.issueKey, title: task.title } : undefined,
+      worktree: wt ? { branch: wt.node.branch, path: wt.path } : undefined
+    })
+    if (!res) return // cancelled — keep the terminal open
+    if (task && res.markDone) {
+      task.status = 'done'
+      task.updatedAt = Date.now()
+      saveSoon()
+    }
+    if (wt && res.deleteWorktree) {
+      const removed = await removeWorktree(wt.project, wt.path, { force: true, skipConfirm: true })
+      // On success archiveWorktreeNode already tore down this pane (and any
+      // siblings under the worktree); nothing left to close.
+      if (removed) return
     }
   }
+
   closePane(paneId)
 }
 
@@ -1039,7 +1102,8 @@ export function closePane(paneId: string): void {
     !docs.has(paneId) &&
     !sqlPanes.has(paneId) &&
     !diffPanes.has(paneId) &&
-    !filePanes.has(paneId)
+    !filePanes.has(paneId) &&
+    !codePanes.has(paneId)
   const owningTab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
   if (isTerminalPane && owningTab && panesInLayout(owningTab.root).length <= 1) {
     archiveTab(owningTab)
@@ -1061,6 +1125,8 @@ export function closePane(paneId: string): void {
     destroyDiffPane(paneId)
   } else if (filePanes.has(paneId)) {
     destroyFilePane(paneId)
+  } else if (codePanes.has(paneId)) {
+    destroyCodePane(paneId)
   } else {
     destroyPane(paneId)
     window.crafterm.kill(paneId)
@@ -1156,6 +1222,7 @@ export function selectPane(paneId: string): void {
   requestStatuses()
   p?.term.focus()
   sqlPanes.get(paneId)?.focus()
+  codePanes.get(paneId)?.focus()
   // A tab switch flips `display` on the container; xterm's textarea may not
   // accept focus until layout settles. Re-focus on the next frame so jumping
   // from a notification (or the Claude dashboard) actually lands on the pane.
