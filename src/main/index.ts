@@ -8,6 +8,7 @@ import * as notebook from './services/notebook.service'
 import * as fsService from './services/fs.service'
 import * as git from './services/git.service'
 import * as plansWatcher from './services/plans.watcher'
+import * as ios from './services/ios.service'
 import { run, gitBin, paneCwd } from './services/exec'
 import {
   newSummary,
@@ -1607,142 +1608,23 @@ ipcMain.on('sound:event', (_e, { event }: { event: string }) => {
 function scriptsDir(): string {
   return app.isPackaged ? join(process.resourcesPath, 'scripts') : join(__dirname, '../../resources/scripts')
 }
-ipcMain.handle('iosWorktree:scriptPath', () => join(scriptsDir(), 'ios-worktree.sh'))
+// iOS worktree build/run lives in services/ios.service.ts; these handlers
+// resolve the ios-worktree.sh path and delegate.
+const iosWorktreeScript = (): string => join(scriptsDir(), 'ios-worktree.sh')
+ipcMain.handle('iosWorktree:scriptPath', () => iosWorktreeScript())
 
-// Build the IOSWT_* env from a project's iosConfig (empty fields auto-detect in
-// the script). repoRoot is the owning project's path.
-interface IosCfg {
-  project?: string
-  scheme?: string
-  baseBundleId?: string
-  displayPrefix?: string
-  defaultSimulator?: string
-  copyFiles?: string[]
-  worktreesDir?: string
-}
-function iosEnv(cfg: IosCfg | undefined, repoRoot?: string): Record<string, string> {
-  const e: Record<string, string> = {}
-  if (repoRoot) e.IOSWT_REPO_ROOT = repoRoot
-  if (cfg?.project) e.IOSWT_PROJECT = cfg.project
-  if (cfg?.scheme) e.IOSWT_SCHEME = cfg.scheme
-  if (cfg?.baseBundleId) e.IOSWT_BUNDLE_ID = cfg.baseBundleId
-  if (cfg?.displayPrefix) e.IOSWT_DISPLAY_PREFIX = cfg.displayPrefix
-  if (cfg?.defaultSimulator) e.IOSWT_SIMULATOR = cfg.defaultSimulator
-  if (cfg?.worktreesDir) e.IOSWT_WORKTREES_DIR = cfg.worktreesDir
-  if (cfg?.copyFiles?.length) e.IOSWT_COPY_FILES = cfg.copyFiles.join(':')
-  return e
-}
-
-// Live status for the sidebar: enumerate a repo's worktrees and their variants'
-// built/installed/running state. Returns null on failure (renderer keeps prior).
-ipcMain.handle(
-  'iosWorktree:report',
-  (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: IosCfg }) =>
-    new Promise((resolve) => {
-      const script = join(scriptsDir(), 'ios-worktree.sh')
-      execFile(
-        '/bin/bash',
-        [script, 'report'],
-        { cwd: repoRoot, env: { ...process.env, ...iosEnv(cfg, repoRoot) }, timeout: 90_000, maxBuffer: 8 * 1024 * 1024 },
-        (err, stdout) => {
-          if (err) return resolve(null)
-          try {
-            resolve(JSON.parse(stdout.toString()))
-          } catch {
-            resolve(null)
-          }
-        }
-      )
-    })
+ipcMain.handle('iosWorktree:report', (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: ios.IosCfg }) =>
+  ios.report(iosWorktreeScript(), repoRoot, cfg)
 )
 
-// Terminate a worktree's variant on the target simulator.
-ipcMain.handle(
-  'iosWorktree:stop',
-  (_e, { worktreePath, cfg }: { worktreePath: string; cfg?: IosCfg }) =>
-    new Promise((resolve) => {
-      const script = join(scriptsDir(), 'ios-worktree.sh')
-      execFile(
-        '/bin/bash',
-        [script, 'stop'],
-        { cwd: worktreePath, env: { ...process.env, ...iosEnv(cfg, worktreePath) }, timeout: 30_000 },
-        (err) => resolve(!err)
-      )
-    })
+ipcMain.handle('iosWorktree:stop', (_e, { worktreePath, cfg }: { worktreePath: string; cfg?: ios.IosCfg }) =>
+  ios.stop(iosWorktreeScript(), worktreePath, cfg)
 )
-// Enumerate available iOS run targets: simulators (simctl JSON, reliable) and
-// connected physical devices (xctrace text, best-effort). Returns names + UDIDs
-// for the worktree "Build & Run" picker.
-ipcMain.handle('ios:listTargets', async () => {
-  const simulators: { name: string; udid: string }[] = []
-  const devices: { name: string; udid: string }[] = []
-  try {
-    const out = await run('/usr/bin/xcrun', ['simctl', 'list', 'devices', 'available', '--json'])
-    if (out) {
-      const data = JSON.parse(out) as { devices: Record<string, { name: string; udid: string; isAvailable?: boolean }[]> }
-      for (const [runtime, list] of Object.entries(data.devices)) {
-        if (!/iOS/i.test(runtime)) continue
-        for (const d of list) {
-          if (d.isAvailable === false) continue
-          simulators.push({ name: d.name, udid: d.udid })
-        }
-      }
-    }
-  } catch {
-    /* simctl missing / parse error — leave simulators empty */
-  }
-  try {
-    const out = await run('/usr/bin/xcrun', ['xctrace', 'list', 'devices'])
-    if (out) {
-      // Physical devices live under "== Devices ==" AND "== Devices Offline =="
-      // (a USB device is often listed "offline" until trusted/tunneled — still
-      // worth showing so the user can pick it). Lines look like
-      // "Akın's iPhone (17.0) (00008110-...)". The host Mac carries no OS version
-      // in parens, so the version-requiring regex excludes it; simulators live
-      // under their own header.
-      let inDevices = false
-      for (const line of out.split('\n')) {
-        const t = line.trim()
-        if (/^==.*Devices.*==/i.test(t)) { inDevices = true; continue }
-        if (/^==/.test(t)) { inDevices = false; continue }
-        if (!inDevices || !t || /Simulator/i.test(t)) continue
-        const m = t.match(/^(.*?)\s+\(([\d.]+)\)\s+\(([0-9A-Fa-f-]{8,})\)$/)
-        if (m && !devices.some((d) => d.udid === m![3])) {
-          devices.push({ name: `${m[1]} (${m[2]})`, udid: m[3] })
-        }
-      }
-    }
-  } catch {
-    /* xctrace missing — leave devices empty */
-  }
-  return { simulators, devices }
-})
 
-// List the Xcode schemes for an iOS project (e.g. "local" / "prod" — they pick the
-// API environment). Used by the worktree "Build & Run" picker's scheme level.
-ipcMain.handle(
-  'ios:listSchemes',
-  (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: IosCfg }) =>
-    new Promise<string[]>((resolve) => {
-      const args = ['xcodebuild', '-list', '-json']
-      const container = cfg?.project?.trim()
-      if (container) args.push(/\.xcworkspace$/.test(container) ? '-workspace' : '-project', container)
-      execFile(
-        '/usr/bin/xcrun',
-        args,
-        { cwd: repoRoot, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 },
-        (err, stdout) => {
-          if (err) return resolve([])
-          try {
-            const d = JSON.parse(stdout.toString())
-            const schemes = (d.workspace || d.project || {}).schemes
-            resolve(Array.isArray(schemes) ? schemes : [])
-          } catch {
-            resolve([])
-          }
-        }
-      )
-    })
+ipcMain.handle('ios:listTargets', () => ios.listTargets())
+
+ipcMain.handle('ios:listSchemes', (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: ios.IosCfg }) =>
+  ios.listSchemes(repoRoot, cfg)
 )
 
 ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => notebook.del(notebooksDir(), path))
