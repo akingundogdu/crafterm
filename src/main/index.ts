@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage } from 'electron'
 import { join, dirname, resolve as resolvePath } from 'path'
 import { homedir } from 'os'
 import { loadScript } from './services/scripts'
 import * as terminal from './services/terminal.manager'
+import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from './services/secrets.service'
 import {
   newSummary,
   applyJsonlLine,
@@ -494,59 +495,22 @@ const claudeProjectsDir = (): string => join(homedir(), '.claude', 'projects')
 // session in the same cwd. Without `since` the call returns whatever's newest
 // (legacy behavior, still used by readers that just want "any session here").
 // ---- Secrets (Accounts) ----
-// safeStorage-encrypted blobs stored under <stateDir>/secrets/<id>/<key>.bin.
-// The JSON state file only references the (id, key) pair; the secret value
-// itself never lives in plaintext on disk. macOS uses Keychain under the hood.
+// safeStorage-encrypted secrets live under <stateDir>/secrets; the operations
+// are in services/secrets.service.ts. These handlers just resolve the base dir
+// and delegate.
 function secretsDir(): string {
   return join(stateDir(), 'secrets')
 }
-function secretSafeName(s: string): string {
-  return s.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80)
-}
-function secretFilePath(entryId: string, key: string): string | null {
-  const id = secretSafeName(entryId)
-  const k = secretSafeName(key)
-  if (!id || !k) return null
-  return join(secretsDir(), id, k + '.bin')
-}
-ipcMain.handle('secrets:set', (_e, { entryId, key, value }: { entryId: string; key: string; value: string }) => {
-  if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'safeStorage unavailable' }
-  const p = secretFilePath(entryId, key)
-  if (!p) return { ok: false, error: 'invalid id/key' }
-  try {
-    mkdirSync(join(p, '..'), { recursive: true })
-    const enc = safeStorage.encryptString(value ?? '')
-    writeFileSync(p, enc)
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, error: String((err as Error).message) }
-  }
-})
-ipcMain.handle('secrets:get', (_e, { entryId, key }: { entryId: string; key: string }) => {
-  if (!safeStorage.isEncryptionAvailable()) return null
-  const p = secretFilePath(entryId, key)
-  if (!p || !existsSync(p)) return null
-  try {
-    return safeStorage.decryptString(readFileSync(p))
-  } catch {
-    return null
-  }
-})
-ipcMain.handle('secrets:delete', (_e, { entryId, key }: { entryId: string; key?: string }) => {
-  try {
-    const dir = join(secretsDir(), secretSafeName(entryId))
-    if (!key) {
-      if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
-      return { ok: true }
-    }
-    const p = secretFilePath(entryId, key)
-    if (p && existsSync(p)) unlinkSync(p)
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, error: String((err as Error).message) }
-  }
-})
-ipcMain.handle('secrets:available', () => safeStorage.isEncryptionAvailable())
+ipcMain.handle('secrets:set', (_e, { entryId, key, value }: { entryId: string; key: string; value: string }) =>
+  setSecret(secretsDir(), entryId, key, value)
+)
+ipcMain.handle('secrets:get', (_e, { entryId, key }: { entryId: string; key: string }) =>
+  getSecret(secretsDir(), entryId, key)
+)
+ipcMain.handle('secrets:delete', (_e, { entryId, key }: { entryId: string; key?: string }) =>
+  deleteSecret(secretsDir(), entryId, key)
+)
+ipcMain.handle('secrets:available', () => isSecretsAvailable())
 
 // Aggregate Claude token usage across every session under
 // `~/.claude/projects/**/*.jsonl` for three periods (today, this week, this
