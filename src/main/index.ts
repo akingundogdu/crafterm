@@ -4,6 +4,11 @@ import { join, dirname, resolve as resolvePath } from 'path'
 import { homedir } from 'os'
 import { loadScript } from './services/scripts'
 import {
+  newSummary,
+  applyJsonlLine,
+  type ClaudeUsageSummary
+} from './services/claude-usage.service'
+import {
   readFileSync,
   writeFileSync,
   existsSync,
@@ -626,94 +631,22 @@ ipcMain.handle('secrets:available', () => safeStorage.isEncryptionAvailable())
 // month) so the top status bar can show quota-style percentages. The "cap" used
 // for percentages is configurable per-period (passed in from the renderer);
 // without one we still return the raw totals. Cached for 30s.
-interface ClaudePeriodTotals {
-  inputTokens: number
-  outputTokens: number
-  cachedTokens: number
-  totalTokens: number
-}
-interface ClaudeUsageSummary {
-  today: ClaudePeriodTotals
-  thisWeek: ClaudePeriodTotals
-  thisMonth: ClaudePeriodTotals
-  sessions: number // sessions touched today
-  lastModel: string | null
-  lastSpeed: string | null // 'standard' | 'fast' — from message.usage.speed
-  thinkingDetected: boolean // was a `thinking` content block seen this week
-  resetTimes: { day: number; week: number; month: number } // next reset (ms epoch)
-}
 let claudeUsageCache: { expiresAt: number; data: ClaudeUsageSummary } | null = null
-function startOfDayMs(now: Date): number {
-  const d = new Date(now)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
-}
-function startOfWeekMs(now: Date): number {
-  // Week starts Monday 00:00 local. (Most Claude plans reset on a fixed
-  // weekday — Monday is the closest universal anchor; users can correct via
-  // configurable caps.)
-  const d = new Date(now)
-  const day = d.getDay() // 0 = Sun
-  const back = (day + 6) % 7 // days since Monday
-  d.setDate(d.getDate() - back)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
-}
-function startOfMonthMs(now: Date): number {
-  const d = new Date(now)
-  d.setDate(1)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
-}
-function emptyTotals(): ClaudePeriodTotals {
-  return { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0 }
-}
-function addToPeriod(p: ClaudePeriodTotals, u: Record<string, unknown>): void {
-  const ino = Number(u.input_tokens) || 0
-  const outo = Number(u.output_tokens) || 0
-  const cc = Number(u.cache_creation_input_tokens) || 0
-  const cr = Number(u.cache_read_input_tokens) || 0
-  p.inputTokens += ino
-  p.outputTokens += outo
-  p.cachedTokens += cc + cr
-  p.totalTokens += ino + outo + cc + cr
-}
 ipcMain.handle('claude:usageSummary', () => {
   const now = Date.now()
   if (claudeUsageCache && claudeUsageCache.expiresAt > now) return claudeUsageCache.data
   const root = claudeProjectsDir()
-  const nowDate = new Date(now)
-  const dayStart = startOfDayMs(nowDate)
-  const weekStart = startOfWeekMs(nowDate)
-  const monthStart = startOfMonthMs(nowDate)
-  const summary: ClaudeUsageSummary = {
-    today: emptyTotals(),
-    thisWeek: emptyTotals(),
-    thisMonth: emptyTotals(),
-    sessions: 0,
-    lastModel: null,
-    lastSpeed: null,
-    thinkingDetected: false,
-    resetTimes: {
-      day: dayStart + 24 * 3600_000,
-      week: weekStart + 7 * 24 * 3600_000,
-      month: (() => {
-        const d = new Date(monthStart)
-        d.setMonth(d.getMonth() + 1)
-        return d.getTime()
-      })()
-    }
-  }
-  if (!existsSync(root)) {
+  const { summary, bounds } = newSummary(new Date(now))
+  const cache = (): ClaudeUsageSummary => {
     claudeUsageCache = { expiresAt: now + 30_000, data: summary }
     return summary
   }
+  if (!existsSync(root)) return cache()
   let projDirs: string[] = []
   try {
     projDirs = readdirSync(root)
   } catch {
-    claudeUsageCache = { expiresAt: now + 30_000, data: summary }
-    return summary
+    return cache()
   }
   for (const proj of projDirs) {
     const dir = join(root, proj)
@@ -732,52 +665,19 @@ ipcMain.handle('claude:usageSummary', () => {
         continue
       }
       // Skip files untouched this month entirely.
-      if (mtimeMs < monthStart) continue
-      let touchedToday = false
+      if (mtimeMs < bounds.monthStart) continue
       // Read enough of the tail to capture this month's records on hot files.
       // For older monthly data the tail is fine; for very large weekly files we
       // may miss earliest entries — acceptable for a rolling indicator.
       const text = readTail(full, 256 * 1024)
+      let touchedToday = false
       for (const line of text.split('\n')) {
-        if (!line.trim()) continue
-        let o: Record<string, unknown>
-        try {
-          o = JSON.parse(line)
-        } catch {
-          continue
-        }
-        const ts =
-          typeof o.timestamp === 'string' ? new Date(o.timestamp as string).getTime() : 0
-        if (!ts || ts < monthStart) continue
-        const msg = o.message as Record<string, unknown> | undefined
-        if (!msg || typeof msg !== 'object') continue
-        if (typeof msg.model === 'string') summary.lastModel = msg.model as string
-        const u = msg.usage as Record<string, unknown> | undefined
-        if (u && typeof u === 'object') {
-          if (typeof u.speed === 'string') summary.lastSpeed = u.speed as string
-          // Period bucketing (monthly is the outer guard above).
-          addToPeriod(summary.thisMonth, u)
-          if (ts >= weekStart) addToPeriod(summary.thisWeek, u)
-          if (ts >= dayStart) {
-            addToPeriod(summary.today, u)
-            touchedToday = true
-          }
-        }
-        const content = msg.content as unknown[] | undefined
-        if (Array.isArray(content)) {
-          for (const c of content) {
-            if (c && typeof c === 'object' && (c as { type?: string }).type === 'thinking') {
-              summary.thinkingDetected = true
-              break
-            }
-          }
-        }
+        if (applyJsonlLine(summary, line, bounds)) touchedToday = true
       }
       if (touchedToday) summary.sessions++
     }
   }
-  claudeUsageCache = { expiresAt: now + 30_000, data: summary }
-  return summary
+  return cache()
 })
 
 // --- Real Claude usage (official server-side limits) ---
