@@ -1,10 +1,11 @@
 import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage } from 'electron'
-import { join, dirname, resolve as resolvePath } from 'path'
+import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { loadScript } from './services/scripts'
 import * as terminal from './services/terminal.manager'
 import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from './services/secrets.service'
 import * as notebook from './services/notebook.service'
+import * as fsService from './services/fs.service'
 import {
   newSummary,
   applyJsonlLine,
@@ -1015,18 +1016,7 @@ ipcMain.handle('dir:list', (_e, { path }: { path?: string }) => {
 })
 
 // List a directory's entries (files + folders) for the file explorer.
-ipcMain.handle('fs:listEntries', (_e, { path }: { path?: string }) => {
-  let dir = path && path.trim() ? path.trim() : homedir()
-  if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
-  try {
-    const entries = readdirSync(dir, { withFileTypes: true })
-      .map((d) => ({ name: d.name, path: join(dir, d.name), isDir: d.isDirectory() }))
-      .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1))
-    return { path: dir, entries }
-  } catch {
-    return { path: dir, entries: [] }
-  }
-})
+ipcMain.handle('fs:listEntries', (_e, { path }: { path?: string }) => fsService.listEntries(path))
 
 // Open a path in the user's IDE via their `ide` command (no terminal spawned).
 ipcMain.on('ide:open', (_e, { path, ide }: { path: string; ide: string }) => {
@@ -1497,51 +1487,20 @@ ipcMain.handle('md:findAll', (_e, { root }: { root?: string }) => {
 })
 
 // Read any markdown file (read-only viewer for the Cmd+O finder).
-ipcMain.handle('fs:readMd', (_e, { path }: { path: string }) => {
-  if (!/\.(md|mdx|mdc)$/i.test(path) || !existsSync(path)) return ''
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return ''
-  }
-})
+ipcMain.handle('fs:readMd', (_e, { path }: { path: string }) => fsService.readMd(path))
 
-// Read any text file (read-only viewer). Caps size and rejects binary content so
-// the file viewer pane never tries to render a multi-megabyte blob or garbage.
-ipcMain.handle('fs:readText', (_e, { path }: { path: string }) => {
-  try {
-    if (!existsSync(path)) return { ok: false, error: 'File not found.' }
-    const buf = readFileSync(path)
-    if (buf.length > 2_000_000) return { ok: false, error: 'File too large to preview.' }
-    if (buf.includes(0)) return { ok: false, error: 'Binary file — cannot preview.' }
-    return { ok: true, text: buf.toString('utf8') }
-  } catch {
-    return { ok: false, error: 'Failed to read file.' }
-  }
-})
+// Read any text file (read-only viewer); caps size + rejects binary content.
+ipcMain.handle('fs:readText', (_e, { path }: { path: string }) => fsService.readText(path))
 
-ipcMain.handle('fs:writeMd', (_e, { path, content }: { path: string; content: string }) => {
-  if (!/\.(md|mdx|mdc)$/i.test(path)) return false
-  try {
-    writeFileSync(path, content)
-    return true
-  } catch {
-    return false
-  }
-})
+ipcMain.handle('fs:writeMd', (_e, { path, content }: { path: string; content: string }) =>
+  fsService.writeMd(path, content)
+)
 
 // Write any text file back to disk (code editor save). Only overwrites an
-// existing regular file — never creates new paths here, so a bad path can't
-// scatter files. Returns false on any failure (the established IPC idiom).
-ipcMain.handle('fs:writeText', (_e, { path, content }: { path: string; content: string }) => {
-  try {
-    if (!isFilePath(path)) return false
-    writeFileSync(path, content, 'utf8')
-    return true
-  } catch {
-    return false
-  }
-})
+// existing regular file — never creates new paths here.
+ipcMain.handle('fs:writeText', (_e, { path, content }: { path: string; content: string }) =>
+  fsService.writeText(path, content)
+)
 
 // Read a monaco-themes theme JSON by display name (e.g. "Monokai"). Ships via
 // extraResources when packaged; reads from node_modules in dev. Returns the
@@ -1562,83 +1521,24 @@ ipcMain.handle('monaco:theme', (_e, { name }: { name: string }) => {
 })
 
 // Resolve a relative import specifier to an absolute source file (go-to-
-// definition for imports). Probes the common TS/JS extensions + index files.
-// When `symbol` is given, scans the target for its declaration line. Returns
-// null for bare/node_modules specifiers or anything that doesn't exist.
-const IMPORT_EXTS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs', '.json', '.vue', '.svelte']
+// definition for imports).
 ipcMain.handle(
   'fs:resolveImport',
-  (_e, { fromFile, spec, symbol }: { fromFile: string; spec: string; symbol?: string }) => {
-    if (!fromFile || !spec) return null
-    if (!spec.startsWith('.') && !spec.startsWith('/')) return null // bare module — skip
-    const base = spec.startsWith('/') ? spec : resolvePath(dirname(fromFile), spec)
-    const candidates: string[] = []
-    if (/\.[a-z0-9]+$/i.test(base) && isFilePath(base)) candidates.push(base)
-    for (const ext of IMPORT_EXTS) candidates.push(base + ext)
-    for (const ext of IMPORT_EXTS) candidates.push(join(base, 'index' + ext))
-    const target = candidates.find((c) => isFilePath(c))
-    if (!target) return null
-    let line = 1
-    if (symbol && /^[A-Za-z_$][\w$]*$/.test(symbol)) {
-      try {
-        const src = readFileSync(target, 'utf8').split('\n')
-        const re = new RegExp(
-          `\\b(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?(?:class|interface|type|enum|function|const|let|var)\\s+${symbol}\\b`
-        )
-        const idx = src.findIndex((l) => re.test(l))
-        if (idx >= 0) line = idx + 1
-      } catch {
-        // fall back to line 1
-      }
-    }
-    return { path: target, line }
-  }
+  (_e, { fromFile, spec, symbol }: { fromFile: string; spec: string; symbol?: string }) =>
+    fsService.resolveImport(fromFile, spec, symbol)
 )
 
-// Create an empty file (Files tree → New File). Refuses to overwrite an
-// existing path. Returns false on any failure (the established IPC idiom).
-ipcMain.handle('fs:createFile', (_e, { path }: { path: string }) => {
-  try {
-    if (existsSync(path)) return false
-    writeFileSync(path, '', { flag: 'wx' })
-    return true
-  } catch {
-    return false
-  }
-})
+// Create an empty file (Files tree → New File). Refuses to overwrite.
+ipcMain.handle('fs:createFile', (_e, { path }: { path: string }) => fsService.createFile(path))
 
 // Create a directory (Files tree → New Folder). Refuses an existing path.
-ipcMain.handle('fs:mkdir', (_e, { path }: { path: string }) => {
-  try {
-    if (existsSync(path)) return false
-    mkdirSync(path)
-    return true
-  } catch {
-    return false
-  }
-})
+ipcMain.handle('fs:mkdir', (_e, { path }: { path: string }) => fsService.mkdir(path))
 
 // Rename/move a path (Files tree → Rename). Refuses if the destination exists.
-ipcMain.handle('fs:rename', (_e, { from, to }: { from: string; to: string }) => {
-  try {
-    if (!existsSync(from) || existsSync(to)) return false
-    renameSync(from, to)
-    return true
-  } catch {
-    return false
-  }
-})
+ipcMain.handle('fs:rename', (_e, { from, to }: { from: string; to: string }) => fsService.rename(from, to))
 
 // Move a path to the system Trash (Files tree → Delete). Recoverable, unlike rm.
-ipcMain.handle('fs:trash', async (_e, { path }: { path: string }) => {
-  try {
-    if (!existsSync(path)) return false
-    await shell.trashItem(path)
-    return true
-  } catch {
-    return false
-  }
-})
+ipcMain.handle('fs:trash', (_e, { path }: { path: string }) => fsService.trash(path))
 
 // Git working-tree status for the Files tree decorations. Returns a map of
 // absolute path → change kind, parsed from `git status --porcelain`. Empty map
@@ -1677,68 +1577,16 @@ ipcMain.handle('git:fileStatus', async (_e, { cwd }: { cwd?: string }) => {
   return out
 })
 
-function isFilePath(p: string): boolean {
-  try {
-    return statSync(p).isFile()
-  } catch {
-    return false
-  }
-}
-
-// Resolve a path clicked in the terminal to an existing file. Terminal output
-// often prints paths relative to a directory that isn't the pane's exact cwd
-// (e.g. "pkg/docs/x.md" while the cwd is already inside "pkg", which would
-// otherwise resolve to "pkg/pkg/docs/x.md" and 404). Try the path against the
-// cwd and each ancestor directory, returning the first one that exists.
-ipcMain.handle('fs:resolveFile', (_e, { base, rel }: { base?: string; rel: string }) => {
-  let target = (rel || '').trim()
-  if (!target) return null
-  if (target.startsWith('~')) target = join(homedir(), target.slice(1))
-  if (target.startsWith('/')) return isFilePath(target) ? target : null
-  target = target.replace(/^\.\//, '')
-  const candidates: string[] = []
-  let dir = base && base.trim() ? base.trim() : homedir()
-  for (let i = 0; i < 12; i++) {
-    candidates.push(join(dir, target))
-    const parent = dirname(dir)
-    if (parent === dir) break
-    dir = parent
-  }
-  candidates.push(join(homedir(), target))
-  for (const c of candidates) if (isFilePath(c)) return c
-  return null
-})
+// Resolve a path clicked in the terminal to an existing file (tries the cwd and
+// each ancestor directory).
+ipcMain.handle('fs:resolveFile', (_e, { base, rel }: { base?: string; rel: string }) =>
+  fsService.resolveFile(base, rel)
+)
 
 // Recursively list files under a root (for the notebook "Link file" finder).
-function walkFiles(
-  dir: string,
-  exclude: Set<string>,
-  out: { path: string; name: string }[],
-  cap: number
-): void {
-  if (out.length >= cap) return
-  let entries: import('fs').Dirent[]
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return
-  }
-  for (const e of entries) {
-    if (out.length >= cap) return
-    if (e.name.startsWith('.') || exclude.has(e.name)) continue
-    const full = join(dir, e.name)
-    if (e.isDirectory()) walkFiles(full, exclude, out, cap)
-    else if (e.isFile()) out.push({ path: full, name: e.name })
-  }
-}
-ipcMain.handle('fs:findFiles', (_e, { root, exclude }: { root?: string; exclude?: string[] }) => {
-  let dir = root && root.trim() ? root.trim() : homedir()
-  if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
-  if (!existsSync(dir)) return { root: dir, files: [] as { path: string; name: string }[] }
-  const out: { path: string; name: string }[] = []
-  walkFiles(dir, new Set(exclude ?? ['node_modules', '.git', 'dist', 'out']), out, 20000)
-  return { root: dir, files: out }
-})
+ipcMain.handle('fs:findFiles', (_e, { root, exclude }: { root?: string; exclude?: string[] }) =>
+  fsService.findFiles(root, exclude)
+)
 
 // Read/write the user-configured todo-list.md (Improve Crafterm panel).
 function resolveTodoPath(p?: string): string {
