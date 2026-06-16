@@ -9,6 +9,8 @@ import * as fsService from './services/fs.service'
 import * as git from './services/git.service'
 import * as plansWatcher from './services/plans.watcher'
 import * as ios from './services/ios.service'
+import * as appInfo from './services/app-info.service'
+import * as buildCounter from './services/build-counter.service'
 import { run, gitBin, paneCwd } from './services/exec'
 import {
   newSummary,
@@ -1248,112 +1250,18 @@ ipcMain.handle('deploy:wasUpdating', () => {
   return true
 })
 
-// Installed app version (from package.json via Electron).
-ipcMain.handle('app:version', () => app.getVersion())
+// App version + build provenance live in services/app-info.service.ts.
+ipcMain.handle('app:version', () => appInfo.version())
+ipcMain.handle('app:buildInfo', () => appInfo.buildInfo(join(__dirname, '../build-info.json')))
+ipcMain.handle('app:repoGit', (_e, { repoPath }: { repoPath?: string }) => appInfo.repoGit(repoPath))
 
-// Git state of the build this running app was packaged from. Written into the
-// bundle by scripts/deploy.sh (out/build-info.json) at deploy time. Returns null
-// in dev (unpackaged) or when the file is missing — callers then skip the
-// "redeploy needed" comparison.
-ipcMain.handle('app:buildInfo', () => {
-  if (!app.isPackaged) return null
-  try {
-    const info = JSON.parse(readFileSync(join(__dirname, '../build-info.json'), 'utf8'))
-    return {
-      commit: typeof info.commit === 'string' ? info.commit : null,
-      commitCount: typeof info.commitCount === 'number' ? info.commitCount : null
-    }
-  } catch {
-    return null
-  }
-})
-
-// Live git state of the source repo: current commit, commit count, and whether
-// the working tree has uncommitted changes. Lets the renderer flag that the
-// running build is behind the repo (redeploy needed). null on any failure.
-ipcMain.handle('app:repoGit', async (_e, { repoPath }: { repoPath?: string }) => {
-  const repo = repoPath?.trim()
-  if (!repo || !existsSync(repo)) return null
-  const gitPath = gitBin()
-  const commit = await run(gitPath, ['-C', repo, 'rev-parse', 'HEAD'])
-  if (!commit) return null
-  const count = await run(gitPath, ['-C', repo, 'rev-list', '--count', 'HEAD'])
-  const status = await run(gitPath, ['-C', repo, 'status', '--porcelain'])
-  return {
-    commit: commit.trim(),
-    commitCount: count ? parseInt(count.trim(), 10) || 0 : 0,
-    dirty: status !== null && status.trim().length > 0
-  }
-})
-
-// Monotonic build counter: increments on every save under the source repo while
-// the app is running. Stored per-repo in <stateDir>/build-counter.json and never
-// reset — gives the version chip a "+N" that ticks up as code changes, surfacing
-// edits without a commit or redeploy. The recursive watcher is started lazily on
-// the first query and survives restarts via the persisted count.
-const buildCounterWatchers = new Map<string, FSWatcher>()
-const buildCounterTimers = new Map<string, NodeJS.Timeout>()
+// Monotonic build counter lives in services/build-counter.service.ts; the count
+// file is <stateDir>/build-counter.json.
 const buildCounterPath = (): string => join(stateDir(), 'build-counter.json')
-
-function readBuildCounters(): Record<string, number> {
-  try {
-    const data = JSON.parse(readFileSync(buildCounterPath(), 'utf8'))
-    if (!data || typeof data !== 'object') return {}
-    return data as Record<string, number>
-  } catch {
-    return {}
-  }
-}
-
-function writeBuildCounters(counters: Record<string, number>): void {
-  try {
-    mkdirSync(stateDir(), { recursive: true })
-    writeFileSync(buildCounterPath(), JSON.stringify(counters))
-  } catch {
-    /* ignore */
-  }
-}
-
-// Build output, dependencies, and git internals are not source edits, so changes
-// under these path segments never bump the counter.
-const BUILD_COUNTER_IGNORE = ['.git', 'node_modules', 'out', 'dist']
-function isIgnoredBuildPath(file: string): boolean {
-  return file.split(/[\\/]/).some((seg) => BUILD_COUNTER_IGNORE.includes(seg))
-}
-
-function ensureBuildCounterWatcher(repo: string): void {
-  if (buildCounterWatchers.has(repo)) return
-  try {
-    const watcher = fsWatch(repo, { persistent: false, recursive: true }, (_evt, filename) => {
-      if (filename && isIgnoredBuildPath(filename.toString())) return
-      // Debounce: one save can fire several events; collapse to a single +1.
-      const prev = buildCounterTimers.get(repo)
-      if (prev) clearTimeout(prev)
-      const t = setTimeout(() => {
-        buildCounterTimers.delete(repo)
-        const counters = readBuildCounters()
-        counters[repo] = (counters[repo] ?? 0) + 1
-        writeBuildCounters(counters)
-      }, 300)
-      buildCounterTimers.set(repo, t)
-    })
-    watcher.on('error', () => {
-      watcher.close()
-      buildCounterWatchers.delete(repo)
-    })
-    buildCounterWatchers.set(repo, watcher)
-  } catch {
-    /* ignore */
-  }
-}
-
-// Current monotonic save count for the source repo; starts the watcher on first
-// call so subsequent saves are counted. null when no/invalid repo path.
 ipcMain.handle('app:buildCounter', (_e, { repoPath }: { repoPath?: string }) => {
   const repo = repoPath?.trim()
   if (!repo || !existsSync(repo)) return null
-  ensureBuildCounterWatcher(repo)
-  return readBuildCounters()[repo] ?? 0
+  return buildCounter.getCount(repo, buildCounterPath())
 })
 
 // Open a file in the user's Markdown app via their `markdown` (mdpp) command.
