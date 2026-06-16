@@ -516,13 +516,26 @@ export interface DbColumns {
   error?: string
 }
 
-export interface CraftermApi {
+// The bridge is namespaced by domain (window.crafterm.git.*, crafterm.pty.*, …).
+// Each sub-interface mirrors the renderer's services/ipc/* wrapper of the same
+// name, so the wrappers forward straight through (see _forward.ts `call`).
+
+export interface TerminalApi {
   createPty(opts: { cwd?: string; env?: Record<string, string>; shell?: string }): Promise<string>
   input(id: string, data: string): void
   resize(id: string, cols: number, rows: number): void
   kill(id: string): void
   onData(cb: (id: string, data: string) => void): void
   onExit(cb: (id: string) => void): void
+  adoptPane(id: string): void
+  paneInfo(id: string, stableId?: string): Promise<PaneInfo>
+  onCloseActivePane(cb: () => void): void
+  onFocusPane(cb: (id: string) => void): void
+  popoutOpen(paneId: string, title?: string): Promise<void>
+  popoutConfirmClose(id: string): void
+  popoutFocus(id: string): void
+  onPopoutKilled(cb: (id: string) => void): void
+  onPopoutConfirmClose(cb: (id: string) => void): void
   // Background processes ("hidden shells"): run a one-shot command in a PTY keyed
   // by stableId, buffered in main so a view can attach + replay. Live data/exit
   // flow over the shared pty:data channel and the proc:exit channel.
@@ -535,31 +548,112 @@ export interface CraftermApi {
   procBuffer(id: string): Promise<string>
   procAttach(id: string): void
   onProcExit(cb: (id: string, code: number) => void): void
-  adoptPane(id: string): void
-  popoutOpen(paneId: string, title?: string): Promise<void>
-  popoutConfirmClose(id: string): void
-  popoutFocus(id: string): void
-  onPopoutKilled(cb: (id: string) => void): void
-  onPopoutConfirmClose(cb: (id: string) => void): void
-  openImproveWindow(): Promise<void>
-  improveWindowSetAlwaysOnTop(value: boolean): void
-  loadState(): Promise<SavedState | null>
-  saveState(data: SavedState): void
-  paneInfo(id: string, stableId?: string): Promise<PaneInfo>
-  notify(title: string, body: string, paneId?: string): void
-  openExternal(url: string): void
-  onCloseActivePane(cb: () => void): void
-  onAppQuitting(cb: () => void): void
-  onFullscreenChange(cb: (isFullscreen: boolean) => void): void
-  onFocusPane(cb: (id: string) => void): void
+}
+
+export interface GitApi {
+  branches(id: string): Promise<string[]>
+  stashList(id: string): Promise<{ ref: string; description: string }[]>
+  // Git working-tree status for Files-tree decorations: absolute path → kind.
+  fileStatus(
+    cwd: string
+  ): Promise<Record<string, 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'>>
+  listWorktrees(cwd?: string): Promise<WorktreeListing>
+  // Create (or attach an existing branch to) a worktree at `path`, awaiting it.
+  worktreeAdd(repo: string, path: string, branch: string, base?: string): Promise<boolean>
+}
+
+export interface FsApi {
   listDir(path?: string): Promise<DirListing>
   listEntries(path?: string): Promise<{
     path: string
     entries: { name: string; path: string; isDir: boolean }[]
   }>
+  findAllMarkdown(root?: string): Promise<{ root: string; files: { path: string; name: string }[] }>
+  findFiles(
+    root?: string,
+    exclude?: string[]
+  ): Promise<{ root: string; files: { path: string; name: string }[] }>
+  resolveFile(base: string, rel: string): Promise<string | null>
+  readMd(path: string): Promise<string>
+  readText(path: string): Promise<{ ok: boolean; text?: string; error?: string }>
+  writeMd(path: string, content: string): Promise<boolean>
+  // Write any text file back to disk (code editor save). Only overwrites an
+  // existing regular file; returns false on failure.
+  writeText(path: string, content: string): Promise<boolean>
+  // Files-tree management. Each refuses to clobber an existing path and returns
+  // false on failure. `trashPath` moves to the system Trash (recoverable).
+  createFile(path: string): Promise<boolean>
+  mkdir(path: string): Promise<boolean>
+  renamePath(from: string, to: string): Promise<boolean>
+  trashPath(path: string): Promise<boolean>
+  // Resolve a relative import specifier (from `fromFile`) to an absolute source
+  // file + the declaration line of `symbol` (go-to-definition for imports).
+  // Returns null for bare modules or non-existent paths.
+  resolveImport(
+    fromFile: string,
+    spec: string,
+    symbol?: string
+  ): Promise<{ path: string; line: number } | null>
   ideOpen(path: string, ide: string): void
-  listPlans(): Promise<DirEntry[]>
-  plansForBranch(
+  openPath(path: string): void
+  revealPath(path: string): void
+  openMarkdown(path: string): void
+}
+
+export interface ClaudeApi {
+  latestSession(cwd?: string, since?: number): Promise<string | null>
+  // Recover a session's working directory from its jsonl (the `cwd` field), used
+  // to resume a Claude pane whose saved cwd was lost. Null if not found.
+  sessionCwd(sessionId: string): Promise<string | null>
+  sessions(): Promise<ClaudeSession[]>
+  sessionTitle(cwd: string, sessionId: string): Promise<string | null>
+  // Coarse session state from the JSONL tail for the sidebar status dot.
+  sessionStatus(
+    cwd: string,
+    sessionId: string
+  ): Promise<'in-progress' | 'question' | 'idle' | null>
+  // Live permission mode of a Claude session from the JSONL's last
+  // permission-mode record. 'plan' means the session is in plan mode right now.
+  permissionMode(
+    cwd: string,
+    sessionId: string
+  ): Promise<'plan' | 'default' | 'auto' | 'acceptEdits' | string | null>
+  // Start a live watcher on this cwd's Claude project dir; fires onSessionsChanged
+  // when a session jsonl (e.g. a /rename) is written. Idempotent per cwd.
+  watchSessions(cwd: string): Promise<boolean>
+  onSessionsChanged(cb: (cwd: string) => void): () => void
+  usageSummary(): Promise<{
+    today: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number }
+    thisWeek: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number }
+    thisMonth: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number }
+    sessions: number
+    lastModel: string | null
+    lastSpeed: string | null
+    thinkingDetected: boolean
+    resetTimes: { day: number; week: number; month: number }
+  }>
+  realUsage(opts: {
+    keychainService?: string
+    fallbackToken?: string | null
+    force?: boolean
+  }): Promise<ClaudeRealUsage>
+}
+
+export interface NotebookApi {
+  tree(): Promise<NbNode[]>
+  read(path: string): Promise<string>
+  write(path: string, content: string): void
+  mkdir(path: string): Promise<boolean>
+  create(path: string): Promise<boolean>
+  rename(path: string, name: string): Promise<boolean>
+  move(src: string, destDir: string): Promise<boolean>
+  delete(path: string): Promise<boolean>
+  reveal(path: string): void
+}
+
+export interface PlansApi {
+  list(): Promise<DirEntry[]>
+  forBranch(
     cwd: string,
     branch: string
   ): Promise<
@@ -574,171 +668,58 @@ export interface CraftermApi {
   >
   // Aggregate every plan markdown under each project path's docs/plans dir
   // (newest first). Powers the Notebook "Plans" section.
-  scanPlans(
-    paths: string[]
-  ): Promise<{ project: string; name: string; path: string; mtime: number }[]>
+  scan(paths: string[]): Promise<{ project: string; name: string; path: string; mtime: number }[]>
   // Subscribe to plan-folder changes detected by the main-process fs.watch. The
   // payload is the absolute plans directory that changed; the renderer should
   // refresh the plan list of every pane whose cwd resolves to that dir.
-  onPlansChanged(cb: (plansDir: string) => void): () => void
-  openMarkdown(path: string): void
-  listWorktrees(cwd?: string): Promise<WorktreeListing>
-  // Create (or attach an existing branch to) a worktree at `path`, awaiting it.
-  worktreeAdd(repo: string, path: string, branch: string, base?: string): Promise<boolean>
-  // Absolute path to the bundled iOS worktree helper script (ios-worktree.sh).
-  iosWorktreeScript(): Promise<string>
-  // Live status of a repo's iOS worktrees (built/installed/running per variant).
-  iosWorktreeReport(repoRoot: string, cfg?: SavedIosConfig): Promise<IosWorktreeReport | null>
-  // Terminate a worktree's variant on the target simulator.
-  iosWorktreeStop(worktreePath: string, cfg?: SavedIosConfig): Promise<boolean>
-  // Available iOS run targets for the worktree "Build & Run" picker.
-  iosListTargets(): Promise<{
-    simulators: { name: string; udid: string }[]
-    devices: { name: string; udid: string }[]
-  }>
-  // Xcode scheme names for the project (e.g. "local" / "prod").
-  iosListSchemes(repoRoot: string, cfg?: SavedIosConfig): Promise<string[]>
-  nbTree(): Promise<NbNode[]>
-  nbRead(path: string): Promise<string>
-  nbWrite(path: string, content: string): void
-  nbMkdir(path: string): Promise<boolean>
-  nbCreate(path: string): Promise<boolean>
-  nbRename(path: string, name: string): Promise<boolean>
-  nbMove(src: string, destDir: string): Promise<boolean>
-  nbDelete(path: string): Promise<boolean>
-  nbReveal(path: string): void
-  openPath(path: string): void
-  revealPath(path: string): void
-  playSound(name: string): void
-  playEventSound(event: 'question' | 'done'): void
-  findAllMarkdown(root?: string): Promise<{ root: string; files: { path: string; name: string }[] }>
-  findFiles(
-    root?: string,
-    exclude?: string[]
-  ): Promise<{ root: string; files: { path: string; name: string }[] }>
-  resolveFile(base: string, rel: string): Promise<string | null>
-  readMd(path: string): Promise<string>
-  readText(path: string): Promise<{ ok: boolean; text?: string; error?: string }>
-  writeMd(path: string, content: string): Promise<boolean>
-  // Write any text file back to disk (code editor save). Only overwrites an
-  // existing regular file; returns false on failure.
-  writeText(path: string, content: string): Promise<boolean>
-  // Git working-tree status for Files-tree decorations: absolute path → kind.
-  gitFileStatus(
-    cwd: string
-  ): Promise<Record<string, 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'>>
-  // Files-tree management. Each refuses to clobber an existing path and returns
-  // false on failure. `trashPath` moves to the system Trash (recoverable).
-  createFile(path: string): Promise<boolean>
-  mkdir(path: string): Promise<boolean>
-  renamePath(from: string, to: string): Promise<boolean>
-  trashPath(path: string): Promise<boolean>
-  // Read a monaco-themes theme JSON by display name (e.g. "Monokai"). Returns the
-  // parsed IStandaloneThemeData object, or null on failure.
-  monacoTheme(name: string): Promise<Record<string, unknown> | null>
-  // Resolve a relative import specifier (from `fromFile`) to an absolute source
-  // file + the declaration line of `symbol` (go-to-definition for imports).
-  // Returns null for bare modules or non-existent paths.
-  resolveImport(
-    fromFile: string,
-    spec: string,
-    symbol?: string
-  ): Promise<{ path: string; line: number } | null>
-  gitStashList(id: string): Promise<{ ref: string; description: string }[]>
-  gitBranches(id: string): Promise<string[]>
-  claudeLatestSession(cwd?: string, since?: number): Promise<string | null>
-  // Recover a session's working directory from its jsonl (the `cwd` field), used
-  // to resume a Claude pane whose saved cwd was lost. Null if not found.
-  claudeSessionCwd(sessionId: string): Promise<string | null>
-  claudeSessions(): Promise<ClaudeSession[]>
-  claudeSessionTitle(cwd: string, sessionId: string): Promise<string | null>
-  // Coarse session state from the JSONL tail for the sidebar status dot.
-  claudeSessionStatus(
-    cwd: string,
-    sessionId: string
-  ): Promise<'in-progress' | 'question' | 'idle' | null>
-  // Live permission mode of a Claude session from the JSONL's last
-  // permission-mode record. 'plan' means the session is in plan mode right now.
-  claudePermissionMode(
-    cwd: string,
-    sessionId: string
-  ): Promise<'plan' | 'default' | 'auto' | 'acceptEdits' | string | null>
-  // Start a live watcher on this cwd's Claude project dir; fires
-  // onClaudeSessionsChanged when a session jsonl (e.g. a /rename) is written.
-  // Idempotent per cwd. Returns false if the dir can't be watched yet.
-  watchClaudeSessions(cwd: string): Promise<boolean>
-  onClaudeSessionsChanged(cb: (cwd: string) => void): () => void
-  claudeUsageSummary(): Promise<{
-    today: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number }
-    thisWeek: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number }
-    thisMonth: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number }
-    sessions: number
-    lastModel: string | null
-    lastSpeed: string | null
-    thinkingDetected: boolean
-    resetTimes: { day: number; week: number; month: number }
-  }>
-  claudeRealUsage(opts: {
-    keychainService?: string
-    fallbackToken?: string | null
-    force?: boolean
-  }): Promise<ClaudeRealUsage>
-  secretsAvailable(): Promise<boolean>
-  secretGet(entryId: string, key: string): Promise<string | null>
-  secretSet(entryId: string, key: string, value: string): Promise<{ ok: boolean; error?: string }>
-  secretDelete(entryId: string, key?: string): Promise<{ ok: boolean; error?: string }>
-  todoRead(path?: string): Promise<string | null>
-  todoWrite(path: string, content: string): Promise<boolean>
-  backlogRead(): Promise<{ path: string; items: BacklogItem[] } | null>
-  zshCommands(): Promise<{ name: string; value: string }[]>
-  dbConnect(config: DbConfig): Promise<{ ok: boolean; error?: string }>
-  dbObjects(config: DbConfig): Promise<DbObjects>
-  dbColumns(config: DbConfig, table: string): Promise<DbColumns>
-  dbQuery(config: DbConfig, sql: string): Promise<DbResult>
-  dbDisconnect(id: string): Promise<boolean>
-  dbqList(connId: string): Promise<{ name: string; path: string }[]>
-  dbqRead(connId: string, name: string): Promise<string>
-  dbqWrite(connId: string, name: string, sql: string): Promise<boolean>
-  dbqDelete(connId: string, name: string): Promise<boolean>
-  appVersion(): Promise<string>
-  appBuildInfo(): Promise<{ commit: string | null; commitCount: number | null } | null>
-  appBuildCounter(repoPath: string): Promise<number | null>
-  repoGit(
-    repoPath: string
-  ): Promise<{ commit: string; commitCount: number; dirty: boolean } | null>
-  deployBuild(repoPath: string, command: string): Promise<{ ok: boolean; error?: string }>
-  deployKillAllPtys(): Promise<boolean>
-  deploySwap(repoPath: string): Promise<boolean>
-  deployWasUpdating(): Promise<boolean>
-  dockerAvailable(): Promise<{ ok: boolean; version?: string; error?: string }>
-  dockerContainers(): Promise<DockerRow[]>
-  dockerImages(): Promise<DockerRow[]>
-  dockerVolumes(): Promise<DockerRow[]>
-  dockerNetworks(): Promise<DockerRow[]>
-  dockerCompose(): Promise<DockerRow[]>
-  dockerStats(): Promise<DockerRow[]>
-  dockerInspect(kind: DockerKind, id: string): Promise<string>
-  dockerLogs(id: string, tail?: number): Promise<string>
-  dockerAction(
+  onChanged(cb: (plansDir: string) => void): () => void
+}
+
+export interface DbApi {
+  connect(config: DbConfig): Promise<{ ok: boolean; error?: string }>
+  objects(config: DbConfig): Promise<DbObjects>
+  columns(config: DbConfig, table: string): Promise<DbColumns>
+  query(config: DbConfig, sql: string): Promise<DbResult>
+  disconnect(id: string): Promise<boolean>
+  savedList(connId: string): Promise<{ name: string; path: string }[]>
+  savedRead(connId: string, name: string): Promise<string>
+  savedWrite(connId: string, name: string, sql: string): Promise<boolean>
+  savedDelete(connId: string, name: string): Promise<boolean>
+}
+
+export interface DockerApi {
+  available(): Promise<{ ok: boolean; version?: string; error?: string }>
+  containers(): Promise<DockerRow[]>
+  images(): Promise<DockerRow[]>
+  volumes(): Promise<DockerRow[]>
+  networks(): Promise<DockerRow[]>
+  compose(): Promise<DockerRow[]>
+  stats(): Promise<DockerRow[]>
+  inspect(kind: DockerKind, id: string): Promise<string>
+  logs(id: string, tail?: number): Promise<string>
+  action(
     kind: DockerKind | 'compose',
     action: string,
     id: string,
     configFile?: string
   ): Promise<{ ok: boolean; error?: string }>
-  dockerPrune(target: string): Promise<{ ok: boolean; out?: string; error?: string }>
-  prAvailable(cwd: string): Promise<{ ok: boolean; repo?: string; error?: string }>
-  prList(cwd: string): Promise<{ ok: boolean; error?: string; prs: PullRequest[] }>
-  prRepos(
+  prune(target: string): Promise<{ ok: boolean; out?: string; error?: string }>
+}
+
+export interface PrApi {
+  available(cwd: string): Promise<{ ok: boolean; repo?: string; error?: string }>
+  list(cwd: string): Promise<{ ok: boolean; error?: string; prs: PullRequest[] }>
+  repos(
     root: string
   ): Promise<{ ok: boolean; error?: string; repos: { name: string; path: string }[] }>
-  prListAll(
+  listAll(
     root: string,
     paths: string[]
   ): Promise<{ ok: boolean; error?: string; projects: ProjectPullRequests[] }>
-  prMerge(cwd: string, number: number, method: string): Promise<{ ok: boolean; error?: string }>
-  prView(cwd: string, number: number): Promise<string>
-  prDiff(cwd: string, number: number): Promise<{ ok: boolean; patch?: string; error?: string }>
-  prComment(
+  merge(cwd: string, number: number, method: string): Promise<{ ok: boolean; error?: string }>
+  view(cwd: string, number: number): Promise<string>
+  diff(cwd: string, number: number): Promise<{ ok: boolean; patch?: string; error?: string }>
+  comment(
     cwd: string,
     number: number,
     path: string,
@@ -746,13 +727,85 @@ export interface CraftermApi {
     endLine: number,
     body: string
   ): Promise<{ ok: boolean; error?: string }>
-  ghRuns(cwd: string): Promise<{ ok: boolean; error?: string; runs: WorkflowRun[] }>
-  ghRunJobs(cwd: string, id: number): Promise<string>
-  ghDeployments(cwd: string): Promise<{ ok: boolean; error?: string; deployments: DeploymentStatus[] }>
-  ghDeploysAll(
+  runs(cwd: string): Promise<{ ok: boolean; error?: string; runs: WorkflowRun[] }>
+  runJobs(cwd: string, id: number): Promise<string>
+  deployments(cwd: string): Promise<{ ok: boolean; error?: string; deployments: DeploymentStatus[] }>
+  deploysAll(
     root: string,
     paths: string[]
   ): Promise<{ ok: boolean; error?: string; projects: ProjectDeployments[] }>
+}
+
+export interface SecretsApi {
+  available(): Promise<boolean>
+  get(entryId: string, key: string): Promise<string | null>
+  set(entryId: string, key: string, value: string): Promise<{ ok: boolean; error?: string }>
+  delete(entryId: string, key?: string): Promise<{ ok: boolean; error?: string }>
+}
+
+export interface IosApi {
+  // Absolute path to the bundled iOS worktree helper script (ios-worktree.sh).
+  worktreeScript(): Promise<string>
+  // Live status of a repo's iOS worktrees (built/installed/running per variant).
+  worktreeReport(repoRoot: string, cfg?: SavedIosConfig): Promise<IosWorktreeReport | null>
+  // Terminate a worktree's variant on the target simulator.
+  worktreeStop(worktreePath: string, cfg?: SavedIosConfig): Promise<boolean>
+  // Available iOS run targets for the worktree "Build & Run" picker.
+  listTargets(): Promise<{
+    simulators: { name: string; udid: string }[]
+    devices: { name: string; udid: string }[]
+  }>
+  // Xcode scheme names for the project (e.g. "local" / "prod").
+  listSchemes(repoRoot: string, cfg?: SavedIosConfig): Promise<string[]>
+}
+
+export interface AppApi {
+  version(): Promise<string>
+  buildInfo(): Promise<{ commit: string | null; commitCount: number | null } | null>
+  buildCounter(repoPath: string): Promise<number | null>
+  repoGit(
+    repoPath: string
+  ): Promise<{ commit: string; commitCount: number; dirty: boolean } | null>
+  deployBuild(repoPath: string, command: string): Promise<{ ok: boolean; error?: string }>
+  deployKillAllPtys(): Promise<boolean>
+  deploySwap(repoPath: string): Promise<boolean>
+  deployWasUpdating(): Promise<boolean>
+  openExternal(url: string): void
+  notify(title: string, body: string, paneId?: string): void
+  // Read a monaco-themes theme JSON by display name (e.g. "Monokai"). Returns the
+  // parsed IStandaloneThemeData object, or null on failure.
+  monacoTheme(name: string): Promise<Record<string, unknown> | null>
+  zshCommands(): Promise<{ name: string; value: string }[]>
+  todoRead(path?: string): Promise<string | null>
+  todoWrite(path: string, content: string): Promise<boolean>
+  backlogRead(): Promise<{ path: string; items: BacklogItem[] } | null>
+  playSound(name: string): void
+  playEventSound(event: 'question' | 'done'): void
+  onAppQuitting(cb: () => void): void
+  onFullscreenChange(cb: (isFullscreen: boolean) => void): void
+  openImproveWindow(): Promise<void>
+  improveWindowSetAlwaysOnTop(value: boolean): void
+}
+
+export interface StoreApi {
+  load(): Promise<SavedState | null>
+  save(data: SavedState): void
+}
+
+export interface CraftermApi {
+  terminal: TerminalApi
+  git: GitApi
+  fs: FsApi
+  claude: ClaudeApi
+  notebook: NotebookApi
+  plans: PlansApi
+  db: DbApi
+  docker: DockerApi
+  pr: PrApi
+  secrets: SecretsApi
+  ios: IosApi
+  app: AppApi
+  store: StoreApi
 }
 
 export interface WorkflowRun {

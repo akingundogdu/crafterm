@@ -26,3 +26,9 @@ export function gitBin(): string {
   }
   return 'git'
 }
+
+// Single-quote a string for safe interpolation into a `/bin/zsh -lic '<script>'`
+// command line (escapes embedded single quotes).
+export function shq(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'"
+}

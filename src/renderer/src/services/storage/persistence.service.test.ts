@@ -6,12 +6,14 @@ import type { LayoutNode } from '../../types'
 
 // persistence.service owns the renderer's serialize pipeline + debounced save.
 // We capture writes by mocking the bridge channel storeService.save targets
-// (window.crafterm.saveState) and assert the serialized payload + debounce.
+// (window.crafterm.store.save) and assert the serialized payload + debounce.
 
 let saveState: ReturnType<typeof vi.fn>
 beforeEach(() => {
   saveState = vi.fn()
-  ;(window as unknown as { crafterm: Record<string, unknown> }).crafterm = { saveState }
+  ;(window as unknown as { crafterm: { store: Record<string, unknown> } }).crafterm = {
+    store: { save: saveState }
+  }
   state.tree = []
   settings.bookmarks = []
   notifications.length = 0

@@ -16,61 +16,64 @@ import {
   storeService
 } from './index'
 
-// The ipc wrappers are the ONLY callers of window.crafterm. Each wrapper method
-// must forward 1:1 to a specific bridge channel (some are renamed, e.g.
-// claudeService.latestSession -> claudeLatestSession). These are the regression
-// guard for that method->channel mapping. We mock window.crafterm with a Proxy
-// that hands out one memoized spy per channel, call every method, and assert the
+// The ipc wrappers are the ONLY callers of window.crafterm. The bridge is
+// namespaced (crafterm.<ns>.<method>) and each wrapper forwards 1:1 to the
+// same-named method in its namespace. These are the regression guard for that
+// method->channel mapping. We mock window.crafterm with a nested Proxy that hands
+// out one memoized spy per (namespace, method), call every method, and assert the
 // matching channel was invoked with the same args.
 
-let channels: Record<string, ReturnType<typeof vi.fn>>
+let channels: Record<string, Record<string, ReturnType<typeof vi.fn>>>
 beforeEach(() => {
   channels = {}
   ;(window as unknown as { crafterm: unknown }).crafterm = new Proxy(
     {},
     {
-      get: (_t, key: string) => (channels[key] ??= vi.fn().mockReturnValue('RESULT'))
+      get: (_t, ns: string) => {
+        const nsChannels = (channels[ns] ??= {})
+        return new Proxy(
+          {},
+          {
+            get: (_t2, method: string) =>
+              (nsChannels[method] ??= vi.fn().mockReturnValue('RESULT'))
+          }
+        )
+      }
     }
   )
 })
 
-// method name on the service  ->  bridge channel it must call
-const MAP: Record<string, Record<string, string>> = {
-  terminal: {
-    createPty: 'createPty', input: 'input', resize: 'resize', kill: 'kill', onData: 'onData',
-    onExit: 'onExit', adoptPane: 'adoptPane', paneInfo: 'paneInfo', onCloseActivePane: 'onCloseActivePane',
-    onFocusPane: 'onFocusPane', popoutOpen: 'popoutOpen', popoutConfirmClose: 'popoutConfirmClose',
-    popoutFocus: 'popoutFocus', onPopoutKilled: 'onPopoutKilled', onPopoutConfirmClose: 'onPopoutConfirmClose',
-    procStart: 'procStart', procBuffer: 'procBuffer', procAttach: 'procAttach', onProcExit: 'onProcExit'
-  },
-  git: { branches: 'gitBranches', stashList: 'gitStashList', fileStatus: 'gitFileStatus', listWorktrees: 'listWorktrees', worktreeAdd: 'worktreeAdd' },
-  fs: {
-    listDir: 'listDir', listEntries: 'listEntries', findAllMarkdown: 'findAllMarkdown', findFiles: 'findFiles',
-    resolveFile: 'resolveFile', readMd: 'readMd', readText: 'readText', writeMd: 'writeMd', writeText: 'writeText',
-    createFile: 'createFile', mkdir: 'mkdir', renamePath: 'renamePath', trashPath: 'trashPath',
-    resolveImport: 'resolveImport', ideOpen: 'ideOpen', openPath: 'openPath', revealPath: 'revealPath', openMarkdown: 'openMarkdown'
-  },
-  claude: {
-    latestSession: 'claudeLatestSession', sessionCwd: 'claudeSessionCwd', sessions: 'claudeSessions',
-    sessionTitle: 'claudeSessionTitle', sessionStatus: 'claudeSessionStatus', permissionMode: 'claudePermissionMode',
-    watchSessions: 'watchClaudeSessions', onSessionsChanged: 'onClaudeSessionsChanged',
-    usageSummary: 'claudeUsageSummary', realUsage: 'claudeRealUsage'
-  },
-  notebook: { tree: 'nbTree', read: 'nbRead', write: 'nbWrite', mkdir: 'nbMkdir', create: 'nbCreate', rename: 'nbRename', move: 'nbMove', delete: 'nbDelete', reveal: 'nbReveal' },
-  plans: { list: 'listPlans', forBranch: 'plansForBranch', scan: 'scanPlans', onChanged: 'onPlansChanged' },
-  db: { connect: 'dbConnect', objects: 'dbObjects', columns: 'dbColumns', query: 'dbQuery', disconnect: 'dbDisconnect', savedList: 'dbqList', savedRead: 'dbqRead', savedWrite: 'dbqWrite', savedDelete: 'dbqDelete' },
-  docker: { available: 'dockerAvailable', containers: 'dockerContainers', images: 'dockerImages', volumes: 'dockerVolumes', networks: 'dockerNetworks', compose: 'dockerCompose', stats: 'dockerStats', inspect: 'dockerInspect', logs: 'dockerLogs', action: 'dockerAction', prune: 'dockerPrune' },
-  pr: { available: 'prAvailable', list: 'prList', repos: 'prRepos', listAll: 'prListAll', merge: 'prMerge', view: 'prView', diff: 'prDiff', comment: 'prComment', runs: 'ghRuns', runJobs: 'ghRunJobs', deployments: 'ghDeployments', deploysAll: 'ghDeploysAll' },
-  secrets: { available: 'secretsAvailable', get: 'secretGet', set: 'secretSet', delete: 'secretDelete' },
-  ios: { worktreeScript: 'iosWorktreeScript', worktreeReport: 'iosWorktreeReport', worktreeStop: 'iosWorktreeStop', listTargets: 'iosListTargets', listSchemes: 'iosListSchemes' },
-  app: {
-    version: 'appVersion', buildInfo: 'appBuildInfo', buildCounter: 'appBuildCounter', repoGit: 'repoGit',
-    deployBuild: 'deployBuild', deployKillAllPtys: 'deployKillAllPtys', deploySwap: 'deploySwap', deployWasUpdating: 'deployWasUpdating',
-    openExternal: 'openExternal', notify: 'notify', monacoTheme: 'monacoTheme', zshCommands: 'zshCommands',
-    todoRead: 'todoRead', todoWrite: 'todoWrite', backlogRead: 'backlogRead', playSound: 'playSound', playEventSound: 'playEventSound',
-    onAppQuitting: 'onAppQuitting', onFullscreenChange: 'onFullscreenChange', openImproveWindow: 'openImproveWindow', improveWindowSetAlwaysOnTop: 'improveWindowSetAlwaysOnTop'
-  },
-  store: { load: 'loadState', save: 'saveState' }
+// Each service's methods forward to the same-named method under its namespace.
+const MAP: Record<string, string[]> = {
+  terminal: [
+    'createPty', 'input', 'resize', 'kill', 'onData', 'onExit', 'adoptPane', 'paneInfo',
+    'onCloseActivePane', 'onFocusPane', 'popoutOpen', 'popoutConfirmClose', 'popoutFocus',
+    'onPopoutKilled', 'onPopoutConfirmClose', 'procStart', 'procBuffer', 'procAttach', 'onProcExit'
+  ],
+  git: ['branches', 'stashList', 'fileStatus', 'listWorktrees', 'worktreeAdd'],
+  fs: [
+    'listDir', 'listEntries', 'findAllMarkdown', 'findFiles', 'resolveFile', 'readMd', 'readText',
+    'writeMd', 'writeText', 'createFile', 'mkdir', 'renamePath', 'trashPath', 'resolveImport',
+    'ideOpen', 'openPath', 'revealPath', 'openMarkdown'
+  ],
+  claude: [
+    'latestSession', 'sessionCwd', 'sessions', 'sessionTitle', 'sessionStatus', 'permissionMode',
+    'watchSessions', 'onSessionsChanged', 'usageSummary', 'realUsage'
+  ],
+  notebook: ['tree', 'read', 'write', 'mkdir', 'create', 'rename', 'move', 'delete', 'reveal'],
+  plans: ['list', 'forBranch', 'scan', 'onChanged'],
+  db: ['connect', 'objects', 'columns', 'query', 'disconnect', 'savedList', 'savedRead', 'savedWrite', 'savedDelete'],
+  docker: ['available', 'containers', 'images', 'volumes', 'networks', 'compose', 'stats', 'inspect', 'logs', 'action', 'prune'],
+  pr: ['available', 'list', 'repos', 'listAll', 'merge', 'view', 'diff', 'comment', 'runs', 'runJobs', 'deployments', 'deploysAll'],
+  secrets: ['available', 'get', 'set', 'delete'],
+  ios: ['worktreeScript', 'worktreeReport', 'worktreeStop', 'listTargets', 'listSchemes'],
+  app: [
+    'version', 'buildInfo', 'buildCounter', 'repoGit', 'deployBuild', 'deployKillAllPtys', 'deploySwap',
+    'deployWasUpdating', 'openExternal', 'notify', 'monacoTheme', 'zshCommands', 'todoRead', 'todoWrite',
+    'backlogRead', 'playSound', 'playEventSound', 'onAppQuitting', 'onFullscreenChange', 'openImproveWindow',
+    'improveWindowSetAlwaysOnTop'
+  ],
+  store: ['load', 'save']
 }
 
 // Loosely typed for the data-driven loop; each method is precisely typed at its
@@ -81,13 +84,16 @@ const SERVICES: Record<string, Record<string, unknown>> = {
   ios: iosService, app: appService, store: storeService
 }
 
-for (const [name, methods] of Object.entries(MAP)) {
-  describe(`${name}Service forwards each method to its bridge channel`, () => {
-    for (const [method, channel] of Object.entries(methods)) {
-      it(`${method} -> window.crafterm.${channel}`, () => {
-        const fn = SERVICES[name][method] as (...a: unknown[]) => unknown
+for (const [ns, methods] of Object.entries(MAP)) {
+  describe(`${ns}Service forwards each method to its bridge channel`, () => {
+    for (const method of methods) {
+      it(`${method} -> window.crafterm.${ns}.${method}`, () => {
+        const fn = SERVICES[ns][method] as (...a: unknown[]) => unknown
         const ret = fn('A', 2)
-        expect(channels[channel], `${method} must call ${channel}`).toHaveBeenCalledWith('A', 2)
+        expect(channels[ns]?.[method], `${method} must call ${ns}.${method}`).toHaveBeenCalledWith(
+          'A',
+          2
+        )
         expect(ret).toBe('RESULT') // returns the bridge result untouched
       })
     }
@@ -97,7 +103,7 @@ for (const [name, methods] of Object.entries(MAP)) {
 it('every service method is covered by the mapping table', () => {
   for (const [name, svc] of Object.entries(SERVICES)) {
     const declared = Object.keys(svc).sort()
-    const mapped = Object.keys(MAP[name]).sort()
+    const mapped = [...MAP[name]].sort()
     expect(mapped, `${name}Service: mapping table must list every method`).toEqual(declared)
   }
 })
