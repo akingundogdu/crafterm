@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 // terminal.manager end-to-end through the real Electron main process: the
-// renderer bridge (window.crafterm.createPty/input/onData/kill) → pty:* IPC →
+// renderer bridge (window.crafterm.terminal.createPty/input/onData/kill) → pty:* IPC →
 // node-pty → owner routing back to the renderer. Proves the extracted manager
 // spawns a real shell, pipes bytes both ways, and tears down on kill.
 // HR-5: throwaway state dir, never the real ~/.crafterm.
@@ -34,20 +34,20 @@ test('terminal: spawn a real pty, echo a token round-trips, kill tears it down',
     const id = await win.evaluate(async () => {
       const w = window as unknown as { __pty: { buf: Record<string, string>; exited: string[] } }
       w.__pty = { buf: {}, exited: [] }
-      window.crafterm.onData((pid, data) => {
+      window.crafterm.terminal.onData((pid, data) => {
         w.__pty.buf[pid] = (w.__pty.buf[pid] || '') + data
       })
-      window.crafterm.onExit((pid) => {
+      window.crafterm.terminal.onExit((pid) => {
         w.__pty.exited.push(pid)
       })
-      return window.crafterm.createPty({})
+      return window.crafterm.terminal.createPty({})
     })
     expect(id).toBeTruthy()
 
     const token = `CRAFTERM_E2E_${Date.now()}`
 
     await test.step('typed command pipes through the shell and back', async () => {
-      await win.evaluate((a) => window.crafterm.input(a.id, `echo ${a.token}\n`), { id, token })
+      await win.evaluate((a) => window.crafterm.terminal.input(a.id, `echo ${a.token}\n`), { id, token })
       await expect
         .poll(() => win.evaluate((pid) => (window as unknown as { __pty: { buf: Record<string, string> } }).__pty.buf[pid] || '', id), {
           timeout: 15_000
@@ -56,10 +56,10 @@ test('terminal: spawn a real pty, echo a token round-trips, kill tears it down',
     })
 
     await test.step('resize does not crash the pty', async () => {
-      await win.evaluate((pid) => window.crafterm.resize(pid, 100, 30), id)
+      await win.evaluate((pid) => window.crafterm.terminal.resize(pid, 100, 30), id)
       // Still alive: another echo still round-trips after the resize.
       const token2 = `${token}_AFTER_RESIZE`
-      await win.evaluate((a) => window.crafterm.input(a.id, `echo ${a.token}\n`), { id, token: token2 })
+      await win.evaluate((a) => window.crafterm.terminal.input(a.id, `echo ${a.token}\n`), { id, token: token2 })
       await expect
         .poll(() => win.evaluate((pid) => (window as unknown as { __pty: { buf: Record<string, string> } }).__pty.buf[pid] || '', id), {
           timeout: 15_000
@@ -68,7 +68,7 @@ test('terminal: spawn a real pty, echo a token round-trips, kill tears it down',
     })
 
     await test.step('kill fires pty:exit for that pane', async () => {
-      await win.evaluate((pid) => window.crafterm.kill(pid), id)
+      await win.evaluate((pid) => window.crafterm.terminal.kill(pid), id)
       await expect
         .poll(() => win.evaluate((pid) => (window as unknown as { __pty: { exited: string[] } }).__pty.exited.includes(pid), id), {
           timeout: 15_000

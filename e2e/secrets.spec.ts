@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 // secrets.service end-to-end through the real Electron main process: the
-// renderer bridge (window.crafterm.secret*) → secrets:* IPC → safeStorage. Proves
+// renderer bridge (window.crafterm.secrets.*) → secrets:* IPC → safeStorage. Proves
 // the extracted service round-trips and that on-disk blobs are never plaintext.
 // HR-5: throwaway state dir, never the real ~/.crafterm.
 
@@ -33,17 +33,17 @@ test('secrets: round-trip via the bridge, encrypted on disk, deletable', async (
     app = s.app
     const win = s.win
 
-    const available = await win.evaluate(() => window.crafterm.secretsAvailable())
+    const available = await win.evaluate(() => window.crafterm.secrets.available())
     test.skip(!available, 'safeStorage encryption unavailable on this host (headless CI)')
 
     await test.step('set + get round-trips the value', async () => {
       const setRes = await win.evaluate(
-        (a) => window.crafterm.secretSet(a.entry, a.key, a.value),
+        (a) => window.crafterm.secrets.set(a.entry, a.key, a.value),
         { entry: ENTRY, key: KEY, value: VALUE }
       )
       expect(setRes).toEqual({ ok: true })
 
-      const got = await win.evaluate((a) => window.crafterm.secretGet(a.entry, a.key), { entry: ENTRY, key: KEY })
+      const got = await win.evaluate((a) => window.crafterm.secrets.get(a.entry, a.key), { entry: ENTRY, key: KEY })
       expect(got).toBe(VALUE)
     })
 
@@ -56,9 +56,9 @@ test('secrets: round-trip via the bridge, encrypted on disk, deletable', async (
     })
 
     await test.step('delete removes the secret', async () => {
-      const delRes = await win.evaluate((a) => window.crafterm.secretDelete(a.entry, a.key), { entry: ENTRY, key: KEY })
+      const delRes = await win.evaluate((a) => window.crafterm.secrets.delete(a.entry, a.key), { entry: ENTRY, key: KEY })
       expect(delRes).toEqual({ ok: true })
-      const after = await win.evaluate((a) => window.crafterm.secretGet(a.entry, a.key), { entry: ENTRY, key: KEY })
+      const after = await win.evaluate((a) => window.crafterm.secrets.get(a.entry, a.key), { entry: ENTRY, key: KEY })
       expect(after).toBeNull()
       expect(existsSync(join(dir, 'secrets', ENTRY, KEY + '.bin'))).toBe(false)
     })
