@@ -1,8 +1,8 @@
 import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage, safeStorage } from 'electron'
-import type { WebContents } from 'electron'
 import { join, dirname, resolve as resolvePath } from 'path'
 import { homedir } from 'os'
 import { loadScript } from './services/scripts'
+import * as terminal from './services/terminal.manager'
 import {
   newSummary,
   applyJsonlLine,
@@ -47,17 +47,12 @@ registerPrIpc()
 let mainWindow: BrowserWindow | null = null
 let quitting = false
 
-// One real PTY (zsh) per terminal pane, keyed by an id we hand back to the renderer.
-const ptys = new Map<string, pty.IPty>()
-// Which window currently receives a pane's output (main window, or a pop-out).
-const owners = new Map<string, WebContents>()
-// Open pop-out windows, keyed by the pane id they host.
-const popouts = new Map<string, BrowserWindow>()
+// PTY processes, output routing (`owners`), and pop-out window bookkeeping now
+// live in services/terminal.manager.ts; index.ts reaches them via `terminal.*`.
 // The single detached "Improve Crafterm" window, if open.
 let improveWin: BrowserWindow | null = null
 // Pane ids whose pop-out window is allowed to actually close (kill confirmed).
 const allowClose = new Set<string>()
-let seq = 0
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -102,104 +97,31 @@ function createWindow(): void {
   }
 }
 
-// Guard every renderer message: during shutdown a PTY can still emit data/exit
-// after the window's webContents is destroyed. A plain `mainWindow?.` check is
-// not enough — the object is destroyed but not null — so `.send()` would throw
-// "Object has been destroyed" (one uncaught exception, i.e. one dialog, per PTY).
-function sendToRenderer(channel: string, payload: unknown): void {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send(channel, payload)
-  }
-}
-
-// Route a pane's stream to the window that currently owns it (a pop-out window,
-// or the main window by default). Same destroyed-guards as sendToRenderer.
-function sendToOwner(id: string, channel: string, payload: unknown): void {
-  const wc = owners.get(id)
-  if (wc && !wc.isDestroyed()) {
-    wc.send(channel, payload)
-    return
-  }
-  sendToRenderer(channel, payload)
-}
-
-// --- PTY bridge: this is where "web" reaches the real shell, via the Node main process ---
+// --- PTY bridge: this is where "web" reaches the real shell, via the Node main
+// process. The implementation lives in services/terminal.manager.ts; these thin
+// handlers just wire the IPC channels to it. ---
 
 ipcMain.handle(
   'pty:create',
-  (e, opts: { cwd?: string; env?: Record<string, string>; shell?: string }) => {
-    const id = String(++seq)
-    owners.set(id, e.sender) // the window that created it receives its output
-    const shell = opts?.shell || process.env.SHELL || '/bin/zsh'
-    let cwd = opts?.cwd || homedir()
-    if (cwd.startsWith('~')) cwd = join(homedir(), cwd.slice(1))
-    if (!existsSync(cwd)) cwd = homedir() // fall back if the saved path is gone
-    // Renderer-supplied env wins over the inherited environment so that
-    // CRAFTERM_PANE_ID always reflects the pane that owns this PTY.
-    const env = { ...process.env, ...(opts?.env ?? {}) }
-    if (opts?.env?.CRAFTERM_PANE_ID) env.CRAFTERM_PANE_ID = opts.env.CRAFTERM_PANE_ID
-    // Route zsh through our ZDOTDIR shim so a preexec hook records the last
-    // command for this pane (restored as pre-typed text). USER_ZDOTDIR points the
-    // shim at the user's real rc dir so their config still loads.
-    if (shellIntegrationReady && /zsh/.test(shell)) {
-      env.USER_ZDOTDIR = process.env.ZDOTDIR || homedir()
-      env.ZDOTDIR = zdotDir()
-    }
-    const p = pty.spawn(shell, ['-l'], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd,
-      env: env as { [key: string]: string }
-    })
-
-  // Both callbacks are invoked by node-pty through a native ThreadSafeFunction.
-  // A throw escaping here (e.g. webContents.send() on a disposed frame during
-  // shutdown) is turned into an uncatchable C++ exception by node-pty and
-  // aborts the whole process — it does NOT route through `uncaughtException`.
-  // So every callback body must be wrapped to never throw back into native code.
-  p.onData((data) => {
-    try {
-      sendToOwner(id, 'pty:data', { id, data })
-    } catch {
-      /* renderer gone / frame disposed — never let it reach node-pty */
-    }
-  })
-  p.onExit(() => {
-    try {
-      sendToOwner(id, 'pty:exit', { id })
-    } catch {
-      /* ignore: same teardown race as above */
-    }
-    ptys.delete(id)
-    owners.delete(id)
-  })
-
-  ptys.set(id, p)
-  return id
-})
+  (e, opts: { cwd?: string; env?: Record<string, string>; shell?: string }) =>
+    terminal.create(e.sender, opts)
+)
 
 // A pop-out window adopts an existing pane: its output now flows to that window.
 ipcMain.on('pty:adopt', (e, { id }: { id: string }) => {
-  if (ptys.has(id)) owners.set(id, e.sender)
+  terminal.adopt(id, e.sender)
 })
 
 ipcMain.on('pty:input', (_e, { id, data }: { id: string; data: string }) => {
-  ptys.get(id)?.write(data)
+  terminal.write(id, data)
 })
 
 ipcMain.on('pty:resize', (_e, { id, cols, rows }: { id: string; cols: number; rows: number }) => {
-  try {
-    ptys.get(id)?.resize(cols, rows)
-  } catch {
-    /* resize can throw if the pty just died — safe to ignore */
-  }
+  terminal.resize(id, cols, rows)
 })
 
 ipcMain.on('pty:kill', (_e, { id }: { id: string }) => {
-  ptys.get(id)?.kill()
-  ptys.delete(id)
-  owners.delete(id)
+  terminal.kill(id)
   procBuffers.delete(id)
 })
 
@@ -218,8 +140,8 @@ ipcMain.handle(
     opts: { stableId: string; command: string; cwd?: string; env?: Record<string, string> }
   ) => {
     const id = opts.stableId
-    if (ptys.has(id)) return id // already running — don't double-spawn
-    owners.set(id, e.sender)
+    if (terminal.has(id)) return id // already running — don't double-spawn
+    terminal.setOwner(id, e.sender)
     const shell = process.env.SHELL || '/bin/zsh'
     let cwd = opts.cwd || homedir()
     if (cwd.startsWith('~')) cwd = join(homedir(), cwd.slice(1))
@@ -238,20 +160,20 @@ ipcMain.handle(
         const prev = procBuffers.get(id) ?? ''
         const next = (prev + data).slice(-PROC_BUFFER_CAP)
         procBuffers.set(id, next)
-        sendToOwner(id, 'pty:data', { id, data })
+        terminal.sendToOwner(id, 'pty:data', { id, data })
       } catch {
         /* renderer gone — never throw back into node-pty */
       }
     })
     p.onExit(({ exitCode }) => {
       try {
-        sendToOwner(id, 'proc:exit', { id, code: exitCode })
+        terminal.sendToOwner(id, 'proc:exit', { id, code: exitCode })
       } catch {
         /* teardown race */
       }
-      ptys.delete(id) // buffer is kept for replay until the process is dismissed
+      terminal.remove(id) // buffer is kept for replay until the process is dismissed
     })
-    ptys.set(id, p)
+    terminal.set(id, p)
     return id
   }
 )
@@ -261,13 +183,13 @@ ipcMain.handle('proc:buffer', (_e, { id }: { id: string }) => procBuffers.get(id
 
 // Re-route a background process's live stream to the window attaching a view.
 ipcMain.on('proc:attach', (e, { id }: { id: string }) => {
-  owners.set(id, e.sender)
+  terminal.setOwner(id, e.sender)
 })
 
 // --- Pop-out windows: host a single pane's terminal in its own window ---
 
 function createPopoutWindow(paneId: string, title?: string): void {
-  const existing = popouts.get(paneId)
+  const existing = terminal.getPopout(paneId)
   if (existing && !existing.isDestroyed()) {
     existing.focus()
     return
@@ -289,7 +211,7 @@ function createPopoutWindow(paneId: string, title?: string): void {
   } else {
     win.loadFile(join(__dirname, '../renderer/popout.html'), { search: qs })
   }
-  popouts.set(paneId, win)
+  terminal.setPopout(paneId, win)
   // The native close button needs a running-process confirm (done in the
   // pop-out renderer). Intercept unless we're quitting or the kill is confirmed.
   win.on('close', (e) => {
@@ -298,9 +220,9 @@ function createPopoutWindow(paneId: string, title?: string): void {
     if (!win.webContents.isDestroyed()) win.webContents.send('popout:confirm-close', { id: paneId })
   })
   win.on('closed', () => {
-    popouts.delete(paneId)
+    terminal.deletePopout(paneId)
     allowClose.delete(paneId)
-    owners.delete(paneId)
+    terminal.deleteOwner(paneId)
   })
 }
 
@@ -312,12 +234,12 @@ ipcMain.handle('popout:open', (_e, { paneId, title }: { paneId: string; title?: 
 // window to drop the pane (which kills the PTY).
 ipcMain.on('popout:close-confirmed', (_e, { id }: { id: string }) => {
   allowClose.add(id)
-  popouts.get(id)?.close()
-  sendToRenderer('popout:killed', { id })
+  terminal.getPopout(id)?.close()
+  terminal.sendToRenderer('popout:killed', { id })
 })
 
 ipcMain.on('popout:focus', (_e, { id }: { id: string }) => {
-  const win = popouts.get(id)
+  const win = terminal.getPopout(id)
   if (win && !win.isDestroyed()) win.focus()
 })
 
@@ -512,7 +434,7 @@ async function gitWorktreeName(cwd: string): Promise<string | null> {
 
 ipcMain.handle('pane:info', async (_e, { id, stableId }: { id: string; stableId?: string }) => {
   const lastCommand = stableId ? readLastCommand(stableId) : null
-  const p = ptys.get(id)
+  const p = terminal.get(id)
   if (!p) return { cwd: null, branch: null, worktree: null, lastCommand }
   const cwd = await paneCwd(p.pid)
   const [branch, worktree] = cwd
@@ -523,7 +445,7 @@ ipcMain.handle('pane:info', async (_e, { id, stableId }: { id: string; stableId?
 
 // Local branches for the repo a pane is in, most-recently-committed first.
 ipcMain.handle('git:branches', async (_e, { id }: { id: string }) => {
-  const p = ptys.get(id)
+  const p = terminal.get(id)
   if (!p) return []
   const cwd = await paneCwd(p.pid)
   if (!cwd) return []
@@ -543,7 +465,7 @@ ipcMain.handle('git:branches', async (_e, { id }: { id: string }) => {
 
 // List git stashes for the repo a pane is in: [{ ref: 'stash@{0}', description }].
 ipcMain.handle('git:stashList', async (_e, { id }: { id: string }) => {
-  const p = ptys.get(id)
+  const p = terminal.get(id)
   if (!p) return []
   const cwd = await paneCwd(p.pid)
   if (!cwd) return []
@@ -1416,58 +1338,8 @@ ipcMain.handle(
     })
   }
 )
-// Kill every live PTY and wait for each one to ACTUALLY exit. This is the fix
-// for the update-restart crash: if PTYs are killed inside `before-quit` and the
-// handler returns immediately (while the Node environment then tears down),
-// node-pty's exit callbacks race the teardown and abort() the process via an
-// uncaught ThreadSafeFunction throw. Draining first — waiting for each onExit to
-// fire and remove the pty from `ptys` — leaves nothing to fire during teardown.
-// A child that ignores SIGHUP (e.g. a running claude/vim) is escalated to
-// SIGKILL after 5s so quitting/updating can't hang. Used both by the in-app
-// update flow and by `before-quit`, so EVERY quit path (Cmd+Q, the deploy
-// script's `osascript quit`, …) drains safely.
-async function drainPtys(): Promise<void> {
-  const entries = [...ptys.values()]
-  if (entries.length === 0) return
-  await Promise.all(
-    entries.map(
-      (p) =>
-        new Promise<void>((resolve) => {
-          let done = false
-          let timer: NodeJS.Timeout | undefined
-          const finish = () => {
-            if (done) return
-            done = true
-            clearTimeout(timer)
-            resolve()
-          }
-          // onExit already removes the pty from `ptys`; we just await it here.
-          try {
-            p.onExit(finish)
-          } catch {
-            finish()
-            return
-          }
-          timer = setTimeout(() => {
-            try {
-              p.kill('SIGKILL')
-            } catch {
-              /* already gone */
-            }
-            // Give the forced kill a brief moment to fire onExit, then resolve.
-            setTimeout(finish, 250)
-          }, 5000)
-          try {
-            p.kill()
-          } catch {
-            finish()
-          }
-        })
-    )
-  )
-}
 ipcMain.handle('deploy:killAllPtys', async () => {
-  await drainPtys()
+  await terminal.drain()
   return true
 })
 ipcMain.handle('deploy:swap', (_e, { repoPath }: { repoPath: string }) => {
@@ -2363,7 +2235,7 @@ ipcMain.on(
           mainWindow.focus()
         }
         app.focus({ steal: true })
-        if (paneId) sendToRenderer('focus-pane', { id: paneId })
+        if (paneId) terminal.sendToRenderer('focus-pane', { id: paneId })
       })
       n.show()
     } catch (err) {
@@ -2413,7 +2285,7 @@ function buildAppMenu(): void {
           // the active pane in the main window.
           click: (_item, win) => {
             if (win && win !== mainWindow) win.close()
-            else sendToRenderer('menu:close-pane', null)
+            else terminal.sendToRenderer('menu:close-pane', null)
           }
         }
       ]
@@ -2432,6 +2304,12 @@ function buildAppMenu(): void {
 }
 
 app.whenReady().then(() => {
+  // Wire the terminal manager to index-owned state (main window + ZDOTDIR shim).
+  terminal.init({
+    getMainWindow: () => mainWindow,
+    isShellIntegrationReady: () => shellIntegrationReady,
+    getZdotDir: zdotDir
+  })
   // Packaged builds use the bundled .icns; set the dock icon manually in dev so
   // the app shows the Crafterm logo while running via `npm run dev`.
   if (!app.isPackaged && process.platform === 'darwin') {
@@ -2499,8 +2377,8 @@ app.on('before-quit', (e) => {
   // half-destroyed env and aborts the process. Draining first empties `ptys` so
   // nothing fires during the actual teardown. Re-entrant: once drained the map
   // is empty, so the final before-quit pass falls through and the quit proceeds.
-  if (ptys.size > 0) {
+  if (terminal.count() > 0) {
     e.preventDefault()
-    drainPtys().then(() => app.quit())
+    terminal.drain().then(() => app.quit())
   }
 })
