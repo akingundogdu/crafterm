@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import { loadScript } from './services/scripts'
 import * as terminal from './services/terminal.manager'
 import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from './services/secrets.service'
+import * as notebook from './services/notebook.service'
 import {
   newSummary,
   applyJsonlLine,
@@ -1822,125 +1823,30 @@ ipcMain.handle('zsh:commands', async () => {
 
 const notebooksDir = (): string => join(stateDir(), 'notebooks')
 
-// Resolve a relative notebook path safely inside the notebooks dir.
-function nbResolve(rel: string): string | null {
-  const base = notebooksDir()
-  const p = join(base, rel || '')
-  if (p !== base && !p.startsWith(base + '/')) return null
-  return p
-}
-
-interface NbNode {
-  name: string
-  path: string
-  kind: 'dir' | 'file'
-  children?: NbNode[]
-}
-function nbTree(dir: string): NbNode[] {
-  const base = notebooksDir()
-  let entries: import('fs').Dirent[]
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return []
-  }
-  const out: NbNode[] = []
-  for (const e of entries) {
-    if (e.name.startsWith('.')) continue
-    const full = join(dir, e.name)
-    const rel = full.slice(base.length + 1)
-    if (e.isDirectory()) out.push({ name: e.name, path: rel, kind: 'dir', children: nbTree(full) })
-    else if (/\.(md|mdx|mdc)$/i.test(e.name)) out.push({ name: e.name, path: rel, kind: 'file' })
-  }
-  out.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'dir' ? -1 : 1))
-  return out
-}
-
+// Notebook tree operations live in services/notebook.service.ts; these handlers
+// resolve the base dir (<stateDir>/notebooks) and delegate.
 ipcMain.handle('notebook:tree', () => {
   try {
     mkdirSync(notebooksDir(), { recursive: true })
   } catch {
     /* ignore */
   }
-  return nbTree(notebooksDir())
+  return notebook.tree(notebooksDir())
 })
-ipcMain.handle('notebook:read', (_e, { path }: { path: string }) => {
-  const p = nbResolve(path)
-  if (!p || !existsSync(p)) return ''
-  try {
-    return readFileSync(p, 'utf8')
-  } catch {
-    return ''
-  }
-})
+ipcMain.handle('notebook:read', (_e, { path }: { path: string }) => notebook.read(notebooksDir(), path))
 ipcMain.on('notebook:write', (_e, { path, content }: { path: string; content: string }) => {
-  const p = nbResolve(path)
-  if (!p) return
-  try {
-    mkdirSync(dirname(p), { recursive: true })
-    writeFileSync(p, content)
-  } catch {
-    /* ignore */
-  }
+  notebook.write(notebooksDir(), path, content)
 })
-ipcMain.handle('notebook:mkdir', (_e, { path }: { path: string }) => {
-  const p = nbResolve(path)
-  if (!p) return false
-  try {
-    mkdirSync(p, { recursive: true })
-    return true
-  } catch {
-    return false
-  }
-})
-ipcMain.handle('notebook:create', (_e, { path }: { path: string }) => {
-  let rel = path
-  if (!/\.(md|mdx|mdc)$/i.test(rel)) rel += '.md'
-  const p = nbResolve(rel)
-  if (!p) return false
-  try {
-    mkdirSync(dirname(p), { recursive: true })
-    if (!existsSync(p)) writeFileSync(p, '')
-    return true
-  } catch {
-    return false
-  }
-})
-ipcMain.handle('notebook:rename', (_e, { path, name }: { path: string; name: string }) => {
-  const p = nbResolve(path)
-  if (!p || !existsSync(p)) return false
-  const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
-  const np = nbResolve(parent ? `${parent}/${name}` : name)
-  if (!np) return false
-  try {
-    renameSync(p, np)
-    return true
-  } catch {
-    return false
-  }
-})
-// Move a note/folder into another folder (drag-drop). `destDir` is the target
-// directory relative path ('' = notebooks root). Rejects collisions and moving a
-// folder into itself or a descendant.
-ipcMain.handle('notebook:move', (_e, { src, destDir }: { src: string; destDir: string }) => {
-  const sp = nbResolve(src)
-  if (!sp || !existsSync(sp)) return false
-  const dDir = nbResolve(destDir)
-  if (!dDir) return false
-  if (dDir === sp || dDir.startsWith(sp + '/')) return false
-  const name = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src
-  const np = join(dDir, name)
-  if (np === sp || existsSync(np)) return false
-  try {
-    mkdirSync(dDir, { recursive: true })
-    renameSync(sp, np)
-    return true
-  } catch {
-    return false
-  }
-})
+ipcMain.handle('notebook:mkdir', (_e, { path }: { path: string }) => notebook.mkdir(notebooksDir(), path))
+ipcMain.handle('notebook:create', (_e, { path }: { path: string }) => notebook.create(notebooksDir(), path))
+ipcMain.handle('notebook:rename', (_e, { path, name }: { path: string; name: string }) =>
+  notebook.rename(notebooksDir(), path, name)
+)
+ipcMain.handle('notebook:move', (_e, { src, destDir }: { src: string; destDir: string }) =>
+  notebook.move(notebooksDir(), src, destDir)
+)
 ipcMain.on('notebook:reveal', (_e, { path }: { path: string }) => {
-  const p = nbResolve(path)
+  const p = notebook.resolve(notebooksDir(), path)
   if (p && existsSync(p)) shell.showItemInFolder(p)
 })
 // Open a folder (e.g. a terminal's cwd) in the OS file manager.
@@ -2118,16 +2024,7 @@ ipcMain.handle(
     })
 )
 
-ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => {
-  const p = nbResolve(path)
-  if (!p || p === notebooksDir()) return false
-  try {
-    rmSync(p, { recursive: true, force: true })
-    return true
-  } catch {
-    return false
-  }
-})
+ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => notebook.del(notebooksDir(), path))
 
 // List git worktrees for the repo containing `cwd`.
 // Create a worktree at `path` for `branch`, awaiting completion (unlike the
