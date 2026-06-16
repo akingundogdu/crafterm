@@ -6,6 +6,8 @@ import * as terminal from './services/terminal.manager'
 import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from './services/secrets.service'
 import * as notebook from './services/notebook.service'
 import * as fsService from './services/fs.service'
+import * as git from './services/git.service'
+import { run, gitBin, paneCwd } from './services/exec'
 import {
   newSummary,
   applyJsonlLine,
@@ -391,57 +393,13 @@ ipcMain.on('store:save', (_e, data: unknown) => {
 
 // --- Pane info (cwd via lsof, git branch) + native notifications ---
 
-function run(cmd: string, args: string[]): Promise<string | null> {
-  return new Promise((resolve) => {
-    execFile(cmd, args, { timeout: 2000 }, (err, stdout) => {
-      resolve(err ? null : stdout)
-    })
-  })
-}
-
-async function paneCwd(pid: number): Promise<string | null> {
-  // -d cwd limits to the cwd descriptor; -Fn prints machine-readable lines, the
-  // 'n' line holds the path. Works without any shell configuration.
-  const out = await run('/usr/sbin/lsof', ['-a', '-d', 'cwd', '-p', String(pid), '-Fn'])
-  if (!out) return null
-  const line = out.split('\n').find((l) => l.startsWith('n'))
-  return line ? line.slice(1) : null
-}
-
-function gitBin(): string {
-  for (const p of ['/opt/homebrew/bin/git', '/usr/local/bin/git', '/usr/bin/git']) {
-    if (existsSync(p)) return p
-  }
-  return 'git'
-}
-
-async function gitBranch(cwd: string): Promise<string | null> {
-  const out = await run('git', ['-C', cwd, 'rev-parse', '--abbrev-ref', 'HEAD'])
-  if (!out) return null
-  const branch = out.trim()
-  return branch && branch !== 'HEAD' ? branch : null
-}
-
-// Basename of the toplevel folder, but only when cwd is inside a *linked* git
-// worktree (git worktree add ...). Linked worktrees keep their git dir under
-// <main>/.git/worktrees/<name>; the main checkout does not. Returns null in the
-// main checkout / outside a repo, so the status bar only flags real worktrees.
-async function gitWorktreeName(cwd: string): Promise<string | null> {
-  const gitDir = await run('git', ['-C', cwd, 'rev-parse', '--absolute-git-dir'])
-  if (!gitDir || !gitDir.includes('/worktrees/')) return null
-  const out = await run('git', ['-C', cwd, 'rev-parse', '--show-toplevel'])
-  if (!out) return null
-  const top = out.trim()
-  return top ? top.split('/').pop() || null : null
-}
-
 ipcMain.handle('pane:info', async (_e, { id, stableId }: { id: string; stableId?: string }) => {
   const lastCommand = stableId ? readLastCommand(stableId) : null
   const p = terminal.get(id)
   if (!p) return { cwd: null, branch: null, worktree: null, lastCommand }
   const cwd = await paneCwd(p.pid)
   const [branch, worktree] = cwd
-    ? await Promise.all([gitBranch(cwd), gitWorktreeName(cwd)])
+    ? await Promise.all([git.currentBranch(cwd), git.worktreeName(cwd)])
     : [null, null]
   return { cwd, branch, worktree, lastCommand }
 })
@@ -452,18 +410,7 @@ ipcMain.handle('git:branches', async (_e, { id }: { id: string }) => {
   if (!p) return []
   const cwd = await paneCwd(p.pid)
   if (!cwd) return []
-  const out = await run(gitBin(), [
-    '-C',
-    cwd,
-    'branch',
-    '--format=%(refname:short)',
-    '--sort=-committerdate'
-  ])
-  if (!out) return []
-  return out
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
+  return git.branches(cwd)
 })
 
 // List git stashes for the repo a pane is in: [{ ref: 'stash@{0}', description }].
@@ -472,16 +419,7 @@ ipcMain.handle('git:stashList', async (_e, { id }: { id: string }) => {
   if (!p) return []
   const cwd = await paneCwd(p.pid)
   if (!cwd) return []
-  const out = await run(gitBin(), ['-C', cwd, 'stash', 'list', '--format=%gd%x00%s'])
-  if (!out) return []
-  return out
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [ref, description = ''] = line.split('\x00')
-      return { ref, description }
-    })
+  return git.stashList(cwd)
 })
 
 // --- Claude session history (~/.claude/projects/<encoded-cwd>/<id>.jsonl) ---
@@ -1367,11 +1305,11 @@ ipcMain.handle('app:buildInfo', () => {
 ipcMain.handle('app:repoGit', async (_e, { repoPath }: { repoPath?: string }) => {
   const repo = repoPath?.trim()
   if (!repo || !existsSync(repo)) return null
-  const git = gitBin()
-  const commit = await run(git, ['-C', repo, 'rev-parse', 'HEAD'])
+  const gitPath = gitBin()
+  const commit = await run(gitPath, ['-C', repo, 'rev-parse', 'HEAD'])
   if (!commit) return null
-  const count = await run(git, ['-C', repo, 'rev-list', '--count', 'HEAD'])
-  const status = await run(git, ['-C', repo, 'status', '--porcelain'])
+  const count = await run(gitPath, ['-C', repo, 'rev-list', '--count', 'HEAD'])
+  const status = await run(gitPath, ['-C', repo, 'status', '--porcelain'])
   return {
     commit: commit.trim(),
     commitCount: count ? parseInt(count.trim(), 10) || 0 : 0,
@@ -1540,42 +1478,9 @@ ipcMain.handle('fs:rename', (_e, { from, to }: { from: string; to: string }) => 
 // Move a path to the system Trash (Files tree → Delete). Recoverable, unlike rm.
 ipcMain.handle('fs:trash', (_e, { path }: { path: string }) => fsService.trash(path))
 
-// Git working-tree status for the Files tree decorations. Returns a map of
-// absolute path → change kind, parsed from `git status --porcelain`. Empty map
-// outside a repo / on any failure (the established IPC idiom).
-type GitStatusKind = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'
-ipcMain.handle('git:fileStatus', async (_e, { cwd }: { cwd?: string }) => {
-  const out: Record<string, GitStatusKind> = {}
-  if (!cwd) return out
-  const top = await run(gitBin(), ['-C', cwd, 'rev-parse', '--show-toplevel'])
-  if (!top) return out
-  const root = top.trim()
-  const status = await run(gitBin(), [
-    '-C',
-    root,
-    '-c',
-    'core.quotePath=false',
-    'status',
-    '--porcelain'
-  ])
-  if (!status) return out
-  for (const line of status.split('\n')) {
-    if (!line) continue
-    const code = line.slice(0, 2)
-    let rel = line.slice(3)
-    // Renames print "old -> new"; decorate the new path.
-    const arrow = rel.indexOf(' -> ')
-    if (arrow >= 0) rel = rel.slice(arrow + 4)
-    let kind: GitStatusKind
-    if (code === '??') kind = 'untracked'
-    else if (code.includes('A')) kind = 'added'
-    else if (code.includes('R')) kind = 'renamed'
-    else if (code.includes('D')) kind = 'deleted'
-    else kind = 'modified'
-    out[join(root, rel)] = kind
-  }
-  return out
-})
+// Git working-tree status for the Files tree decorations: map of absolute path →
+// change kind, parsed from `git status --porcelain`.
+ipcMain.handle('git:fileStatus', (_e, { cwd }: { cwd?: string }) => git.fileStatus(cwd))
 
 // Resolve a path clicked in the terminal to an existing file (tries the cwd and
 // each ancestor directory).
@@ -1882,46 +1787,11 @@ ipcMain.handle('notebook:delete', (_e, { path }: { path: string }) => notebook.d
 // "Run in worktree" (todo6).
 ipcMain.handle(
   'git:worktreeAdd',
-  async (_e, { repo, path, branch, base }: { repo: string; path: string; branch: string; base?: string }) => {
-    const git = gitBin()
-    const baseRef = base || 'main'
-    // Refresh the base from origin so the worktree branches off the latest tip.
-    // Best-effort: if fetch fails (offline / no remote), fall back to the local ref.
-    const fetched = await new Promise<boolean>((resolve) => {
-      execFile(git, ['-C', repo, 'fetch', 'origin', baseRef], { timeout: 120_000 }, (err) => resolve(!err))
-    })
-    const startPoint = fetched ? `origin/${baseRef}` : baseRef
-    return new Promise<boolean>((resolve) => {
-      execFile(git, ['-C', repo, 'worktree', 'add', path, '-b', branch, startPoint], { timeout: 120_000 }, (err) => {
-        if (!err) return resolve(true)
-        // Branch likely already exists — attach it to the new worktree instead.
-        execFile(git, ['-C', repo, 'worktree', 'add', path, branch], { timeout: 120_000 }, (e2) => resolve(!e2))
-      })
-    })
-  }
+  (_e, { repo, path, branch, base }: { repo: string; path: string; branch: string; base?: string }) =>
+    git.worktreeAdd(repo, path, branch, base)
 )
 
-ipcMain.handle('git:worktrees', async (_e, { cwd }: { cwd?: string }) => {
-  let dir = cwd && cwd.trim() ? cwd.trim() : homedir()
-  if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
-  const git = gitBin()
-  const root = await run(git, ['-C', dir, 'rev-parse', '--show-toplevel'])
-  if (!root) return { root: null, worktrees: [] }
-  const out = await run(git, ['-C', dir, 'worktree', 'list', '--porcelain'])
-  const worktrees: { path: string; branch: string | null }[] = []
-  let cur: { path?: string; branch?: string | null } = {}
-  for (const line of (out ?? '').split('\n')) {
-    if (line.startsWith('worktree ')) cur = { path: line.slice(9) }
-    else if (line.startsWith('branch ')) cur.branch = line.slice(7).replace('refs/heads/', '')
-    else if (line === 'detached') cur.branch = '(detached)'
-    else if (line === '' && cur.path) {
-      worktrees.push({ path: cur.path, branch: cur.branch ?? null })
-      cur = {}
-    }
-  }
-  if (cur.path) worktrees.push({ path: cur.path, branch: cur.branch ?? null })
-  return { root: root.trim(), worktrees }
-})
+ipcMain.handle('git:worktrees', (_e, { cwd }: { cwd?: string }) => git.listWorktrees(cwd))
 
 ipcMain.on(
   'notify',
