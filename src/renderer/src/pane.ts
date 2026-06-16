@@ -2,8 +2,6 @@ import { Terminal, type ILink } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import type {
   Pane,
-  PaneStatus,
-  NodeStatus,
   BrowserPane,
   DocPane,
   ProjectCommand,
@@ -22,20 +20,28 @@ import {
   requestSidebar,
   paneActions,
   state,
-  uid,
-  pushNotification
+  uid
 } from './state'
 import { persistence, recordCommand } from './services/storage/persistence.service'
-import { findTabByPane, ancestorFolders, panesInLayout } from './tree'
-import {
-  findProjectByPath,
-  findFeature,
-  findProjectById,
-  findApp,
-  flattenProjects
-} from './catalog'
-import { terminalService, fsService, claudeService, notebookService, plansService, appService } from './services/ipc'
+import { findTabByPane, panesInLayout } from './tree'
+import { findProjectById, findApp, flattenProjects } from './catalog'
+import { terminalService, fsService, notebookService, appService } from './services/ipc'
 import { sshConnectionRepo } from './services/storage/repositories'
+import { onPaneTitle } from './terminal/osc-title'
+import { commandRunsClaude, onBell } from './terminal/activity-detection'
+import { refreshPaneInfo } from './terminal/pane-info'
+// Re-exported for external callers that still import them from './pane'
+// (main.ts, pickers/commands/spotlight/sidebar/time/dailyPlan) — homes now in terminal/.
+export { markBusy, paneStatus } from './terminal/activity-detection'
+export { updatePaneStatus } from './terminal/status-bar'
+export {
+  isPlanOwnedByPane,
+  refreshPanePlans,
+  refreshClaudeStatus,
+  applyClaudeSessionTitle,
+  refreshPaneInfo,
+  refreshPaneDailyTask
+} from './terminal/pane-info'
 
 type DropZoneName = 'left' | 'right' | 'top' | 'bottom'
 
@@ -60,13 +66,6 @@ function paneBoxAt(x: number, y: number): HTMLElement | null {
 
 function clearDropZones(): void {
   document.querySelectorAll<HTMLElement>('.pane-drop').forEach((o) => (o.dataset.zone = ''))
-}
-
-// True if a submitted command launches Claude — the first program word of any
-// &&/;/|-separated segment contains "claude" (covers `claude`, `claude --x`,
-// `claude-movve`, `code-foo && claude`, `run-…-claude`), but not `echo claude`.
-function commandRunsClaude(cmd: string): boolean {
-  return cmd.split(/&&|\|\||;|\|/).some((seg) => /claude/i.test(seg.trim().split(/\s+/)[0] || ''))
 }
 
 // Drag-to-rearrange: the header is the handle. Uses pointer events (NOT HTML5
@@ -395,25 +394,6 @@ function makeLinkProvider(term: Terminal): { provideLinks: (y: number, cb: (link
 
 // One row in the pane ⋯ menu. `item` is a clickable action, `label` a
 // non-interactive section heading, `swatch` a background-color button.
-// Sync the pane header's daily-task chip with pane.dailyTaskId. Called after an
-// assignment changes (from dailyPlan.ts via paneActions).
-export function refreshPaneDailyTask(paneId: string): void {
-  const pane = panes.get(paneId)
-  if (!pane) return
-  const chip = pane.el.querySelector<HTMLElement>('.pane-daily-chip')
-  if (!chip) return
-  // Only surface the chip when the terminal was opened from a ticket (the task
-  // carries an issue key); plain assignments without a key stay hidden.
-  const key = pane.dailyTaskId ? paneActions.dailyTaskIssueKey(pane.dailyTaskId) : null
-  if (key) {
-    chip.textContent = key
-    chip.style.display = ''
-  } else {
-    chip.textContent = ''
-    chip.style.display = 'none'
-  }
-}
-
 // buildPaneMenu produces these so both the menu and the global search (Cmd+J)
 // consume the same definition without duplicating the action logic.
 export type PaneMenuEntry =
@@ -969,397 +949,6 @@ export function destroyPane(paneId: string): void {
   pane.term.dispose()
   panes.delete(paneId)
   opened.delete(paneId)
-}
-
-// A run shorter than this is an echo or a trivial command — not worth pinging about.
-const LONG_RUN_MS = 3000
-
-// Heuristic: does the recent terminal tail look like Claude is waiting on a
-// yes/no or a choice? Used to re-tone a 'done' notification to 'question' when
-// the pane is actually idle-waiting on the user, not actually finished.
-const CLAUDE_QUESTION_PATTERNS: RegExp[] = [
-  /do you want to/i,
-  /would you like/i,
-  /are you sure/i,
-  /should i (?:continue|proceed|go ahead|run|stop|skip)/i,
-  /(?:^|\n)\s*(?:1\.|2\.|❯).{0,80}(?:yes|no)\b/i,
-  // Claude's interactive selection menu (AskUserQuestion / ExitPlanMode) renders
-  // a `❯` cursor on the highlighted option, regardless of the option text — catch
-  // it without the yes/no constraint above. The glyph is rare in normal output.
-  /(?:^|\n)\s*❯\s+\S/,
-  /press\s+(?:y|enter|any key|return)\b/i,
-  /\(y\/n\)/i,
-  /\?\s*$/m,
-  /awaiting your reply/i,
-  /confirm[:?]/i
-]
-function looksLikeClaudeQuestion(tail: string): boolean {
-  if (!tail) return false
-  // Look only at the last ~1500 chars — older prompts shouldn't drive the
-  // classification of a fresh idle event.
-  const window = tail.slice(-1500)
-  return CLAUDE_QUESTION_PATTERNS.some((re) => re.test(window))
-}
-
-export function markBusy(pane: Pane): void {
-  pane.busy = true
-  pane.lastActivity = Date.now() // terminal output counts as activity (idle detection)
-  syncPaneStatus(pane)
-  if (pane.idleTimer) clearTimeout(pane.idleTimer)
-  pane.idleTimer = window.setTimeout(() => {
-    pane.busy = false
-    // The armed command (busySince set on Enter) went quiet for 700ms. If it ran
-    // long enough, ping when the user is looking elsewhere, then disarm so we ping
-    // once per command. While still under the threshold we keep waiting (a quiet
-    // gap inside the command, e.g. `sleep`, must not disarm it).
-    if (pane.busySince > 0 && Date.now() - pane.busySince >= LONG_RUN_MS) {
-      // Claude panes: scan the recent buffer tail for question cues so a card
-      // that's really waiting on user input shows up amber, not green.
-      const event: 'question' | 'done' =
-        pane.claude && looksLikeClaudeQuestion(pane.outputTail) ? 'question' : 'done'
-      const body =
-        event === 'question'
-          ? `${pane.title || 'zsh'} is waiting for you`
-          : `${pane.title || 'zsh'} finished`
-      if (notifyPane(pane, body, event)) pane.attention = true
-      pane.busySince = 0
-    }
-    syncPaneStatus(pane)
-    requestStatuses()
-  }, 700)
-  requestStatuses()
-}
-
-export function paneStatus(p: Pane): PaneStatus {
-  return p.attention ? 'attention' : p.busy ? 'running' : 'idle'
-}
-
-// Keep the persisted lifecycle status (NodeStatus on the stableId-keyed node) in
-// sync with the live busy/claude signals. The visual sidebar dot still uses
-// paneStatus()/claudeStatus; this is the durable status that round-trips through
-// persistence. 'archived' is terminal — never auto-overwritten here.
-export function syncPaneStatus(pane: Pane): void {
-  if (pane.status === 'archived') return
-  const next: NodeStatus =
-    pane.claudeStatus === 'question'
-      ? 'waiting'
-      : pane.busy || pane.claudeStatus === 'in-progress'
-        ? 'running'
-        : 'idle'
-  if (next !== pane.status) {
-    pane.status = next
-    persistence.save()
-  }
-}
-
-// Native notification for a pane, but only when it's unattended (window blurred
-// or a different pane active) and we haven't just pinged. `event` picks the
-// sound: 'question' when the pane wants attention (bell), 'done' when a command
-// finishes. Returns whether it fired.
-function notifyPane(pane: Pane, body: string, event: 'question' | 'done'): boolean {
-  const now = Date.now()
-  const unattended = !document.hasFocus() || state.activePaneId !== pane.id
-  if (!unattended || now - pane.lastNotify < 2000) return false
-  pane.lastNotify = now
-  appService.notify('Crafterm', body, pane.id) // paneId lets a click focus this pane
-  appService.playEventSound(event)
-  // Also drop a card in the right notification panel, tagged with its folder path
-  // and the same git/cwd detail the sidebar shows when the terminal is pinned.
-  const tab = findTabByPane(state.tree, pane.id)
-  const trail = tab ? ancestorFolders(state.tree, tab.id) : null
-  const group = trail && trail.length ? trail.map((f) => f.name).join(' / ') : ''
-  const proj = pane.projectId ? findProjectById(state.tree, pane.projectId) : null
-  pushNotification(pane.id, pane.title || 'zsh', group, body, {
-    kind: 'pane',
-    event,
-    branch: pane.branch,
-    worktree: pane.worktree,
-    cwd: pane.cwd,
-    projectColor: proj?.color ?? undefined
-  })
-  return true
-}
-
-function onBell(pane: Pane): void {
-  pane.attention = true
-  notifyPane(pane, `${pane.title || 'zsh'} is ready`, 'question')
-  requestStatuses()
-}
-
-function onPaneTitle(pane: Pane, raw: string): void {
-  const clean = raw.trim()
-  // For a Claude pane, the session jsonl is the single source of truth for the
-  // title (applyClaudeSessionTitle). Ignoring the terminal's own OSC title here
-  // stops a shell/cwd repaint from clobbering a freshly /rename'd title — the
-  // race behind "sometimes the rename sticks" — and keeps a cwd title off the
-  // tab label in the brief window before the session id is captured.
-  const claudeDriven = pane.claude
-  if (!pane.titleLocked && !claudeDriven && clean) {
-    pane.title = clean
-    pane.htitle.textContent = clean
-  }
-  mirrorPaneTitleToTab(pane)
-  requestSidebar()
-  persistence.save()
-}
-
-// A single-pane tab's sidebar label mirrors its pane's title. Shared by the OSC
-// title path and the Claude session-title path so a /rename updates the main tab
-// label, not just the per-pane sub-row.
-function mirrorPaneTitleToTab(pane: Pane): void {
-  const tab = findTabByPane(state.tree, pane.id)
-  if (tab && !tab.titleLocked) {
-    const firstPaneTitle = panes.get(firstPaneId(tab.root))?.title
-    if (firstPaneTitle) tab.title = firstPaneTitle
-  }
-}
-
-function firstPaneId(node: import('./types').LayoutNode): string {
-  return node.type === 'leaf' ? node.paneId : firstPaneId(node.children[0])
-}
-
-// A plan belongs to a pane when its `--pane-<uuid>` tag matches the pane's
-// stableId, or its trailing `-<sessionId>` matches the Claude session id this
-// pane captured. The session-id match is what lets plans written by the
-// SessionStart hook (which appends the Claude session id, not the pane id)
-// attach to the pane that produced them.
-export function isPlanOwnedByPane(
-  plan: { ownerStableId: string | null; ownerSessionId: string | null },
-  pane: Pane
-): boolean {
-  if (plan.ownerStableId && plan.ownerStableId === pane.stableId) return true
-  if (plan.ownerSessionId && plan.ownerSessionId === pane.claudeSessionId) return true
-  return false
-}
-
-export async function refreshPanePlans(pane: Pane): Promise<void> {
-  const plans =
-    pane.cwd && pane.branch ? await plansService.forBranch(pane.cwd, pane.branch) : []
-  const sig = (
-    a: { path: string; ownerStableId: string | null; ownerSessionId: string | null }[]
-  ): string => a.map((x) => `${x.path}|${x.ownerStableId ?? ''}|${x.ownerSessionId ?? ''}`).join('§')
-  if (sig(plans) !== sig(pane.plans)) {
-    // Did this pane just gain its first owned plan? Auto-expand the tab's
-    // details so the user sees the plan attach without having to click the
-    // chevron. Skip when the user has already opened/closed details manually
-    // and at least one owned plan exists — only flip on the empty→non-empty edge.
-    const ownedNow = plans.filter((p) => isPlanOwnedByPane(p, pane)).length
-    const ownedBefore = pane.plans.filter((p) => isPlanOwnedByPane(p, pane)).length
-    // Plans this pane owns that weren't present on the previous sync — auto-open
-    // each as a new markdown tab in this pane's group for review (plan mode).
-    const prevOwned = new Set(
-      pane.plans.filter((p) => isPlanOwnedByPane(p, pane)).map((p) => p.path)
-    )
-    const newlyOwned = plans.filter((p) => isPlanOwnedByPane(p, pane) && !prevOwned.has(p.path))
-    pane.plans = plans
-    if (ownedBefore === 0 && ownedNow > 0) {
-      const tab = findTabByPane(state.tree, pane.id)
-      if (tab && !tab.detailsOpen) tab.detailsOpen = true
-    }
-    // Skip the very first population so existing plans aren't opened on launch.
-    // Then auto-open a plan only when BOTH hold: it was produced during this
-    // live session (mtime newer than the pane's Claude launch) AND the session
-    // is in plan mode right now (the JSONL's last permission-mode is 'plan').
-    // Pre-existing plans that merely become "owned" when the session id is
-    // captured (or when the in-memory list transiently empties on a branch/cwd
-    // blip) have an older mtime; plans touched outside plan mode fail the mode
-    // check. Either way they stay listed under the terminal node, not opened.
-    if (pane.plansSynced) {
-      const liveSince = pane.claudeSpawnedAt ?? Number.POSITIVE_INFINITY
-      const fresh = newlyOwned.filter((p) => p.mtime >= liveSince)
-      if (fresh.length && pane.claude && pane.cwd && pane.claudeSessionId) {
-        const mode = await claudeService.permissionMode(pane.cwd, pane.claudeSessionId)
-        if (mode === 'plan') {
-          for (const plan of fresh) {
-            // Auto-open disabled: plan stays listed under the terminal node
-            // instead of opening in a group.
-            // paneActions.openPlanInGroup(pane.id, plan.path)
-            pane.planMode = true
-          }
-        }
-      }
-    }
-    pane.plansSynced = true
-    requestSidebar()
-  }
-}
-
-// Poll the session JSONL for this Claude pane's coarse state (in-progress /
-// question / idle) and reflect it on the sidebar when it changes.
-export async function refreshClaudeStatus(pane: Pane): Promise<void> {
-  if (!pane.claude || !pane.cwd || !pane.claudeSessionId) {
-    if (pane.claudeStatus) {
-      pane.claudeStatus = undefined
-      requestSidebar()
-    }
-    return
-  }
-  try {
-    const s = await claudeService.sessionStatus(pane.cwd, pane.claudeSessionId)
-    let next = s ?? undefined
-    // Reconcile the JSONL state with the terminal tail using the SAME question
-    // heuristic the notification sound uses (looksLikeClaudeQuestion). The JSONL
-    // tail can't tell "Claude is working" apart from "Claude is blocked on the
-    // user" — an AskUserQuestion/ExitPlanMode tool_use or a permission prompt
-    // both read as in-progress there. When the visible output is a prompt
-    // awaiting the user, surface it as a question so the badge matches the sound.
-    if (next === 'in-progress' && looksLikeClaudeQuestion(pane.outputTail)) {
-      next = 'question'
-    }
-    if (next !== pane.claudeStatus) {
-      pane.claudeStatus = next
-      syncPaneStatus(pane)
-      requestSidebar()
-    }
-  } catch {
-    // best-effort — leave the previous status in place
-  }
-}
-
-export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
-  if (!pane.cwd || !pane.claudeSessionId || pane.titleLocked) return
-  try {
-    const title = await claudeService.sessionTitle(pane.cwd, pane.claudeSessionId)
-    if (!title) return
-    if (pane.title !== title) {
-      pane.title = title
-      pane.htitle.textContent = title
-      mirrorPaneTitleToTab(pane)
-      requestSidebar()
-      persistence.save()
-    }
-  } catch {
-    // ignore — best-effort title sync
-  }
-}
-
-export async function refreshPaneInfo(pane: Pane): Promise<void> {
-  const info = await terminalService.paneInfo(pane.id, pane.stableId)
-  // A null cwd means we couldn't read the pane (lsof timed out under heavy load,
-  // or the pty is gone) — never overwrite a known-good cwd/branch/worktree with
-  // it. Persisting an empty location is exactly what made every terminal reopen
-  // at ~ after a hard kill. Keep the last good values and skip the change-save.
-  let cwdChanged = false
-  if (info.cwd !== null) {
-    cwdChanged = info.cwd !== pane.cwd
-    pane.cwd = info.cwd
-    pane.branch = info.branch
-    pane.worktree = info.worktree
-  }
-  if (info.lastCommand) pane.lastCommand = info.lastCommand
-  updatePaneStatus(pane)
-  // Plan files for this branch (docs/plans/<branch>-*.md). We fetch every tick
-  // (cheap — main reads a single directory) so new files appear without
-  // needing a cwd/branch change. The fs.watch broadcast covers the live case.
-  await refreshPanePlans(pane)
-  // For Claude panes, capture the session id this pane is writing to so restore
-  // can `claude --resume <id>` the exact conversation that was open here. We
-  // filter by `claudeSpawnedAt` so the id we pick is one that appeared after
-  // this pane launched claude — never a sibling pane's session in the same cwd.
-  // Once captured, we lock it so the periodic refresh never overwrites it with
-  // whichever jsonl happens to be newest globally for the cwd.
-  if (pane.claude && pane.cwd && !pane.claudeSessionLocked) {
-    const since = pane.claudeSpawnedAt ?? 0
-    const sid = await claudeService.latestSession(pane.cwd, since)
-    if (sid) {
-      if (sid !== pane.claudeSessionId) pane.claudeSessionId = sid
-      pane.claudeSessionLocked = true
-      persistence.save()
-      // Pull the /rename custom-title immediately so the sidebar reflects it
-      // without having to wait for the next xterm OSC repaint. Re-check at 1s
-      // and 3s because Claude may write the title slightly after spawn.
-      applyClaudeSessionTitle(pane)
-      setTimeout(() => applyClaudeSessionTitle(pane), 1000)
-      setTimeout(() => applyClaudeSessionTitle(pane), 3000)
-    }
-  } else if (pane.claude && pane.cwd && pane.claudeSessionId && !pane.titleLocked) {
-    // Already locked: refresh in the background so /rename inside the session
-    // updates the title without requiring a full pane restart.
-    applyClaudeSessionTitle(pane)
-  }
-  // Ensure a live watcher on this session's project dir so /rename reflects
-  // instantly (the watcher re-reads the title on jsonl change). Idempotent in
-  // main, so calling every tick is cheap.
-  if (pane.claude && pane.cwd && pane.claudeSessionId) {
-    void claudeService.watchSessions(pane.cwd)
-  }
-  requestStatuses()
-  if (cwdChanged) persistence.save() // persist the latest cwd so restore reopens here
-}
-
-// Keep only the last `n` path segments, prefixed with an ellipsis when trimmed.
-function lastPathSegments(p: string, n: number): string {
-  const parts = p.replace(/\/+$/, '').split('/').filter(Boolean)
-  if (parts.length <= n) return p
-  return '…/' + parts.slice(-n).join('/')
-}
-
-const COPY_ICON =
-  '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">' +
-  '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
-  '<path d="M3.4 10.4H3a1.5 1.5 0 0 1-1.5-1.5V3a1.5 1.5 0 0 1 1.5-1.5h5.9A1.5 1.5 0 0 1 10.4 3v.4" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
-  '</svg>'
-
-// Per-pane bottom status bar: tracking · branch · worktree/repo · cwd (last 4
-// segments) plus a button that copies the full path. Hidden when there's nothing.
-export function updatePaneStatus(pane: Pane): void {
-  const fullCwd = pane.cwd
-  const homeShort = fullCwd ? fullCwd.replace(/^\/(Users|home)\/[^/]+/, '~') : null
-  const cwd = homeShort ? lastPathSegments(homeShort, 4) : null
-  const segs: { cls: string; text: string }[] = []
-  if (pane.trackProjectPath) {
-    const proj = findProjectByPath(state.tree, pane.trackProjectPath)
-    const feat = pane.trackFeatureId ? findFeature(state.tree, pane.trackFeatureId)?.feature : null
-    segs.push({ cls: 'tracking', text: feat?.name ?? proj?.name ?? 'tracking' })
-  }
-  if (pane.branch) segs.push({ cls: 'branch', text: pane.branch })
-  if (pane.worktree) segs.push({ cls: 'worktree', text: pane.worktree })
-  if (cwd) segs.push({ cls: 'cwd', text: cwd })
-  if (!segs.length) {
-    pane.statusEl.style.display = 'none'
-    return
-  }
-  pane.statusEl.replaceChildren()
-  segs.forEach((s, i) => {
-    if (i > 0) {
-      const sep = document.createElement('span')
-      sep.className = 'pane-status-sep'
-      sep.textContent = '·'
-      pane.statusEl.appendChild(sep)
-    }
-    const seg = document.createElement('span')
-    seg.className = 'pane-status-seg ' + s.cls
-    seg.textContent = s.text
-    // Clicking the branch opens a searchable checkout picker.
-    if (s.cls === 'branch') {
-      seg.classList.add('clickable')
-      seg.title = 'Checkout branch…'
-      seg.addEventListener('click', (e) => {
-        e.stopPropagation()
-        paneActions.branchCheckout(pane.id)
-      })
-    }
-    pane.statusEl.appendChild(seg)
-  })
-  if (fullCwd) {
-    const copyBtn = document.createElement('button')
-    copyBtn.className = 'pane-status-copy'
-    copyBtn.title = 'Copy full path'
-    copyBtn.setAttribute('aria-label', 'Copy full path')
-    copyBtn.innerHTML = COPY_ICON
-    copyBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void navigator.clipboard.writeText(fullCwd)
-      copyBtn.classList.add('copied')
-      copyBtn.textContent = '✓'
-      window.setTimeout(() => {
-        copyBtn.classList.remove('copied')
-        copyBtn.innerHTML = COPY_ICON
-      }, 1100)
-    })
-    pane.statusEl.appendChild(copyBtn)
-  }
-  pane.statusEl.style.display = 'flex'
 }
 
 export function startPaneRename(pane: Pane): void {
