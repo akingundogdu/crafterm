@@ -7,6 +7,7 @@ import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from './servic
 import * as notebook from './services/notebook.service'
 import * as fsService from './services/fs.service'
 import * as git from './services/git.service'
+import * as plansWatcher from './services/plans.watcher'
 import { run, gitBin, paneCwd } from './services/exec'
 import {
   newSummary,
@@ -1011,16 +1012,7 @@ ipcMain.handle('plans:scan', (_e, { paths }: { paths?: string[] }) => {
 
 // Live watchers per plans directory; each fires `plans:changed` so the
 // renderer can re-fetch without waiting on its 4-second polling loop.
-const plansWatchers = new Map<string, FSWatcher>()
-const plansBroadcastTimers = new Map<string, NodeJS.Timeout>()
-
-function broadcastPlansChanged(plansDir: string): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-      win.webContents.send('plans:changed', { plansDir })
-    }
-  }
-}
+// Plans-dir watchers (plans:changed broadcasts) live in services/plans.watcher.ts.
 
 // Live watchers per Claude project dir (~/.claude/projects/<encoded-cwd>). A
 // change there means a session jsonl was written — most importantly a /rename's
@@ -1068,30 +1060,6 @@ ipcMain.handle('claude:watchSessions', (_e, { cwd }: { cwd?: string }) => {
   }
 })
 
-function ensurePlansWatcher(plansDir: string): void {
-  if (plansWatchers.has(plansDir)) return
-  try {
-    mkdirSync(plansDir, { recursive: true })
-    const watcher = fsWatch(plansDir, { persistent: false }, () => {
-      // Debounce: a single rename/create can fire 2+ events on macOS.
-      const prev = plansBroadcastTimers.get(plansDir)
-      if (prev) clearTimeout(prev)
-      const t = setTimeout(() => {
-        plansBroadcastTimers.delete(plansDir)
-        broadcastPlansChanged(plansDir)
-      }, 150)
-      plansBroadcastTimers.set(plansDir, t)
-    })
-    watcher.on('error', () => {
-      watcher.close()
-      plansWatchers.delete(plansDir)
-    })
-    plansWatchers.set(plansDir, watcher)
-  } catch {
-    // ignore: the directory may not be creatable (read-only fs); we just skip live updates
-  }
-}
-
 // Plan files for a terminal: <repo>/docs/plans entries that match
 // "<branch>-<slug>--pane-<stableId>.<ext>" or "<branch>-<slug>-<sessionId>.<ext>".
 // Files with neither owner tag are ignored — the sidebar only attributes plans
@@ -1113,7 +1081,7 @@ ipcMain.handle('plans:forBranch', async (_e, { cwd, branch }: { cwd?: string; br
   const root = await run(gitBin(), ['-C', dir, 'rev-parse', '--show-toplevel'])
   if (!root) return [] as PlanRow[]
   const plansDir = join(root.trim(), 'docs', 'plans')
-  ensurePlansWatcher(plansDir)
+  plansWatcher.ensure(plansDir)
   try {
     const rows: PlanRow[] = []
     for (const f of readdirSync(plansDir).sort()) {
@@ -1923,16 +1891,7 @@ app.on('window-all-closed', () => {
 let didFlushState = false
 app.on('before-quit', (e) => {
   quitting = true
-  for (const w of plansWatchers.values()) {
-    try {
-      w.close()
-    } catch {
-      // ignore: watcher may already be closed
-    }
-  }
-  plansWatchers.clear()
-  for (const t of plansBroadcastTimers.values()) clearTimeout(t)
-  plansBroadcastTimers.clear()
+  plansWatcher.closeAll()
   // First pass: let the renderer persist its CURRENT (correct) tree before any
   // PTY is killed. Killing PTYs makes the renderer close panes, which would
   // otherwise overwrite the saved state with an empty tree — breaking restore.
