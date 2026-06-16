@@ -106,7 +106,7 @@ export function toggleNotifPanel(): void {
 // Status bar Claude usage chip: polls every 30s. Compact display shows the
 // active model + this-week percentage; clicking opens a popover with full
 // today / week / month progress bars (mirrors Claude's /usage TUI).
-type RealUsage = Awaited<ReturnType<Window['crafterm']['claudeRealUsage']>>
+type RealUsage = Awaited<ReturnType<Window['crafterm']['claude']['realUsage']>>
 type UsageWindow = NonNullable<RealUsage['fiveHour']>
 
 function shortModel(m: string | null): string {
