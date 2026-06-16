@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification, Menu, shell, nativeImage, sa
 import type { WebContents } from 'electron'
 import { join, dirname, resolve as resolvePath } from 'path'
 import { homedir } from 'os'
+import { loadScript } from './services/scripts'
 import {
   readFileSync,
   writeFileSync,
@@ -391,30 +392,13 @@ function setupShellIntegration(): void {
     mkdirSync(lastCmdDir(), { recursive: true })
     const dir = zdotDir()
     mkdirSync(dir, { recursive: true })
-    const sourceUser = (name: string): string =>
-      `[ -f "\${USER_ZDOTDIR:-$HOME}/${name}" ] && source "\${USER_ZDOTDIR:-$HOME}/${name}"\n`
-    // .zshenv runs for every shell. A user .zshenv may itself set ZDOTDIR, so we
-    // snapshot the shim dir first and reassert it afterwards to keep the chain.
-    writeFileSync(
-      join(dir, '.zshenv'),
-      'CRAFTERM_ZDOTDIR="$ZDOTDIR"\n' +
-        ': "${USER_ZDOTDIR:=$HOME}"\n' +
-        sourceUser('.zshenv') +
-        'ZDOTDIR="$CRAFTERM_ZDOTDIR"\n'
-    )
-    writeFileSync(join(dir, '.zprofile'), sourceUser('.zprofile'))
+    const templates = join(scriptsDir(), 'templates')
+    // .zshenv runs for every shell. A user .zshenv may itself set ZDOTDIR, so the
+    // shim snapshots the shim dir first and reasserts it afterwards (see template).
+    writeFileSync(join(dir, '.zshenv'), loadScript(templates, 'claude-shim.zshenv.tmpl'))
+    writeFileSync(join(dir, '.zprofile'), loadScript(templates, 'claude-shim.zprofile.tmpl'))
     const cmdDir = lastCmdDir().replace(/(["\\$`])/g, '\\$1')
-    writeFileSync(
-      join(dir, '.zshrc'),
-      sourceUser('.zshrc') +
-        'if [ -n "$CRAFTERM_PANE_ID" ]; then\n' +
-        `  crafterm_preexec() { print -r -- "$1" > "${cmdDir}/$CRAFTERM_PANE_ID" 2>/dev/null }\n` +
-        '  typeset -ag preexec_functions\n' +
-        '  preexec_functions+=(crafterm_preexec)\n' +
-        'fi\n' +
-        // Restore ZDOTDIR so any nested zsh the user starts uses their own config.
-        'ZDOTDIR="${USER_ZDOTDIR:-$HOME}"\n'
-    )
+    writeFileSync(join(dir, '.zshrc'), loadScript(templates, 'claude-shim.zshrc.tmpl', { cmdDir }))
     shellIntegrationReady = true
   } catch {
     shellIntegrationReady = false
@@ -1261,7 +1245,7 @@ ipcMain.handle('fs:listEntries', (_e, { path }: { path?: string }) => {
 ipcMain.on('ide:open', (_e, { path, ide }: { path: string; ide: string }) => {
   if (!path || !existsSync(path)) return
   const cmd = ide && ide.trim() ? ide.trim() : 'open'
-  execFile('/bin/zsh', ['-lic', `${cmd} ${shq(path)}`], () => {})
+  execFile('/bin/zsh', ['-lic', loadScript(join(scriptsDir(), 'templates'), 'ide-open.sh.tmpl', { cmd, path: shq(path) })], () => {})
 })
 
 // List Claude plan files under ~/.claude/plans.
@@ -1516,7 +1500,7 @@ ipcMain.handle(
     return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
       execFile(
         '/bin/zsh',
-        ['-lic', `${cmd} > ${shq(log)} 2>&1`],
+        ['-lic', loadScript(join(scriptsDir(), 'templates'), 'deploy-run.sh.tmpl', { cmd, log: shq(log) })],
         { cwd: repo },
         (err) => {
           if (!err) return resolve({ ok: true })
@@ -1597,15 +1581,12 @@ ipcMain.handle('deploy:swap', (_e, { repoPath }: { repoPath: string }) => {
   } catch {
     /* ignore */
   }
-  const steps = [
-    // wait for this app to actually quit before replacing its bundle
-    `for i in $(seq 1 60); do pgrep -x ${shq(APP_NAME)} >/dev/null || break; sleep 0.3; done`,
-    `APP_PATH="$(find ${shq(join(repo, 'dist'))} -maxdepth 2 -name ${shq(APP_NAME + '.app')} -type d 2>/dev/null | head -1)"`,
-    `[ -n "$APP_PATH" ] || { echo "built app not found under dist/"; exit 1; }`,
-    `rm -rf ${shq(dest)}`,
-    `cp -R "$APP_PATH" ${shq(dest)}`,
-    `open ${shq(dest)}`
-  ].join(' && ')
+  const steps = loadScript(join(scriptsDir(), 'templates'), 'self-update.sh.tmpl', {
+    appName: shq(APP_NAME),
+    distDir: shq(join(repo, 'dist')),
+    appBundle: shq(APP_NAME + '.app'),
+    dest: shq(dest)
+  })
   try {
     const fd = openSync(log, 'a')
     const child = spawn('/bin/zsh', ['-lic', steps], {
@@ -1743,7 +1724,7 @@ ipcMain.handle('app:buildCounter', (_e, { repoPath }: { repoPath?: string }) => 
 
 // Open a file in the user's Markdown app via their `markdown` (mdpp) command.
 ipcMain.on('markdown:open', (_e, { path }: { path: string }) => {
-  execFile('/bin/zsh', ['-lic', `markdown ${shq(path)}`], () => {})
+  execFile('/bin/zsh', ['-lic', loadScript(join(scriptsDir(), 'templates'), 'markdown-open.sh.tmpl', { path: shq(path) })], () => {})
 })
 
 // Find markdown files under `root` by walking the tree (works for dot-folders
@@ -2258,8 +2239,11 @@ ipcMain.on('sound:event', (_e, { event }: { event: string }) => {
 // Absolute path to the bundled iOS worktree helper script. The renderer types
 // `bash "<path>" <subcommand>` into a pane (with IOSWT_* env from settings.iosDev),
 // so a build's output streams live in the terminal.
-const scriptsDir = (): string =>
-  app.isPackaged ? join(process.resourcesPath, 'scripts') : join(__dirname, '../../resources/scripts')
+// Function declaration (not a const arrow) so it is hoisted and callable from
+// setupShellIntegration(), which runs at module init — before this line.
+function scriptsDir(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'scripts') : join(__dirname, '../../resources/scripts')
+}
 ipcMain.handle('iosWorktree:scriptPath', () => join(scriptsDir(), 'ios-worktree.sh'))
 
 // Build the IOSWT_* env from a project's iosConfig (empty fields auto-detect in

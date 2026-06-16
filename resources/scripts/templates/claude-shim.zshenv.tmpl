@@ -1,0 +1,4 @@
+CRAFTERM_ZDOTDIR="$ZDOTDIR"
+: "${USER_ZDOTDIR:=$HOME}"
+[ -f "${USER_ZDOTDIR:-$HOME}/.zshenv" ] && source "${USER_ZDOTDIR:-$HOME}/.zshenv"
+ZDOTDIR="$CRAFTERM_ZDOTDIR"

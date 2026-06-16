@@ -1,0 +1,1 @@
+for i in $(seq 1 60); do pgrep -x {{appName}} >/dev/null || break; sleep 0.3; done && APP_PATH="$(find {{distDir}} -maxdepth 2 -name {{appBundle}} -type d 2>/dev/null | head -1)" && [ -n "$APP_PATH" ] || { echo "built app not found under dist/"; exit 1; } && rm -rf {{dest}} && cp -R "$APP_PATH" {{dest}} && open {{dest}}
