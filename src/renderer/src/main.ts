@@ -37,7 +37,7 @@ import { createCodePane } from './screens/code-pane/code-pane'
 import { setEditorOpenHandler } from './editor/code-editor'
 import { applyTheme } from './editor/monaco-setup'
 import { renderContent, updatePaneHighlight } from './content'
-import { initNotifications, renderNotifications, toggleNotifPanel } from './notifications'
+import { initNotifications, renderNotifications, toggleNotifPanel } from './screens/notifications/notifications'
 import { openTrackModal } from './screens/time/time'
 import {
   renderSidebar,

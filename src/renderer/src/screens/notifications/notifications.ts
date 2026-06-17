@@ -1,23 +1,24 @@
-import { notifState, panes, poppedOut, settings, pushNotification } from './state'
-import { persistence } from './services/storage/persistence.service'
-import { selectPane, openLink, openNote, openMarkdownFile } from './commands'
+import { notifState, panes, poppedOut, settings, pushNotification } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import { selectPane, openLink, openNote, openMarkdownFile } from '../../commands'
 import {
   renderReminders,
   openReminderForm,
   startReminderTimer,
   snoozeReminder,
   snoozeOptions
-} from './screens/reminders/reminders'
-import { renderExplorer, initExplorer } from './screens/explorer/explorer'
-import { prTabVisible } from './screens/pr/pr'
-import { renderBookmarks } from './screens/bookmarks/bookmarks'
-import { showDailyPlanModal } from './screens/daily-plan/daily-plan'
-import { openMeetingNote } from './screens/meeting-notes/meeting-notes'
-import { renderTime, initTime, startAutoTracker } from './screens/time/time'
-import { runUpdate } from './pickers'
-import { terminalService, claudeService, secretsService, appService } from './services/ipc'
-import { fmtResetTime, usageErrorShort, usageErrorLong } from './services/domain/usage'
-import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from './services/storage/repositories'
+} from '../reminders/reminders'
+import { renderExplorer, initExplorer } from '../explorer/explorer'
+import { prTabVisible } from '../pr/pr'
+import { renderBookmarks } from '../bookmarks/bookmarks'
+import { showDailyPlanModal } from '../daily-plan/daily-plan'
+import { openMeetingNote } from '../meeting-notes/meeting-notes'
+import { renderTime, initTime, startAutoTracker } from '../time/time'
+import { runUpdate } from '../../pickers'
+import { terminalService, claudeService, secretsService, appService } from '../../services/ipc'
+import { fmtResetTime, usageErrorShort, usageErrorLong } from '../../services/domain/usage'
+import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from '../../services/storage/repositories'
+import { relTime, pathTail, shortModel } from './notif-format'
 
 const appEl = document.getElementById('app')!
 const listEl = document.getElementById('notif-list')!
@@ -66,23 +67,6 @@ function wireNotifResizer(): void {
   })
 }
 
-function relTime(ms: number): string {
-  const s = Math.max(0, (Date.now() - ms) / 1000)
-  if (s < 60) return 'just now'
-  const m = s / 60
-  if (m < 60) return `${Math.floor(m)}m ago`
-  const h = m / 60
-  if (h < 24) return `${Math.floor(h)}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
-
-// Last `n` path segments, prefixed with an ellipsis when trimmed (e.g. …/a/b/c).
-function pathTail(p: string, n = 3): string {
-  const parts = p.replace(/\/+$/, '').split('/').filter(Boolean)
-  if (parts.length <= n) return p
-  return '…/' + parts.slice(-n).join('/')
-}
-
 export function applyNotifPanel(): void {
   appEl.classList.toggle('notif-open', notifState.open)
   updateBadge()
@@ -108,15 +92,6 @@ export function toggleNotifPanel(): void {
 // today / week / month progress bars (mirrors Claude's /usage TUI).
 type RealUsage = Awaited<ReturnType<Window['crafterm']['claude']['realUsage']>>
 type UsageWindow = NonNullable<RealUsage['fiveHour']>
-
-function shortModel(m: string | null): string {
-  if (!m) return ''
-  // claude-opus-4-8 → opus-4.8
-  return m
-    .replace(/^claude-/, '')
-    .replace(/-(\d{8})$/, '')
-    .replace(/-(\d)-(\d)$/, '-$1.$2')
-}
 
 // Resolve the OAuth token source from settings, then pull the real server-side
 // utilization. The keychain (read in main) is the primary source; the fallback
@@ -517,7 +492,7 @@ export function renderNotifications(): void {
 function buildSnoozeRow(
   text: string,
   notifId: string,
-  payload?: import('./types').ReminderPayload
+  payload?: import('../../types').ReminderPayload
 ): HTMLElement {
   const row = document.createElement('div')
   row.className = 'notif-card-snooze'
@@ -545,7 +520,7 @@ function buildSnoozeRow(
 // Labeled "Remind me" button in a pane card's detail body. Clicking it pops a
 // time-picker that creates a reminder pointing back at the same pane — when it
 // fires later, the resulting card carries an Open button (see resolvePayloadOpener).
-function buildRemindButton(n: import('./types').AppNotification): HTMLElement {
+function buildRemindButton(n: import('../../types').AppNotification): HTMLElement {
   const row = document.createElement('div')
   row.className = 'notif-card-remind-row'
   const btn = document.createElement('button')
@@ -560,7 +535,7 @@ function buildRemindButton(n: import('./types').AppNotification): HTMLElement {
   return row
 }
 
-function showPaneRemindPicker(anchor: HTMLElement, n: import('./types').AppNotification): void {
+function showPaneRemindPicker(anchor: HTMLElement, n: import('../../types').AppNotification): void {
   document.querySelector('.notif-remind-popover')?.remove()
   const pop = document.createElement('div')
   pop.className = 'notif-remind-popover'
@@ -592,7 +567,7 @@ function showPaneRemindPicker(anchor: HTMLElement, n: import('./types').AppNotif
 // Resolve a reminder payload to a click action ("open this bookmark / pane /
 // note"). Returns null when the target can no longer be found.
 function resolvePayloadOpener(
-  payload: import('./types').ReminderPayload | undefined
+  payload: import('../../types').ReminderPayload | undefined
 ): { label: string; open: () => void } | null {
   if (!payload) return null
   if (payload.kind === 'bookmark') {
