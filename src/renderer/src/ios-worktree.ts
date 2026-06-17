@@ -11,7 +11,7 @@ import { flattenProjects } from './catalog'
 import { state } from './state'
 import { showContextMenu, type ContextMenuItem } from '@crafterm/ui'
 import { isWorktreeFolder, worktreeProjectOf } from './worktrees'
-import { startBackgroundProcess } from './bgproc'
+import { startBackgroundProcess } from './services/bgproc'
 import { findById, ancestorFolders } from './tree'
 import { iosService } from './services/ipc'
 

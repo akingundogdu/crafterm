@@ -1,5 +1,5 @@
 import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from './types'
-import { openProcessView, killProcess, startBackgroundProcess } from './bgproc'
+import { openProcessView, killProcess, startBackgroundProcess } from './services/bgproc'
 import { state, panes, settings, paneActions } from './state'
 import { persistence } from './services/storage/persistence.service'
 import {

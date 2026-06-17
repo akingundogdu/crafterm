@@ -89,7 +89,7 @@ import {
 } from './pickers'
 import { showSpotlight } from './spotlight'
 import { startWorktreeReconcile } from './worktrees'
-import { onProcessExit } from './bgproc'
+import { onProcessExit } from './services/bgproc'
 import { startIosWorktreePoll } from './ios-worktree'
 import { showImproveModal } from './improve'
 import { databaseNewProject } from './database'
