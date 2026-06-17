@@ -28,7 +28,7 @@ import {
 import { allTabs, panesInLayout, ancestorFolders } from '../../tree'
 import { flattenProjects } from '../../catalog'
 import { paneStatus, buildPaneMenu } from '../../pane'
-import { actionMenuSearchEntries } from '../../sidebar'
+import { actionMenuSearchEntries } from '../sidebar/sidebar'
 import { promptForm, promptConfirm, makeCloseButton } from '../../dialog'
 import { collectBackgroundProcesses, killProcess, openProcessView } from '../../services/bgproc'
 import type { CollectedProcess } from '../../services/bgproc'

@@ -1,7 +1,7 @@
-import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from './types'
-import { openProcessView, killProcess, startBackgroundProcess } from './services/bgproc'
-import { state, panes, settings, paneActions } from './state'
-import { persistence } from './services/storage/persistence.service'
+import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from '../../types'
+import { openProcessView, killProcess, startBackgroundProcess } from '../../services/bgproc'
+import { state, panes, settings, paneActions } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
 import {
   collectPinnedRoots,
   allTabs,
@@ -10,8 +10,8 @@ import {
   ancestorFolders,
   findById,
   isContainer
-} from './tree'
-import { paneStatus, isPlanOwnedByPane } from './pane'
+} from '../../tree'
+import { paneStatus, isPlanOwnedByPane } from '../../pane'
 import {
   selectTab,
   selectPane,
@@ -35,7 +35,7 @@ import {
   moveNode,
   setNodeGroup,
   runInSplit
-} from './commands'
+} from '../../commands'
 import {
   showPlansModal,
   showCommandHistory,
@@ -52,16 +52,16 @@ import {
   runUpdate,
   showRunningProcessesDashboard,
   showRunningDevicesDashboard
-} from './screens/pickers/pickers'
-import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
-import { showDailyPlanModal } from './screens/daily-plan/daily-plan'
-import { promptText, promptSelect } from './dialog'
-import { renderDatabase, databaseHandleKey, dbApplyQuery } from './screens/database/database'
-import { renderDocker, dockerHandleKey, dockerApplyQuery } from './screens/docker/docker'
-import { renderAccounts, accountsApplyQuery, initAccounts } from './screens/accounts/accounts'
+} from '../pickers/pickers'
+import { showImproveModal } from '../improve-crafterm/improve-crafterm'
+import { showDailyPlanModal } from '../daily-plan/daily-plan'
+import { promptText, promptSelect } from '../../dialog'
+import { renderDatabase, databaseHandleKey, dbApplyQuery } from '../database/database'
+import { renderDocker, dockerHandleKey, dockerApplyQuery } from '../docker/docker'
+import { renderAccounts, accountsApplyQuery, initAccounts } from '../accounts/accounts'
 import { type ContextMenuItem } from '@crafterm/ui'
-import { iosWorktreeTrailing, iosWorktreeMenuItems } from './screens/ios-worktree/ios-worktree'
-import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from './services/worktrees'
+import { iosWorktreeTrailing, iosWorktreeMenuItems } from '../ios-worktree/ios-worktree'
+import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '../../services/worktrees'
 import { createTreeView, type TreeAdapter, type TreeSection, type DropPos } from '@crafterm/ui'
 import {
   renderNotebook,
@@ -69,10 +69,10 @@ import {
   nbApplyQuery,
   nbClearQuery,
   notebookSelectFirst
-} from './notebook'
+} from '../../notebook'
 import './sidebar.css'
-import { fsService } from './services/ipc'
-import { actionMenuRepo } from './services/storage/repositories'
+import { fsService } from '../../services/ipc'
+import { actionMenuRepo } from '../../services/storage/repositories'
 
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!
@@ -177,7 +177,7 @@ export function actionMenuSearchEntries(): { label: string; run: () => void }[] 
   return out
 }
 
-function runActionItem(item: import('./types').ActionMenuItem): void {
+function runActionItem(item: import('../../types').ActionMenuItem): void {
   if (item.kind === 'builtin') {
     BUILTIN_ACTION_RUN[item.builtinId ?? '']?.()
     return
@@ -512,9 +512,9 @@ function pinBadge(): HTMLElement {
 // Claude session id matches a trailing -<uuid> (see isPlanOwnedByPane). That pane
 // is not necessarily the tab's first pane (the Claude session may live in any
 // split), so we have to scan every pane in the layout, not just firstPaneOf.
-function plansForTab(node: TabNode): import('./types').PlanEntry[] {
+function plansForTab(node: TabNode): import('../../types').PlanEntry[] {
   const seen = new Set<string>()
-  const out: import('./types').PlanEntry[] = []
+  const out: import('../../types').PlanEntry[] = []
   for (const id of panesInLayout(node.root)) {
     const pane = panes.get(id)
     if (!pane) continue

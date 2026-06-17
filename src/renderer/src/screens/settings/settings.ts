@@ -15,7 +15,7 @@ import { makeProject } from '../../tree'
 import { reconcileWorktrees, purgeWorktrees } from '../../services/worktrees'
 import { applyAppearance } from '../../pane'
 import { ALL_THEME_NAMES, applyTheme } from '../../editor/monaco-setup'
-import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from '../../sidebar'
+import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from '../sidebar/sidebar'
 import { pickFolderPath } from '../pickers/pickers'
 import { makeCloseButton, promptForm, promptText } from '../../dialog'
 import {

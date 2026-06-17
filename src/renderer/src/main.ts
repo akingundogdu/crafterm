@@ -57,7 +57,7 @@ import {
   setSidebarMode,
   applyTabDisplay,
   renameSelected
-} from './sidebar'
+} from './screens/sidebar/sidebar'
 import { notebookNewNote, notebookNewFolder, notebookRenameSelected, notebookLinkFile, notebookSubTab } from './notebook'
 import {
   openNewDailyTask,
