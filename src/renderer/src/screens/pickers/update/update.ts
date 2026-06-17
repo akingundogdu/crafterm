@@ -1,3 +1,4 @@
+import { createButton, createOverlay } from '@crafterm/ui'
 import { settings, state } from '../../../state'
 import { persistence } from '../../../services/storage/persistence.service'
 import { promptConfirm } from '../../../dialog'
@@ -32,9 +33,8 @@ export async function runUpdate(): Promise<void> {
   })
   if (!ok) return
 
-  // 3. Progress modal.
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
+  // 3. Progress modal (no backdrop dismiss — it tracks an in-flight update).
+  const { overlay, mount, close } = createOverlay({ closeOnBackdrop: false })
   const modal = document.createElement('div')
   modal.className = 'modal update-modal'
   modal.insertAdjacentHTML('beforeend', '<h2>Updating Crafterm</h2>')
@@ -42,7 +42,7 @@ export async function runUpdate(): Promise<void> {
   list.className = 'update-steps'
   modal.appendChild(list)
   overlay.appendChild(modal)
-  document.body.appendChild(overlay)
+  mount()
 
   const step = (label: string): UpdateStep => {
     const row = document.createElement('div')
@@ -62,11 +62,8 @@ export async function runUpdate(): Promise<void> {
         e.className = 'update-error'
         e.textContent = msg
         modal.appendChild(e)
-        const btn = document.createElement('button')
-        btn.className = 'primary'
+        const btn = createButton({ className: 'primary', text: 'Close', onClick: () => close() })
         btn.style.marginTop = '12px'
-        btn.textContent = 'Close'
-        btn.addEventListener('click', () => overlay.remove())
         modal.appendChild(btn)
       }
     }

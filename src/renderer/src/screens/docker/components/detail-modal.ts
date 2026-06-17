@@ -4,7 +4,7 @@ import type { DockerKind } from '../../../../../preload/api'
 import { settings, resolveTheme } from '../../../state'
 import { terminalService, dockerService } from '../../../services/ipc'
 import { makeCloseButton } from '../../../dialog'
-import { createButton } from '@crafterm/ui'
+import { createButton, createOverlay } from '@crafterm/ui'
 import { inspectFields } from '../inspect'
 
 // The Docker resource detail modal: a tabbed Inspect / Logs / Terminal view.
@@ -131,23 +131,18 @@ export function showDetailModal(opts: {
     if (running) tabs.push({ key: 'terminal', label: 'Terminal' })
   }
 
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
+  const { overlay, mount, close, onClose } = createOverlay()
   const modal = document.createElement('div')
   modal.className = 'modal docker-detail-modal'
   overlay.appendChild(modal)
 
   const embedded: EmbeddedTerm[] = []
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true)
-    embedded.forEach((t) => t.dispose())
-    overlay.remove()
-  }
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') close()
   }
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
+  onClose(() => {
+    document.removeEventListener('keydown', onKey, true)
+    embedded.forEach((t) => t.dispose())
   })
   document.addEventListener('keydown', onKey, true)
   modal.appendChild(makeCloseButton(close))
@@ -213,6 +208,6 @@ export function showDetailModal(opts: {
     tabBar.appendChild(b)
   })
 
-  document.body.appendChild(overlay)
+  mount()
   activate(opts.initial && tabs.some((t) => t.key === opts.initial) ? opts.initial : tabs[0].key)
 }

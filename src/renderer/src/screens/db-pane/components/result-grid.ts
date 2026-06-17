@@ -1,5 +1,6 @@
 import type { DbColumn } from '../../../../../preload/api'
 import type { DbConnection } from '../../../types'
+import { createOverlay } from '@crafterm/ui'
 import { makeCloseButton, promptConfirm } from '../../../dialog'
 import { dbService } from '../../../services/ipc'
 import { quoteIdent, literalOf } from '../sql-literal'
@@ -352,14 +353,13 @@ function openRowFormModal(opts: {
   pkLocked: boolean // edit: PKs are read-only; insert: PKs are editable
 }): Promise<Record<string, FieldValue> | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.className = 'modal-overlay'
+    const { overlay, mount, close: removeOverlay } = createOverlay({ closeOnBackdrop: false })
     const modal = document.createElement('div')
     modal.className = 'modal db-row-modal'
     overlay.appendChild(modal)
 
     const close = (result: Record<string, FieldValue> | null): void => {
-      overlay.remove()
+      removeOverlay()
       resolve(result)
     }
     modal.appendChild(makeCloseButton(() => close(null)))
@@ -470,7 +470,7 @@ function openRowFormModal(opts: {
     modal.tabIndex = -1
     modal.addEventListener('keydown', onKey)
 
-    document.body.appendChild(overlay)
+    mount()
     const firstEditable = opts.columns.find((c) => !(opts.pkLocked && c.isPrimary))
     if (firstEditable) inputs[firstEditable.name].input.focus()
   })
