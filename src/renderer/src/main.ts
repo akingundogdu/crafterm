@@ -75,13 +75,13 @@ import { openNewMeeting } from './screens/meeting-notes/meeting-notes'
 import { openReminderForm } from './screens/reminders/reminders'
 import { openSettings } from './screens/settings/settings'
 import {
-  showFolderPicker,
   showProjectPicker,
   showAllMarkdown,
   showRunAppsPicker,
   showRunApp,
   showFeaturePicker
 } from './screens/pickers/pickers'
+import { showFolderPicker } from './screens/pickers/folder/folder'
 import { showCommandPalette, showTerminalSwitcher } from './screens/pickers/command/command'
 import { showStashManager, showBranchCheckout } from './screens/pickers/git/git'
 import { showGlobalSearch } from './screens/pickers/global-search/global-search'
