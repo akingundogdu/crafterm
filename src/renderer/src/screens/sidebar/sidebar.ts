@@ -40,11 +40,8 @@ import {
   showPlansModal,
   showCommandHistory,
   showProjectPicker,
-  showClaudeDashboard,
   showWorktreeDashboard,
   showCommandPalette,
-  showClaudeAccountSwitcher,
-  showClaudeSessionResume,
   showRunApps,
   showFeatureSetup,
   showRunCommand,
@@ -53,6 +50,11 @@ import {
   showRunningDevicesDashboard
 } from '../pickers/pickers'
 import { showSshConnections } from '../pickers/ssh/ssh'
+import {
+  showClaudeDashboard,
+  showClaudeAccountSwitcher,
+  showClaudeSessionResume
+} from '../pickers/claude/claude'
 import { showImproveModal } from '../improve-crafterm/improve-crafterm'
 import { showDailyPlanModal } from '../daily-plan/daily-plan'
 import { promptText, promptSelect } from '../../dialog'
