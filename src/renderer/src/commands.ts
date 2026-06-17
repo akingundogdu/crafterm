@@ -49,7 +49,7 @@ import {
   isContainer
 } from './tree'
 import { findProjectByPath } from './catalog'
-import { iosWorktreeEnvFor } from './ios-worktree'
+import { iosWorktreeEnvFor } from './screens/ios-worktree/ios-worktree'
 import {
   createPane,
   destroyPane,

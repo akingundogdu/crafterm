@@ -3,17 +3,17 @@
 // "iOS app" project, a live status dot + ▶/⋯ build-run actions on each worktree
 // node. Build/run/etc. open a terminal *inside* the worktree folder node.
 
-import type { SidebarNode, ProjectNode, WorktreeNode } from './types'
-import type { IosWorktreeStatus } from '../../preload/api'
-import { requestSidebar } from './state'
-import { persistence } from './services/storage/persistence.service'
-import { flattenProjects } from './catalog'
-import { state } from './state'
+import type { SidebarNode, ProjectNode, WorktreeNode } from '../../types'
+import type { IosWorktreeStatus } from '../../../../preload/api'
+import { requestSidebar } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import { flattenProjects } from '../../catalog'
+import { state } from '../../state'
 import { showContextMenu, type ContextMenuItem } from '@crafterm/ui'
-import { isWorktreeFolder, worktreeProjectOf } from './worktrees'
-import { startBackgroundProcess } from './services/bgproc'
-import { findById, ancestorFolders } from './tree'
-import { iosService } from './services/ipc'
+import { isWorktreeFolder, worktreeProjectOf } from '../../worktrees'
+import { startBackgroundProcess } from '../../services/bgproc'
+import { findById, ancestorFolders } from '../../tree'
+import { iosService } from '../../services/ipc'
 
 type RunTarget = { kind: 'device' | 'simulator'; name: string; udid: string; scheme?: string }
 

@@ -60,7 +60,7 @@ import { renderDatabase, databaseHandleKey, dbApplyQuery } from './database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from './docker'
 import { renderAccounts, accountsApplyQuery, initAccounts } from './screens/accounts/accounts'
 import { type ContextMenuItem } from '@crafterm/ui'
-import { iosWorktreeTrailing, iosWorktreeMenuItems } from './ios-worktree'
+import { iosWorktreeTrailing, iosWorktreeMenuItems } from './screens/ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from './worktrees'
 import { createTreeView, type TreeAdapter, type TreeSection, type DropPos } from '@crafterm/ui'
 import {
