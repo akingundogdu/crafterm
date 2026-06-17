@@ -33,9 +33,9 @@ import {
   refreshPaneDailyTask
 } from './pane'
 import { createSqlPane } from './dbPane'
-import { createCodePane } from './codePane'
-import { setEditorOpenHandler } from './codeEditor'
-import { applyTheme } from './monacoSetup'
+import { createCodePane } from './screens/code-pane/code-pane'
+import { setEditorOpenHandler } from './editor/code-editor'
+import { applyTheme } from './editor/monaco-setup'
 import { renderContent, updatePaneHighlight } from './content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from './notifications'
 import { openTrackModal } from './screens/time/time'

@@ -4,9 +4,9 @@ import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
-import { PALETTES, DEFAULT_EDITOR_THEME, type EditorThemePalette } from './editorThemes'
-import themelist from '../../../node_modules/monaco-themes/themes/themelist.json'
-import { appService } from './services/ipc'
+import { PALETTES, DEFAULT_EDITOR_THEME, type EditorThemePalette } from './editor-themes'
+import themelist from '../../../../node_modules/monaco-themes/themes/themelist.json'
+import { appService } from '../services/ipc'
 
 // Shared Monaco bootstrap for the code editor + SQL editor: wires language-
 // service workers (via Vite's `?worker` imports) and registers themes built from

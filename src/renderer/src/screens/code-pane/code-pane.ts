@@ -1,18 +1,13 @@
-import {
-  codePanes,
-  panes,
-  state,
-  paneActions,
-  uid,
-  settings
-} from './state'
-import { persistence } from './services/storage/persistence.service'
-import { findTabByPane, panesInLayout } from './tree'
-import { setupPaneDnd } from './pane'
-import { createCodeEditor, type CodeEditor } from './codeEditor'
-import { ALL_THEME_NAMES, currentThemeName, applyTheme } from './monacoSetup'
-import { DEFAULT_EDITOR_THEME } from './editorThemes'
-import { terminalService, fsService } from './services/ipc'
+import { codePanes, panes, state, paneActions, uid, settings } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import { findTabByPane, panesInLayout } from '../../tree'
+import { setupPaneDnd } from '../../pane'
+import { createButton, createSelect } from '@crafterm/ui'
+import { createCodeEditor, type CodeEditor } from '../../editor/code-editor'
+import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
+import { DEFAULT_EDITOR_THEME } from '../../editor/editor-themes'
+import { terminalService, fsService } from '../../services/ipc'
+import { breadcrumb, refPath } from './path-ref'
 
 // An editable code editor pane (Monaco) opened from the Files panel.
 // Syntax-highlights by file extension, supports Cmd +/- zoom, and saves the
@@ -23,27 +18,8 @@ const DEFAULT_FONT = 13
 const MIN_FONT = 8
 const MAX_FONT = 28
 
-// Per-pane teardown (destroys the CodeMirror view on close).
+// Per-pane teardown (destroys the Monaco view on close).
 const cleanups = new Map<string, () => void>()
-
-function shortPath(p: string): string {
-  return p.replace(/^\/(Users|home)\/[^/]+/, '~')
-}
-
-// A light breadcrumb: the last few path segments joined with "›".
-function breadcrumb(path: string): string {
-  const parts = shortPath(path).split('/').filter(Boolean)
-  return parts.slice(-3).join('  ›  ')
-}
-
-// Path relative to a terminal's cwd when the file lives under it; else absolute.
-function refPath(absPath: string, cwd: string | null): string {
-  if (cwd) {
-    const base = cwd.endsWith('/') ? cwd : cwd + '/'
-    if (absPath.startsWith(base)) return absPath.slice(base.length)
-  }
-  return absPath
-}
 
 // The terminal to target for "Add to chat": prefer a Claude session in the same
 // tab as this code pane, else the tab's first terminal, else the active terminal.
@@ -85,16 +61,9 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
   center.append(dirtyDot, htitle)
 
   // Global Monaco theme picker (changes every editor — themes are global).
-  const themeSel = document.createElement('select')
+  const themeSel = createSelect({ options: [...ALL_THEME_NAMES], value: currentThemeName() })
   themeSel.className = 'code-theme-sel'
   themeSel.title = 'Editor theme'
-  for (const name of ALL_THEME_NAMES) {
-    const opt = document.createElement('option')
-    opt.value = name
-    opt.textContent = name
-    themeSel.appendChild(opt)
-  }
-  themeSel.value = currentThemeName()
   themeSel.addEventListener('mousedown', (e) => e.stopPropagation())
   themeSel.addEventListener('change', () => {
     settings.editorTheme = themeSel.value
@@ -130,41 +99,45 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     panes.get(tgt.id)?.term.focus()
   }
 
-  const saveBtn = document.createElement('button')
-  saveBtn.className = 'diff-hbtn'
-  saveBtn.textContent = '💾'
-  saveBtn.title = 'Save (⌘S)'
-
-  const copyBtn = document.createElement('button')
-  copyBtn.className = 'diff-hbtn'
-  copyBtn.textContent = '⧉'
-  copyBtn.title = 'Copy full path'
-  copyBtn.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void navigator.clipboard.writeText(path)
-    const prev = copyBtn.textContent
-    copyBtn.textContent = '✓'
-    setTimeout(() => (copyBtn.textContent = prev), 1000)
+  const saveBtn = createButton({ className: 'diff-hbtn', text: '💾', title: 'Save (⌘S)' })
+  const copyBtn = createButton({
+    className: 'diff-hbtn',
+    text: '⧉',
+    title: 'Copy full path',
+    onClick: (e) => {
+      e.stopPropagation()
+      void navigator.clipboard.writeText(path)
+      const prev = copyBtn.textContent
+      copyBtn.textContent = '✓'
+      setTimeout(() => (copyBtn.textContent = prev), 1000)
+    }
   })
-  const revealBtn = document.createElement('button')
-  revealBtn.className = 'diff-hbtn'
-  revealBtn.textContent = '⌕'
-  revealBtn.title = 'Show in Finder'
-  revealBtn.addEventListener('click', (e) => {
-    e.stopPropagation()
-    fsService.revealPath(path)
+  const revealBtn = createButton({
+    className: 'diff-hbtn',
+    text: '⌕',
+    title: 'Show in Finder',
+    onClick: (e) => {
+      e.stopPropagation()
+      fsService.revealPath(path)
+    }
   })
-  const reload = document.createElement('button')
-  reload.className = 'diff-hbtn'
-  reload.textContent = '⟳'
-  reload.title = 'Reload from disk (discards unsaved edits)'
-  const close = document.createElement('button')
-  close.className = 'diff-hbtn diff-hclose'
-  close.textContent = '×'
-  close.title = 'Close'
-  close.addEventListener('click', (e) => {
-    e.stopPropagation()
-    paneActions.close(id)
+  const reload = createButton({
+    className: 'diff-hbtn',
+    text: '⟳',
+    title: 'Reload from disk (discards unsaved edits)',
+    onClick: (e) => {
+      e.stopPropagation()
+      void load()
+    }
+  })
+  const close = createButton({
+    className: 'diff-hbtn diff-hclose',
+    text: '×',
+    title: 'Close',
+    onClick: (e) => {
+      e.stopPropagation()
+      paneActions.close(id)
+    }
   })
   header.append(center, themeSel, saveBtn, copyBtn, revealBtn, reload, close)
 
@@ -250,11 +223,6 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     htitle.title = path
     void load(line)
   }
-
-  reload.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void load()
-  })
 
   codePanes.set(id, {
     id,
