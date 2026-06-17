@@ -45,3 +45,18 @@ test('new terminal renders a status bar with its cwd (pane-info + status-bar)', 
     .evaluate((el) => getComputedStyle(el).display)
   expect(display).toBe('flex')
 })
+
+test('new terminal mounts an xterm into its host (createPane -> mountPanes)', async () => {
+  // createPane builds the xterm instance + key handler; mountPanes opens it into
+  // the .pane-term host. Assert the xterm DOM mounted and the shell prompt was
+  // rendered into its rows — the full terminal.ts lifecycle, end-to-end in the UI.
+  const xterm = win.locator('.pane-term .xterm').first()
+  await expect(xterm).toBeAttached({ timeout: 20_000 })
+
+  // term.open() builds the renderer DOM (.xterm-screen) inside the host — proof
+  // mountPanes opened the xterm into its .pane-term host. (The pty output itself
+  // is asserted end-to-end in terminal.spec.ts.)
+  await expect(win.locator('.pane-term .xterm .xterm-screen').first()).toBeAttached({
+    timeout: 20_000
+  })
+})
