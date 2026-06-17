@@ -9,7 +9,7 @@ import {
   snoozeOptions
 } from './screens/reminders/reminders'
 import { renderExplorer, initExplorer } from './screens/explorer/explorer'
-import { prTabVisible } from './pr'
+import { prTabVisible } from './screens/pr/pr'
 import { renderBookmarks } from './screens/bookmarks/bookmarks'
 import { showDailyPlanModal } from './dailyPlan'
 import { openMeetingNote } from './screens/meeting-notes/meeting-notes'
