@@ -72,7 +72,7 @@ import {
   markPaneTaskTest
 } from './dailyPlan'
 import { openNewMeeting } from './meetingNotes'
-import { openReminderForm } from './reminders'
+import { openReminderForm } from './screens/reminders/reminders'
 import { openSettings } from './settings'
 import {
   showFolderPicker,

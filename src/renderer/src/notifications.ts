@@ -7,7 +7,7 @@ import {
   startReminderTimer,
   snoozeReminder,
   snoozeOptions
-} from './reminders'
+} from './screens/reminders/reminders'
 import { renderExplorer, initExplorer } from './screens/explorer/explorer'
 import { prTabVisible } from './pr'
 import { renderBookmarks } from './screens/bookmarks/bookmarks'

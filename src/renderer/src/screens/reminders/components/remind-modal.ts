@@ -1,25 +1,28 @@
 import { createOverlay, createButton } from '@crafterm/ui'
-import type { Bookmark } from '../../../types'
 import { makeCloseButton } from '../../../dialog'
-import { snoozeReminder, snoozeOptions } from '../../../screens/reminders/reminders'
+import type { ReminderPayload } from '../../../types'
+import { snoozeOptions, snoozeReminder } from '../reminders'
 
-// Quick "remind me about this bookmark" picker: one chip per snooze option.
-// Uses a bare overlay (no Cancel/OK action row) to match the original modal.
-export function showRemindPicker(bm: Bookmark): void {
+// Shared "Remind me about this" modal used by bookmarks, notebook items, and any
+// other place that wants to attach a reminder with a payload. Renders the same
+// snooze-chip grid as the right-panel cards.
+export function showRemindModal(
+  subject: string,
+  reminderText: string,
+  payload: ReminderPayload
+): void {
   const ov = createOverlay({ closeOnBackdrop: true })
   const modal = document.createElement('div')
   modal.className = 'modal prompt-modal'
   ov.overlay.appendChild(modal)
-
   modal.appendChild(makeCloseButton(ov.close))
   const h = document.createElement('h2')
   h.textContent = 'Remind me about this'
   modal.appendChild(h)
   const sub = document.createElement('div')
   sub.className = 'field-hint'
-  sub.textContent = bm.title
+  sub.textContent = subject
   modal.appendChild(sub)
-
   const chips = document.createElement('div')
   chips.className = 'bm-remind-chips'
   for (const opt of snoozeOptions()) {
@@ -28,7 +31,7 @@ export function showRemindPicker(bm: Bookmark): void {
         text: opt.label,
         className: 'bm-remind-chip',
         onClick: () => {
-          snoozeReminder(`Bookmark: ${bm.title}`, opt.at, { kind: 'bookmark', bookmarkId: bm.id })
+          snoozeReminder(reminderText, opt.at, payload)
           ov.close()
         }
       })

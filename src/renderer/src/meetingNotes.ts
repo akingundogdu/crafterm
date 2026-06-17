@@ -3,7 +3,7 @@ import { state, uid } from './state'
 import { meetingNoteRepo } from './services/storage/repositories'
 import { makeCloseButton, promptConfirm } from './dialog'
 import { flattenProjects, findProjectById } from './catalog'
-import { showRemindModal } from './reminders'
+import { showRemindModal } from './screens/reminders/reminders'
 import { createDateField } from '@crafterm/ui'
 
 const ARCHIVE_SVG =
