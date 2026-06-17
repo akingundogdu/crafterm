@@ -87,7 +87,7 @@ import {
   showFeaturePicker,
   showGlobalSearch
 } from './pickers'
-import { showSpotlight } from './spotlight'
+import { showSpotlight } from './screens/spotlight/spotlight'
 import { startWorktreeReconcile } from './services/worktrees'
 import { onProcessExit } from './services/bgproc'
 import { startIosWorktreePoll } from './screens/ios-worktree/ios-worktree'

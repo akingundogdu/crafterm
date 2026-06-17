@@ -1,14 +1,14 @@
-import { settings, panes, state, hooks } from './state'
-import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from './services/storage/repositories'
+import { settings, panes, state, hooks } from '../../state'
+import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '../../services/storage/repositories'
 import {
   overlayModal,
-  makeSearchInput,
   buildGlobalSearchIndex,
   loadZshCommands,
   showRunApp,
   SOURCE_LABEL,
   type GsEntry
-} from './pickers'
+} from '../../pickers'
+import { createSearchBox } from '@crafterm/ui'
 import {
   openMarkdownFile,
   selectPane,
@@ -17,77 +17,22 @@ import {
   splitProjectRight,
   newTab,
   newClaudeTab
-} from './commands'
-import { flattenProjects } from './catalog'
-import { allTabs, panesInLayout, ancestorFolders } from './tree'
-import { KEYBINDINGS, effectiveCombo, comboFromEvent, comboLabel } from './keybindings'
-import { showDailyPlanModal } from './dailyPlan'
-import { openReminderForm } from './screens/reminders/reminders'
-import { paneStatus } from './pane'
-import { terminalService, fsService, plansService, appService } from './services/ipc'
+} from '../../commands'
+import { flattenProjects } from '../../catalog'
+import { allTabs, panesInLayout, ancestorFolders } from '../../tree'
+import { KEYBINDINGS, effectiveCombo, comboFromEvent, comboLabel } from '../../keybindings'
+import { showDailyPlanModal } from '../../dailyPlan'
+import { openReminderForm } from '../reminders/reminders'
+import { paneStatus } from '../../pane'
+import { terminalService, fsService, plansService, appService } from '../../services/ipc'
+import { createSpotTabs, TABS, TAB_ACTION } from './components/spot-tabs'
+import { createResultList, type SpotEntry, type SpotSource } from './components/result-list'
 
 // Unified "Search Everywhere" spotlight: one cmd+P surface with WebStorm-style
 // tabs (All, Files, Commands, Claude, Terminals, Shortcuts, Plans, Bookmarks,
 // Apps, Tasks, Projects, Notebooks, Accounts). Tabs switch via Tab/Shift+Tab,
 // a header click, or each tab's own configurable shortcut. Heavy sources (file
 // scan, zsh, backlog) load lazily on first activation of their tab.
-
-type SpotSource =
-  | GsEntry['source']
-  | 'file'
-  | 'command'
-  | 'claude'
-  | 'shortcut'
-  | 'app'
-  | 'task'
-  | 'reminder'
-  | 'backlog'
-
-interface SpotEntry {
-  source: SpotSource
-  label: string
-  detail?: string
-  run: () => void
-  altRun?: () => void // ⌘⏎ alternate action (e.g. split instead of open)
-}
-
-interface SpotTab {
-  id: string
-  label: string
-}
-
-const TABS: SpotTab[] = [
-  { id: 'all', label: 'All' },
-  { id: 'files', label: 'Files' },
-  { id: 'commands', label: 'Commands' },
-  { id: 'claude', label: 'Claude' },
-  { id: 'terminals', label: 'Terminals' },
-  { id: 'shortcuts', label: 'Shortcuts' },
-  { id: 'plans', label: 'Plans' },
-  { id: 'bookmarks', label: 'Bookmarks' },
-  { id: 'apps', label: 'Apps' },
-  { id: 'tasks', label: 'Tasks' },
-  { id: 'projects', label: 'Projects' },
-  { id: 'notebooks', label: 'Notebooks' },
-  { id: 'accounts', label: 'Accounts' }
-]
-
-// tab id -> editable keybinding action id (drives the per-tab shortcut + label).
-const TAB_ACTION: Record<string, string> = {
-  all: 'spotlight',
-  files: 'spotlight-files',
-  commands: 'spotlight-commands',
-  claude: 'spotlight-claude',
-  terminals: 'spotlight-terminals',
-  shortcuts: 'spotlight-shortcuts',
-  plans: 'spotlight-plans',
-  bookmarks: 'spotlight-bookmarks',
-  apps: 'spotlight-apps',
-  tasks: 'spotlight-tasks',
-  projects: 'spotlight-projects',
-  notebooks: 'spotlight-notebooks',
-  accounts: 'spotlight-accounts'
-}
 
 const BADGE_LABEL: Record<SpotSource, string> = {
   ...SOURCE_LABEL,
@@ -110,15 +55,29 @@ const firstLine = (s: string): string => {
 export async function showSpotlight(initialTab = 'all'): Promise<void> {
   const { overlay, modal, close } = overlayModal('picker-modal picker-modal-wide spotlight-modal')
 
-  const input = makeSearchInput('Search everything…  (Tab switch · ↑↓ move · ⏎ open · ⌘⏎ split)', () => {
-    sel = 0
-    renderList()
+  const input = createSearchBox(
+    'Search everything…  (Tab switch · ↑↓ move · ⏎ open · ⌘⏎ split)',
+    () => resultList.setItems(filtered(), activeTab === 'all')
+  )
+
+  const tabs = createSpotTabs({
+    getActive: () => activeTab,
+    comboFor: (tabId) => {
+      const combo = effectiveCombo(TAB_ACTION[tabId])
+      return combo ? comboLabel(combo) : null
+    },
+    onSelect: (tabId) => {
+      void switchTab(tabId)
+      input.focus()
+    }
   })
-  const tabsBar = document.createElement('div')
-  tabsBar.className = 'spot-tabs'
-  const list = document.createElement('div')
-  list.className = 'pick-list picker-list spot-list'
-  modal.append(input, tabsBar, list)
+
+  const resultList = createResultList({
+    onChoose: (e) => choose(e),
+    badgeFor: (source) => BADGE_LABEL[source]
+  })
+
+  modal.append(input, tabs.el, resultList.el)
 
   // The All tab aggregates the cheap, already-in-memory sources. buildGlobalSearchIndex
   // already covers projects/features, panes, bookmarks, accounts, plans, notebooks and
@@ -187,37 +146,12 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
 
   let activeTab = TABS.some((t) => t.id === initialTab) ? initialTab : 'all'
   let current: SpotEntry[] = []
-  let sel = 0
   let loadSeq = 0
 
   const comboToTab = new Map<string, string>()
   for (const [tab, actionId] of Object.entries(TAB_ACTION)) {
     const combo = effectiveCombo(actionId)
     if (combo) comboToTab.set(combo, tab)
-  }
-
-  const renderTabs = (): void => {
-    tabsBar.replaceChildren()
-    for (const t of TABS) {
-      const btn = document.createElement('button')
-      btn.className = 'spot-tab' + (t.id === activeTab ? ' active' : '')
-      const name = document.createElement('span')
-      name.className = 'spot-tab-name'
-      name.textContent = t.label
-      btn.appendChild(name)
-      const combo = effectiveCombo(TAB_ACTION[t.id])
-      if (combo) {
-        const kbd = document.createElement('span')
-        kbd.className = 'spot-tab-combo'
-        kbd.textContent = comboLabel(combo)
-        btn.appendChild(kbd)
-      }
-      btn.addEventListener('click', () => {
-        void switchTab(t.id)
-        input.focus()
-      })
-      tabsBar.appendChild(btn)
-    }
   }
 
   const filtered = (): SpotEntry[] => {
@@ -235,62 +169,17 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
     e.run()
   }
 
-  const highlight = (): void => {
-    list.querySelectorAll<HTMLElement>('.spot-row').forEach((el, i) => {
-      el.classList.toggle('active', i === sel)
-    })
-  }
-
-  const renderList = (): void => {
-    const items = filtered()
-    if (sel >= items.length) sel = Math.max(0, items.length - 1)
-    list.replaceChildren()
-    if (!items.length) {
-      list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
-      return
-    }
-    const showBadge = activeTab === 'all'
-    items.forEach((e, i) => {
-      const row = document.createElement('button')
-      row.className = 'pick-row spot-row' + (i === sel ? ' active' : '')
-      if (showBadge) {
-        const badge = document.createElement('span')
-        badge.className = 'gs-badge gs-' + e.source
-        badge.textContent = BADGE_LABEL[e.source]
-        row.append(badge)
-      }
-      const lab = document.createElement('span')
-      lab.className = 'gs-label'
-      lab.textContent = e.label
-      row.append(lab)
-      if (e.detail) {
-        const sub = document.createElement('span')
-        sub.className = 'gs-detail'
-        sub.textContent = e.detail
-        row.append(sub)
-      }
-      row.addEventListener('click', () => choose(e))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
-    })
-  }
-
   const switchTab = async (tab: string): Promise<void> => {
     if (!TABS.some((t) => t.id === tab)) return
     activeTab = tab
-    sel = 0
-    renderTabs()
+    tabs.render()
     const seq = ++loadSeq
     current = []
-    list.replaceChildren()
-    list.insertAdjacentHTML('beforeend', '<div class="empty-hint">Loading…</div>')
+    resultList.setLoading()
     const entries = await entriesFor(tab)
     if (seq !== loadSeq) return // a newer switch superseded this load
     current = entries
-    renderList()
+    resultList.setItems(filtered(), activeTab === 'all')
   }
 
   input.addEventListener('keydown', (e) => {
@@ -315,18 +204,15 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
         return
       }
     }
-    const items = filtered()
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      sel = Math.min(items.length - 1, sel + 1)
-      highlight()
+      resultList.move(1)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      sel = Math.max(0, sel - 1)
-      highlight()
+      resultList.move(-1)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      const item = items[sel]
+      const item = resultList.selected()
       if (!item) return
       if (e.metaKey && item.altRun) {
         close()
@@ -340,7 +226,7 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
     if (ev.target === overlay) close()
   })
 
-  renderTabs()
+  tabs.render()
   await switchTab(activeTab)
   setTimeout(() => input.focus(), 0)
 }
