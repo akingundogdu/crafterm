@@ -7,8 +7,9 @@
 // --- Modal stack ---
 export { createButton, type ButtonOptions } from './button/button'
 export { createInput, type InputOptions } from './input/input'
+export { createTextarea, type TextareaOptions } from './textarea/textarea'
 export { createField } from './field/field'
-export { createSelect, CREATE_OPTION, type SelectOptions } from './select/select'
+export { createSelect, CREATE_OPTION, type SelectOptions, type SelectOption } from './select/select'
 export { createOverlay, type OverlayHandle } from './overlay/overlay'
 export { createModal, type ModalOptions, type ModalHandle } from './modal/modal'
 

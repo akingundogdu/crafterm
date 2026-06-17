@@ -10,7 +10,7 @@ import {
 } from './reminders'
 import { renderExplorer, initExplorer } from './explorer'
 import { prTabVisible } from './pr'
-import { renderBookmarks } from './bookmarks'
+import { renderBookmarks } from './screens/bookmarks/bookmarks'
 import { showDailyPlanModal } from './dailyPlan'
 import { openMeetingNote } from './meetingNotes'
 import { renderTime, initTime, startAutoTracker } from './time'

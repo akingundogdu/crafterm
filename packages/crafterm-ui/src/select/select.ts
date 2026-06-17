@@ -4,8 +4,12 @@
 
 export const CREATE_OPTION = ' __create__'
 
+// An option is either a bare string (value === label) or an explicit
+// value/label pair for when the stored value differs from its display text.
+export type SelectOption = string | { value: string; label: string }
+
 export interface SelectOptions {
-  options: string[]
+  options: SelectOption[]
   value?: string
   emptyLabel?: string // when set, prepends a '' option with this label
   allowCreate?: boolean // when true, appends a "+ New…" option (value = CREATE_OPTION)
@@ -20,10 +24,15 @@ export function createSelect(opts: SelectOptions): HTMLSelectElement {
     o.textContent = opts.emptyLabel
     sel.appendChild(o)
   }
-  for (const v of opts.options) {
+  for (const opt of opts.options) {
     const o = document.createElement('option')
-    o.value = v
-    o.textContent = v
+    if (typeof opt === 'string') {
+      o.value = opt
+      o.textContent = opt
+    } else {
+      o.value = opt.value
+      o.textContent = opt.label
+    }
     sel.appendChild(o)
   }
   if (opts.allowCreate) {
