@@ -5,17 +5,18 @@ import type {
   DailyPlanPriority,
   ProjectNode,
   SidebarNode
-} from './types'
-import { state, panes, uid } from './state'
-import { persistence } from './services/storage/persistence.service'
-import { dailyTaskRepo, dailyTagRepo } from './services/storage/repositories'
-import { makeCloseButton, promptConfirm } from './dialog'
-import { showRemindModal } from './screens/reminders/reminders'
-import { findProjectById } from './catalog'
-import { openClaudeWithPrompt } from './commands'
-import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from './services/worktrees'
-import { refreshPaneDailyTask } from './pane'
+} from '../../types'
+import { state, panes, uid } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import { dailyTaskRepo, dailyTagRepo } from '../../services/storage/repositories'
+import { makeCloseButton, promptConfirm } from '../../dialog'
+import { showRemindModal } from '../reminders/reminders'
+import { findProjectById } from '../../catalog'
+import { openClaudeWithPrompt } from '../../commands'
+import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from '../../services/worktrees'
+import { refreshPaneDailyTask } from '../../pane'
 import { createDateField } from '@crafterm/ui'
+import { boardColumnOf, ymd, parseYmd, shiftDays } from './task-helpers'
 
 // Board columns. 'review' is intentionally absent — it's an intermediate status
 // whose tasks render under the In Progress (wip) column (see boardColumnOf).
@@ -37,12 +38,6 @@ const FORM_STATUSES: { id: DailyPlanStatus; label: string }[] = [
   { id: 'done', label: 'Done' }
 ]
 
-// The board column a status renders under: 'review' and 'test' fold into the In
-// Progress column; every other status maps to its own column.
-function boardColumnOf(status: DailyPlanStatus): DailyPlanStatus {
-  return status === 'review' || status === 'test' ? 'wip' : status
-}
-
 const PRIORITIES: { id: DailyPlanPriority; label: string }[] = [
   { id: 'low', label: 'Low' },
   { id: 'medium', label: 'Medium' },
@@ -61,24 +56,6 @@ function nextTagColor(): string {
 
 function todayKey(): string {
   const d = new Date()
-  return ymd(d)
-}
-
-function ymd(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function parseYmd(s: string): Date {
-  const [y, m, d] = s.split('-').map((n) => parseInt(n, 10))
-  return new Date(y, (m || 1) - 1, d || 1)
-}
-
-function shiftDays(date: string, delta: number): string {
-  const d = parseYmd(date)
-  d.setDate(d.getDate() + delta)
   return ymd(d)
 }
 

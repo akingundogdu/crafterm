@@ -70,7 +70,7 @@ import {
   markPaneTaskDone,
   markPaneTaskReview,
   markPaneTaskTest
-} from './dailyPlan'
+} from './screens/daily-plan/daily-plan'
 import { openNewMeeting } from './screens/meeting-notes/meeting-notes'
 import { openReminderForm } from './screens/reminders/reminders'
 import { openSettings } from './settings'

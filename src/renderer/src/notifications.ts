@@ -11,7 +11,7 @@ import {
 import { renderExplorer, initExplorer } from './screens/explorer/explorer'
 import { prTabVisible } from './screens/pr/pr'
 import { renderBookmarks } from './screens/bookmarks/bookmarks'
-import { showDailyPlanModal } from './dailyPlan'
+import { showDailyPlanModal } from './screens/daily-plan/daily-plan'
 import { openMeetingNote } from './screens/meeting-notes/meeting-notes'
 import { renderTime, initTime, startAutoTracker } from './screens/time/time'
 import { runUpdate } from './pickers'

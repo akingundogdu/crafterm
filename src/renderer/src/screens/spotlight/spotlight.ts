@@ -21,7 +21,7 @@ import {
 import { flattenProjects } from '../../catalog'
 import { allTabs, panesInLayout, ancestorFolders } from '../../tree'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, comboLabel } from '../../keybindings'
-import { showDailyPlanModal } from '../../dailyPlan'
+import { showDailyPlanModal } from '../daily-plan/daily-plan'
 import { openReminderForm } from '../reminders/reminders'
 import { paneStatus } from '../../pane'
 import { terminalService, fsService, plansService, appService } from '../../services/ipc'

@@ -54,7 +54,7 @@ import {
   showRunningDevicesDashboard
 } from './pickers'
 import { showImproveModal } from './improve'
-import { showDailyPlanModal } from './dailyPlan'
+import { showDailyPlanModal } from './screens/daily-plan/daily-plan'
 import { promptText, promptSelect } from './dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from './screens/database/database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from './screens/docker/docker'
