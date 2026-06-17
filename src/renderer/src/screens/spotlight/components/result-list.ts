@@ -2,7 +2,7 @@
 // selection index, and row rendering. The badge label resolver is injected so
 // the component pulls no business/IPC modules and renders in isolation.
 
-import type { GsEntry } from '../../pickers/pickers'
+import type { GsEntry } from '../../pickers/global-search/global-search'
 
 export type SpotSource =
   | GsEntry['source']

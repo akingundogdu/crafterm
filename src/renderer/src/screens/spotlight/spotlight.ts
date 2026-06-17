@@ -1,13 +1,11 @@
 import { settings, panes, state, hooks } from '../../state'
 import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '../../services/storage/repositories'
+import { overlayModal, loadZshCommands, showRunApp } from '../pickers/pickers'
 import {
-  overlayModal,
   buildGlobalSearchIndex,
-  loadZshCommands,
-  showRunApp,
   SOURCE_LABEL,
   type GsEntry
-} from '../pickers/pickers'
+} from '../pickers/global-search/global-search'
 import { createSearchBox } from '@crafterm/ui'
 import {
   openMarkdownFile,

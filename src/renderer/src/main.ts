@@ -82,10 +82,10 @@ import {
   showTerminalSwitcher,
   showRunAppsPicker,
   showRunApp,
-  showFeaturePicker,
-  showGlobalSearch
+  showFeaturePicker
 } from './screens/pickers/pickers'
 import { showStashManager, showBranchCheckout } from './screens/pickers/git/git'
+import { showGlobalSearch } from './screens/pickers/global-search/global-search'
 import { showSpotlight } from './screens/spotlight/spotlight'
 import { startWorktreeReconcile } from './services/worktrees'
 import { onProcessExit } from './services/bgproc'
