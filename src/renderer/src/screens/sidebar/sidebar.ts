@@ -43,7 +43,6 @@ import {
   showClaudeDashboard,
   showWorktreeDashboard,
   showCommandPalette,
-  showSshConnections,
   showClaudeAccountSwitcher,
   showClaudeSessionResume,
   showRunApps,
@@ -53,6 +52,7 @@ import {
   showRunningProcessesDashboard,
   showRunningDevicesDashboard
 } from '../pickers/pickers'
+import { showSshConnections } from '../pickers/ssh/ssh'
 import { showImproveModal } from '../improve-crafterm/improve-crafterm'
 import { showDailyPlanModal } from '../daily-plan/daily-plan'
 import { promptText, promptSelect } from '../../dialog'
