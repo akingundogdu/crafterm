@@ -93,7 +93,7 @@ import { onProcessExit } from './services/bgproc'
 import { startIosWorktreePoll } from './screens/ios-worktree/ios-worktree'
 import { showImproveModal } from './improve'
 import { databaseNewProject } from './database'
-import { renderDocker } from './docker'
+import { renderDocker } from './screens/docker/docker'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, isRecording } from './keybindings'
 import { terminalService, claudeService, plansService, appService, storeService } from './services/ipc'
 
