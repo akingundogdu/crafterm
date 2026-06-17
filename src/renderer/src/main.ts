@@ -71,7 +71,7 @@ import {
   markPaneTaskReview,
   markPaneTaskTest
 } from './dailyPlan'
-import { openNewMeeting } from './meetingNotes'
+import { openNewMeeting } from './screens/meeting-notes/meeting-notes'
 import { openReminderForm } from './screens/reminders/reminders'
 import { openSettings } from './settings'
 import {

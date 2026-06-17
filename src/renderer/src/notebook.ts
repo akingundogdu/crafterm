@@ -9,7 +9,7 @@ import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@
 import { type ContextMenuItem } from '@crafterm/ui'
 import { showRemindModal } from './screens/reminders/reminders'
 import { renderDailyCompact } from './dailyPlan'
-import { renderMeetingNotes } from './meetingNotes'
+import { renderMeetingNotes } from './screens/meeting-notes/meeting-notes'
 import './notebook.css'
 import { fsService, notebookService, plansService } from './services/ipc'
 

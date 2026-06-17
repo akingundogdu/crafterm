@@ -1,10 +1,10 @@
-import type { MeetingNote } from './types'
-import { state, uid } from './state'
-import { meetingNoteRepo } from './services/storage/repositories'
-import { makeCloseButton, promptConfirm } from './dialog'
-import { flattenProjects, findProjectById } from './catalog'
-import { showRemindModal } from './screens/reminders/reminders'
-import { createDateField } from '@crafterm/ui'
+import type { MeetingNote } from '../../types'
+import { state } from '../../state'
+import { meetingNoteRepo } from '../../services/storage/repositories'
+import { promptConfirm } from '../../dialog'
+import { findProjectById } from '../../catalog'
+import { showRemindModal } from '../reminders/reminders'
+import { showMeetingForm } from './components/meeting-form'
 
 const ARCHIVE_SVG =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/></svg>'
@@ -14,14 +14,6 @@ const NO_PROJECT_GROUP = 'No project'
 interface NoteGroup {
   name: string
   notes: MeetingNote[]
-}
-
-function todayKey(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
 function formatDate(s: string): string {
@@ -216,146 +208,4 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
 
   card.addEventListener('click', () => showMeetingForm(note, rerender))
   return card
-}
-
-function showMeetingForm(existing: MeetingNote | null, onSaved: () => void): void {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay daily-plan-form-overlay'
-  const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal daily-plan-form'
-  overlay.appendChild(modal)
-
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true)
-    overlay.remove()
-  }
-  const onKey = (e: KeyboardEvent): void => {
-    e.stopPropagation()
-    if (e.key === 'Escape') close()
-  }
-  document.addEventListener('keydown', onKey, true)
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
-  modal.appendChild(makeCloseButton(close))
-
-  const h = document.createElement('h2')
-  h.textContent = existing ? 'Edit meeting note' : 'New meeting note'
-  modal.appendChild(h)
-
-  // Title
-  const titleField = document.createElement('div')
-  titleField.className = 'field'
-  titleField.innerHTML = '<label>Title</label>'
-  const titleInput = document.createElement('input')
-  titleInput.type = 'text'
-  titleInput.value = existing?.title ?? ''
-  titleInput.placeholder = 'Meeting subject'
-  titleField.appendChild(titleInput)
-  modal.appendChild(titleField)
-
-  // Date
-  const dateField = document.createElement('div')
-  dateField.className = 'field'
-  dateField.innerHTML = '<label>Date</label>'
-  const dateInput = createDateField({ mode: 'date', value: existing?.date ?? todayKey() })
-  dateField.appendChild(dateInput)
-  modal.appendChild(dateField)
-
-  // Attendees
-  const attField = document.createElement('div')
-  attField.className = 'field'
-  attField.innerHTML = '<label>Attendees <span class="field-hint">(comma separated)</span></label>'
-  const attInput = document.createElement('input')
-  attInput.type = 'text'
-  attInput.value = (existing?.attendees ?? []).join(', ')
-  attInput.placeholder = 'Alice, Bob, Carol'
-  attField.appendChild(attInput)
-  modal.appendChild(attField)
-
-  // Project (optional)
-  const projField = document.createElement('div')
-  projField.className = 'field'
-  projField.innerHTML = '<label>Project <span class="field-hint">(optional)</span></label>'
-  const projSel = document.createElement('select')
-  const noneOpt = document.createElement('option')
-  noneOpt.value = ''
-  noneOpt.textContent = '— None —'
-  projSel.appendChild(noneOpt)
-  for (const p of flattenProjects(state.tree)) {
-    const o = document.createElement('option')
-    o.value = p.id
-    o.textContent = p.name
-    projSel.appendChild(o)
-  }
-  projSel.value = existing?.projectId ?? ''
-  projField.appendChild(projSel)
-  modal.appendChild(projField)
-
-  // Notes body
-  const notesField = document.createElement('div')
-  notesField.className = 'field'
-  notesField.innerHTML = '<label>Notes</label>'
-  const notesInput = document.createElement('textarea')
-  notesInput.className = 'daily-plan-desc-input meeting-notes-body'
-  notesInput.rows = 8
-  notesInput.value = existing?.notes ?? ''
-  notesInput.placeholder = 'Agenda, decisions, action items…'
-  notesField.appendChild(notesInput)
-  modal.appendChild(notesField)
-
-  const commit = (): boolean => {
-    const title = titleInput.value.trim()
-    const notes = notesInput.value
-    if (!title && !notes.trim()) {
-      titleInput.focus()
-      return false
-    }
-    const attendees = attInput.value
-      .split(',')
-      .map((a) => a.trim())
-      .filter(Boolean)
-    const now = Date.now()
-    if (existing) {
-      existing.title = title
-      existing.date = dateInput.value || todayKey()
-      existing.attendees = attendees
-      existing.notes = notes
-      existing.projectId = projSel.value || undefined
-      existing.updatedAt = now
-      meetingNoteRepo.upsert(existing)
-    } else {
-      meetingNoteRepo.upsert({
-        id: uid('mtg'),
-        title,
-        date: dateInput.value || todayKey(),
-        attendees,
-        notes,
-        projectId: projSel.value || undefined,
-        createdAt: now,
-        updatedAt: now
-      })
-    }
-    return true
-  }
-
-  const actions = document.createElement('div')
-  actions.className = 'modal-actions'
-  const cancel = document.createElement('button')
-  cancel.textContent = 'Cancel'
-  cancel.addEventListener('click', close)
-  const save = document.createElement('button')
-  save.className = 'primary'
-  save.textContent = 'Save'
-  save.addEventListener('click', () => {
-    if (!commit()) return
-    close()
-    onSaved()
-  })
-  actions.append(cancel, save)
-  modal.appendChild(actions)
-
-  document.body.appendChild(overlay)
-  titleInput.focus()
-  titleInput.select()
 }
