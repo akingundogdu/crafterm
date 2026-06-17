@@ -1,4 +1,4 @@
-import { themes } from './themes'
+import { themes } from '../../themes'
 import {
   settings,
   state,
@@ -6,18 +6,18 @@ import {
   resolveTheme,
   applyBgColor,
   uid
-} from './state'
-import { persistence } from './services/storage/persistence.service'
-import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from './types'
-import { BUILTIN_ACTIONS } from './types'
-import { flattenProjects, removeProject } from './catalog'
-import { makeProject } from './tree'
-import { reconcileWorktrees, purgeWorktrees } from './services/worktrees'
-import { applyAppearance } from './pane'
-import { ALL_THEME_NAMES, applyTheme } from './editor/monaco-setup'
-import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from './sidebar'
-import { pickFolderPath } from './screens/pickers/pickers'
-import { makeCloseButton, promptForm, promptText } from './dialog'
+} from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from '../../types'
+import { BUILTIN_ACTIONS } from '../../types'
+import { flattenProjects, removeProject } from '../../catalog'
+import { makeProject } from '../../tree'
+import { reconcileWorktrees, purgeWorktrees } from '../../services/worktrees'
+import { applyAppearance } from '../../pane'
+import { ALL_THEME_NAMES, applyTheme } from '../../editor/monaco-setup'
+import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from '../../sidebar'
+import { pickFolderPath } from '../pickers/pickers'
+import { makeCloseButton, promptForm, promptText } from '../../dialog'
 import {
   KEYBINDINGS,
   effectiveCombo,
@@ -27,9 +27,9 @@ import {
   resetBinding,
   setRecording,
   isModifierKey
-} from './keybindings'
-import { appService } from './services/ipc'
-import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from './services/storage/repositories'
+} from '../../keybindings'
+import { appService } from '../../services/ipc'
+import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from '../../services/storage/repositories'
 
 // Quick background presets (black default + a few dark tones); a custom color
 // picker covers anything else.
