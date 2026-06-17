@@ -32,7 +32,7 @@ import {
   resetActivePaneFontSize,
   refreshPaneDailyTask
 } from './pane'
-import { createSqlPane } from './dbPane'
+import { createSqlPane } from './screens/db-pane/db-pane'
 import { createCodePane } from './screens/code-pane/code-pane'
 import { setEditorOpenHandler } from './editor/code-editor'
 import { applyTheme } from './editor/monaco-setup'
@@ -92,7 +92,7 @@ import { startWorktreeReconcile } from './services/worktrees'
 import { onProcessExit } from './services/bgproc'
 import { startIosWorktreePoll } from './screens/ios-worktree/ios-worktree'
 import { showImproveModal } from './improve'
-import { databaseNewProject } from './database'
+import { databaseNewProject } from './screens/database/database'
 import { renderDocker } from './screens/docker/docker'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, isRecording } from './keybindings'
 import { terminalService, claudeService, plansService, appService, storeService } from './services/ipc'

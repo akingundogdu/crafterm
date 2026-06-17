@@ -1,6 +1,6 @@
-import { monaco, ensureThemes, currentThemeId, applyTheme } from './editor/monaco-setup'
-import { EDITOR_THEME_NAMES, DEFAULT_EDITOR_THEME } from './editor/editor-themes'
-import type { DbEngine } from './types'
+import { monaco, ensureThemes, currentThemeId, applyTheme } from './monaco-setup'
+import { EDITOR_THEME_NAMES, DEFAULT_EDITOR_THEME } from './editor-themes'
+import type { DbEngine } from '../types'
 
 // Monaco-backed SQL editor: dialect-aware highlighting, schema autocomplete
 // (table/column IntelliSense), and the shared color themes. Cmd/Ctrl+Enter runs

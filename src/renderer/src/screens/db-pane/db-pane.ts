@@ -1,19 +1,16 @@
-import { sqlPanes, paneActions, settings, uid } from './state'
-import { persistence } from './services/storage/persistence.service'
-import type { DbConnection, DbEngine, DbConnNode, DbNode } from './types'
-import { createSqlEditor, type SqlEditor } from './sqlEditor'
-import { ALL_THEME_NAMES, currentThemeName, applyTheme } from './editor/monaco-setup'
-import { setupPaneDnd } from './pane'
-import { promptText } from './dialog'
-import type { DbObjects, DbColumn } from '../../preload/api'
-import {
-  renderResultGrid,
-  quoteIdent,
-  type SortState
-} from './dbResultGrid'
-import './dbPane.css'
-import { dbService } from './services/ipc'
-import { dbConnectionRepo } from './services/storage/repositories'
+import { sqlPanes, paneActions, settings, uid } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import type { DbConnection, DbEngine, DbConnNode, DbNode } from '../../types'
+import { createSqlEditor, type SqlEditor } from '../../editor/sql-editor'
+import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
+import { setupPaneDnd } from '../../pane'
+import { promptText } from '../../dialog'
+import type { DbObjects, DbColumn } from '../../../../preload/api'
+import { renderResultGrid, type SortState } from './components/result-grid'
+import { quoteIdent } from './sql-literal'
+import './db-pane.css'
+import { dbService } from '../../services/ipc'
+import { dbConnectionRepo } from '../../services/storage/repositories'
 
 // SQL query pane: the workbench (toolbar + editor + result grid) shown as a
 // first-class pane (split next to the active pane), replacing the old modal.
@@ -290,7 +287,7 @@ export function createSqlPane(opts: {
 
     // Build editable context only if the user's original SQL was a simple
     // SELECT * (otherwise edits would be ambiguous about which table to mutate).
-    let editable: import('./dbResultGrid').EditableContext | null = null
+    let editable: import('./components/result-grid').EditableContext | null = null
     if (lastParsed && conn) {
       const cols = await loadColumns(conn, lastParsed.table)
       if (cols.length) {

@@ -56,7 +56,7 @@ import {
 import { showImproveModal } from './improve'
 import { showDailyPlanModal } from './dailyPlan'
 import { promptText, promptSelect } from './dialog'
-import { renderDatabase, databaseHandleKey, dbApplyQuery } from './database'
+import { renderDatabase, databaseHandleKey, dbApplyQuery } from './screens/database/database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from './screens/docker/docker'
 import { renderAccounts, accountsApplyQuery, initAccounts } from './screens/accounts/accounts'
 import { type ContextMenuItem } from '@crafterm/ui'

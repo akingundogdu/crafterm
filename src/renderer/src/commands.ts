@@ -61,7 +61,7 @@ import {
   paneStatus,
   refreshPaneDailyTask
 } from './pane'
-import { createSqlPane, destroySqlPane } from './dbPane'
+import { createSqlPane, destroySqlPane } from './screens/db-pane/db-pane'
 import { createDiffPane, destroyDiffPane } from './screens/diff-pane/diff-pane'
 import { createFilePane, destroyFilePane } from './screens/file-pane/file-pane'
 import { createCodePane, destroyCodePane } from './screens/code-pane/code-pane'

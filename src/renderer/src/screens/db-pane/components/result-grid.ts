@@ -1,7 +1,8 @@
-import type { DbColumn } from '../../preload/api'
-import type { DbConnection, DbEngine } from './types'
-import { makeCloseButton, promptConfirm } from './dialog'
-import { dbService } from './services/ipc'
+import type { DbColumn } from '../../../../../preload/api'
+import type { DbConnection } from '../../../types'
+import { makeCloseButton, promptConfirm } from '../../../dialog'
+import { dbService } from '../../../services/ipc'
+import { quoteIdent, literalOf } from '../sql-literal'
 
 // Result grid renderer with optional row-level actions (edit/delete/insert)
 // and column-header sort. The host pane parses the user's SQL and supplies
@@ -200,48 +201,6 @@ const PEN_SVG =
   '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M11.5 1.7l2.8 2.8L5.6 13.2 2 14l.8-3.6z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
 const TRASH_SVG =
   '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M3 4h10M6 4V2.6h4V4M4.4 4l.7 9.4h5.8L11.6 4M6.8 6.8v4.4M9.2 6.8v4.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-
-// ---- SQL value formatting -------------------------------------------------
-
-function escSingle(s: string): string {
-  return s.replace(/'/g, "''")
-}
-
-// Quote a column or table identifier for the given engine.
-export function quoteIdent(name: string, engine: DbEngine): string {
-  // dotted names ("schema.table") are quoted segment-by-segment.
-  return name
-    .split('.')
-    .map((part) => {
-      const bare = part.replace(/^["`\[]|["`\]]$/g, '')
-      if (engine === 'mysql') return '`' + bare.replace(/`/g, '``') + '`'
-      return '"' + bare.replace(/"/g, '""') + '"'
-    })
-    .join('.')
-}
-
-// Format a JS value as a SQL literal. Caller decides nullability — pass `null`
-// explicitly to emit NULL.
-function literalOf(value: unknown, type: string): string {
-  if (value === null || value === undefined) return 'NULL'
-  if (typeof value === 'number') return String(value)
-  if (typeof value === 'bigint') return value.toString()
-  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
-  if (value instanceof Date) return "'" + escSingle(value.toISOString()) + "'"
-  // Numeric/boolean column with a string value: try to coerce so the DB doesn't
-  // reject a quoted number.
-  const s = String(value)
-  if (/^(int|numeric|decimal|float|double|real|bigint|smallint|tinyint)/i.test(type)) {
-    if (s === '') return 'NULL'
-    if (/^-?\d+(\.\d+)?$/.test(s)) return s
-  }
-  if (/^bool/i.test(type)) {
-    if (s === '') return 'NULL'
-    if (/^(true|t|1)$/i.test(s)) return 'TRUE'
-    if (/^(false|f|0)$/i.test(s)) return 'FALSE'
-  }
-  return "'" + escSingle(s) + "'"
-}
 
 // ---- edit / insert / delete -----------------------------------------------
 

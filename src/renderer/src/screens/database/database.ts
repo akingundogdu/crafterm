@@ -1,13 +1,13 @@
-import { settings, uid } from './state'
-import { persistence } from './services/storage/persistence.service'
-import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from './types'
-import type { DbObjects } from '../../preload/api'
-import { makeCloseButton, promptText } from './dialog'
-import { openSqlInSplit } from './commands'
+import { settings, uid } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from '../../types'
+import type { DbObjects } from '../../../../preload/api'
+import { makeCloseButton, promptText } from '../../dialog'
+import { openSqlInSplit } from '../../commands'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
 import './database.css'
-import { dbService } from './services/ipc'
-import { dbConnectionRepo } from './services/storage/repositories'
+import { dbService } from '../../services/ipc'
+import { dbConnectionRepo } from '../../services/storage/repositories'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object
 // introspection under each connection, a Queries section of saved .sql files,
