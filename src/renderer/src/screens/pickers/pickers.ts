@@ -34,32 +34,11 @@ import { collectBackgroundProcesses, killProcess, openProcessView } from '../../
 import type { CollectedProcess } from '../../services/bgproc'
 import { terminalService, gitService, fsService, claudeService, notebookService, plansService, iosService, appService } from '../../services/ipc'
 import { sshConnectionRepo, paletteCommandRepo, bookmarkRepo, accountRepo } from '../../services/storage/repositories'
+import { overlayModal, makeSearchInput } from './shared'
 
-export function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLElement; close: () => void } {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
-  const modal = document.createElement('div')
-  modal.className = 'modal ' + extraClass
-  overlay.appendChild(modal)
-  const close = (): void => overlay.remove()
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
-  modal.appendChild(makeCloseButton(close))
-  document.body.appendChild(overlay)
-  return { overlay, modal, close }
-}
-
-// Shared "contains" search box for list modals. `onInput` re-renders the list.
-export function makeSearchInput(placeholder: string, onInput: () => void): HTMLInputElement {
-  const input = document.createElement('input')
-  input.className = 'picker-input'
-  input.type = 'text'
-  input.placeholder = placeholder
-  input.spellcheck = false
-  input.addEventListener('input', onInput)
-  return input
-}
+// Re-exported from ./shared so existing importers (and the per-picker modules) get
+// these primitives from one place while the monolith is split up.
+export { overlayModal, makeSearchInput }
 
 // ---- Plans: list ~/.claude/plans and open one in the Markdown app ----
 
