@@ -41,7 +41,7 @@ import {
   showRunApps,
   showFeatureSetup,
   showRunCommand
-} from '../pickers/pickers'
+} from '../pickers/project/project'
 import { runUpdate } from '../pickers/update/update'
 import { showCommandPalette, showCommandHistory } from '../pickers/command/command'
 import { showSshConnections } from '../pickers/ssh/ssh'

@@ -1,43 +1,16 @@
-import type { DirEntry } from '../../../../preload/api'
-import type { ProjectNode, Application } from '../../types'
+import type { ProjectNode, Application } from '../../../types'
+import { settings, state } from '../../../state'
 import {
-  settings,
-  commandHistory,
-  panes,
-  state,
-  uid
-} from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
-import {
-  openTerminalInDir,
   openProject,
   newTab,
-  selectPane,
-  openTerminalRunning,
-  createWorktreeFromPane,
-  openMarkdownFile,
-  resumeClaudeSession,
   splitProjectRight,
   splitActivePane,
   runApplications,
   createFeature,
-  resolveAppPath,
-  openLink
-} from '../../commands'
-import { allTabs, panesInLayout, ancestorFolders } from '../../tree'
-import { flattenProjects } from '../../catalog'
-import { paneStatus } from '../../pane'
-import { promptForm, promptConfirm, makeCloseButton } from '../../dialog'
-import { collectBackgroundProcesses, killProcess, openProcessView } from '../../services/bgproc'
-import type { CollectedProcess } from '../../services/bgproc'
-import { terminalService, gitService, fsService, claudeService, plansService, iosService, appService } from '../../services/ipc'
-import { paletteCommandRepo } from '../../services/storage/repositories'
-import { overlayModal, makeSearchInput } from './shared'
-
-// Re-exported from ./shared so existing importers (and the per-picker modules) get
-// these primitives from one place while the monolith is split up.
-export { overlayModal, makeSearchInput }
-
+  resolveAppPath
+} from '../../../commands'
+import { flattenProjects } from '../../../catalog'
+import { overlayModal, makeSearchInput } from '../shared'
 
 // ---- Project picker: open a saved project (or a blank terminal) ----
 

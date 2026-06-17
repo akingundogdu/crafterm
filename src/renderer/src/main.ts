@@ -79,7 +79,7 @@ import {
   showRunAppsPicker,
   showRunApp,
   showFeaturePicker
-} from './screens/pickers/pickers'
+} from './screens/pickers/project/project'
 import { showAllMarkdown } from './screens/pickers/finders/finders'
 import { showFolderPicker } from './screens/pickers/folder/folder'
 import { showCommandPalette, showTerminalSwitcher } from './screens/pickers/command/command'
