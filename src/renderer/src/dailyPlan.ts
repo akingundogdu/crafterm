@@ -13,7 +13,7 @@ import { makeCloseButton, promptConfirm } from './dialog'
 import { showRemindModal } from './screens/reminders/reminders'
 import { findProjectById } from './catalog'
 import { openClaudeWithPrompt } from './commands'
-import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from './worktrees'
+import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from './services/worktrees'
 import { refreshPaneDailyTask } from './pane'
 import { createDateField } from '@crafterm/ui'
 

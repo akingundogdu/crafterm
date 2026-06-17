@@ -61,7 +61,7 @@ import { renderDocker, dockerHandleKey, dockerApplyQuery } from './docker'
 import { renderAccounts, accountsApplyQuery, initAccounts } from './screens/accounts/accounts'
 import { type ContextMenuItem } from '@crafterm/ui'
 import { iosWorktreeTrailing, iosWorktreeMenuItems } from './screens/ios-worktree/ios-worktree'
-import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from './worktrees'
+import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from './services/worktrees'
 import { createTreeView, type TreeAdapter, type TreeSection, type DropPos } from '@crafterm/ui'
 import {
   renderNotebook,

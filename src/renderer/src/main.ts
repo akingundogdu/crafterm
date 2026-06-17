@@ -88,7 +88,7 @@ import {
   showGlobalSearch
 } from './pickers'
 import { showSpotlight } from './spotlight'
-import { startWorktreeReconcile } from './worktrees'
+import { startWorktreeReconcile } from './services/worktrees'
 import { onProcessExit } from './services/bgproc'
 import { startIosWorktreePoll } from './screens/ios-worktree/ios-worktree'
 import { showImproveModal } from './improve'

@@ -66,7 +66,7 @@ import { createDiffPane, destroyDiffPane } from './diffPane'
 import { createFilePane, destroyFilePane } from './filePane'
 import { createCodePane, destroyCodePane } from './codePane'
 import { promptText, promptForm, promptConfirm, promptCloseActions } from './dialog'
-import { removeWorktree, worktreeForCwd } from './worktrees'
+import { removeWorktree, worktreeForCwd } from './services/worktrees'
 import { terminalService, fsService } from './services/ipc'
 import { dailyTaskRepo } from './services/storage/repositories'
 

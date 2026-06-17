@@ -12,7 +12,7 @@ import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevCo
 import { BUILTIN_ACTIONS } from './types'
 import { flattenProjects, removeProject } from './catalog'
 import { makeProject } from './tree'
-import { reconcileWorktrees, purgeWorktrees } from './worktrees'
+import { reconcileWorktrees, purgeWorktrees } from './services/worktrees'
 import { applyAppearance } from './pane'
 import { ALL_THEME_NAMES, applyTheme } from './monacoSetup'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from './sidebar'
