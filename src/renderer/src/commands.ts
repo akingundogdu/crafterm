@@ -63,7 +63,7 @@ import {
 } from './pane'
 import { createSqlPane, destroySqlPane } from './dbPane'
 import { createDiffPane, destroyDiffPane } from './diffPane'
-import { createFilePane, destroyFilePane } from './filePane'
+import { createFilePane, destroyFilePane } from './screens/file-pane/file-pane'
 import { createCodePane, destroyCodePane } from './codePane'
 import { promptText, promptForm, promptConfirm, promptCloseActions } from './dialog'
 import { removeWorktree, worktreeForCwd } from './services/worktrees'
