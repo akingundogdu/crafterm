@@ -5,7 +5,7 @@
 import { panes, state, requestSidebar, uid } from '../state'
 import { persistence } from './storage/persistence.service'
 import { createPane } from '../pane'
-import { renderContent } from '../content'
+import { renderContent } from '../screens/content/content'
 import { allTabs, layoutContains, splitInLayout } from '../tree'
 import type {
   WorktreeNode,

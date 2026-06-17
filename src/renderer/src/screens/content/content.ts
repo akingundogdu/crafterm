@@ -1,4 +1,4 @@
-import type { LayoutNode } from './types'
+import type { LayoutNode } from '../../types'
 import {
   panes,
   browsers,
@@ -9,11 +9,11 @@ import {
   codePanes,
   state,
   poppedOut
-} from './state'
-import { persistence } from './services/storage/persistence.service'
-import { findTab } from './tree'
-import { mountPanes } from './pane'
-import { terminalService } from './services/ipc'
+} from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import { findTab } from '../../tree'
+import { mountPanes } from '../../pane'
+import { terminalService } from '../../services/ipc'
 
 const contentEl = document.getElementById('content')!
 
