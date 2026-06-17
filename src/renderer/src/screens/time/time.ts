@@ -1,20 +1,20 @@
-import { settings, uid, state, panes } from './state'
-import { persistence } from './services/storage/persistence.service'
-import type { TimeEntry } from './types'
-import { promptText, makeCloseButton } from './dialog'
-import { updatePaneStatus } from './pane'
-import { flattenProjects, findProjectByPath, findFeature } from './catalog'
-import { appService } from './services/ipc'
-import { timeEntryRepo } from './services/storage/repositories'
+import { settings, uid, state, panes } from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
+import { promptText } from '../../dialog'
+import { flattenProjects, findProjectByPath } from '../../catalog'
+import { appService } from '../../services/ipc'
+import { timeEntryRepo } from '../../services/storage/repositories'
 import {
   fmtClock,
   fmtHM,
   startOfToday,
-  rangeStart,
-  sumByProject,
-  reportByProject,
-  type Range
-} from './services/domain/time'
+  sumByProject
+} from '../../services/domain/time'
+import { showReport } from './components/time-report'
+import { openTrackModal } from './components/track-modal'
+
+// Re-exported for main.ts, which still imports openTrackModal from the time module.
+export { openTrackModal } from './components/track-modal'
 
 const IDLE_MS = 5 * 60_000 // no activity this long ⇒ stop auto-counting
 
@@ -48,7 +48,6 @@ function projectSel(): HTMLSelectElement {
 function featureSel(): HTMLSelectElement {
   return el('time-feature')
 }
-
 
 function renderProjects(): void {
   const sel = projectSel()
@@ -241,98 +240,6 @@ async function addFeature(): Promise<void> {
   featureSel().value = f.id
 }
 
-// Report modal: total per project (and per feature) over a date range.
-function showReport(): void {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
-  const modal = document.createElement('div')
-  modal.className = 'modal report-modal'
-  overlay.appendChild(modal)
-  const close = (): void => overlay.remove()
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
-  modal.appendChild(makeCloseButton(close))
-  modal.insertAdjacentHTML('beforeend', '<h2>Time report</h2>')
-
-  let range: Range = 'week'
-  const chipsRow = document.createElement('div')
-  chipsRow.className = 'report-chips'
-  const body = document.createElement('div')
-  body.className = 'report-body'
-  modal.append(chipsRow, body)
-
-  // Plain-text version of the current report, rebuilt on every render so the
-  // "Copy" button can hand the user a paste-ready summary for clients.
-  let reportText = ''
-  const rangeLabel = (): string =>
-    range === 'today' ? 'Today' : range === 'week' ? 'Last 7 days' : range === 'month' ? 'Last 30 days' : 'All time'
-
-  const render = (): void => {
-    chipsRow.replaceChildren()
-    ;(['today', 'week', 'month', 'all'] as Range[]).forEach((r) => {
-      const c = document.createElement('button')
-      c.className = 'report-chip' + (r === range ? ' active' : '')
-      c.textContent = r === 'today' ? 'Today' : r === 'week' ? '7 days' : r === 'month' ? '30 days' : 'All'
-      c.addEventListener('click', () => {
-        range = r
-        render()
-      })
-      chipsRow.appendChild(c)
-    })
-
-    const byProj = reportByProject(timeEntryRepo.getAll(), rangeStart(range))
-
-    body.replaceChildren()
-    if (!byProj.size) {
-      body.insertAdjacentHTML('beforeend', '<div class="notif-empty">No time logged in this range</div>')
-      reportText = `Time report — ${rangeLabel()}\nNo time logged in this range`
-      return
-    }
-    const lines: string[] = [`Time report — ${rangeLabel()}`, '']
-    let grand = 0
-    for (const [path, info] of [...byProj].sort((a, b) => b[1].total - a[1].total)) {
-      grand += info.total
-      const proj = findProjectByPath(state.tree, path)
-      const pr = document.createElement('div')
-      pr.className = 'report-row report-proj'
-      pr.innerHTML = `<span class="report-name">${proj?.name ?? path}</span><span class="report-dur">${fmtHM(info.total)}</span>`
-      body.appendChild(pr)
-      lines.push(`${proj?.name ?? path}: ${fmtHM(info.total)}`)
-      for (const [fid, ms] of [...info.feats].sort((a, b) => b[1] - a[1])) {
-        const feat = fid ? findFeature(state.tree, fid)?.feature : null
-        const fr = document.createElement('div')
-        fr.className = 'report-row report-feat'
-        fr.innerHTML = `<span class="report-name">${feat?.name ?? '(no feature)'}</span><span class="report-dur">${fmtHM(ms)}</span>`
-        body.appendChild(fr)
-        lines.push(`  - ${feat?.name ?? '(no feature)'}: ${fmtHM(ms)}`)
-      }
-    }
-    const tot = document.createElement('div')
-    tot.className = 'report-row report-total'
-    tot.innerHTML = `<span class="report-name">Total</span><span class="report-dur">${fmtHM(grand)}</span>`
-    body.appendChild(tot)
-    lines.push('', `Total: ${fmtHM(grand)}`)
-    reportText = lines.join('\n')
-  }
-  render()
-
-  const foot = document.createElement('div')
-  foot.className = 'report-foot'
-  const copyBtn = document.createElement('button')
-  copyBtn.className = 'settings-inline-btn'
-  copyBtn.textContent = 'Copy report'
-  copyBtn.addEventListener('click', () => {
-    void navigator.clipboard.writeText(reportText)
-    copyBtn.textContent = 'Copied'
-    setTimeout(() => (copyBtn.textContent = 'Copy report'), 1200)
-  })
-  foot.appendChild(copyBtn)
-  modal.appendChild(foot)
-
-  document.body.appendChild(overlay)
-}
-
 // ---- automatic terminal-bound tracking ----
 
 function closeAutoSession(): void {
@@ -378,85 +285,6 @@ export function startAutoTracker(): void {
   document.addEventListener('mousemove', () => (lastUserActivity = Date.now()), true)
   document.addEventListener('keydown', () => (lastUserActivity = Date.now()), true)
   window.setInterval(autoTick, 30_000)
-}
-
-// Bind a terminal to a project/feature for automatic time tracking.
-export function openTrackModal(paneId: string): void {
-  const pane = panes.get(paneId)
-  if (!pane) return
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
-  const modal = document.createElement('div')
-  modal.className = 'modal track-modal'
-  overlay.appendChild(modal)
-  const close = (): void => overlay.remove()
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
-  modal.appendChild(makeCloseButton(close))
-  modal.insertAdjacentHTML('beforeend', '<h2>Track time for this terminal</h2>')
-
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Project</div>')
-  const proj = document.createElement('select')
-  proj.className = 'settings-select'
-  proj.style.width = '100%'
-  const projects = flattenProjects(state.tree)
-  if (!projects.length) proj.insertAdjacentHTML('beforeend', '<option value="">(no projects)</option>')
-  for (const p of projects) {
-    const o = document.createElement('option')
-    o.value = p.path
-    o.textContent = p.name
-    if (p.path === pane.trackProjectPath) o.selected = true
-    proj.appendChild(o)
-  }
-  modal.appendChild(proj)
-
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Feature</div>')
-  const feat = document.createElement('select')
-  feat.className = 'settings-select'
-  feat.style.width = '100%'
-  const fillFeatures = (): void => {
-    feat.replaceChildren()
-    feat.insertAdjacentHTML('beforeend', '<option value="">(no feature)</option>')
-    const owner = proj.value ? findProjectByPath(state.tree, proj.value) : null
-    for (const f of owner?.features ?? []) {
-      const o = document.createElement('option')
-      o.value = f.id
-      o.textContent = f.name
-      if (f.id === pane.trackFeatureId) o.selected = true
-      feat.appendChild(o)
-    }
-  }
-  fillFeatures()
-  proj.addEventListener('change', fillFeatures)
-  modal.appendChild(feat)
-
-  const actions = document.createElement('div')
-  actions.className = 'modal-actions'
-  if (pane.trackProjectPath) {
-    const stop = document.createElement('button')
-    stop.textContent = 'Stop tracking'
-    stop.addEventListener('click', () => {
-      pane.trackProjectPath = null
-      pane.trackFeatureId = null
-      updatePaneStatus(pane)
-      close()
-    })
-    actions.appendChild(stop)
-  }
-  const save = document.createElement('button')
-  save.className = 'primary'
-  save.textContent = 'Track'
-  save.addEventListener('click', () => {
-    if (!proj.value) return
-    pane.trackProjectPath = proj.value
-    pane.trackFeatureId = feat.value || null
-    updatePaneStatus(pane)
-    close()
-  })
-  actions.append(save)
-  modal.appendChild(actions)
-  document.body.appendChild(overlay)
 }
 
 export function renderTime(): void {

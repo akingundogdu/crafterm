@@ -38,7 +38,7 @@ import { setEditorOpenHandler } from './codeEditor'
 import { applyTheme } from './monacoSetup'
 import { renderContent, updatePaneHighlight } from './content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from './notifications'
-import { openTrackModal } from './time'
+import { openTrackModal } from './screens/time/time'
 import {
   renderSidebar,
   updateStatuses,
