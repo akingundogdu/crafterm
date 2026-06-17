@@ -76,11 +76,11 @@ import { openReminderForm } from './screens/reminders/reminders'
 import { openSettings } from './screens/settings/settings'
 import {
   showProjectPicker,
-  showAllMarkdown,
   showRunAppsPicker,
   showRunApp,
   showFeaturePicker
 } from './screens/pickers/pickers'
+import { showAllMarkdown } from './screens/pickers/finders/finders'
 import { showFolderPicker } from './screens/pickers/folder/folder'
 import { showCommandPalette, showTerminalSwitcher } from './screens/pickers/command/command'
 import { showStashManager, showBranchCheckout } from './screens/pickers/git/git'
