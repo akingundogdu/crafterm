@@ -24,6 +24,11 @@ export function overlayModal(extraClass = ''): {
   return { overlay, modal, close }
 }
 
+// Last path segment (the directory/file name), tolerant of a trailing slash.
+export function baseName(p: string): string {
+  return p.replace(/\/+$/, '').split('/').pop() || p
+}
+
 // Shared "contains" search box for list modals. `onInput` re-renders the list.
 export function makeSearchInput(placeholder: string, onInput: () => void): HTMLInputElement {
   const input = document.createElement('input')

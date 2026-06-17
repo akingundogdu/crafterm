@@ -37,17 +37,13 @@ import {
   runInSplit
 } from '../../commands'
 import {
-  showPlansModal,
   showCommandHistory,
   showProjectPicker,
-  showWorktreeDashboard,
   showCommandPalette,
   showRunApps,
   showFeatureSetup,
   showRunCommand,
-  runUpdate,
-  showRunningProcessesDashboard,
-  showRunningDevicesDashboard
+  runUpdate
 } from '../pickers/pickers'
 import { showSshConnections } from '../pickers/ssh/ssh'
 import {
@@ -55,6 +51,12 @@ import {
   showClaudeAccountSwitcher,
   showClaudeSessionResume
 } from '../pickers/claude/claude'
+import { showPlansModal } from '../pickers/plans/plans'
+import { showWorktreeDashboard } from '../pickers/worktree/worktree'
+import {
+  showRunningProcessesDashboard,
+  showRunningDevicesDashboard
+} from '../pickers/processes/processes'
 import { showImproveModal } from '../improve-crafterm/improve-crafterm'
 import { showDailyPlanModal } from '../daily-plan/daily-plan'
 import { promptText, promptSelect } from '../../dialog'
