@@ -7,7 +7,7 @@ import {
   showRunApp,
   SOURCE_LABEL,
   type GsEntry
-} from '../../pickers'
+} from '../pickers/pickers'
 import { createSearchBox } from '@crafterm/ui'
 import {
   openMarkdownFile,

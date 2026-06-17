@@ -1,13 +1,13 @@
-import type { DirEntry } from '../../preload/api'
-import type { SshConnection, ProjectNode, Application } from './types'
+import type { DirEntry } from '../../../../preload/api'
+import type { SshConnection, ProjectNode, Application } from '../../types'
 import {
   settings,
   commandHistory,
   panes,
   state,
   uid
-} from './state'
-import { persistence } from './services/storage/persistence.service'
+} from '../../state'
+import { persistence } from '../../services/storage/persistence.service'
 import {
   openTerminalInDir,
   openProject,
@@ -24,16 +24,16 @@ import {
   resolveAppPath,
   openLink,
   openNote
-} from './commands'
-import { allTabs, panesInLayout, ancestorFolders } from './tree'
-import { flattenProjects } from './catalog'
-import { paneStatus, buildPaneMenu } from './pane'
-import { actionMenuSearchEntries } from './sidebar'
-import { promptForm, promptConfirm, makeCloseButton } from './dialog'
-import { collectBackgroundProcesses, killProcess, openProcessView } from './services/bgproc'
-import type { CollectedProcess } from './services/bgproc'
-import { terminalService, gitService, fsService, claudeService, notebookService, plansService, iosService, appService } from './services/ipc'
-import { sshConnectionRepo, paletteCommandRepo, bookmarkRepo, accountRepo } from './services/storage/repositories'
+} from '../../commands'
+import { allTabs, panesInLayout, ancestorFolders } from '../../tree'
+import { flattenProjects } from '../../catalog'
+import { paneStatus, buildPaneMenu } from '../../pane'
+import { actionMenuSearchEntries } from '../../sidebar'
+import { promptForm, promptConfirm, makeCloseButton } from '../../dialog'
+import { collectBackgroundProcesses, killProcess, openProcessView } from '../../services/bgproc'
+import type { CollectedProcess } from '../../services/bgproc'
+import { terminalService, gitService, fsService, claudeService, notebookService, plansService, iosService, appService } from '../../services/ipc'
+import { sshConnectionRepo, paletteCommandRepo, bookmarkRepo, accountRepo } from '../../services/storage/repositories'
 
 export function overlayModal(extraClass = ''): { overlay: HTMLElement; modal: HTMLElement; close: () => void } {
   const overlay = document.createElement('div')

@@ -16,7 +16,7 @@ import { reconcileWorktrees, purgeWorktrees } from './services/worktrees'
 import { applyAppearance } from './pane'
 import { ALL_THEME_NAMES, applyTheme } from './editor/monaco-setup'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from './sidebar'
-import { pickFolderPath } from './pickers'
+import { pickFolderPath } from './screens/pickers/pickers'
 import { makeCloseButton, promptForm, promptText } from './dialog'
 import {
   KEYBINDINGS,

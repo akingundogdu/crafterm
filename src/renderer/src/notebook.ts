@@ -1,7 +1,7 @@
 import type { NbNode } from '../../preload/api'
 import { openNote, openMarkdownFile } from './commands'
 import { promptText } from './dialog'
-import { showFileFinder } from './pickers'
+import { showFileFinder } from './screens/pickers/pickers'
 import { settings, state } from './state'
 import { persistence } from './services/storage/persistence.service'
 import { flattenProjects } from './catalog'

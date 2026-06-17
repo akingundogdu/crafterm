@@ -52,7 +52,7 @@ import {
   runUpdate,
   showRunningProcessesDashboard,
   showRunningDevicesDashboard
-} from './pickers'
+} from './screens/pickers/pickers'
 import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
 import { showDailyPlanModal } from './screens/daily-plan/daily-plan'
 import { promptText, promptSelect } from './dialog'

@@ -86,7 +86,7 @@ import {
   showRunApp,
   showFeaturePicker,
   showGlobalSearch
-} from './pickers'
+} from './screens/pickers/pickers'
 import { showSpotlight } from './screens/spotlight/spotlight'
 import { startWorktreeReconcile } from './services/worktrees'
 import { onProcessExit } from './services/bgproc'
