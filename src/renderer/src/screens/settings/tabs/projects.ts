@@ -1,0 +1,830 @@
+import { settings, state, requestSidebar, uid } from '../../../state'
+import { persistence } from '../../../services/storage/persistence.service'
+import { promptForm, promptText } from '../../../dialog'
+import { reconcileWorktrees, purgeWorktrees } from '../../../services/worktrees'
+import { flattenProjects, removeProject } from '../../../catalog'
+import { makeProject } from '../../../tree'
+import { applicationRepo, iosConfigRepo } from '../../../services/storage/repositories'
+import type { ProjectNode, Application, IosDevConfig } from '../../../types'
+import { buildSubTabs, labeledInput } from '../shared'
+
+export function buildProjectsPanel(panel: HTMLElement): void {
+  panel.insertAdjacentHTML('beforeend', '<h3>Projects</h3>')
+
+  const ask = document.createElement('label')
+  ask.className = 'checkbox-row'
+  const cb = document.createElement('input')
+  cb.type = 'checkbox'
+  cb.checked = settings.askProjectOnNew
+  cb.addEventListener('change', () => {
+    settings.askProjectOnNew = cb.checked
+    persistence.save()
+  })
+  ask.append(cb, document.createTextNode('Ask which project to open on a new terminal'))
+  panel.appendChild(ask)
+
+  // ---- Global environments (dev/local/production) ----
+  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Environments</div>')
+  const envBar = document.createElement('div')
+  envBar.className = 'env-bar'
+  panel.appendChild(envBar)
+
+  // ---- Global workspace groups (used as the Group dropdown) ----
+  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Groups (workspaces)</div>')
+  const groupBar = document.createElement('div')
+  groupBar.className = 'env-bar'
+  panel.appendChild(groupBar)
+
+  // ---- Catalog tree (left) + selected-project editor (right) ----
+  const md = document.createElement('div')
+  md.className = 'projects-md'
+  const listCol = document.createElement('div')
+  listCol.className = 'projects-md-list'
+  const detailCol = document.createElement('div')
+  detailCol.className = 'projects-md-detail'
+  md.append(listCol, detailCol)
+  panel.appendChild(md)
+
+  let selected: ProjectNode | null = flattenProjects(state.tree)[0] ?? null
+
+  // Persist the active sub-tab index per project so re-renders (e.g. after
+  // "Add command") don't kick the user back to the first sub-tab.
+  const activeSubTabIdx = new Map<string, number>()
+
+  // Union of saved group labels and the ones already in use anywhere in the
+  // tree — drives the Group field's datalist so the dropdown stays accurate
+  // even before the user touches Settings → Workspace.
+  const groupOptions = (): string[] => {
+    const used = new Set<string>()
+    const walk = (nodes: typeof state.tree): void => {
+      for (const n of nodes) {
+        if ((n.kind === 'project' || n.kind === 'folder') && n.group) used.add(n.group)
+        if (n.kind === 'project' || n.kind === 'folder') walk(n.children)
+      }
+    }
+    walk(state.tree)
+    for (const g of settings.groups) used.add(g)
+    return [...used].sort((a, b) => a.localeCompare(b))
+  }
+
+  // A labeled field (input or textarea) appended to a given parent.
+  // Pass `opts.options` to render the input as a datalist-backed combobox
+  // (typed value is still free-form; the dropdown just suggests known entries).
+  const field = (
+    parent: HTMLElement,
+    label: string,
+    value: string,
+    placeholder: string,
+    onChange: (v: string) => void,
+    opts: { textarea?: boolean; rows?: number; options?: string[] } = {}
+  ): void => {
+    const wrap = document.createElement('div')
+    wrap.className = 'field'
+    const lab = document.createElement('label')
+    lab.textContent = label
+    const input = opts.textarea
+      ? document.createElement('textarea')
+      : document.createElement('input')
+    if (input instanceof HTMLInputElement) input.type = 'text'
+    if (input instanceof HTMLTextAreaElement) input.rows = opts.rows ?? 3
+    input.value = value
+    input.placeholder = placeholder
+    input.addEventListener('change', () => onChange(input.value))
+    wrap.append(lab, input)
+    if (opts.options && input instanceof HTMLInputElement) {
+      const listId = 'dl-' + Math.random().toString(36).slice(2, 9)
+      input.setAttribute('list', listId)
+      const dl = document.createElement('datalist')
+      dl.id = listId
+      for (const v of opts.options) {
+        const o = document.createElement('option')
+        o.value = v
+        dl.appendChild(o)
+      }
+      wrap.appendChild(dl)
+    }
+    parent.appendChild(wrap)
+  }
+
+  // A real dropdown field. `options` are the selectable values; the current
+  // value is always present (legacy labels stay selectable). The empty option
+  // (label `emptyLabel`) clears the value.
+  const selectField = (
+    parent: HTMLElement,
+    label: string,
+    value: string,
+    emptyLabel: string,
+    options: string[],
+    onChange: (v: string) => void
+  ): void => {
+    const wrap = document.createElement('div')
+    wrap.className = 'field'
+    const lab = document.createElement('label')
+    lab.textContent = label
+    const sel = document.createElement('select')
+    const empty = document.createElement('option')
+    empty.value = ''
+    empty.textContent = emptyLabel
+    sel.appendChild(empty)
+    const all = [...new Set([...options, ...(value ? [value] : [])])]
+    for (const v of all) {
+      const o = document.createElement('option')
+      o.value = v
+      o.textContent = v
+      sel.appendChild(o)
+    }
+    sel.value = value
+    sel.addEventListener('change', () => onChange(sel.value))
+    wrap.append(lab, sel)
+    parent.appendChild(wrap)
+  }
+
+  const renderEnvs = (): void => {
+    envBar.replaceChildren()
+    settings.environments.forEach((name, i) => {
+      const chip = document.createElement('span')
+      chip.className = 'env-chip'
+      const label = document.createElement('span')
+      label.textContent = name
+      const x = document.createElement('button')
+      x.className = 'env-chip-x'
+      x.textContent = '×'
+      x.title = 'Remove environment'
+      x.addEventListener('click', () => {
+        settings.environments.splice(i, 1)
+        persistence.save()
+        renderEnvs()
+        renderDetail()
+      })
+      chip.append(label, x)
+      envBar.appendChild(chip)
+    })
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn env-add'
+    add.textContent = '+ Environment'
+    add.addEventListener('click', () => {
+      void (async () => {
+        const name = await promptText({
+          title: 'New environment',
+          label: 'Name',
+          placeholder: 'staging',
+          confirmText: 'Add'
+        })
+        if (!name || settings.environments.includes(name)) return
+        settings.environments.push(name)
+        persistence.save()
+        renderEnvs()
+        renderDetail()
+      })()
+    })
+    envBar.appendChild(add)
+  }
+
+  const renderGroups = (): void => {
+    groupBar.replaceChildren()
+    const known = groupOptions()
+    known.forEach((name) => {
+      const chip = document.createElement('span')
+      chip.className = 'env-chip'
+      const label = document.createElement('span')
+      label.textContent = name
+      const x = document.createElement('button')
+      x.className = 'env-chip-x'
+      x.textContent = '×'
+      x.title = 'Remove group from suggestions (does not unset on existing projects)'
+      x.addEventListener('click', () => {
+        settings.groups = settings.groups.filter((g) => g !== name)
+        persistence.save()
+        renderGroups()
+        renderDetail()
+      })
+      chip.append(label, x)
+      groupBar.appendChild(chip)
+    })
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn env-add'
+    add.textContent = '+ Group'
+    add.addEventListener('click', () => {
+      void (async () => {
+        const name = await promptText({
+          title: 'New group',
+          label: 'Name',
+          placeholder: 'work',
+          confirmText: 'Add'
+        })
+        const g = (name ?? '').trim()
+        if (!g || settings.groups.includes(g)) return
+        settings.groups.push(g)
+        persistence.save()
+        renderGroups()
+        renderDetail()
+      })()
+    })
+    groupBar.appendChild(add)
+  }
+
+  const renderTree = (): void => {
+    listCol.replaceChildren()
+    const topProjects = state.tree.filter((n): n is ProjectNode => n.kind === 'project')
+    if (!topProjects.length) {
+      listCol.insertAdjacentHTML('beforeend', '<div class="field-hint">No projects yet.</div>')
+    }
+    const renderRows = (projects: ProjectNode[], depth: number): void => {
+      projects.forEach((p) => {
+        const row = document.createElement('div')
+        row.className = 'proj-li' + (p === selected ? ' active' : '')
+        row.style.paddingLeft = 8 + depth * 14 + 'px'
+        const name = document.createElement('span')
+        name.className = 'proj-li-name'
+        name.textContent = p.name || '(untitled)'
+        row.append(name)
+        if (p.group) {
+          const g = document.createElement('span')
+          g.className = 'proj-li-group'
+          g.textContent = p.group
+          row.append(g)
+        }
+        if (p.apps?.length) {
+          const a = document.createElement('span')
+          a.className = 'proj-li-apps'
+          a.textContent = p.apps.length === 1 ? '1 app' : `${p.apps.length} apps`
+          row.append(a)
+        }
+        row.addEventListener('click', () => {
+          selected = p
+          renderTree()
+          renderDetail()
+        })
+        listCol.appendChild(row)
+        const subProjects = p.children.filter((c): c is ProjectNode => c.kind === 'project')
+        if (subProjects.length) renderRows(subProjects, depth + 1)
+      })
+    }
+    renderRows(topProjects, 0)
+
+    const addBtn = document.createElement('button')
+    addBtn.className = 'settings-inline-btn'
+    addBtn.textContent = '+ Add project'
+    addBtn.addEventListener('click', () => {
+      const proj = makeProject(uid('p'), 'New project', '')
+      state.tree.push(proj)
+      selected = proj
+      persistence.save()
+      requestSidebar()
+      renderTree()
+      renderDetail()
+    })
+    listCol.appendChild(addBtn)
+  }
+
+  // The Applications section of the selected project's editor.
+  const renderApps = (p: ProjectNode, parent: HTMLElement): void => {
+    parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Applications</div>')
+    if (!applicationRepo.listForProject(p.id).length) {
+      parent.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">No applications. Add one to run it (with per-environment commands).</div>'
+      )
+    }
+    applicationRepo.listForProject(p.id).forEach((app) => {
+      const card = document.createElement('div')
+      card.className = 'app-card'
+      const head = document.createElement('div')
+      head.className = 'app-card-head'
+      const title = document.createElement('span')
+      title.className = 'app-card-title'
+      title.textContent = app.name || '(unnamed app)'
+      const delApp = document.createElement('button')
+      delApp.className = 'app-del'
+      delApp.textContent = '✕'
+      delApp.title = 'Remove application'
+      delApp.addEventListener('click', () => {
+        applicationRepo.remove(p.id, app.id)
+        renderTree()
+        renderDetail()
+      })
+      head.append(title, delApp)
+      card.appendChild(head)
+
+      field(card, 'Name', app.name, 'backend', (v) => {
+        app.name = v.trim()
+        title.textContent = app.name || '(unnamed app)'
+        renderTree()
+        applicationRepo.upsert(p.id, app)
+      })
+      field(card, 'Path', app.path ?? '', 'relative to project, or absolute (optional)', (v) => {
+        app.path = v.trim() || undefined
+        applicationRepo.upsert(p.id, app)
+      })
+
+      const opensWrap = document.createElement('div')
+      opensWrap.className = 'field'
+      const opensLab = document.createElement('label')
+      opensLab.textContent = 'Opens as'
+      const opensSel = document.createElement('select')
+      opensSel.className = 'settings-select'
+      ;[
+        ['split', 'Split (tiled tab)'],
+        ['tab', 'Separate tab']
+      ].forEach(([v, lbl]) => {
+        const o = document.createElement('option')
+        o.value = v
+        o.textContent = lbl
+        if ((app.opensAs ?? 'split') === v) o.selected = true
+        opensSel.appendChild(o)
+      })
+      opensSel.addEventListener('change', () => {
+        app.opensAs = opensSel.value as Application['opensAs']
+        applicationRepo.upsert(p.id, app)
+      })
+      opensWrap.append(opensLab, opensSel)
+      card.appendChild(opensWrap)
+
+      // one command field per environment
+      card.insertAdjacentHTML('beforeend', '<div class="app-cmd-head">Commands per environment</div>')
+      app.commands = app.commands ?? {}
+      for (const envName of settings.environments) {
+        field(card, envName, app.commands[envName] ?? '', `command for ${envName}`, (v) => {
+          const t = v.trim()
+          if (t) app.commands[envName] = t
+          else delete app.commands[envName]
+          applicationRepo.upsert(p.id, app)
+        })
+      }
+
+      // Optional named menu commands surfaced in the pane action menu of any
+      // terminal spawned from this application.
+      card.insertAdjacentHTML('beforeend', '<div class="app-cmd-head">Run commands</div>')
+      app.runCommands = app.runCommands ?? []
+      app.runCommands.forEach((rc) => {
+        const row = document.createElement('div')
+        row.className = 'app-rc-row'
+        const nameI = document.createElement('input')
+        nameI.type = 'text'
+        nameI.value = rc.name
+        nameI.placeholder = 'name'
+        nameI.addEventListener('change', () => {
+          rc.name = nameI.value.trim() || rc.name
+          applicationRepo.upsert(p.id, app)
+        })
+        nameI.addEventListener('keydown', (e) => e.stopPropagation())
+        const cmdI = document.createElement('input')
+        cmdI.type = 'text'
+        cmdI.value = rc.command
+        cmdI.placeholder = 'shell command'
+        cmdI.addEventListener('change', () => {
+          rc.command = cmdI.value.trim()
+          applicationRepo.upsert(p.id, app)
+        })
+        cmdI.addEventListener('keydown', (e) => e.stopPropagation())
+        const delRc = document.createElement('button')
+        delRc.className = 'app-del'
+        delRc.textContent = '✕'
+        delRc.title = 'Remove command'
+        delRc.addEventListener('click', () => {
+          app.runCommands = (app.runCommands ?? []).filter((x) => x !== rc)
+          applicationRepo.upsert(p.id, app)
+          renderDetail()
+        })
+        row.append(nameI, cmdI, delRc)
+        card.appendChild(row)
+      })
+      const addRc = document.createElement('button')
+      addRc.className = 'settings-inline-btn app-rc-add'
+      addRc.textContent = '+ Add run command'
+      addRc.addEventListener('click', () => {
+        app.runCommands = app.runCommands ?? []
+        app.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+        applicationRepo.upsert(p.id, app)
+        renderDetail()
+      })
+      card.appendChild(addRc)
+
+      parent.appendChild(card)
+    })
+
+    const addApp = document.createElement('button')
+    addApp.className = 'settings-inline-btn'
+    addApp.textContent = '+ Add application'
+    addApp.addEventListener('click', () => {
+      applicationRepo.upsert(p.id, { id: uid('app'), name: 'app', commands: {} })
+      renderTree()
+      renderDetail()
+    })
+    parent.appendChild(addApp)
+  }
+
+  // The Features section: time-tracking labels under this project (used by
+  // the Time tracker dropdown). Just name + delete; the data also drives the
+  // sidebar "New feature…" wizard.
+  const renderFeatures = (p: ProjectNode, parent: HTMLElement): void => {
+    parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Features</div>')
+    p.features = p.features ?? []
+    if (!p.features.length) {
+      parent.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">No features. Add labels to track time against, or for the New-feature wizard.</div>'
+      )
+    }
+    p.features.forEach((feat) => {
+      const row = document.createElement('div')
+      row.className = 'feat-row'
+      const input = document.createElement('input')
+      input.type = 'text'
+      input.value = feat.name
+      input.placeholder = 'feature name'
+      input.addEventListener('change', () => {
+        feat.name = input.value.trim() || feat.name
+        persistence.save()
+      })
+      input.addEventListener('keydown', (e) => e.stopPropagation())
+      const del = document.createElement('button')
+      del.className = 'feat-del'
+      del.textContent = '✕'
+      del.title = 'Remove feature'
+      del.addEventListener('click', () => {
+        p.features = (p.features ?? []).filter((f) => f !== feat)
+        persistence.save()
+        renderTree()
+        renderDetail()
+      })
+      row.append(input, del)
+      parent.appendChild(row)
+    })
+
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add feature'
+    add.addEventListener('click', () => {
+      p.features = p.features ?? []
+      p.features.push({ id: uid('ft'), name: 'feature' })
+      persistence.save()
+      renderDetail()
+    })
+    parent.appendChild(add)
+  }
+
+  // Run commands: named one-shot shell commands. Surfaced in the sidebar
+  // "Run command…" modal and executed at the project path (split or new tab).
+  const renderRunCommands = (p: ProjectNode, parent: HTMLElement): void => {
+    parent.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Run commands</div>')
+    p.runCommands = p.runCommands ?? []
+    if (!p.runCommands.length) {
+      parent.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">No run commands. Add named shell commands (e.g. "Deploy", "Lint") that you can fire from the sidebar.</div>'
+      )
+    }
+    p.runCommands.forEach((rc) => {
+      const card = document.createElement('div')
+      card.className = 'app-card'
+      const head = document.createElement('div')
+      head.className = 'app-card-head'
+      const title = document.createElement('span')
+      title.className = 'app-card-title'
+      title.textContent = rc.name || '(unnamed command)'
+      const del = document.createElement('button')
+      del.className = 'app-del'
+      del.textContent = '✕'
+      del.title = 'Remove command'
+      del.addEventListener('click', () => {
+        p.runCommands = (p.runCommands ?? []).filter((x) => x !== rc)
+        persistence.save()
+        renderDetail()
+      })
+      head.append(title, del)
+      card.appendChild(head)
+      field(card, 'Name', rc.name, 'Deploy', (v) => {
+        rc.name = v.trim() || rc.name
+        title.textContent = rc.name || '(unnamed command)'
+        persistence.save()
+      })
+      field(card, 'Command', rc.command, 'npm run deploy', (v) => {
+        rc.command = v.trim()
+        persistence.save()
+      })
+      parent.appendChild(card)
+    })
+    const add = document.createElement('button')
+    add.className = 'settings-inline-btn'
+    add.textContent = '+ Add command'
+    add.addEventListener('click', () => {
+      p.runCommands = p.runCommands ?? []
+      p.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+      persistence.save()
+      renderDetail()
+    })
+    parent.appendChild(add)
+  }
+
+  const renderDetail = (): void => {
+    detailCol.replaceChildren()
+    const p = selected
+    if (!p) {
+      detailCol.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">Select a project on the left, or add one.</div>'
+      )
+      return
+    }
+    const subTabKey = p.id
+    buildSubTabs(detailCol, [
+      {
+        label: 'General',
+        build: (el) => {
+          field(el, 'Name', p.name, 'Movve', (v) => {
+            p.name = v.trim()
+            renderTree()
+            requestSidebar()
+            persistence.save()
+          })
+          field(el, 'Path', p.path, '~/code/movve', (v) => {
+            p.path = v.trim()
+            requestSidebar()
+            persistence.save()
+          })
+          selectField(
+            el,
+            'Group (workspace)',
+            p.group ?? '',
+            '(Ungrouped)',
+            groupOptions(),
+            (v) => {
+              const g = v.trim()
+              p.group = g || undefined
+              if (g && !settings.groups.includes(g)) settings.groups.push(g)
+              renderTree()
+              renderGroups()
+              requestSidebar()
+              persistence.save()
+            }
+          )
+          field(el, 'Command', p.command ?? '', 'claude (run on open, optional)', (v) => {
+            p.command = v.trim() || undefined
+            persistence.save()
+          })
+          field(
+            el,
+            'Startup command',
+            p.startup ?? '',
+            'run in every terminal opened inside (optional)',
+            (v) => {
+              p.startup = v.trim() || undefined
+              persistence.save()
+            }
+          )
+          field(el, 'Shell', p.shell ?? '', '/bin/zsh (override, optional)', (v) => {
+            p.shell = v.trim() || undefined
+            persistence.save()
+          })
+          field(
+            el,
+            'Issue key prefix',
+            p.issueKeyPrefix ?? '',
+            'CRF (for CRF-12 task keys, optional)',
+            (v) => {
+              p.issueKeyPrefix = v.trim().toUpperCase() || undefined
+              persistence.save()
+            }
+          )
+          // Support worktrees: auto-list this repo's git worktrees as folder
+          // nodes under the project (terminals nest inside each worktree).
+          const wtField = document.createElement('div')
+          wtField.className = 'field'
+          const wtLabel = document.createElement('label')
+          wtLabel.style.cursor = 'pointer'
+          const wtCb = document.createElement('input')
+          wtCb.type = 'checkbox'
+          wtCb.checked = !!p.supportWorktree
+          wtCb.style.marginRight = '8px'
+          const wtText = document.createElement('span')
+          wtText.textContent = 'Support worktrees (list git worktrees as folders)'
+          wtLabel.append(wtCb, wtText)
+          wtField.appendChild(wtLabel)
+          el.appendChild(wtField)
+          wtCb.addEventListener('change', () => {
+            p.supportWorktree = wtCb.checked
+            persistence.save()
+            requestSidebar()
+            if (p.supportWorktree) void reconcileWorktrees()
+            else purgeWorktrees(p)
+          })
+        }
+      },
+      {
+        label: 'Environment',
+        build: (el) => {
+          field(
+            el,
+            'Environment vars',
+            p.env ?? '',
+            'KEY=VALUE (one per line, optional)',
+            (v) => {
+              p.env = v.trim() || undefined
+              persistence.save()
+            },
+            { textarea: true, rows: 4 }
+          )
+        }
+      },
+      { label: 'Apps', build: (el) => renderApps(p, el) },
+      { label: 'Features', build: (el) => renderFeatures(p, el) },
+      { label: 'Run commands', build: (el) => renderRunCommands(p, el) },
+      { label: 'iOS', build: (el) => renderIosConfig(p, el) }
+    ], {
+      initialIndex: activeSubTabIdx.get(subTabKey) ?? 0,
+      onTabChange: (i) => activeSubTabIdx.set(subTabKey, i)
+    })
+
+    const actions = document.createElement('div')
+    actions.className = 'proj-detail-actions'
+    const addSub = document.createElement('button')
+    addSub.className = 'settings-inline-btn'
+    addSub.textContent = '+ Add sub-project'
+    addSub.addEventListener('click', () => {
+      const child = makeProject(uid('p'), 'New sub-project', '')
+      p.children.push(child)
+      selected = child
+      persistence.save()
+      requestSidebar()
+      renderTree()
+      renderDetail()
+    })
+    const del = document.createElement('button')
+    del.className = 'settings-inline-btn project-del-btn'
+    del.textContent = 'Delete project'
+    del.addEventListener('click', () => {
+      removeProject(state.tree, p)
+      selected = flattenProjects(state.tree)[0] ?? null
+      persistence.save()
+      requestSidebar()
+      renderTree()
+      renderDetail()
+    })
+    actions.append(addSub, del)
+    detailCol.appendChild(actions)
+  }
+
+  renderEnvs()
+  renderGroups()
+  renderTree()
+  renderDetail()
+}
+
+// Per-project iOS worktree config (Settings → Projects → [project] → iOS). The
+// repo root is the project's own path. Every field is optional: empty values are
+// auto-detected by the bundled ios-worktree.sh, so each iOS project is independent.
+function defaultIosConfig(): IosDevConfig {
+  return {
+    project: '',
+    scheme: '',
+    baseBundleId: '',
+    displayPrefix: '',
+    defaultSimulator: '',
+    copyFiles: [],
+    worktreesDir: ''
+  }
+}
+
+function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
+  panel.replaceChildren()
+
+  // "iOS app" toggle: reveals the config + the sidebar worktree manager.
+  const toggleField = document.createElement('div')
+  toggleField.className = 'field'
+  const toggleLabel = document.createElement('label')
+  toggleLabel.style.cursor = 'pointer'
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = !!p.iosApp
+  checkbox.style.marginRight = '8px'
+  const labelText = document.createElement('span')
+  labelText.textContent = 'iOS app (show the worktree manager under this project)'
+  toggleLabel.append(checkbox, labelText)
+  toggleField.appendChild(toggleLabel)
+  panel.appendChild(toggleField)
+
+  const body = document.createElement('div')
+  panel.appendChild(body)
+
+  const renderBody = (): void => {
+    body.replaceChildren()
+    if (!p.iosApp) {
+      body.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint">Enable to manage this app’s git worktrees (build / run / status) from the sidebar.</div>'
+      )
+      return
+    }
+    if (!p.iosConfig) p.iosConfig = defaultIosConfig()
+    const cfg = p.iosConfig
+
+    // Repo root = the project's working directory. Editing it here also updates
+    // the project path (so worktrees, build/run, and cmd+T all use this repo).
+    const repoInput = labeledInput(body, 'iOS repo path', 'text', p.path, (v) => {
+      p.path = v.trim()
+      persistence.save()
+      requestSidebar()
+    })
+    repoInput.placeholder = '/Users/you/path/to/your-ios-repo'
+    repoInput.style.maxWidth = '420px'
+    if (!p.path) {
+      body.insertAdjacentHTML(
+        'beforeend',
+        '<div class="field-hint" style="color:var(--amber,#e0a44a)">Required: set this to the iOS app’s git repository.</div>'
+      )
+    }
+
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field-hint">The fields below auto-detect from the Xcode project when left empty.</div>'
+    )
+    const field = (
+      label: string,
+      key: 'project' | 'scheme' | 'baseBundleId' | 'displayPrefix' | 'defaultSimulator' | 'worktreesDir',
+      placeholder: string
+    ): void => {
+      const input = labeledInput(body, label, 'text', cfg[key], (v) => {
+        cfg[key] = v.trim()
+        iosConfigRepo.set(p.id, cfg)
+      })
+      input.placeholder = placeholder
+      input.style.maxWidth = '420px'
+    }
+    field('Xcode project / workspace', 'project', 'auto: discovered (.xcworkspace/.xcodeproj)')
+    field('Scheme', 'scheme', 'auto: xcodebuild -list')
+    field('Base bundle identifier', 'baseBundleId', 'auto: from build settings, e.g. com.acme.app')
+    field('Display name prefix', 'displayPrefix', 'auto: scheme name')
+    field('Default simulator', 'defaultSimulator', 'auto: booted, else first iPhone')
+    field('Worktrees directory', 'worktreesDir', 'auto: <repo parent>/worktrees')
+
+    // Files-to-copy list: gitignored local files seeded into a fresh worktree.
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field" style="margin-top:14px"><label>Copy into new worktrees</label></div>'
+    )
+    body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="field-hint">Gitignored local files (paths relative to the repo root) copied from the main checkout, e.g. Secrets.xcconfig.</div>'
+    )
+    const addBtn = document.createElement('button')
+    addBtn.className = 'settings-inline-btn'
+    addBtn.textContent = '+ Add file'
+    body.appendChild(addBtn)
+    const list = document.createElement('div')
+    list.className = 'palette-admin-list'
+    body.appendChild(list)
+
+    const renderFiles = (): void => {
+      list.replaceChildren()
+      if (!cfg.copyFiles.length) {
+        list.insertAdjacentHTML('beforeend', '<div class="field-hint">No files yet.</div>')
+        return
+      }
+      cfg.copyFiles.forEach((rel, i) => {
+        const row = document.createElement('div')
+        row.className = 'palette-admin-row'
+        const txt = document.createElement('span')
+        txt.className = 'palette-admin-cmd'
+        txt.textContent = rel
+        const del = document.createElement('button')
+        del.className = 'wt-act wt-remove'
+        del.textContent = 'Delete'
+        del.addEventListener('click', () => {
+          cfg.copyFiles.splice(i, 1)
+          iosConfigRepo.set(p.id, cfg)
+          renderFiles()
+        })
+        row.append(txt, del)
+        list.appendChild(row)
+      })
+    }
+    addBtn.addEventListener('click', () => {
+      void promptForm({
+        title: 'Add file to copy',
+        fields: [{ key: 'path', label: 'Path (relative to repo root)', placeholder: 'Secrets.xcconfig' }],
+        confirmText: 'Add'
+      }).then((values) => {
+        const rel = (values?.path || '').trim()
+        if (!rel || cfg.copyFiles.includes(rel)) return
+        cfg.copyFiles.push(rel)
+        iosConfigRepo.set(p.id, cfg)
+        renderFiles()
+      })
+    })
+    renderFiles()
+  }
+
+  checkbox.addEventListener('change', () => {
+    p.iosApp = checkbox.checked
+    if (p.iosApp) {
+      iosConfigRepo.ensure(p.id, defaultIosConfig)
+      p.supportWorktree = true // iOS needs the worktree nodes to attach to
+      void reconcileWorktrees()
+    }
+    persistence.save()
+    requestSidebar()
+    renderBody()
+  })
+  renderBody()
+}
