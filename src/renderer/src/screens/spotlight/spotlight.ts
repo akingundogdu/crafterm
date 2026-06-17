@@ -1,6 +1,7 @@
 import { settings, panes, state, hooks } from '../../state'
 import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '../../services/storage/repositories'
-import { overlayModal, loadZshCommands, showRunApp } from '../pickers/pickers'
+import { overlayModal, showRunApp } from '../pickers/pickers'
+import { loadZshCommands } from '../pickers/command/command'
 import {
   buildGlobalSearchIndex,
   SOURCE_LABEL,

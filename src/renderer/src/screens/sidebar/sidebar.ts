@@ -37,14 +37,13 @@ import {
   runInSplit
 } from '../../commands'
 import {
-  showCommandHistory,
   showProjectPicker,
-  showCommandPalette,
   showRunApps,
   showFeatureSetup,
   showRunCommand,
   runUpdate
 } from '../pickers/pickers'
+import { showCommandPalette, showCommandHistory } from '../pickers/command/command'
 import { showSshConnections } from '../pickers/ssh/ssh'
 import {
   showClaudeDashboard,

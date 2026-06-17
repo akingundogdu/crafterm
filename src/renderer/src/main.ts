@@ -77,13 +77,12 @@ import { openSettings } from './screens/settings/settings'
 import {
   showFolderPicker,
   showProjectPicker,
-  showCommandPalette,
   showAllMarkdown,
-  showTerminalSwitcher,
   showRunAppsPicker,
   showRunApp,
   showFeaturePicker
 } from './screens/pickers/pickers'
+import { showCommandPalette, showTerminalSwitcher } from './screens/pickers/command/command'
 import { showStashManager, showBranchCheckout } from './screens/pickers/git/git'
 import { showGlobalSearch } from './screens/pickers/global-search/global-search'
 import { showSpotlight } from './screens/spotlight/spotlight'
