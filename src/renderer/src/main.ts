@@ -80,13 +80,12 @@ import {
   showCommandPalette,
   showAllMarkdown,
   showTerminalSwitcher,
-  showStashManager,
-  showBranchCheckout,
   showRunAppsPicker,
   showRunApp,
   showFeaturePicker,
   showGlobalSearch
 } from './screens/pickers/pickers'
+import { showStashManager, showBranchCheckout } from './screens/pickers/git/git'
 import { showSpotlight } from './screens/spotlight/spotlight'
 import { startWorktreeReconcile } from './services/worktrees'
 import { onProcessExit } from './services/bgproc'
