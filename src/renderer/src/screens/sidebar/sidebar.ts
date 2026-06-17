@@ -40,9 +40,9 @@ import {
   showProjectPicker,
   showRunApps,
   showFeatureSetup,
-  showRunCommand,
-  runUpdate
+  showRunCommand
 } from '../pickers/pickers'
+import { runUpdate } from '../pickers/update/update'
 import { showCommandPalette, showCommandHistory } from '../pickers/command/command'
 import { showSshConnections } from '../pickers/ssh/ssh'
 import {
