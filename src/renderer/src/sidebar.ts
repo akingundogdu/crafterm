@@ -53,7 +53,7 @@ import {
   showRunningProcessesDashboard,
   showRunningDevicesDashboard
 } from './pickers'
-import { showImproveModal } from './improve'
+import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
 import { showDailyPlanModal } from './screens/daily-plan/daily-plan'
 import { promptText, promptSelect } from './dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from './screens/database/database'

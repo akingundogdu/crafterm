@@ -1,7 +1,7 @@
 import './style.css'
 import { applyBgColor } from './state'
 import { loadSettings } from './services/storage/settings.service'
-import { showImproveModal } from './improve'
+import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
 import { storeService } from './services/ipc'
 
 // A standalone window that hosts only the Improve Crafterm panel — meant to stay
