@@ -1816,49 +1816,6 @@ body.dragging-pane .pane-term {
 /* =========================================================================
    Settings modal
    ========================================================================= */
-.modal {
-  position: relative; /* anchor for the absolute close (×) button */
-  width: 520px;
-  max-height: 80vh;
-  overflow-y: auto;
-  background: var(--elev);
-  border: 1px solid var(--border-strong);
-  border-radius: 14px;
-  padding: 20px 22px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-}
-.modal-close {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  z-index: 3;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-mute);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.modal-close:hover {
-  background: var(--row-hover);
-  color: var(--text);
-}
-.prompt-modal {
-  width: 380px;
-}
-.confirm-message {
-  font-size: 13px;
-  color: var(--text-dim);
-  line-height: 1.5;
-  margin: 4px 0 4px;
-}
 
 /* Wide "close terminal" modal with task/worktree action switches. */
 .close-actions-modal {
@@ -3418,19 +3375,6 @@ body.improve-window {
   background: rgba(255, 255, 255, 0.12);
   border-color: var(--accent);
 }
-.modal h2 {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin-bottom: 12px;
-}
-.modal h3 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-mute);
-  margin: 18px 0 8px;
-}
 .color-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3477,35 +3421,6 @@ body.improve-window {
 .checkbox-row input {
   accent-color: var(--accent);
 }
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 18px;
-}
-.modal-actions button {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-dim);
-  transition: background 0.13s ease;
-}
-.modal-actions button:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-.modal-actions button.button-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.modal-actions button.button-primary:hover {
-  background: #5b97ff;
-}
-
 /* =========================================================================
    Toast
    ========================================================================= */

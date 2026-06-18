@@ -8,7 +8,7 @@ import { snoozeReminder, snoozeOptions } from '../../../screens/reminders/remind
 export function showRemindPicker(bm: Bookmark): void {
   const ov = createOverlay({ closeOnBackdrop: true })
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal'
+  modal.className = 'modal modal-prompt'
   ov.overlay.appendChild(modal)
 
   modal.appendChild(makeCloseButton(ov.close))

@@ -62,7 +62,7 @@ export function promptConfirm(opts: {
 }): Promise<boolean> {
   return new Promise((resolve) => {
     const msg = document.createElement('div')
-    msg.className = 'confirm-message'
+    msg.className = 'modal-confirm-message'
     msg.textContent = opts.message
     const m = createModal({ title: opts.title, confirmText: opts.confirmText })
     m.append(msg)

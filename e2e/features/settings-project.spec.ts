@@ -50,7 +50,7 @@ test('settings/projects: add an application and enable iOS; restore on relaunch'
 
     await test.step('create a project (sidebar)', async () => {
       await win.locator('#new-project').click()
-      const dlg = win.locator('.modal.prompt-modal')
+      const dlg = win.locator('.modal.modal-prompt')
       await expect(dlg).toBeVisible()
       const inputs = dlg.locator('input[type="text"]')
       await inputs.nth(0).fill(PROJECT) // name

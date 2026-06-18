@@ -352,7 +352,7 @@ export function assignPaneToTask(paneId: string): void {
   const { overlay, mount, close, onClose } = createOverlay()
   overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal daily-assign-modal'
+  modal.className = 'modal modal-prompt daily-assign-modal'
   overlay.appendChild(modal)
 
   const onKey = (e: KeyboardEvent): void => {
@@ -1140,7 +1140,7 @@ function showTaskForm(
   const { overlay, mount, close, onClose } = createOverlay()
   overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal daily-plan-form'
+  modal.className = 'modal modal-prompt daily-plan-form'
   overlay.appendChild(modal)
 
   const onKey = (e: KeyboardEvent): void => {
@@ -1593,7 +1593,7 @@ function showManageTagsModal(rerender: () => void): void {
   const { overlay, mount, close, onClose } = createOverlay()
   overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal daily-plan-tags-modal'
+  modal.className = 'modal modal-prompt daily-plan-tags-modal'
   overlay.appendChild(modal)
 
   const onKey = (e: KeyboardEvent): void => {
@@ -1766,7 +1766,7 @@ export function showChangelogModal(): void {
   const { overlay, mount, close, onClose } = createOverlay()
   overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal changelog-modal'
+  modal.className = 'modal modal-prompt changelog-modal'
   overlay.appendChild(modal)
 
   const onKey = (e: KeyboardEvent): void => {

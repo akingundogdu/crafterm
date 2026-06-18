@@ -1,4 +1,5 @@
 import '../../../packages/crafterm-ui/src/tokens.css'
+import '../../../packages/crafterm-ui/src/modal/modal.css'
 import './global.css'
 import './style.css'
 import { applyBgColor } from './state'

@@ -28,13 +28,13 @@ describe('createButton', () => {
 })
 
 describe('createModal', () => {
-  it('builds overlay > modal.prompt-modal with h2 first and actions last', () => {
+  it('builds overlay > modal.modal-prompt with h2 first and actions last', () => {
     const m = createModal({ title: 'T' })
     m.append(createField('Label', createInput({})))
     m.mount()
     const overlay = document.querySelector('.modal-overlay')
     expect(overlay).toBeTruthy()
-    const modal = overlay!.querySelector('.modal.prompt-modal')!
+    const modal = overlay!.querySelector('.modal.modal-prompt')!
     const kids = [...modal.children]
     expect(kids[0].tagName).toBe('H2')
     expect(kids[1].className).toBe('field')
@@ -42,7 +42,7 @@ describe('createModal', () => {
   })
   it('appends an extra className onto .modal', () => {
     const m = createModal({ title: 'T', className: 'close-actions-modal' })
-    expect(m.modal.className).toBe('modal prompt-modal close-actions-modal')
+    expect(m.modal.className).toBe('modal modal-prompt close-actions-modal')
   })
   it('orders actions as cancel then primary confirm', () => {
     const m = createModal({ title: 'T', confirmText: 'Go', cancelText: 'No' })

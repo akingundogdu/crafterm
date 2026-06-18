@@ -47,7 +47,7 @@ test('database: create group + connection via UI and restore on relaunch', async
 
     await test.step('create a db group', async () => {
       await win.locator('#db-new-project').click()
-      const dlg = win.locator('.modal-overlay .modal.prompt-modal')
+      const dlg = win.locator('.modal-overlay .modal.modal-prompt')
       await expect(dlg).toBeVisible()
       await dlg.locator('input[type="text"]').first().fill(GROUP)
       await dlg.getByRole('button', { name: 'Create' }).click()

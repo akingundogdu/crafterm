@@ -13,7 +13,7 @@ export function showRemindModal(
 ): void {
   const ov = createOverlay({ closeOnBackdrop: true })
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal'
+  modal.className = 'modal modal-prompt'
   ov.overlay.appendChild(modal)
   modal.appendChild(makeCloseButton(ov.close))
   const h = document.createElement('h2')

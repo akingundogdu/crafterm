@@ -1,10 +1,11 @@
-// Modal primitive: `.modal-overlay > .modal.prompt-modal[ <extra>]` with an h2
+// Modal primitive: `.modal-overlay > .modal.modal-prompt[ <extra>]` with an h2
 // title and a `.modal-actions` row (Cancel + primary confirm). Content is added
 // with `append()`, which inserts BEFORE the actions row so DOM order stays
 // `h2 → content → actions` — byte-identical to the app's existing modals.
 
 import { createOverlay, type OverlayHandle } from '../overlay/overlay'
 import { createButton } from '../button/button'
+import './modal.css'
 
 export interface ModalOptions {
   title: string
@@ -26,7 +27,7 @@ export function createModal(opts: ModalOptions): ModalHandle {
   const base = createOverlay({ closeOnBackdrop: opts.closeOnBackdrop })
 
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal' + (opts.className ? ' ' + opts.className : '')
+  modal.className = 'modal modal-prompt' + (opts.className ? ' ' + opts.className : '')
 
   const h = document.createElement('h2')
   h.textContent = opts.title

@@ -1265,7 +1265,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
   const isProject = node.kind === 'project'
   const { overlay, mount, close } = createOverlay()
   const modal = document.createElement('div')
-  modal.className = 'modal prompt-modal'
+  modal.className = 'modal modal-prompt'
   overlay.appendChild(modal)
 
   const h = document.createElement('h2')
