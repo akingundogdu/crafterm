@@ -1,0 +1,98 @@
+/* Context menu: a floating command list anchored at a point, optionally with a
+   color-swatch palette row. Used by the tree (NODE_PALETTE) and per-pane menus. */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 5px;
+  min-width: 178px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  animation: menuIn 0.12s ease;
+}
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.context-menu button:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.context-menu button.context-menu-danger:hover {
+  background: rgba(248, 81, 73, 0.14);
+  color: #ff7b72;
+}
+/* active swatch (current color) gets a ring */
+.context-menu-swatches .context-menu-swatch.context-menu-swatch-active {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--text);
+}
+.context-menu-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 7px 10px 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 5px;
+}
+.context-menu-label + .context-menu-swatches {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 4px;
+}
+.context-menu-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 9px 10px 5px;
+  border-top: 1px solid var(--border);
+  margin-top: 5px;
+}
+.context-menu-swatches .context-menu-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease;
+}
+.context-menu-swatches .context-menu-swatch:hover {
+  transform: scale(1.18);
+}
+.context-menu-swatches .context-menu-swatch.context-menu-swatch-none {
+  background: var(--bg-term);
+  position: relative;
+}
+.context-menu-swatches .context-menu-swatch.context-menu-swatch-none::after {
+  content: "✕";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--text-mute);
+}

@@ -323,11 +323,11 @@ export function showPaneMenu(
     if (e.kind === 'swatch') {
       if (!swatchRow) {
         swatchRow = document.createElement('div')
-        swatchRow.className = 'color-swatches'
+        swatchRow.className = 'context-menu-swatches'
         menu.appendChild(swatchRow)
       }
       const s = document.createElement('button')
-      s.className = 'swatch' + (e.color === null ? ' none' : '')
+      s.className = 'context-menu-swatch' + (e.color === null ? ' context-menu-swatch-none' : '')
       if (e.color) s.style.background = e.color
       else s.title = 'Default'
       s.addEventListener('click', () => {
@@ -340,7 +340,7 @@ export function showPaneMenu(
     swatchRow = null
     if (e.kind === 'label') {
       const lab = document.createElement('div')
-      lab.className = 'menu-label'
+      lab.className = 'context-menu-label'
       lab.textContent = e.text
       menu.appendChild(lab)
       continue

@@ -3,6 +3,8 @@
 // behaves identically (only the items + color target differ). Supports nested
 // (cascading) submenus via `children`, including async-populated ones.
 
+import './context-menu.css'
+
 export const NODE_PALETTE = [
   '#f85149',
   '#db6d28',
@@ -68,7 +70,7 @@ function renderMenu(
     const b = document.createElement('button')
     const hasChildren = !!item.children
     b.textContent = hasChildren ? `${item.label}  ▸` : item.label
-    if (item.danger) b.classList.add('danger')
+    if (item.danger) b.classList.add('context-menu-danger')
     if (hasChildren) {
       const open = async (): Promise<void> => {
         closeFromDepth(depth + 1)
@@ -111,9 +113,11 @@ function renderMenu(
 
   if (depth === 0 && color) {
     const colors = document.createElement('div')
-    colors.className = 'color-swatches'
+    colors.className = 'context-menu-swatches'
     const none = document.createElement('button')
-    none.className = 'swatch none' + (color.current === null ? ' active' : '')
+    none.className =
+      'context-menu-swatch context-menu-swatch-none' +
+      (color.current === null ? ' context-menu-swatch-active' : '')
     none.title = 'No color'
     none.addEventListener('click', () => {
       closeContextMenu()
@@ -122,7 +126,7 @@ function renderMenu(
     colors.appendChild(none)
     for (const c of NODE_PALETTE) {
       const s = document.createElement('button')
-      s.className = 'swatch' + (color.current === c ? ' active' : '')
+      s.className = 'context-menu-swatch' + (color.current === c ? ' context-menu-swatch-active' : '')
       s.style.background = c
       s.addEventListener('click', () => {
         closeContextMenu()
