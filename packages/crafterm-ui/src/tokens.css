@@ -1,0 +1,26 @@
+/* Design tokens — the single source of truth for color, radius, and type.
+   Imported once per window entry; every component and screen reads these vars
+   via var(--token). Theme switching rewrites these custom properties at runtime. */
+:root {
+  --bg: #0d0e12;
+  --bg-term: #0d1117;
+  --sidebar-bg: #121319;
+  --elev: #181a21;
+  --elev-2: #1f222b;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text: #e8edf4;
+  --text-dim: #aab2bf;
+  --text-mute: #6b7280;
+  --text-faint: #565d68;
+  --accent: #4c8dff;
+  --accent-soft: rgba(76, 141, 255, 0.14);
+  --row-hover: rgba(255, 255, 255, 0.045);
+  --guide-line: rgba(255, 255, 255, 0.16);
+  --green: #3fb950;
+  --amber: #e3b341;
+  --radius: 7px;
+  --row-radius: 7px;
+  /* dark form controls + native scrollbars */
+  color-scheme: dark;
+}

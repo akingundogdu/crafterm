@@ -1,4 +1,6 @@
 import '@xterm/xterm/css/xterm.css'
+import '../../../packages/crafterm-ui/src/tokens.css'
+import './global.css'
 import './style.css'
 import type { LayoutNode, SidebarNode, DiffPane, CodePane } from './types'
 import type { SavedNode, SavedSidebarNode } from '../../preload/api'

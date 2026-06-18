@@ -1,3 +1,5 @@
+import '../../../packages/crafterm-ui/src/tokens.css'
+import './global.css'
 import './style.css'
 import { applyBgColor } from './state'
 import { loadSettings } from './services/storage/settings.service'
