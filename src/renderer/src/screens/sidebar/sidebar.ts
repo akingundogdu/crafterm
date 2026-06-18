@@ -65,7 +65,7 @@ import { renderAccounts, accountsApplyQuery, initAccounts } from '../accounts/ac
 import { type ContextMenuItem } from '@crafterm/ui'
 import { iosWorktreeTrailing, iosWorktreeMenuItems } from '../ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '../../services/worktrees'
-import { createTreeView, type TreeAdapter, type TreeSection, type DropPos } from '@crafterm/ui'
+import { createTreeView, createOverlay, type TreeAdapter, type TreeSection, type DropPos } from '@crafterm/ui'
 import {
   renderNotebook,
   handleNotebookKey,
@@ -1263,8 +1263,7 @@ export function renameSelected(): void {
 
 function showFolderSettings(node: FolderNode | ProjectNode): void {
   const isProject = node.kind === 'project'
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
+  const { overlay, mount, close } = createOverlay()
   const modal = document.createElement('div')
   modal.className = 'modal prompt-modal'
   overlay.appendChild(modal)
@@ -1318,11 +1317,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
   actions.append(cancel, save)
   modal.appendChild(actions)
 
-  const close = (): void => overlay.remove()
   cancel.addEventListener('click', close)
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
   save.addEventListener('click', () => {
     if (isProject && nameInput && pathInput && commandInput) {
       const projNode = node as ProjectNode
@@ -1342,7 +1337,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
     el.addEventListener('keydown', (e) => e.stopPropagation())
   )
 
-  document.body.appendChild(overlay)
+  mount()
   ;(nameInput ?? startup).focus()
 }
 

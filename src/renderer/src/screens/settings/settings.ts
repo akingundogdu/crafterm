@@ -17,6 +17,7 @@ import { applyAppearance } from '../../pane'
 import { ALL_THEME_NAMES, applyTheme } from '../../editor/monaco-setup'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from '../sidebar/sidebar'
 import { pickFolderPath } from '../pickers/folder/folder'
+import { createOverlay } from '@crafterm/ui'
 import { makeCloseButton, promptForm, promptText } from '../../dialog'
 import {
   KEYBINDINGS,
@@ -48,18 +49,11 @@ import { buildCommandsPanel } from './tabs/commands'
 // macOS-style settings: category list on the left, the selected panel on the right.
 export function openSettings(): void {
   settingsCleanups.length = 0
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
+  const { overlay, mount, close: closeSettings, onClose } = createOverlay()
+  onClose(() => settingsCleanups.forEach((fn) => fn()))
   const modal = document.createElement('div')
   modal.className = 'modal settings-modal'
   overlay.appendChild(modal)
-  const closeSettings = (): void => {
-    settingsCleanups.forEach((fn) => fn())
-    overlay.remove()
-  }
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) closeSettings()
-  })
   modal.appendChild(makeCloseButton(closeSettings))
 
   const nav = document.createElement('div')
@@ -149,6 +143,6 @@ export function openSettings(): void {
   settingsCleanups.push(unsubscribe)
 
   show('Appearance')
-  document.body.appendChild(overlay)
+  mount()
 }
 

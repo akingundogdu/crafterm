@@ -15,7 +15,7 @@ import { findProjectById } from '../../catalog'
 import { openClaudeWithPrompt } from '../../commands'
 import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from '../../services/worktrees'
 import { refreshPaneDailyTask } from '../../pane'
-import { createDateField } from '@crafterm/ui'
+import { createDateField, createOverlay } from '@crafterm/ui'
 import { boardColumnOf, ymd, parseYmd, shiftDays } from './task-helpers'
 
 // Board columns. 'review' is intentionally absent — it's an intermediate status
@@ -349,24 +349,18 @@ export function assignPaneToTask(paneId: string): void {
   const pane = panes.get(paneId)
   if (!pane) return
 
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay daily-plan-form-overlay'
+  const { overlay, mount, close, onClose } = createOverlay()
+  overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
   modal.className = 'modal prompt-modal daily-assign-modal'
   overlay.appendChild(modal)
 
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true)
-    overlay.remove()
-  }
   const onKey = (e: KeyboardEvent): void => {
     e.stopPropagation()
     if (e.key === 'Escape') close()
   }
+  onClose(() => document.removeEventListener('keydown', onKey, true))
   document.addEventListener('keydown', onKey, true)
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
   modal.appendChild(makeCloseButton(close))
 
   const h = document.createElement('h2')
@@ -456,16 +450,11 @@ let selectedDate = todayKey()
 export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): void {
   selectedDate = initialDate ?? todayKey()
 
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
+  const { overlay, mount, close, onClose } = createOverlay()
   const modal = document.createElement('div')
   modal.className = 'modal daily-plan-modal'
   overlay.appendChild(modal)
 
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true)
-    overlay.remove()
-  }
   const onKey = (e: KeyboardEvent): void => {
     // Defer to a child form modal or an open tag-filter popover (they handle Esc).
     if (document.querySelector('.daily-plan-form-overlay') || document.querySelector('.daily-tagfilter-pop')) return
@@ -479,9 +468,7 @@ export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): 
       showTaskForm(null, render)
     }
   }
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
+  onClose(() => document.removeEventListener('keydown', onKey, true))
   document.addEventListener('keydown', onKey, true)
 
   modal.appendChild(makeCloseButton(close))
@@ -500,7 +487,7 @@ export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): 
   }
   render()
 
-  document.body.appendChild(overlay)
+  mount()
 
   // Deep-link: open the edit form for a specific task (e.g. from a reminder card).
   if (focusTaskId) {
@@ -1150,24 +1137,18 @@ function showTaskForm(
   onSaved: () => void,
   defaultStatus: DailyPlanStatus = 'todo'
 ): void {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay daily-plan-form-overlay'
+  const { overlay, mount, close, onClose } = createOverlay()
+  overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
   modal.className = 'modal prompt-modal daily-plan-form'
   overlay.appendChild(modal)
 
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true)
-    overlay.remove()
-  }
   const onKey = (e: KeyboardEvent): void => {
     e.stopPropagation()
     if (e.key === 'Escape') close()
   }
+  onClose(() => document.removeEventListener('keydown', onKey, true))
   document.addEventListener('keydown', onKey, true)
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
   modal.appendChild(makeCloseButton(close))
 
   const h = document.createElement('h2')
@@ -1430,7 +1411,7 @@ function showTaskForm(
   actions.append(cancel, remind, openTerm, openWt, save)
   modal.appendChild(actions)
 
-  document.body.appendChild(overlay)
+  mount()
   titleInput.focus()
   titleInput.select()
 }
@@ -1609,25 +1590,21 @@ function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
 // ---- Manage tags modal -------------------------------------------------
 
 function showManageTagsModal(rerender: () => void): void {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay daily-plan-form-overlay'
+  const { overlay, mount, close, onClose } = createOverlay()
+  overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
   modal.className = 'modal prompt-modal daily-plan-tags-modal'
   overlay.appendChild(modal)
 
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true)
-    overlay.remove()
-    rerender()
-  }
   const onKey = (e: KeyboardEvent): void => {
     e.stopPropagation()
     if (e.key === 'Escape') close()
   }
-  document.addEventListener('keydown', onKey, true)
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
+  onClose(() => {
+    document.removeEventListener('keydown', onKey, true)
+    rerender()
   })
+  document.addEventListener('keydown', onKey, true)
   modal.appendChild(makeCloseButton(close))
 
   const h = document.createElement('h2')
@@ -1700,7 +1677,7 @@ function showManageTagsModal(rerender: () => void): void {
   }
   renderList()
 
-  document.body.appendChild(overlay)
+  mount()
 }
 
 // ---- Changelog report --------------------------------------------------
@@ -1786,24 +1763,18 @@ function buildChangelogMarkdown(rangeId: string): string {
 // Modal: pick projects + a day range, then generate a copyable markdown changelog
 // of completed tasks for customers.
 export function showChangelogModal(): void {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay daily-plan-form-overlay'
+  const { overlay, mount, close, onClose } = createOverlay()
+  overlay.classList.add('daily-plan-form-overlay')
   const modal = document.createElement('div')
   modal.className = 'modal prompt-modal changelog-modal'
   overlay.appendChild(modal)
 
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true)
-    overlay.remove()
-  }
   const onKey = (e: KeyboardEvent): void => {
     e.stopPropagation()
     if (e.key === 'Escape') close()
   }
+  onClose(() => document.removeEventListener('keydown', onKey, true))
   document.addEventListener('keydown', onKey, true)
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
   modal.appendChild(makeCloseButton(close))
 
   const h = document.createElement('h2')
@@ -1858,5 +1829,5 @@ export function showChangelogModal(): void {
   modal.appendChild(output)
   modal.appendChild(actions)
 
-  document.body.appendChild(overlay)
+  mount()
 }

@@ -4,7 +4,7 @@ import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from '../../
 import type { DbObjects } from '../../../../preload/api'
 import { makeCloseButton, promptText } from '../../dialog'
 import { openSqlInSplit } from '../../commands'
-import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
+import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
 import './database.css'
 import { dbService } from '../../services/ipc'
 import { dbConnectionRepo } from '../../services/storage/repositories'
@@ -408,15 +408,10 @@ async function renameGroup(node: DbGroup): Promise<void> {
 // ---- connection form ----
 
 function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
+  const { overlay, mount, close } = createOverlay()
   const modal = document.createElement('div')
   modal.className = 'modal db-conn-modal'
   overlay.appendChild(modal)
-  const close = (): void => overlay.remove()
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close()
-  })
   modal.appendChild(makeCloseButton(close))
   modal.insertAdjacentHTML('beforeend', `<h2>${existing ? 'Edit connection' : 'New connection'}</h2>`)
 
@@ -561,7 +556,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
   })
   actions.append(test, save)
   modal.appendChild(actions)
-  document.body.appendChild(overlay)
+  mount()
   name.focus()
 }
 
