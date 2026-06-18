@@ -434,7 +434,7 @@ function openRowFormModal(opts: {
     const cancel = document.createElement('button')
     cancel.textContent = 'Cancel'
     const ok = document.createElement('button')
-    ok.className = 'primary'
+    ok.className = 'button-primary'
     ok.textContent = opts.submitText
     actions.append(cancel, ok)
     modal.appendChild(actions)

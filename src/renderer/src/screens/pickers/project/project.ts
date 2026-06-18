@@ -208,7 +208,7 @@ export function showRunApps(project: ProjectNode): void {
   cancel.textContent = 'Cancel'
   cancel.addEventListener('click', close)
   const run = document.createElement('button')
-  run.className = 'primary'
+  run.className = 'button-primary'
   run.textContent = 'Run'
   run.addEventListener('click', () => {
     const selected = apps.filter((a) => checks.get(a)?.checked)
@@ -547,7 +547,7 @@ export function showFeatureSetup(project: ProjectNode): void {
   cancel.textContent = 'Cancel'
   cancel.addEventListener('click', close)
   const create = document.createElement('button')
-  create.className = 'primary'
+  create.className = 'button-primary'
   create.textContent = 'Create'
   create.addEventListener('click', () => {
     const branch = sanitizeBranch(branchInput.value || nameInput.value)

@@ -1401,7 +1401,7 @@ function showTaskForm(
     void openTaskInTerminal(task, onSaved, true)
   })
   const save = document.createElement('button')
-  save.className = 'primary'
+  save.className = 'button-primary'
   save.textContent = 'Save'
   save.addEventListener('click', () => {
     if (!commit()) return
@@ -1818,7 +1818,7 @@ export function showChangelogModal(): void {
   })
 
   const generateBtn = document.createElement('button')
-  generateBtn.className = 'primary'
+  generateBtn.className = 'button-primary'
   generateBtn.textContent = 'Generate'
   generateBtn.addEventListener('click', () => {
     output.value = buildChangelogMarkdown(rangeSel.value)

@@ -1,6 +1,6 @@
 // Button primitive. Produces a plain <button>; `variant: 'primary'` adds the
-// existing `.primary` class. No type attribute unless asked (matches the app's
-// modal action buttons, which rely on the default). Reuses existing CSS classes.
+// `.button-primary` class (and `'danger'` → `.button-danger`). No type attribute
+// unless asked (matches the app's modal action buttons, which rely on the default).
 
 export interface ButtonOptions {
   text?: string
@@ -15,7 +15,7 @@ export interface ButtonOptions {
 export function createButton(opts: ButtonOptions = {}): HTMLButtonElement {
   const btn = document.createElement('button')
   const classes: string[] = []
-  if (opts.variant) classes.push(opts.variant)
+  if (opts.variant) classes.push('button-' + opts.variant)
   if (opts.className) classes.push(opts.className)
   if (classes.length) btn.className = classes.join(' ')
   if (opts.type) btn.type = opts.type

@@ -534,7 +534,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
     })()
   })
   const save = document.createElement('button')
-  save.className = 'primary'
+  save.className = 'button-primary'
   save.textContent = existing ? 'Save' : 'Add'
   save.addEventListener('click', () => {
     const conn = build()

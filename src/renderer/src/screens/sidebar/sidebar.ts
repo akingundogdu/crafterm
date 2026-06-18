@@ -1312,7 +1312,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
   const cancel = document.createElement('button')
   cancel.textContent = 'Cancel'
   const save = document.createElement('button')
-  save.className = 'primary'
+  save.className = 'button-primary'
   save.textContent = 'Save'
   actions.append(cancel, save)
   modal.appendChild(actions)

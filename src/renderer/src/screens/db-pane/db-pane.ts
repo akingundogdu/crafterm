@@ -123,7 +123,7 @@ export function createSqlPane(opts: {
   const connSel = document.createElement('select')
   connSel.className = 'settings-select'
   const runBtn = document.createElement('button')
-  runBtn.className = 'primary db-run-btn'
+  runBtn.className = 'button-primary db-run-btn'
   runBtn.innerHTML = PLAY_SVG + '<span>Run</span><kbd>⌘↵</kbd>'
   const saveBtn = document.createElement('button')
   saveBtn.className = 'db-save-btn'

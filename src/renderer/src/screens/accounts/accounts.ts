@@ -90,7 +90,7 @@ function accountCard(a: AccountEntry): HTMLElement {
   edit.textContent = 'Edit'
   edit.addEventListener('click', () => showAccountForm(a))
   const del = document.createElement('button')
-  del.className = 'acc-act danger'
+  del.className = 'acc-act button-danger'
   del.textContent = 'Delete'
   del.addEventListener('click', async () => {
     const ok = await promptConfirm({

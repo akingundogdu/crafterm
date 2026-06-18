@@ -542,7 +542,7 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   padding: 1px 7px;
   font-size: 10.5px;
 }
-.acc-act.danger {
+.acc-act.button-danger {
   color: #f85149;
   border-color: rgba(248, 81, 73, 0.4);
 }
@@ -3601,12 +3601,12 @@ body.improve-window {
 .modal-actions button:hover {
   background: rgba(255, 255, 255, 0.08);
 }
-.modal-actions button.primary {
+.modal-actions button.button-primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
-.modal-actions button.primary:hover {
+.modal-actions button.button-primary:hover {
   background: #5b97ff;
 }
 
@@ -4526,11 +4526,11 @@ body.improve-window {
   color: var(--text);
   border-color: var(--border-strong);
 }
-.docker-act.primary {
+.docker-act.button-primary {
   border-color: var(--accent, #58a6ff);
   color: var(--accent, #58a6ff);
 }
-.docker-act.danger:hover {
+.docker-act.button-danger:hover {
   border-color: #f85149;
   color: #f85149;
 }
@@ -4949,12 +4949,12 @@ body.improve-window {
   color: var(--text);
   border-color: var(--border-strong);
 }
-.pr-act.primary {
+.pr-act.button-primary {
   background: var(--accent, #58a6ff);
   border-color: var(--accent, #58a6ff);
   color: #fff;
 }
-.pr-act.primary:hover:not(:disabled) {
+.pr-act.button-primary:hover:not(:disabled) {
   background: var(--accent, #58a6ff);
   color: #fff;
   filter: brightness(1.12);
@@ -5521,11 +5521,11 @@ body.improve-window {
   color: var(--text);
   border-color: var(--border-strong);
 }
-.bm-act.primary {
+.bm-act.button-primary {
   border-color: var(--accent, #58a6ff);
   color: var(--accent, #58a6ff);
 }
-.bm-act.danger:hover {
+.bm-act.button-danger:hover {
   border-color: #f85149;
   color: #f85149;
 }
