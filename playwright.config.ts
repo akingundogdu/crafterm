@@ -8,5 +8,15 @@ export default defineConfig({
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,
-  reporter: 'list'
+  reporter: 'list',
+  // Visual-regression guard for the Phase 8 CSS split: screenshots must stay
+  // pixel-identical across the move. Animations/caret are killed for determinism;
+  // a tiny diff ratio absorbs sub-pixel font AA noise.
+  expect: {
+    toHaveScreenshot: {
+      animations: 'disabled',
+      caret: 'hide',
+      maxDiffPixelRatio: 0.01
+    }
+  }
 })

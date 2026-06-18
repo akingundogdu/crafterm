@@ -38,6 +38,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "e2e:update": "playwright test --update-snapshots",
     "dist": "electron-vite build && electron-builder",
     "dist:dir": "electron-vite build && electron-builder --dir",
     "deploy": "bash scripts/deploy.sh"
