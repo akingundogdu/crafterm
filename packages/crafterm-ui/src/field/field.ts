@@ -3,6 +3,8 @@
 // `hint` renders a trailing `<span class="field-hint">` inside the label, matching
 // the app's "Label (comma separated)"-style hints.
 
+import './field.css'
+
 export function createField(
   labelText: string,
   control: HTMLElement,
