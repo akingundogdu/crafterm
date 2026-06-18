@@ -5,6 +5,8 @@
 // property (get/set) in the same string format and a `change` event on user
 // selection, so existing call sites stay drop-in.
 
+import './datepicker.css'
+
 const CAL_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 2v2.5M10.5 2v2.5"/></svg>'
 
@@ -89,12 +91,12 @@ export function createDateField(opts: {
   const { mode } = opts
   const btn = document.createElement('button') as DateField
   btn.type = 'button'
-  btn.className = 'date-field' + (opts.className ? ` ${opts.className}` : '')
+  btn.className = 'datepicker-field' + (opts.className ? ` ${opts.className}` : '')
 
   const text = document.createElement('span')
-  text.className = 'date-field-text'
+  text.className = 'datepicker-field-text'
   const glyph = document.createElement('span')
-  glyph.className = 'date-field-glyph'
+  glyph.className = 'datepicker-field-glyph'
   glyph.innerHTML = CAL_SVG
   btn.append(text, glyph)
 
@@ -104,10 +106,10 @@ export function createDateField(opts: {
   const syncText = (): void => {
     if (selected) {
       text.textContent = displayLabel(mode, selected)
-      text.classList.remove('is-empty')
+      text.classList.remove('datepicker-field-empty')
     } else {
       text.textContent = placeholder
-      text.classList.add('is-empty')
+      text.classList.add('datepicker-field-empty')
     }
   }
   syncText()
@@ -133,30 +135,30 @@ export function createDateField(opts: {
 
   // ---- Popover ---------------------------------------------------------
   function openPopover(): void {
-    document.querySelector('.date-pop')?.remove()
+    document.querySelector('.datepicker-pop')?.remove()
 
     const view = selected ? { ...selected } : nowState(mode)
     let viewY = view.y
     let viewM = view.m
 
     const pop = document.createElement('div')
-    pop.className = 'date-pop'
+    pop.className = 'datepicker-pop'
     pop.addEventListener('mousedown', (e) => e.stopPropagation())
 
     const head = document.createElement('div')
-    head.className = 'date-pop-head'
+    head.className = 'datepicker-pop-head'
     const prev = document.createElement('button')
-    prev.className = 'date-pop-nav'
+    prev.className = 'datepicker-pop-nav'
     prev.textContent = '‹'
     const monthLabel = document.createElement('span')
-    monthLabel.className = 'date-pop-month'
+    monthLabel.className = 'datepicker-pop-month'
     const next = document.createElement('button')
-    next.className = 'date-pop-nav'
+    next.className = 'datepicker-pop-nav'
     next.textContent = '›'
     head.append(prev, monthLabel, next)
 
     const weekRow = document.createElement('div')
-    weekRow.className = 'date-pop-week'
+    weekRow.className = 'datepicker-pop-week'
     for (const w of WEEKDAYS) {
       const c = document.createElement('span')
       c.textContent = w
@@ -164,7 +166,7 @@ export function createDateField(opts: {
     }
 
     const grid = document.createElement('div')
-    grid.className = 'date-pop-grid'
+    grid.className = 'datepicker-pop-grid'
 
     let timeInput: HTMLInputElement | null = null
 
@@ -178,17 +180,17 @@ export function createDateField(opts: {
       const start = -offset
       for (let i = 0; i < 42; i++) {
         const cell = document.createElement('button')
-        cell.className = 'date-pop-cell'
+        cell.className = 'datepicker-pop-cell'
         const cur = new Date(viewY, viewM - 1, start + i + 1)
         const cy = cur.getFullYear()
         const cm = cur.getMonth() + 1
         const cd = cur.getDate()
         cell.textContent = String(cd)
-        if (cm !== viewM) cell.classList.add('is-muted')
+        if (cm !== viewM) cell.classList.add('datepicker-pop-cell-muted')
         if (cy === today.getFullYear() && cm === today.getMonth() + 1 && cd === today.getDate()) {
-          cell.classList.add('is-today')
+          cell.classList.add('datepicker-pop-cell-today')
         }
-        if (selected && sameDay(selected, cy, cm, cd)) cell.classList.add('is-selected')
+        if (selected && sameDay(selected, cy, cm, cd)) cell.classList.add('datepicker-pop-cell-selected')
         cell.addEventListener('click', () => {
           const hh = selected?.hh ?? (mode === 'datetime' ? nowState(mode).hh : 0)
           const mm = selected?.mm ?? (mode === 'datetime' ? nowState(mode).mm : 0)
@@ -229,12 +231,12 @@ export function createDateField(opts: {
 
     if (mode === 'datetime') {
       const timeRow = document.createElement('div')
-      timeRow.className = 'date-pop-time'
+      timeRow.className = 'datepicker-pop-time'
       const tlabel = document.createElement('span')
       tlabel.textContent = 'Time'
       timeInput = document.createElement('input')
       timeInput.type = 'time'
-      timeInput.className = 'date-pop-time-input'
+      timeInput.className = 'datepicker-pop-time-input'
       timeInput.value = selected ? `${pad2(selected.hh)}:${pad2(selected.mm)}` : ''
       timeInput.addEventListener('input', () => {
         const m = timeInput!.value.match(/^(\d{2}):(\d{2})/)
@@ -249,9 +251,9 @@ export function createDateField(opts: {
     }
 
     const foot = document.createElement('div')
-    foot.className = 'date-pop-foot'
+    foot.className = 'datepicker-pop-foot'
     const clearBtn = document.createElement('button')
-    clearBtn.className = 'date-pop-foot-btn'
+    clearBtn.className = 'datepicker-pop-foot-btn'
     clearBtn.textContent = 'Clear'
     clearBtn.addEventListener('click', () => {
       selected = null
@@ -260,7 +262,7 @@ export function createDateField(opts: {
       close()
     })
     const todayBtn = document.createElement('button')
-    todayBtn.className = 'date-pop-foot-btn accent'
+    todayBtn.className = 'datepicker-pop-foot-btn datepicker-pop-foot-btn-accent'
     todayBtn.textContent = mode === 'datetime' ? 'Now' : 'Today'
     todayBtn.addEventListener('click', () => {
       selected = nowState(mode)
