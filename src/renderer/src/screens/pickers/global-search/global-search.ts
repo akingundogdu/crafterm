@@ -155,7 +155,7 @@ export async function showGlobalSearch(): Promise<void> {
   h.textContent = 'Search Crafterm'
   modal.appendChild(h)
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Search projects, panes, actions, bookmarks, notes, plans…'
   input.spellcheck = false

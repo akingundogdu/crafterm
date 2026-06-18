@@ -24,7 +24,7 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
     useBtn.className = 'settings-inline-btn'
     useBtn.textContent = 'Use this folder'
     const input = document.createElement('input')
-    input.className = 'picker-input'
+    input.className = 'search-box-input'
     input.type = 'text'
     input.placeholder = 'Filter folders…  (↑↓ move · → enter · ← up · ⏎ pick)'
     input.spellcheck = false
@@ -133,7 +133,7 @@ export async function showFolderPicker(): Promise<void> {
   const path = document.createElement('div')
   path.className = 'picker-path'
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Filter folders…  (↑↓ move · → enter · ← up · ⏎ open)'
   input.spellcheck = false

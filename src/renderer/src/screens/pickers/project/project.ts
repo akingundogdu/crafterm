@@ -21,7 +21,7 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
   const h = document.createElement('h2')
   h.textContent = splitMode ? 'Split with project' : 'Open project'
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = splitMode
     ? 'Filter projects…  (⏎ split right)'

@@ -12,7 +12,7 @@ export async function showAllMarkdown(): Promise<void> {
   const h = document.createElement('h2')
   h.textContent = 'Open markdown file'
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Search by file name'
   input.spellcheck = false

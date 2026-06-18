@@ -171,7 +171,7 @@ export async function showClaudeSessionResume(): Promise<void> {
   const h = document.createElement('h2')
   h.textContent = 'Resume Claude session'
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Search sessions…  (↑↓ move · ⏎ resume in a new terminal)'
   input.spellcheck = false

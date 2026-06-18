@@ -2643,20 +2643,6 @@ body.improve-window {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.picker-input {
-  width: 100%;
-  background: var(--bg-term);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: var(--text);
-  outline: none;
-  margin-bottom: 8px;
-}
-.picker-input:focus {
-  border-color: var(--accent);
-}
 .md-filters {
   display: flex;
   flex-wrap: wrap;
@@ -6541,7 +6527,7 @@ body.improve-window {
 .spotlight-modal .modal-close {
   display: none;
 }
-.spotlight-modal .picker-input {
+.spotlight-modal .search-box-input {
   background: transparent;
   border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -6550,10 +6536,10 @@ body.improve-window {
   font-size: 16px;
   margin: 0 0 8px;
 }
-.spotlight-modal .picker-input::placeholder {
+.spotlight-modal .search-box-input::placeholder {
   color: var(--text-mute);
 }
-.spotlight-modal .picker-input:focus {
+.spotlight-modal .search-box-input:focus {
   border-bottom-color: rgba(120, 170, 255, 0.5);
 }
 .spotlight-modal .spot-tabs {

@@ -22,7 +22,7 @@ export async function showCommandPalette(): Promise<void> {
   const h = document.createElement('h2')
   h.textContent = 'Commands'
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Search commands…  (⏎ insert into active terminal)'
   input.spellcheck = false
@@ -157,7 +157,7 @@ export function showTerminalSwitcher(): void {
   const h = document.createElement('h2')
   h.textContent = 'Open terminals'
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Search terminals…  (↑↓ move · ⏎ focus)'
   input.spellcheck = false
@@ -277,7 +277,7 @@ export function showCommandHistory(): void {
   const h = document.createElement('h2')
   h.textContent = 'Command history'
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Filter commands…'
   input.spellcheck = false

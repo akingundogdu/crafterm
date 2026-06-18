@@ -122,7 +122,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   modal.append(sub)
 
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Search branches…  (↑↓ move · ⏎ checkout)'
   input.spellcheck = false

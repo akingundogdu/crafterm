@@ -21,7 +21,7 @@ export async function showPlansModal(): Promise<void> {
   }
 
   const input = document.createElement('input')
-  input.className = 'picker-input'
+  input.className = 'search-box-input'
   input.type = 'text'
   input.placeholder = 'Filter plans…  (↑↓ move · ⏎ open)'
   input.spellcheck = false

@@ -32,10 +32,10 @@ describe('overlayModal', () => {
 })
 
 describe('makeSearchInput', () => {
-  it('builds a .picker-input and fires onInput on input', () => {
+  it('builds a .search-box-input and fires onInput on input', () => {
     const fn = vi.fn()
     const input = makeSearchInput('Search…', fn)
-    expect(input.className).toBe('picker-input')
+    expect(input.className).toBe('search-box-input')
     expect(input.placeholder).toBe('Search…')
     expect(input.spellcheck).toBe(false)
     input.dispatchEvent(new Event('input'))
