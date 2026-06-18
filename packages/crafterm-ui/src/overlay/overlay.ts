@@ -2,6 +2,8 @@
 // lifecycle (idempotent) and backdrop-click close. The caller appends content
 // into `overlay`, calls `mount()` to attach to <body>, and registers `onClose`.
 
+import './overlay.css'
+
 export interface OverlayHandle {
   overlay: HTMLDivElement
   mount: () => void

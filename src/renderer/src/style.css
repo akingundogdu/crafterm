@@ -1816,17 +1816,6 @@ body.dragging-pane .pane-term {
 /* =========================================================================
    Settings modal
    ========================================================================= */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(3px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: menuIn 0.15s ease;
-}
 .modal {
   position: relative; /* anchor for the absolute close (×) button */
   width: 520px;
