@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { loadScript } from './scripts'
 
-// Templates ship under resources/scripts/templates; in tests cwd is the repo root.
-const TEMPLATES = join(process.cwd(), 'resources', 'scripts', 'templates')
+// Templates ship under src/resources/scripts/templates; in tests cwd is the repo root.
+const TEMPLATES = join(process.cwd(), 'src', 'resources', 'scripts', 'templates')
 
 // Replica of the main process's shq() (index.ts) so golden tests reproduce the
 // exact pre-refactor command strings.

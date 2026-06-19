@@ -33,12 +33,12 @@ export const buildCounterPath = (): string => join(stateDir(), 'build-counter.js
 export const scriptsDir = (): string =>
   app.isPackaged
     ? join(process.resourcesPath, 'scripts')
-    : join(__dirname, '../../resources/scripts')
+    : join(__dirname, '../../src/resources/scripts')
 
 export const soundsDir = (): string =>
   app.isPackaged
     ? join(process.resourcesPath, 'sounds')
-    : join(__dirname, '../../resources/sounds')
+    : join(__dirname, '../../src/resources/sounds')
 
 // monaco-themes theme JSONs ship via extraResources when packaged; in dev they
 // read from node_modules.

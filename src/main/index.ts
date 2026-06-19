@@ -150,7 +150,7 @@ app.whenReady().then(() => {
   // the app shows the Crafterm logo while running via `npm run dev`.
   if (!app.isPackaged && process.platform === 'darwin') {
     try {
-      const iconPath = join(app.getAppPath(), 'resources/images/crafterm-logo.png')
+      const iconPath = join(app.getAppPath(), 'src/resources/images/crafterm-logo.png')
       if (existsSync(iconPath)) app.dock?.setIcon(nativeImage.createFromPath(iconPath))
     } catch {
       // ignore: dock icon is a dev-only nicety

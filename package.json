@@ -56,11 +56,11 @@
     ],
     "extraResources": [
       {
-        "from": "resources/sounds",
+        "from": "src/resources/sounds",
         "to": "sounds"
       },
       {
-        "from": "resources/scripts",
+        "from": "src/resources/scripts",
         "to": "scripts"
       },
       {
