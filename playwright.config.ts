@@ -4,7 +4,7 @@ import { defineConfig } from '@playwright/test'
 // bundle (`npm run build`) and a display, so it is best run on a developer
 // machine (`npm run e2e`), not headless CI without a display.
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './src/tests/e2e',
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,
