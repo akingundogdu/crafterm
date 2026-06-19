@@ -1,3 +1,4 @@
+import './global-search.css'
 import { state, panes } from '../../../state'
 import { flattenProjects } from '../../../catalog'
 import { allTabs, panesInLayout } from '../../../tree'
