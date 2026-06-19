@@ -14,7 +14,7 @@ export function showAccountForm(
 ): void {
   const ov = createOverlay({ closeOnBackdrop: true })
   const modal = document.createElement('div')
-  modal.className = 'modal acc-form'
+  modal.className = 'modal accounts-form'
   ov.overlay.appendChild(modal)
   modal.appendChild(makeCloseButton(ov.close))
 
@@ -68,7 +68,7 @@ export function showAccountForm(
   // round-tripped through `draft` — they go to safeStorage on save.
   modal.insertAdjacentHTML('beforeend', '<div class="field"><label>Fields</label></div>')
   const fieldsList = document.createElement('div')
-  fieldsList.className = 'acc-form-fields'
+  fieldsList.className = 'accounts-form-fields'
   modal.appendChild(fieldsList)
   type Pending = { key: string; rawValue: string; secret: boolean; existed: boolean }
   const pending: Pending[] = draft.fields.map((f) => ({ key: f.key, rawValue: '', secret: !!f.secret, existed: !!existing }))
@@ -77,7 +77,7 @@ export function showAccountForm(
     fieldsList.replaceChildren()
     pending.forEach((p, idx) => {
       const row = document.createElement('div')
-      row.className = 'acc-form-field-row'
+      row.className = 'accounts-form-field-row'
       const keyI = createInput({ value: p.key, placeholder: 'key (e.g. api_token)' })
       keyI.addEventListener('input', () => (p.key = keyI.value))
       keyI.addEventListener('keydown', (e) => e.stopPropagation())
@@ -92,7 +92,7 @@ export function showAccountForm(
       })
       valI.addEventListener('keydown', (e) => e.stopPropagation())
       const secretChk = document.createElement('label')
-      secretChk.className = 'acc-form-secret'
+      secretChk.className = 'accounts-form-secret'
       const cb = document.createElement('input')
       cb.type = 'checkbox'
       cb.checked = p.secret
@@ -103,7 +103,7 @@ export function showAccountForm(
       secretChk.append(cb, document.createTextNode(' secret'))
       const del = createButton({
         text: '✕',
-        className: 'acc-act small danger',
+        className: 'accounts-act small danger',
         type: 'button',
         onClick: () => {
           pending.splice(idx, 1)

@@ -61,7 +61,7 @@ test('accounts: add account + secret, delete, and restore on relaunch', async ()
     })
 
     await test.step('delete the secret entry -> gone from list + disk', async () => {
-      const card = win.locator('#tab-list .acc-card', { hasText: A2 })
+      const card = win.locator('#tab-list .accounts-card', { hasText: A2 })
       await card.getByRole('button', { name: 'Delete' }).click()
       const confirm = win.locator('.modal-overlay') // promptConfirm dialog
       await confirm.getByRole('button', { name: 'Delete' }).click()

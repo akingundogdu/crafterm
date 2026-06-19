@@ -1,3 +1,4 @@
+import './accounts.css'
 import type { AccountEntry, AccountField } from '../../types'
 import { accountRepo } from '../../services/storage/repositories'
 import { promptConfirm } from '../../dialog'
@@ -18,7 +19,7 @@ function tabListEl(): HTMLElement {
 // Visible label for a tag chip on the card list.
 function tagChip(text: string): HTMLElement {
   const t = document.createElement('span')
-  t.className = 'acc-tag'
+  t.className = 'accounts-tag'
   t.textContent = text
   return t
 }
@@ -49,21 +50,21 @@ async function copyToClipboard(text: string, btn: HTMLButtonElement): Promise<vo
 // ---- card ---------------------------------------------------------------
 function accountCard(a: AccountEntry): HTMLElement {
   const el = document.createElement('div')
-  el.className = 'acc-card acc-kind-' + a.kind
+  el.className = 'accounts-card accounts-kind-' + a.kind
 
   const head = document.createElement('div')
-  head.className = 'acc-head'
+  head.className = 'accounts-head'
   const badge = document.createElement('span')
-  badge.className = 'acc-badge ' + a.kind
+  badge.className = 'accounts-badge ' + a.kind
   badge.textContent = a.kind === 'secret' ? 'SECRET' : (a.service || 'ACCOUNT').toUpperCase()
   const label = document.createElement('span')
-  label.className = 'acc-label'
+  label.className = 'accounts-label'
   label.textContent = a.label
   head.append(badge, label)
   el.appendChild(head)
 
   const meta = document.createElement('div')
-  meta.className = 'acc-meta'
+  meta.className = 'accounts-meta'
   if (a.login) meta.append(metaRow('login', a.login, true))
   if (a.url) meta.append(metaRow('url', a.url, true))
   if (a.notes) meta.append(metaRow('notes', a.notes, false))
@@ -71,26 +72,26 @@ function accountCard(a: AccountEntry): HTMLElement {
 
   if (a.fields?.length) {
     const fields = document.createElement('div')
-    fields.className = 'acc-fields'
+    fields.className = 'accounts-fields'
     a.fields.forEach((f) => fields.appendChild(fieldRow(a, f)))
     el.appendChild(fields)
   }
 
   if (a.tags.length) {
     const tags = document.createElement('div')
-    tags.className = 'acc-tags'
+    tags.className = 'accounts-tags'
     a.tags.forEach((t) => tags.appendChild(tagChip(t)))
     el.appendChild(tags)
   }
 
   const acts = document.createElement('div')
-  acts.className = 'acc-actions'
+  acts.className = 'accounts-actions'
   const edit = document.createElement('button')
-  edit.className = 'acc-act'
+  edit.className = 'accounts-act'
   edit.textContent = 'Edit'
   edit.addEventListener('click', () => showAccountForm(a))
   const del = document.createElement('button')
-  del.className = 'acc-act button-danger'
+  del.className = 'accounts-act button-danger'
   del.textContent = 'Delete'
   del.addEventListener('click', async () => {
     const ok = await promptConfirm({
@@ -110,17 +111,17 @@ function accountCard(a: AccountEntry): HTMLElement {
 
 function metaRow(label: string, value: string, copyable: boolean): HTMLElement {
   const row = document.createElement('div')
-  row.className = 'acc-meta-row'
+  row.className = 'accounts-meta-row'
   const lab = document.createElement('span')
-  lab.className = 'acc-meta-key'
+  lab.className = 'accounts-meta-key'
   lab.textContent = label
   const val = document.createElement('span')
-  val.className = 'acc-meta-val'
+  val.className = 'accounts-meta-val'
   val.textContent = value
   row.append(lab, val)
   if (copyable) {
     const copy = document.createElement('button')
-    copy.className = 'acc-act small'
+    copy.className = 'accounts-act small'
     copy.textContent = 'Copy'
     copy.addEventListener('click', () => void copyToClipboard(value, copy))
     row.append(copy)
@@ -130,16 +131,16 @@ function metaRow(label: string, value: string, copyable: boolean): HTMLElement {
 
 function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
   const row = document.createElement('div')
-  row.className = 'acc-meta-row'
+  row.className = 'accounts-meta-row'
   const lab = document.createElement('span')
-  lab.className = 'acc-meta-key'
+  lab.className = 'accounts-meta-key'
   lab.textContent = f.key
   const val = document.createElement('span')
-  val.className = 'acc-meta-val' + (f.secret ? ' acc-secret' : '')
+  val.className = 'accounts-meta-val' + (f.secret ? ' accounts-secret' : '')
   val.textContent = f.secret ? '••••••••' : f.value ?? ''
   row.append(lab, val)
   const copy = document.createElement('button')
-  copy.className = 'acc-act small'
+  copy.className = 'accounts-act small'
   copy.textContent = 'Copy'
   copy.addEventListener('click', async () => {
     let v = f.value ?? ''
@@ -157,7 +158,7 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
   row.append(copy)
   if (f.secret) {
     const reveal = document.createElement('button')
-    reveal.className = 'acc-act small'
+    reveal.className = 'accounts-act small'
     reveal.textContent = 'Show'
     reveal.addEventListener('click', async () => {
       if (val.classList.contains('shown')) {
@@ -180,11 +181,11 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
 export function renderAccounts(): void {
   const el = tabListEl()
   el.replaceChildren()
-  el.className = 'tab-list acc-list-wrap'
+  el.className = 'tab-list accounts-list-wrap'
 
   // toolbar (kind filter chips)
   const bar = document.createElement('div')
-  bar.className = 'acc-filters'
+  bar.className = 'accounts-filters'
   ;(['all', 'account', 'secret'] as const).forEach((k) => {
     const b = document.createElement('button')
     b.className = 'bookmarks-filter' + (k === kindFilter ? ' active' : '')
@@ -210,7 +211,7 @@ export function renderAccounts(): void {
     return
   }
   const list = document.createElement('div')
-  list.className = 'acc-list'
+  list.className = 'accounts-list'
   items.forEach((a) => list.appendChild(accountCard(a)))
   el.appendChild(list)
 }
