@@ -1,3 +1,4 @@
+import './meeting-notes.css'
 import type { MeetingNote } from '../../types'
 import { state } from '../../state'
 import { meetingNoteRepo } from '../../services/storage/repositories'
