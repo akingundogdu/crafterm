@@ -1,7 +1,6 @@
 import '../../../packages/crafterm-ui/src/tokens.css'
 import '../../../packages/crafterm-ui/src/modal/modal.css'
 import './global.css'
-import './style.css'
 import { applyBgColor } from './state'
 import { loadSettings } from './services/storage/settings.service'
 import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
