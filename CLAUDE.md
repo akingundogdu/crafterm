@@ -27,8 +27,8 @@ node-pty (TypeScript). Work happens here, in `src/`.
 | Build/dev | **electron-vite** (Vite 5); `electron-builder` for packaging |
 | Terminal UI | **xterm.js** (`@xterm/xterm` + `@xterm/addon-fit`) |
 | PTY | **node-pty** (native; externalized from the bundle, rebuilt via electron-rebuild) |
-| Renderer UI | **Vanilla TS + DOM** — no UI framework. Styles in `src/renderer/src/style.css` |
-| Markdown | hand-written renderer in `src/renderer/src/markdown.ts` (→ HTML string) |
+| Renderer UI | **Vanilla TS + DOM** — no UI framework. Design tokens in `src/ui/styles/tokens.css`; global + per-screen CSS co-located in `src/ui/` and each `src/ui/screens/<feature>/` |
+| Markdown | hand-written renderer in `src/ui/markdown.ts` (→ HTML string) |
 | Browser pane | Electron `<webview>` tag (the only web-content surface) |
 | Persistence | JSON at `~/.crafterm/crafterm-state.json` (dev: `~/.crafterm-dev/`); notebooks + bundled sounds under the same dir / app resources |
 
@@ -45,14 +45,14 @@ npm run rebuild      # rebuild the node-pty native module against Electron
 `electron-vite build` does **not** typecheck. Typecheck explicitly:
 
 ```bash
-npx tsc --noEmit -p tsconfig.web.json    # renderer + preload
-npx tsc --noEmit -p tsconfig.node.json   # main + preload
+npx tsc --noEmit -p tsconfig.web.json    # renderer (src/ui) + renderer-side services
+npx tsc --noEmit -p tsconfig.node.json   # main + preload (src/core) + main-side services
 ```
 
-**Verification:** there is currently **no test framework** in this repo. Verify a
-change with: (1) `npx tsc --noEmit` on both configs, (2) `npm run build`, then
-(3) `npm run dev` and exercise the feature in the running app. Adding a test
-framework is a new dependency — propose it and get approval first.
+**Verification:** (1) `npx tsc --noEmit` on both configs, (2) `npm run build`,
+(3) `npx vitest run` (unit) + `npx playwright test` (e2e — Playwright drives the
+real Electron build), then (4) `npm run dev` and exercise the feature in the
+running app. Tests live under `src/tests/` (`unit/` + `e2e/`).
 
 **NEVER kill the running app without asking first.** Do not run `kill`, `pkill`,
 `killall`, or otherwise terminate a running Crafterm / Electron / `npm run dev`
@@ -96,30 +96,29 @@ stopped, ask first and wait for an explicit OK.
   `renderNotifications()`), batched on `requestAnimationFrame`. Don't re-render
   the whole UI; call the narrowest hook.
 - **Break import cycles** via the indirection objects in `state.ts`
-  (`hooks`, `paneActions`) — wire real implementations in `main.ts`. Cross-module
+  (`hooks`, `paneActions`) — wire real implementations in `src/ui/main.ts`. Cross-module
   calls used only inside functions (not at module top-level) are fine.
 - Keep one responsibility per module; extract shared UI into helpers
   (`dialog.ts`) rather than duplicating.
 
-### Module map (`src/renderer/src/`)
+### Module map (`src/ui/`)
 
-| File | Responsibility |
+The renderer view. The IPC/data layer it talks to lives in `src/services` (see
+Process Model); domain models + windows live in `src/core`.
+
+| Path | Responsibility |
 |---|---|
-| `state.ts` | singletons, `settings`, persistence (`persist`/`loadSettings`/`saveSoon`), `hooks`, `pushNotification` |
-| `types.ts` | shared TS types (LayoutNode, Pane, SidebarNode, Reminder, AppNotification, …) |
-| `main.ts` | entry: wires DOM buttons, global keybindings, and the `hooks`/`paneActions` implementations |
-| `commands.ts` | high-level actions: create/split/close panes, `openLink`, `openNote`, `openMarkdownFile`, worktree/git, … |
+| `state.ts` | single source of truth: live singletons (`panes`, `state`, `settings`, `notifications`), `hooks`, `paneActions`, `pushNotification` |
+| `types.ts` | shared renderer TS types (LayoutNode, Pane, SidebarNode, Reminder, AppNotification, …) |
+| `main.ts` | main-window entry: wires DOM buttons, global keybindings, and the `hooks`/`paneActions` implementations |
+| `commands.ts` | high-level actions: create/split/close panes, `openLink`/`openNote`/`openMarkdownFile`, worktree/git, … |
 | `pane.ts` | terminal pane lifecycle (xterm), doc + browser panes, activity detection & notifications |
-| `content.ts` | split-tree → DOM, per-tab container cache (tabs flip `display`, never detach) |
-| `sidebar.ts` | terminal + notebook sidebar (tree render, drag-drop, inline rename, details) |
-| `notebook.ts` | notebook tree (`<stateDir>/notebooks`) + linked external files |
-| `notifications.ts` | right panel: Alerts / Reminders / Files / Time tabs + cards |
-| `reminders.ts` | reminders, past reminders, snooze |
-| `explorer.ts` / `time.ts` | file explorer + time tracking (right-panel tabs) |
-| `pickers.ts` | modal pickers/finders (command palette, project, worktree, SSH, Claude, md/file finders) |
-| `settings.ts` | settings modal |
-| `markdown.ts` | markdown → HTML |
-| `themes.ts`, `palette-seed.ts`, `keybindings.ts`, `dialog.ts`, `tree.ts`, `popout.ts` | theming, palette seed, key handling, modal helpers, pure tree algorithms, pop-out window |
+| `screens/<feature>/` | one folder per feature screen — `sidebar`, `content`, `notifications`, `reminders`, `explorer`, `time`, `settings`, `pickers`, `spotlight`, `pr`, `docker`, `database`, `db-pane`, `diff`(`-pane`), `daily-plan`, `meeting-notes`, `accounts`, `bookmarks`, `ios-worktree`, `improve-crafterm`, `code-pane`/`file-pane` (CSS co-located per screen) |
+| `components/` | shared UI primitives: `overlay`, `modal`, `button`, `field`, `input`, `select`, `textarea`, `treeview`, `datepicker`, `search-box`, `context-menu` |
+| `terminal/`, `editor/` | xterm terminal + Monaco/code-editor pane subsystems |
+| `styles/tokens.css` + `*.css` | design tokens + global/app-shell CSS (per-screen CSS co-located under `screens/`) |
+| `markdown.ts`, `themes.ts`, `tree.ts`, `keybindings.ts`, `dialog.ts`, `palette-seed.ts`, `catalog.ts`, `notebook.ts`, `popout.ts` | renderer-only helpers: md→HTML, theming, pure tree algorithms, key handling, modal helpers, palette seed, command catalog, notebook tree, pop-out window |
+| `index.html` / `popout.html` / `improve-window.html` (+ `main.ts` / `popout.ts` / `improveWindow.ts`) | the three window bootstraps |
 
 ## Universal Rules
 
