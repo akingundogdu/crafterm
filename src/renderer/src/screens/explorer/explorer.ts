@@ -1,3 +1,4 @@
+import './explorer.css'
 import { settings, state, panes } from '../../state'
 import { persistence } from '../../services/storage/persistence.service'
 import { openMarkdownFile, openCodeEditor } from '../../commands'
@@ -110,12 +111,12 @@ function gitClassFor(e: Entry): string {
   if (e.isDir) {
     const prefix = e.path + '/'
     for (const p in gitStatus) {
-      if (p.startsWith(prefix)) return 'expl-git-modified'
+      if (p.startsWith(prefix)) return 'explorer-git-modified'
     }
     return ''
   }
   const kind = gitStatus[e.path]
-  return kind ? 'expl-git-' + kind : ''
+  return kind ? 'explorer-git-' + kind : ''
 }
 
 // Parent directory of a path (no trailing slash). Falls back to "/".
@@ -214,7 +215,7 @@ const adapter: TreeAdapter<Entry> = {
   id: (e) => e.path,
   label: (e) => e.name,
   icon: (e) => (e.isDir ? FOLDER_SVG : iconFor(e.name)),
-  iconClass: (e) => 'expl-ic expl-ic-' + (e.isDir ? 'folder' : iconCategory(e.name)),
+  iconClass: (e) => 'explorer-ic explorer-ic-' + (e.isDir ? 'folder' : iconCategory(e.name)),
   rowClass: (e) => gitClassFor(e),
   isContainer: (e) => e.isDir,
   children: (e) => childrenCache.get(e.path) ?? [],
