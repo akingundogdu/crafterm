@@ -1,3 +1,4 @@
+import './update.css'
 import { createButton, createOverlay } from '@crafterm/ui'
 import { settings, state } from '../../../state'
 import { persistence } from '../../../services/storage/persistence.service'
