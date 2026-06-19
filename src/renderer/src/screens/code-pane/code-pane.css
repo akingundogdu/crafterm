@@ -1,0 +1,63 @@
+/* ---- Code editor pane (Monaco) ---- */
+.code-body {
+  user-select: auto;
+  padding: 0;
+  overflow: hidden;
+}
+.code-body .monaco-editor,
+.code-body .monaco-editor .overflow-guard {
+  width: 100% !important;
+  height: 100% !important;
+}
+.code-dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 6px;
+  flex: 0 0 auto;
+}
+.diff-hbtn.code-save-dirty {
+  color: var(--accent);
+}
+/* Floating selection actions inside the editor (Cursor-style) */
+.code-sel-actions {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--elev-2, #1c2026);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transform: translateY(-6px);
+  z-index: 30;
+}
+.code-sel-btn {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.code-sel-btn:hover {
+  background: var(--accent-soft, rgba(88, 166, 255, 0.18));
+}
+.code-theme-sel {
+  height: 22px;
+  max-width: 130px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 0 4px;
+  cursor: pointer;
+  outline: none;
+}
+.code-theme-sel:hover {
+  border-color: var(--border-strong);
+}

@@ -1,3 +1,4 @@
+import './code-pane.css'
 import { codePanes, panes, state, paneActions, uid, settings } from '../../state'
 import { persistence } from '../../services/storage/persistence.service'
 import { findTabByPane, panesInLayout } from '../../tree'
