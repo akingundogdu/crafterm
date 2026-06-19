@@ -1,3 +1,4 @@
+import './reminders.css'
 import { settings, pushNotification, uid } from '../../state'
 import { reminderRepo } from '../../services/storage/repositories'
 import type { Reminder, ReminderPayload } from '../../types'
