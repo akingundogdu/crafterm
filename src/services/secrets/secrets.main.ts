@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from '@core/services/secrets.service'
 import { stateDir } from '@core/services/paths'
@@ -11,8 +11,8 @@ function secretsDir(): string {
 }
 
 export function registerSecretsIpc(): void {
-  handle('secrets:set', ({ entryId, key, value }) => setSecret(secretsDir(), entryId, key, value))
-  handle('secrets:get', ({ entryId, key }) => getSecret(secretsDir(), entryId, key))
-  handle('secrets:delete', ({ entryId, key }) => deleteSecret(secretsDir(), entryId, key))
-  handle('secrets:available', () => isSecretsAvailable())
+  handle(Channel.Secrets.Set, ({ entryId, key, value }) => setSecret(secretsDir(), entryId, key, value))
+  handle(Channel.Secrets.Get, ({ entryId, key }) => getSecret(secretsDir(), entryId, key))
+  handle(Channel.Secrets.Delete, ({ entryId, key }) => deleteSecret(secretsDir(), entryId, key))
+  handle(Channel.Secrets.Available, () => isSecretsAvailable())
 }

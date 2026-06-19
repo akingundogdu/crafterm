@@ -1,4 +1,4 @@
-import { on } from '@services/channels.main'
+import { on, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { execFile } from 'child_process'
@@ -9,7 +9,7 @@ import { shq } from '@core/services/exec'
 // IDE bridge (ide:*): open a path in the user's IDE via their `ide` command.
 export function registerIdeIpc(): void {
   // Open a path in the user's IDE via their `ide` command (no terminal spawned).
-  on('ide:open', ({ path, ide }) => {
+  on(Channel.Ide.Open, ({ path, ide }) => {
     if (!path || !existsSync(path)) return
     const cmd = ide && ide.trim() ? ide.trim() : 'open'
     execFile(

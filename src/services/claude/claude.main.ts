@@ -1,5 +1,5 @@
 import { BrowserWindow } from 'electron'
-import { handle, emit } from '@services/channels.main'
+import { handle, emit, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
 import {
@@ -75,7 +75,7 @@ const claudeBroadcastTimers = new Map<string, NodeJS.Timeout>()
 function broadcastClaudeSessionsChanged(cwd: string): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-      emit(win.webContents, 'claude:sessionsChanged', { cwd })
+      emit(win.webContents, Channel.Claude.SessionsChanged, { cwd })
     }
   }
 }
@@ -87,7 +87,7 @@ export function registerClaudeIpc(): void {
   // Aggregate Claude token usage across every session under
   // `~/.claude/projects/**/*.jsonl` for three periods (today, this week, this
   // month) so the top status bar can show quota-style percentages. Cached for 30s.
-  handle('claude:usageSummary', () => {
+  handle(Channel.Claude.UsageSummary, () => {
     const now = Date.now()
     if (claudeUsageCache && claudeUsageCache.expiresAt > now) return claudeUsageCache.data
     const root = claudeProjectsDir()
@@ -140,12 +140,12 @@ export function registerClaudeIpc(): void {
   // Anthropic's `GET /api/oauth/usage` endpoint, using the OAuth token Claude Code
   // stores in the macOS keychain (or a user-provided fallback secret). Lives in
   // services/claude-account.service.ts.
-  handle('claude:realUsage', (opts) => claudeAccount.realUsage(opts))
+  handle(Channel.Claude.RealUsage, (opts) => claudeAccount.realUsage(opts))
 
   // Pull the user-set "custom-title" out of a session's jsonl head — used by
   // pane.ts to reflect a /rename'd title into the sidebar pane title without
   // having to wait for the next xterm OSC repaint.
-  handle('claude:sessionTitle', ({ cwd, sessionId }) => {
+  handle(Channel.Claude.SessionTitle, ({ cwd, sessionId }) => {
     if (!cwd || !sessionId) return null
     const key = `${cwd}::${sessionId}`
     const cached = claudeTitleCache.get(key)
@@ -177,7 +177,7 @@ export function registerClaudeIpc(): void {
   //                   assistant turn still holding an unresolved tool_use;
   //   'question'    — assistant turn ended on a question to the user;
   //   'idle'        — assistant turn ended normally (waiting on the user).
-  handle('claude:sessionStatus', ({ cwd, sessionId }) => {
+  handle(Channel.Claude.SessionStatus, ({ cwd, sessionId }) => {
     if (!cwd || !sessionId) return null
     const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
     if (!existsSync(file)) return null
@@ -219,7 +219,7 @@ export function registerClaudeIpc(): void {
   // 'acceptEdits' | null). Claude appends a {type:'permission-mode',
   // permissionMode} record to the session JSONL on every mode change, so the last
   // such record in the file is the live mode.
-  handle('claude:permissionMode', ({ cwd, sessionId }) => {
+  handle(Channel.Claude.PermissionMode, ({ cwd, sessionId }) => {
     if (!cwd || !sessionId) return null
     const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
     if (!existsSync(file)) return null
@@ -239,7 +239,7 @@ export function registerClaudeIpc(): void {
     return null
   })
 
-  handle('claude:latestSession', ({ cwd, since }) => {
+  handle(Channel.Claude.LatestSession, ({ cwd, since }) => {
     if (!cwd) return null
     const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))
     if (!existsSync(dir)) return null
@@ -260,7 +260,7 @@ export function registerClaudeIpc(): void {
   // Recover a Claude session's working directory from its jsonl (each line carries
   // a `cwd` field). The encoded project-dir name is lossy, so we scan every project
   // dir for `<sessionId>.jsonl` and read the first line that has a cwd.
-  handle('claude:sessionCwd', ({ sessionId }) => {
+  handle(Channel.Claude.SessionCwd, ({ sessionId }) => {
     if (!sessionId) return null
     const root = claudeProjectsDir()
     if (!existsSync(root)) return null
@@ -286,7 +286,7 @@ export function registerClaudeIpc(): void {
   })
 
   // All Claude sessions across projects, newest first, with a short summary + cwd.
-  handle('claude:sessions', () => {
+  handle(Channel.Claude.Sessions, () => {
     const root = claudeProjectsDir()
     if (!existsSync(root)) return []
     const out: { id: string; cwd: string | null; summary: string; mtimeMs: number }[] = []
@@ -356,7 +356,7 @@ export function registerClaudeIpc(): void {
     return out.slice(0, 300)
   })
 
-  handle('claude:watchSessions', ({ cwd }) => {
+  handle(Channel.Claude.WatchSessions, ({ cwd }) => {
     if (!cwd) return false
     if (claudeWatchers.has(cwd)) return true
     const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))

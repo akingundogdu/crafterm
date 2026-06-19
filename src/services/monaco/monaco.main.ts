@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import { monacoThemesDir } from '@core/services/paths'
@@ -8,7 +8,7 @@ export function registerMonacoIpc(): void {
   // Read a monaco-themes theme JSON by display name (e.g. "Monokai"). Ships via
   // extraResources when packaged; reads from node_modules in dev. Returns the
   // parsed IStandaloneThemeData, or null on any failure / bad name.
-  handle('monaco:theme', ({ name }) => {
+  handle(Channel.Monaco.Theme, ({ name }) => {
     if (!name || name.includes('/') || name.includes('..')) return null
     try {
       const p = join(monacoThemesDir(), `${name}.json`)

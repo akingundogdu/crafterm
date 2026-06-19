@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { join } from 'path'
 import * as ios from '@core/services/ios.service'
 import { scriptsDir } from '@core/services/paths'
@@ -13,19 +13,19 @@ export function registerIosIpc(): void {
   // Absolute path to the bundled iOS worktree helper script. The renderer types
   // `bash "<path>" <subcommand>` into a pane (with IOSWT_* env from settings.iosDev),
   // so a build's output streams live in the terminal.
-  handle('iosWorktree:scriptPath', () => iosWorktreeScript())
+  handle(Channel.IosWorktree.ScriptPath, () => iosWorktreeScript())
 
   handle(
-    'iosWorktree:report',
+    Channel.IosWorktree.Report,
     ({ repoRoot, cfg }) =>
       ios.report(iosWorktreeScript(), repoRoot, cfg) as Promise<IosWorktreeReport | null>
   )
 
-  handle('iosWorktree:stop', ({ worktreePath, cfg }) =>
+  handle(Channel.IosWorktree.Stop, ({ worktreePath, cfg }) =>
     ios.stop(iosWorktreeScript(), worktreePath, cfg)
   )
 
-  handle('ios:listTargets', () => ios.listTargets())
+  handle(Channel.Ios.ListTargets, () => ios.listTargets())
 
-  handle('ios:listSchemes', ({ repoRoot, cfg }) => ios.listSchemes(repoRoot, cfg))
+  handle(Channel.Ios.ListSchemes, ({ repoRoot, cfg }) => ios.listSchemes(repoRoot, cfg))
 }

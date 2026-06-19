@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { dockerRun, parseJsonLines } from '@core/docker'
 import type { DockerRow } from './docker.types'
 
@@ -6,35 +6,35 @@ import type { DockerRow } from './docker.types'
 // resolution + exec live in the @core/docker model; these thin handlers delegate.
 export function registerDockerIpc(): void {
   // Is the docker CLI present and the daemon reachable?
-  handle('docker:available', async () => {
+  handle(Channel.Docker.Available, async () => {
     const r = await dockerRun(['version', '--format', '{{.Server.Version}}'], 4000)
     if (r.ok && r.out.trim()) return { ok: true, version: r.out.trim() }
     return { ok: false, error: (r.err || 'Docker is not running').trim() }
   })
 
-  handle('docker:containers', async () => {
+  handle(Channel.Docker.Containers, async () => {
     const r = await dockerRun(['ps', '-a', '--no-trunc', '--format', '{{json .}}'])
     return r.ok ? parseJsonLines(r.out) : []
   })
 
-  handle('docker:images', async () => {
+  handle(Channel.Docker.Images, async () => {
     const r = await dockerRun(['images', '--format', '{{json .}}'])
     return r.ok ? parseJsonLines(r.out) : []
   })
 
-  handle('docker:volumes', async () => {
+  handle(Channel.Docker.Volumes, async () => {
     const r = await dockerRun(['volume', 'ls', '--format', '{{json .}}'])
     return r.ok ? parseJsonLines(r.out) : []
   })
 
-  handle('docker:networks', async () => {
+  handle(Channel.Docker.Networks, async () => {
     const r = await dockerRun(['network', 'ls', '--format', '{{json .}}'])
     return r.ok ? parseJsonLines(r.out) : []
   })
 
   // Running compose projects (docker compose v2). ConfigFiles is used to target
   // `docker compose -f <file> …` actions.
-  handle('docker:compose', async () => {
+  handle(Channel.Docker.Compose, async () => {
     const r = await dockerRun(['compose', 'ls', '--all', '--format', 'json'], 6000)
     if (!r.ok) return []
     try {
@@ -46,12 +46,12 @@ export function registerDockerIpc(): void {
   })
 
   // Live one-shot resource usage, keyed by container ID — merged into rows.
-  handle('docker:stats', async () => {
+  handle(Channel.Docker.Stats, async () => {
     const r = await dockerRun(['stats', '--no-stream', '--format', '{{json .}}'], 12000)
     return r.ok ? parseJsonLines(r.out) : []
   })
 
-  handle('docker:inspect', async ({ kind, id }) => {
+  handle(Channel.Docker.Inspect, async ({ kind, id }) => {
     const cmd =
       kind === 'image'
         ? ['image', 'inspect', id]
@@ -64,7 +64,7 @@ export function registerDockerIpc(): void {
     return r.ok ? r.out : r.err || 'inspect failed'
   })
 
-  handle('docker:logs', async ({ id, tail }) => {
+  handle(Channel.Docker.Logs, async ({ id, tail }) => {
     const r = await dockerRun(['logs', '--tail', String(tail ?? 500), id], 8000)
     // docker logs writes app output to stderr too; return whichever has content.
     return r.out || r.err || ''
@@ -72,7 +72,7 @@ export function registerDockerIpc(): void {
 
   // Mutations: start/stop/restart/pause/unpause/remove a container, remove an
   // image/volume/network, or up/down/restart a compose project.
-  handle('docker:action', async ({ kind, action, id, configFile }) => {
+  handle(Channel.Docker.Action, async ({ kind, action, id, configFile }) => {
     let args: string[]
     if (kind === 'container') {
       if (action === 'remove') args = ['rm', '-f', id]
@@ -97,7 +97,7 @@ export function registerDockerIpc(): void {
   })
 
   // System-wide cleanup. `images` also prunes unused images, not just dangling.
-  handle('docker:prune', async ({ target }) => {
+  handle(Channel.Docker.Prune, async ({ target }) => {
     const args =
       target === 'images'
         ? ['image', 'prune', '-a', '-f']

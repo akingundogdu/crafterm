@@ -1,4 +1,4 @@
-import { handle, on } from '@services/channels.main'
+import { handle, on, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
@@ -17,27 +17,27 @@ const PROC_BUFFER_CAP = 256 * 1024 // keep the last ~256KB of output for replay
 // shell, via the Node main process. The implementation lives in
 // services/terminal.manager.ts; these thin handlers just wire the IPC channels.
 export function registerTerminalIpc(): void {
-  handle('pty:create', (opts, e) => terminal.create(e.sender, opts))
+  handle(Channel.Pty.Create, (opts, e) => terminal.create(e.sender, opts))
 
   // A pop-out window adopts an existing pane: its output now flows to that window.
-  on('pty:adopt', ({ id }, e) => {
+  on(Channel.Pty.Adopt, ({ id }, e) => {
     terminal.adopt(id, e.sender)
   })
 
-  on('pty:input', ({ id, data }) => {
+  on(Channel.Pty.Input, ({ id, data }) => {
     terminal.write(id, data)
   })
 
-  on('pty:resize', ({ id, cols, rows }) => {
+  on(Channel.Pty.Resize, ({ id, cols, rows }) => {
     terminal.resize(id, cols, rows)
   })
 
-  on('pty:kill', ({ id }) => {
+  on(Channel.Pty.Kill, ({ id }) => {
     terminal.kill(id)
     procBuffers.delete(id)
   })
 
-  handle('proc:start', (opts, e) => {
+  handle(Channel.Proc.Start, (opts, e) => {
     const id = opts.stableId
     if (terminal.has(id)) return id // already running — don't double-spawn
     terminal.setOwner(id, e.sender)
@@ -59,14 +59,14 @@ export function registerTerminalIpc(): void {
         const prev = procBuffers.get(id) ?? ''
         const next = (prev + data).slice(-PROC_BUFFER_CAP)
         procBuffers.set(id, next)
-        terminal.sendToOwner(id, 'pty:data', { id, data })
+        terminal.sendToOwner(id, Channel.Pty.Data, { id, data })
       } catch {
         /* renderer gone — never throw back into node-pty */
       }
     })
     p.onExit(({ exitCode }) => {
       try {
-        terminal.sendToOwner(id, 'proc:exit', { id, code: exitCode })
+        terminal.sendToOwner(id, Channel.Proc.Exit, { id, code: exitCode })
       } catch {
         /* teardown race */
       }
@@ -77,10 +77,10 @@ export function registerTerminalIpc(): void {
   })
 
   // Replay buffer for an attaching view (the output produced while nothing watched).
-  handle('proc:buffer', ({ id }) => procBuffers.get(id) ?? '')
+  handle(Channel.Proc.Buffer, ({ id }) => procBuffers.get(id) ?? '')
 
   // Re-route a background process's live stream to the window attaching a view.
-  on('proc:attach', ({ id }, e) => {
+  on(Channel.Proc.Attach, ({ id }, e) => {
     terminal.setOwner(id, e.sender)
   })
 }

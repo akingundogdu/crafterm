@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { execFile } from 'child_process'
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
@@ -287,7 +287,7 @@ async function loadDeployments(
 
 export function registerPrIpc(): void {
   // gh present + authenticated + cwd inside a GitHub repo?
-  handle('pr:available', async ({ cwd }) => {
+  handle(Channel.Pr.Available, async ({ cwd }) => {
     if (!existsSync(ghBin()) && ghBin() === 'gh') {
       // ghBin() returns 'gh' only when no known path exists; a PATH lookup may
       // still succeed, so fall through to auth check rather than failing here.
@@ -301,7 +301,7 @@ export function registerPrIpc(): void {
   })
 
   // Open PRs for the repo at `cwd`, newest-updated first.
-  handle('pr:list', async ({ cwd }) => {
+  handle(Channel.Pr.List, async ({ cwd }) => {
     const r = await ghRun(['pr', 'list', '--state', 'open', '--limit', '30', '--json', PR_FIELDS], cwd)
     if (!r.ok) return { ok: false, error: (r.err || 'gh pr list failed').trim(), prs: [] }
     try {
@@ -313,7 +313,7 @@ export function registerPrIpc(): void {
   })
 
   // All git repos under the code root (no gh calls) — feeds the project picker.
-  handle('pr:repos', ({ root }) => {
+  handle(Channel.Pr.Repos, ({ root }) => {
     const base = resolveBase(root)
     if (!base) return { ok: false, error: 'Set a Code root in settings.', repos: [] }
     const repos = scanRepos(base)
@@ -324,7 +324,7 @@ export function registerPrIpc(): void {
   // Open PRs for the explicitly selected repo paths, grouped per-project. A
   // selected repo with no open PRs is still returned (empty `prs`) so the user
   // sees every project they chose to track.
-  handle('pr:list-all', async ({ root, paths }) => {
+  handle(Channel.Pr.ListAll, async ({ root, paths }) => {
     const base = resolveBase(root)
     const sel = (Array.isArray(paths) ? paths : []).filter((p) => existsSync(join(p, '.git')))
     if (!sel.length) return { ok: true, projects: [] }
@@ -344,14 +344,14 @@ export function registerPrIpc(): void {
     return { ok: true, projects: groups }
   })
 
-  handle('pr:merge', async ({ cwd, number, method }) => {
+  handle(Channel.Pr.Merge, async ({ cwd, number, method }) => {
     const flag = method === 'rebase' ? '--rebase' : method === 'merge' ? '--merge' : '--squash'
     const r = await ghRun(['pr', 'merge', String(number), flag, '--delete-branch'], cwd, 30000)
     return r.ok ? { ok: true } : { ok: false, error: (r.err || 'merge failed').trim() }
   })
 
   // Full `gh pr view` text for the detail modal.
-  handle('pr:view', async ({ cwd, number }) => {
+  handle(Channel.Pr.View, async ({ cwd, number }) => {
     const r = await ghRun(['pr', 'view', String(number), '--comments'], cwd)
     return r.ok ? r.out : r.err || 'pr view failed'
   })
@@ -359,7 +359,7 @@ export function registerPrIpc(): void {
   // Unified diff for the in-app diff pane. Try the fast direct diff first; on a
   // large-PR failure (HTTP 406, "diff exceeded the maximum number of files"),
   // fall back to the paginated files API and rebuild the patch ourselves.
-  handle('pr:diff', async ({ cwd, number }) => {
+  handle(Channel.Pr.Diff, async ({ cwd, number }) => {
     const direct = await ghRun(['pr', 'diff', String(number)], cwd, 30000)
     if (direct.ok && direct.out.trim()) return { ok: true, patch: direct.out }
 
@@ -392,7 +392,7 @@ export function registerPrIpc(): void {
   // Post an inline review comment on a contiguous range of new-file lines. The
   // selected rows in the diff pane are always RIGHT-side (added/context) lines,
   // so we anchor to the PR head commit and use start_line/line on the RIGHT.
-  handle('pr:comment', async ({ cwd, number, path, startLine, endLine, body }) => {
+  handle(Channel.Pr.Comment, async ({ cwd, number, path, startLine, endLine, body }) => {
     if (!body.trim()) return { ok: false, error: 'Comment body is empty.' }
     const repoRes = await ghRun(
       ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
@@ -437,11 +437,11 @@ export function registerPrIpc(): void {
   // Recent GitHub Actions workflow runs for the repo, newest first. Repo-wide
   // (gh has no PR-scoped run list); the renderer keys off headBranch/headSha to
   // associate a run with a merge.
-  handle('gh:runs', async ({ cwd }) => loadRuns(cwd))
+  handle(Channel.Gh.Runs, async ({ cwd }) => loadRuns(cwd))
 
   // Deployments + workflow runs for the explicitly selected repo paths, grouped
   // per-project (mirror of pr:list-all for the Deployments view).
-  handle('gh:deploys-all', async ({ root, paths }) => {
+  handle(Channel.Gh.DeploysAll, async ({ root, paths }) => {
     const base = resolveBase(root)
     const sel = (Array.isArray(paths) ? paths : []).filter((p) => existsSync(join(p, '.git')))
     if (!sel.length) return { ok: true, projects: [] }
@@ -458,11 +458,11 @@ export function registerPrIpc(): void {
   })
 
   // Job/step breakdown for one run; fetched lazily when a run card is expanded.
-  handle('gh:run-jobs', async ({ cwd, id }) => {
+  handle(Channel.Gh.RunJobs, async ({ cwd, id }) => {
     const r = await ghRun(['run', 'view', String(id), '--json', 'jobs'], cwd)
     return r.ok ? r.out : r.err || 'gh run view failed'
   })
 
   // Latest deployment per recent deployment record, with its current status.
-  handle('gh:deployments', async ({ cwd }) => loadDeployments(cwd))
+  handle(Channel.Gh.Deployments, async ({ cwd }) => loadDeployments(cwd))
 }

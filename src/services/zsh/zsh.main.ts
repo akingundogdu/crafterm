@@ -1,10 +1,10 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { execFile } from 'child_process'
 
 // Zsh bridge (zsh:*): list the user's aliases + functions for the palette.
 export function registerZshIpc(): void {
   // List the user's zsh-defined commands (aliases + functions) for the palette.
-  handle('zsh:commands', async () => {
+  handle(Channel.Zsh.Commands, async () => {
     const out = await new Promise<string>((resolve) => {
       execFile(
         '/bin/zsh',

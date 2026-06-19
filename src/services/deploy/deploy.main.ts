@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, openSync, rmSync } from 'fs'
 import { execFile, spawn } from 'child_process'
@@ -14,7 +14,7 @@ import { APP_NAME } from '@core/constants'
 // UI can show progress); the swap + relaunch runs as a fully detached process so
 // it survives this app quitting.
 export function registerDeployIpc(): void {
-  handle('deploy:build', async ({ repoPath, command }) => {
+  handle(Channel.Deploy.Build, async ({ repoPath, command }) => {
     const repo = repoPath?.trim()
     if (!repo || !existsSync(join(repo, 'package.json'))) {
       return { ok: false, error: 'Repo path is not a valid Crafterm checkout (no package.json).' }
@@ -39,11 +39,11 @@ export function registerDeployIpc(): void {
       )
     })
   })
-  handle('deploy:killAllPtys', async () => {
+  handle(Channel.Deploy.KillAllPtys, async () => {
     await terminal.drain()
     return true
   })
-  handle('deploy:swap', ({ repoPath }) => {
+  handle(Channel.Deploy.Swap, ({ repoPath }) => {
     const repo = repoPath?.trim()
     if (!repo) return false
     const dest = `/Applications/${APP_NAME}.app`
@@ -76,7 +76,7 @@ export function registerDeployIpc(): void {
     return true
   })
   // One-shot: did we just relaunch after an update? Consumes the sentinel.
-  handle('deploy:wasUpdating', () => {
+  handle(Channel.Deploy.WasUpdating, () => {
     const flag = join(stateDir(), '.updating')
     if (!existsSync(flag)) return false
     try {

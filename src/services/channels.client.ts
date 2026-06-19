@@ -1,5 +1,9 @@
 import type { ReqOf, ResOf, PayloadOf, RpcChannel, MsgChannel, EvtChannel } from './channels'
 
+// Re-export the channel-name namespace so renderer wrappers import their helpers
+// and the channel constants from one place.
+export { Channel } from './channels'
+
 // RENDERER-side typed IPC wrappers, generic over the channel registry. The
 // `*.client.ts` domain wrappers call through these instead of touching
 // `window.crafterm` with raw channel strings, so request/response types are

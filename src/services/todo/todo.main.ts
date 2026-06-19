@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
@@ -12,7 +12,7 @@ function resolveTodoPath(p?: string): string {
 
 // Todo bridge (todo:*): read/write the user-configured todo-list.md.
 export function registerTodoIpc(): void {
-  handle('todo:read', ({ path }) => {
+  handle(Channel.Todo.Read, ({ path }) => {
     const file = resolveTodoPath(path)
     if (!file || !existsSync(file)) return null
     try {
@@ -21,7 +21,7 @@ export function registerTodoIpc(): void {
       return null
     }
   })
-  handle('todo:write', ({ path, content }) => {
+  handle(Channel.Todo.Write, ({ path, content }) => {
     const file = resolveTodoPath(path)
     if (!file) return false
     try {

@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
 import { readdirSync, statSync } from 'fs'
@@ -10,7 +10,7 @@ import { parsePlanFilename } from '@core/planFilename'
 // docs/plans aggregation, and per-branch plan ownership for the sidebar.
 export function registerPlansIpc(): void {
   // List Claude plan files under ~/.claude/plans.
-  handle('plans:list', () => {
+  handle(Channel.Plans.List, () => {
     const dir = join(homedir(), '.claude', 'plans')
     try {
       return readdirSync(dir)
@@ -25,7 +25,7 @@ export function registerPlansIpc(): void {
   // Aggregate every plan markdown file across the given project paths (each
   // project's <path>/docs/plans dir). Used by the Notebook "Plans" section. Returns
   // newest-first; missing dirs are skipped.
-  handle('plans:scan', ({ paths }) => {
+  handle(Channel.Plans.Scan, ({ paths }) => {
     const out: { project: string; name: string; path: string; mtime: number }[] = []
     const seen = new Set<string>()
     for (const p of paths ?? []) {
@@ -61,7 +61,7 @@ export function registerPlansIpc(): void {
   // to their producing session, matched on either the pane stableId or the Claude
   // session id. Slashes in the branch are matched as dashes since filenames can't
   // contain "/".
-  handle('plans:forBranch', async ({ cwd, branch }) => {
+  handle(Channel.Plans.ForBranch, async ({ cwd, branch }) => {
     type PlanRow = {
       name: string
       slug: string

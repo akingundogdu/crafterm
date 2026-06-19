@@ -1,4 +1,4 @@
-import { handle } from '@services/channels.main'
+import { handle, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'fs'
 import { stateDir } from '@core/services/paths'
@@ -18,7 +18,7 @@ function dbqSafe(name: string): string | null {
 
 // Saved SQL queries bridge (dbq:*).
 export function registerDbqIpc(): void {
-  handle('dbq:list', ({ connId }) => {
+  handle(Channel.Dbq.List, ({ connId }) => {
     const dir = dbqDir(connId)
     if (!dir) return [] as { name: string; path: string }[]
     try {
@@ -30,7 +30,7 @@ export function registerDbqIpc(): void {
       return [] as { name: string; path: string }[]
     }
   })
-  handle('dbq:read', ({ connId, name }) => {
+  handle(Channel.Dbq.Read, ({ connId, name }) => {
     const dir = dbqDir(connId)
     const safe = dbqSafe(name)
     if (!dir || !safe) return ''
@@ -40,7 +40,7 @@ export function registerDbqIpc(): void {
       return ''
     }
   })
-  handle('dbq:write', ({ connId, name, sql }) => {
+  handle(Channel.Dbq.Write, ({ connId, name, sql }) => {
     const dir = dbqDir(connId)
     const safe = dbqSafe(name)
     if (!dir || !safe) return false
@@ -52,7 +52,7 @@ export function registerDbqIpc(): void {
       return false
     }
   })
-  handle('dbq:delete', ({ connId, name }) => {
+  handle(Channel.Dbq.Delete, ({ connId, name }) => {
     const dir = dbqDir(connId)
     const safe = dbqSafe(name)
     if (!dir || !safe) return false

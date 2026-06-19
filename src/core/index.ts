@@ -32,7 +32,7 @@ import { registerBacklogIpc } from '@services/backlog/backlog.main'
 import { registerZshIpc } from '@services/zsh/zsh.main'
 import { registerIosIpc } from '@services/ios/ios.main'
 import { registerTerminalIpc } from '@services/terminal/terminal.main'
-import { emit } from '@services/channels.main'
+import { emit, Channel } from '@services/channels.main'
 import {
   createMainWindow,
   getMainWindow,
@@ -193,7 +193,7 @@ app.on('before-quit', (e) => {
     !mainWindow.webContents.isDestroyed()
   ) {
     e.preventDefault()
-    emit(mainWindow.webContents, 'app:quitting')
+    emit(mainWindow.webContents, Channel.App.Quitting)
     setTimeout(() => {
       didFlushState = true
       app.quit()

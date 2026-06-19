@@ -3,6 +3,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
 import * as pty from 'node-pty'
+import { Channel } from '@services/channels'
 
 // Dependencies the manager can't own itself yet: the main window (created in
 // index.ts) and the ZDOTDIR shell-integration state (set up alongside the shim).
@@ -91,14 +92,14 @@ export function create(
   // So every callback body must be wrapped to never throw back into native code.
   p.onData((data) => {
     try {
-      sendToOwner(id, 'pty:data', { id, data })
+      sendToOwner(id, Channel.Pty.Data, { id, data })
     } catch {
       /* renderer gone / frame disposed — never let it reach node-pty */
     }
   })
   p.onExit(() => {
     try {
-      sendToOwner(id, 'pty:exit', { id })
+      sendToOwner(id, Channel.Pty.Exit, { id })
     } catch {
       /* ignore: same teardown race as above */
     }

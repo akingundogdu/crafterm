@@ -1,5 +1,5 @@
 import { shell } from 'electron'
-import { handle, on } from '@services/channels.main'
+import { handle, on, Channel } from '@services/channels.main'
 import { existsSync, mkdirSync } from 'fs'
 import * as notebook from '@core/services/notebook.service'
 import { notebooksDir } from '@core/services/paths'
@@ -8,7 +8,7 @@ import { notebooksDir } from '@core/services/paths'
 // <stateDir>/notebooks. Tree operations live in services/notebook.service.ts;
 // these handlers resolve the base dir and delegate.
 export function registerNotebookIpc(): void {
-  handle('notebook:tree', () => {
+  handle(Channel.Notebook.Tree, () => {
     try {
       mkdirSync(notebooksDir(), { recursive: true })
     } catch {
@@ -16,17 +16,17 @@ export function registerNotebookIpc(): void {
     }
     return notebook.tree(notebooksDir())
   })
-  handle('notebook:read', ({ path }) => notebook.read(notebooksDir(), path))
-  on('notebook:write', ({ path, content }) => {
+  handle(Channel.Notebook.Read, ({ path }) => notebook.read(notebooksDir(), path))
+  on(Channel.Notebook.Write, ({ path, content }) => {
     notebook.write(notebooksDir(), path, content)
   })
-  handle('notebook:mkdir', ({ path }) => notebook.mkdir(notebooksDir(), path))
-  handle('notebook:create', ({ path }) => notebook.create(notebooksDir(), path))
-  handle('notebook:rename', ({ path, name }) => notebook.rename(notebooksDir(), path, name))
-  handle('notebook:move', ({ src, destDir }) => notebook.move(notebooksDir(), src, destDir))
-  on('notebook:reveal', ({ path }) => {
+  handle(Channel.Notebook.Mkdir, ({ path }) => notebook.mkdir(notebooksDir(), path))
+  handle(Channel.Notebook.Create, ({ path }) => notebook.create(notebooksDir(), path))
+  handle(Channel.Notebook.Rename, ({ path, name }) => notebook.rename(notebooksDir(), path, name))
+  handle(Channel.Notebook.Move, ({ src, destDir }) => notebook.move(notebooksDir(), src, destDir))
+  on(Channel.Notebook.Reveal, ({ path }) => {
     const p = notebook.resolve(notebooksDir(), path)
     if (p && existsSync(p)) shell.showItemInFolder(p)
   })
-  handle('notebook:delete', ({ path }) => notebook.del(notebooksDir(), path))
+  handle(Channel.Notebook.Delete, ({ path }) => notebook.del(notebooksDir(), path))
 }

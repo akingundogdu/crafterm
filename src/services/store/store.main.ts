@@ -1,4 +1,4 @@
-import { handle, on } from '@services/channels.main'
+import { handle, on, Channel } from '@services/channels.main'
 import { join } from 'path'
 import {
   existsSync,
@@ -39,7 +39,7 @@ function backupStateBeforeMigration(raw: string): void {
 
 // Tiny JSON store (saved layout + theme) at <stateDir>/crafterm-state.json.
 export function registerStoreIpc(): void {
-  handle('store:load', () => {
+  handle(Channel.Store.Load, () => {
     try {
       if (!existsSync(statePath())) return null
       const raw = readFileSync(statePath(), 'utf8')
@@ -53,7 +53,7 @@ export function registerStoreIpc(): void {
     }
   })
 
-  on('store:save', (data) => {
+  on(Channel.Store.Save, (data) => {
     try {
       mkdirSync(stateDir(), { recursive: true })
       // Atomic write: a hard kill mid-write would otherwise leave a truncated JSON

@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { mkdirSync, watch as fsWatch, type FSWatcher } from 'fs'
+import { emit, Channel } from '@services/channels.main'
 
 // Live fs watchers per <repo>/docs/plans dir. A change there means a plan file
 // was created/renamed/removed, so we broadcast `plans:changed` to every window
@@ -10,7 +11,7 @@ const timers = new Map<string, NodeJS.Timeout>()
 function broadcast(plansDir: string): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-      win.webContents.send('plans:changed', { plansDir })
+      emit(win.webContents, Channel.Plans.Changed, { plansDir })
     }
   }
 }

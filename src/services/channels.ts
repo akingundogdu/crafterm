@@ -4,10 +4,11 @@
 // (call/send/listen); both derive their param + return types from this registry,
 // so a channel typo or a main↔client type drift fails at compile time.
 //
-// Channel-string format stays Electron-conventional ('<domain>:<verb>'); only the
-// *location* (here, not scattered) and *typing* change. The req/res type
-// definitions are imported from each domain's *.types.ts — central wiring,
-// dispersed types.
+// Channel-string format stays Electron-conventional ('<domain>:<verb>'), but the
+// literal lives in ONE place — the `Channel` namespace below. Call sites reference
+// `Channel.Domain.Verb` (never a raw string); the registry is keyed by the same
+// const, so the wire string is declared exactly once. The req/res type definitions
+// are imported from each domain's *.types.ts — central wiring, dispersed types.
 import type {
   PtyCreateOptions,
   ProcStartOptions,
@@ -53,6 +54,211 @@ import type { IosWorktreeReport, IosTargets, SavedIosConfig } from './ios/ios.ty
 import type { BuildInfo, RepoGit, DeployResult, ZshCommand, BacklogFile } from './app/app.types'
 import type { SavedState } from './storage/state.types'
 
+// ---- The channel names, grouped by domain ----
+// The ONLY place a wire string ('<domain>:<verb>') is written. Call sites use
+// `Channel.Domain.Verb`; the registry below is keyed by these same values.
+export const Channel = {
+  Pty: {
+    Create: 'pty:create',
+    Input: 'pty:input',
+    Resize: 'pty:resize',
+    Kill: 'pty:kill',
+    Adopt: 'pty:adopt',
+    Data: 'pty:data',
+    Exit: 'pty:exit'
+  },
+  Pane: {
+    Info: 'pane:info',
+    Focus: 'focus-pane'
+  },
+  Menu: {
+    ClosePane: 'menu:close-pane'
+  },
+  Popout: {
+    Open: 'popout:open',
+    CloseConfirmed: 'popout:close-confirmed',
+    Focus: 'popout:focus',
+    Killed: 'popout:killed',
+    ConfirmClose: 'popout:confirm-close'
+  },
+  Proc: {
+    Start: 'proc:start',
+    Buffer: 'proc:buffer',
+    Attach: 'proc:attach',
+    Exit: 'proc:exit'
+  },
+  Git: {
+    Branches: 'git:branches',
+    StashList: 'git:stashList',
+    FileStatus: 'git:fileStatus',
+    Worktrees: 'git:worktrees',
+    WorktreeAdd: 'git:worktreeAdd'
+  },
+  Dir: {
+    List: 'dir:list'
+  },
+  Fs: {
+    ListEntries: 'fs:listEntries',
+    FindFiles: 'fs:findFiles',
+    ResolveFile: 'fs:resolveFile',
+    ReadMd: 'fs:readMd',
+    ReadText: 'fs:readText',
+    WriteMd: 'fs:writeMd',
+    WriteText: 'fs:writeText',
+    CreateFile: 'fs:createFile',
+    Mkdir: 'fs:mkdir',
+    Rename: 'fs:rename',
+    Trash: 'fs:trash',
+    ResolveImport: 'fs:resolveImport'
+  },
+  Md: {
+    FindAll: 'md:findAll'
+  },
+  Ide: {
+    Open: 'ide:open'
+  },
+  Shell: {
+    OpenPath: 'shell:openPath',
+    RevealPath: 'shell:revealPath'
+  },
+  Markdown: {
+    Open: 'markdown:open'
+  },
+  Claude: {
+    LatestSession: 'claude:latestSession',
+    SessionCwd: 'claude:sessionCwd',
+    Sessions: 'claude:sessions',
+    SessionTitle: 'claude:sessionTitle',
+    SessionStatus: 'claude:sessionStatus',
+    PermissionMode: 'claude:permissionMode',
+    WatchSessions: 'claude:watchSessions',
+    SessionsChanged: 'claude:sessionsChanged',
+    UsageSummary: 'claude:usageSummary',
+    RealUsage: 'claude:realUsage'
+  },
+  Notebook: {
+    Tree: 'notebook:tree',
+    Read: 'notebook:read',
+    Write: 'notebook:write',
+    Mkdir: 'notebook:mkdir',
+    Create: 'notebook:create',
+    Rename: 'notebook:rename',
+    Move: 'notebook:move',
+    Delete: 'notebook:delete',
+    Reveal: 'notebook:reveal'
+  },
+  Plans: {
+    List: 'plans:list',
+    ForBranch: 'plans:forBranch',
+    Scan: 'plans:scan',
+    Changed: 'plans:changed'
+  },
+  Db: {
+    Connect: 'db:connect',
+    Objects: 'db:objects',
+    Columns: 'db:columns',
+    Query: 'db:query',
+    Disconnect: 'db:disconnect'
+  },
+  Dbq: {
+    List: 'dbq:list',
+    Read: 'dbq:read',
+    Write: 'dbq:write',
+    Delete: 'dbq:delete'
+  },
+  Docker: {
+    Available: 'docker:available',
+    Containers: 'docker:containers',
+    Images: 'docker:images',
+    Volumes: 'docker:volumes',
+    Networks: 'docker:networks',
+    Compose: 'docker:compose',
+    Stats: 'docker:stats',
+    Inspect: 'docker:inspect',
+    Logs: 'docker:logs',
+    Action: 'docker:action',
+    Prune: 'docker:prune'
+  },
+  Pr: {
+    Available: 'pr:available',
+    List: 'pr:list',
+    Repos: 'pr:repos',
+    ListAll: 'pr:list-all',
+    Merge: 'pr:merge',
+    View: 'pr:view',
+    Diff: 'pr:diff',
+    Comment: 'pr:comment'
+  },
+  Gh: {
+    Runs: 'gh:runs',
+    RunJobs: 'gh:run-jobs',
+    Deployments: 'gh:deployments',
+    DeploysAll: 'gh:deploys-all'
+  },
+  Secrets: {
+    Available: 'secrets:available',
+    Get: 'secrets:get',
+    Set: 'secrets:set',
+    Delete: 'secrets:delete'
+  },
+  IosWorktree: {
+    ScriptPath: 'iosWorktree:scriptPath',
+    Report: 'iosWorktree:report',
+    Stop: 'iosWorktree:stop'
+  },
+  Ios: {
+    ListTargets: 'ios:listTargets',
+    ListSchemes: 'ios:listSchemes'
+  },
+  App: {
+    Version: 'app:version',
+    BuildInfo: 'app:buildInfo',
+    BuildCounter: 'app:buildCounter',
+    RepoGit: 'app:repoGit',
+    Quitting: 'app:quitting'
+  },
+  Deploy: {
+    Build: 'deploy:build',
+    KillAllPtys: 'deploy:killAllPtys',
+    Swap: 'deploy:swap',
+    WasUpdating: 'deploy:wasUpdating'
+  },
+  External: {
+    Open: 'open-external'
+  },
+  Notify: {
+    Show: 'notify'
+  },
+  Monaco: {
+    Theme: 'monaco:theme'
+  },
+  Zsh: {
+    Commands: 'zsh:commands'
+  },
+  Todo: {
+    Read: 'todo:read',
+    Write: 'todo:write'
+  },
+  Backlog: {
+    Read: 'backlog:read'
+  },
+  Sound: {
+    Play: 'sound:play',
+    Event: 'sound:event'
+  },
+  Window: {
+    Fullscreen: 'window:fullscreen'
+  },
+  ImproveWindow: {
+    Open: 'improve-window:open',
+    SetAlwaysOnTop: 'improve-window:set-always-on-top'
+  },
+  Store: {
+    Load: 'store:load',
+    Save: 'store:save'
+  }
+} as const
+
 // ---- Channel-kind markers (phantom-typed; carry no runtime payload) ----
 // rpc = request/response (invoke ↔ handle). msg = renderer→main one-way (send ↔ on).
 // evt = main→renderer push (webContents.send ↔ on).
@@ -60,141 +266,143 @@ export const rpc = <Req, Res>(): { kind: 'rpc'; __req: Req; __res: Res } => ({ k
 export const msg = <Req>(): { kind: 'msg'; __req: Req } => ({ kind: 'msg' }) as never
 export const evt = <Payload>(): { kind: 'evt'; __payload: Payload } => ({ kind: 'evt' }) as never
 
+// The registry is keyed by the `Channel` const, so the wire string is declared
+// once (above) and the types are wired here.
 export const channels = {
   // ── terminal / pty ──
-  'pty:create': rpc<PtyCreateOptions, string>(),
-  'pty:input': msg<{ id: string; data: string }>(),
-  'pty:resize': msg<{ id: string; cols: number; rows: number }>(),
-  'pty:kill': msg<{ id: string }>(),
-  'pty:adopt': msg<{ id: string }>(),
-  'pty:data': evt<PtyDataEvent>(),
-  'pty:exit': evt<{ id: string }>(),
-  'pane:info': rpc<{ id: string; stableId?: string }, PaneInfo>(),
-  'menu:close-pane': evt<void>(),
-  'focus-pane': evt<{ id: string }>(),
-  'popout:open': rpc<{ paneId: string; title?: string }, void>(),
-  'popout:close-confirmed': msg<{ id: string }>(),
-  'popout:focus': msg<{ id: string }>(),
-  'popout:killed': evt<{ id: string }>(),
-  'popout:confirm-close': evt<{ id: string }>(),
-  'proc:start': rpc<ProcStartOptions, string>(),
-  'proc:buffer': rpc<{ id: string }, string>(),
-  'proc:attach': msg<{ id: string }>(),
-  'proc:exit': evt<ProcExitEvent>(),
+  [Channel.Pty.Create]: rpc<PtyCreateOptions, string>(),
+  [Channel.Pty.Input]: msg<{ id: string; data: string }>(),
+  [Channel.Pty.Resize]: msg<{ id: string; cols: number; rows: number }>(),
+  [Channel.Pty.Kill]: msg<{ id: string }>(),
+  [Channel.Pty.Adopt]: msg<{ id: string }>(),
+  [Channel.Pty.Data]: evt<PtyDataEvent>(),
+  [Channel.Pty.Exit]: evt<{ id: string }>(),
+  [Channel.Pane.Info]: rpc<{ id: string; stableId?: string }, PaneInfo>(),
+  [Channel.Menu.ClosePane]: evt<void>(),
+  [Channel.Pane.Focus]: evt<{ id: string }>(),
+  [Channel.Popout.Open]: rpc<{ paneId: string; title?: string }, void>(),
+  [Channel.Popout.CloseConfirmed]: msg<{ id: string }>(),
+  [Channel.Popout.Focus]: msg<{ id: string }>(),
+  [Channel.Popout.Killed]: evt<{ id: string }>(),
+  [Channel.Popout.ConfirmClose]: evt<{ id: string }>(),
+  [Channel.Proc.Start]: rpc<ProcStartOptions, string>(),
+  [Channel.Proc.Buffer]: rpc<{ id: string }, string>(),
+  [Channel.Proc.Attach]: msg<{ id: string }>(),
+  [Channel.Proc.Exit]: evt<ProcExitEvent>(),
 
   // ── git ──
-  'git:branches': rpc<{ id: string }, string[]>(),
-  'git:stashList': rpc<{ id: string }, GitStash[]>(),
-  'git:fileStatus': rpc<{ cwd?: string }, GitFileStatus>(),
-  'git:worktrees': rpc<{ cwd?: string }, WorktreeListing>(),
-  'git:worktreeAdd': rpc<
+  [Channel.Git.Branches]: rpc<{ id: string }, string[]>(),
+  [Channel.Git.StashList]: rpc<{ id: string }, GitStash[]>(),
+  [Channel.Git.FileStatus]: rpc<{ cwd?: string }, GitFileStatus>(),
+  [Channel.Git.Worktrees]: rpc<{ cwd?: string }, WorktreeListing>(),
+  [Channel.Git.WorktreeAdd]: rpc<
     { repo: string; path: string; branch: string; base?: string },
     boolean
   >(),
 
   // ── fs (dir/md/fs/ide/shell/markdown) ──
-  'dir:list': rpc<{ path?: string }, DirListing>(),
-  'fs:listEntries': rpc<{ path?: string }, FsEntryListing>(),
-  'md:findAll': rpc<{ root?: string }, MarkdownFiles>(),
-  'fs:findFiles': rpc<{ root?: string; exclude?: string[] }, MarkdownFiles>(),
-  'fs:resolveFile': rpc<{ base: string; rel: string }, string | null>(),
-  'fs:readMd': rpc<{ path: string }, string>(),
-  'fs:readText': rpc<{ path: string }, ReadTextResult>(),
-  'fs:writeMd': rpc<{ path: string; content: string }, boolean>(),
-  'fs:writeText': rpc<{ path: string; content: string }, boolean>(),
-  'fs:createFile': rpc<{ path: string }, boolean>(),
-  'fs:mkdir': rpc<{ path: string }, boolean>(),
-  'fs:rename': rpc<{ from: string; to: string }, boolean>(),
-  'fs:trash': rpc<{ path: string }, boolean>(),
-  'fs:resolveImport': rpc<
+  [Channel.Dir.List]: rpc<{ path?: string }, DirListing>(),
+  [Channel.Fs.ListEntries]: rpc<{ path?: string }, FsEntryListing>(),
+  [Channel.Md.FindAll]: rpc<{ root?: string }, MarkdownFiles>(),
+  [Channel.Fs.FindFiles]: rpc<{ root?: string; exclude?: string[] }, MarkdownFiles>(),
+  [Channel.Fs.ResolveFile]: rpc<{ base: string; rel: string }, string | null>(),
+  [Channel.Fs.ReadMd]: rpc<{ path: string }, string>(),
+  [Channel.Fs.ReadText]: rpc<{ path: string }, ReadTextResult>(),
+  [Channel.Fs.WriteMd]: rpc<{ path: string; content: string }, boolean>(),
+  [Channel.Fs.WriteText]: rpc<{ path: string; content: string }, boolean>(),
+  [Channel.Fs.CreateFile]: rpc<{ path: string }, boolean>(),
+  [Channel.Fs.Mkdir]: rpc<{ path: string }, boolean>(),
+  [Channel.Fs.Rename]: rpc<{ from: string; to: string }, boolean>(),
+  [Channel.Fs.Trash]: rpc<{ path: string }, boolean>(),
+  [Channel.Fs.ResolveImport]: rpc<
     { fromFile: string; spec: string; symbol?: string },
     ImportResolution | null
   >(),
-  'ide:open': msg<{ path: string; ide: string }>(),
-  'shell:openPath': msg<{ path: string }>(),
-  'shell:revealPath': msg<{ path: string }>(),
-  'markdown:open': msg<{ path: string }>(),
+  [Channel.Ide.Open]: msg<{ path: string; ide: string }>(),
+  [Channel.Shell.OpenPath]: msg<{ path: string }>(),
+  [Channel.Shell.RevealPath]: msg<{ path: string }>(),
+  [Channel.Markdown.Open]: msg<{ path: string }>(),
 
   // ── claude ──
-  'claude:latestSession': rpc<{ cwd?: string; since?: number }, string | null>(),
-  'claude:sessionCwd': rpc<{ sessionId: string }, string | null>(),
-  'claude:sessions': rpc<void, ClaudeSession[]>(),
-  'claude:sessionTitle': rpc<{ cwd: string; sessionId: string }, string | null>(),
-  'claude:sessionStatus': rpc<
+  [Channel.Claude.LatestSession]: rpc<{ cwd?: string; since?: number }, string | null>(),
+  [Channel.Claude.SessionCwd]: rpc<{ sessionId: string }, string | null>(),
+  [Channel.Claude.Sessions]: rpc<void, ClaudeSession[]>(),
+  [Channel.Claude.SessionTitle]: rpc<{ cwd: string; sessionId: string }, string | null>(),
+  [Channel.Claude.SessionStatus]: rpc<
     { cwd: string; sessionId: string },
     ClaudeSessionStatus | null
   >(),
-  'claude:permissionMode': rpc<{ cwd: string; sessionId: string }, string | null>(),
-  'claude:watchSessions': rpc<{ cwd: string }, boolean>(),
-  'claude:sessionsChanged': evt<{ cwd: string }>(),
-  'claude:usageSummary': rpc<void, ClaudeUsageSummary>(),
-  'claude:realUsage': rpc<ClaudeRealUsageOptions, ClaudeRealUsage>(),
+  [Channel.Claude.PermissionMode]: rpc<{ cwd: string; sessionId: string }, string | null>(),
+  [Channel.Claude.WatchSessions]: rpc<{ cwd: string }, boolean>(),
+  [Channel.Claude.SessionsChanged]: evt<{ cwd: string }>(),
+  [Channel.Claude.UsageSummary]: rpc<void, ClaudeUsageSummary>(),
+  [Channel.Claude.RealUsage]: rpc<ClaudeRealUsageOptions, ClaudeRealUsage>(),
 
   // ── notebook ──
-  'notebook:tree': rpc<void, NbNode[]>(),
-  'notebook:read': rpc<{ path: string }, string>(),
-  'notebook:write': msg<{ path: string; content: string }>(),
-  'notebook:mkdir': rpc<{ path: string }, boolean>(),
-  'notebook:create': rpc<{ path: string }, boolean>(),
-  'notebook:rename': rpc<{ path: string; name: string }, boolean>(),
-  'notebook:move': rpc<{ src: string; destDir: string }, boolean>(),
-  'notebook:delete': rpc<{ path: string }, boolean>(),
-  'notebook:reveal': msg<{ path: string }>(),
+  [Channel.Notebook.Tree]: rpc<void, NbNode[]>(),
+  [Channel.Notebook.Read]: rpc<{ path: string }, string>(),
+  [Channel.Notebook.Write]: msg<{ path: string; content: string }>(),
+  [Channel.Notebook.Mkdir]: rpc<{ path: string }, boolean>(),
+  [Channel.Notebook.Create]: rpc<{ path: string }, boolean>(),
+  [Channel.Notebook.Rename]: rpc<{ path: string; name: string }, boolean>(),
+  [Channel.Notebook.Move]: rpc<{ src: string; destDir: string }, boolean>(),
+  [Channel.Notebook.Delete]: rpc<{ path: string }, boolean>(),
+  [Channel.Notebook.Reveal]: msg<{ path: string }>(),
 
   // ── plans ──
-  'plans:list': rpc<void, DirEntry[]>(),
-  'plans:forBranch': rpc<{ cwd: string; branch: string }, PlanForBranch[]>(),
-  'plans:scan': rpc<{ paths: string[] }, PlanScanEntry[]>(),
-  'plans:changed': evt<{ plansDir: string }>(),
+  [Channel.Plans.List]: rpc<void, DirEntry[]>(),
+  [Channel.Plans.ForBranch]: rpc<{ cwd: string; branch: string }, PlanForBranch[]>(),
+  [Channel.Plans.Scan]: rpc<{ paths: string[] }, PlanScanEntry[]>(),
+  [Channel.Plans.Changed]: evt<{ plansDir: string }>(),
 
   // ── db / dbq ──
-  'db:connect': rpc<{ config: DbConfig }, { ok: boolean; error?: string }>(),
-  'db:objects': rpc<{ config: DbConfig }, DbObjects>(),
-  'db:columns': rpc<{ config: DbConfig; table: string }, DbColumns>(),
-  'db:query': rpc<{ config: DbConfig; sql: string }, DbResult>(),
-  'db:disconnect': rpc<{ id: string }, boolean>(),
-  'dbq:list': rpc<{ connId: string }, SavedQueryRef[]>(),
-  'dbq:read': rpc<{ connId: string; name: string }, string>(),
-  'dbq:write': rpc<{ connId: string; name: string; sql: string }, boolean>(),
-  'dbq:delete': rpc<{ connId: string; name: string }, boolean>(),
+  [Channel.Db.Connect]: rpc<{ config: DbConfig }, { ok: boolean; error?: string }>(),
+  [Channel.Db.Objects]: rpc<{ config: DbConfig }, DbObjects>(),
+  [Channel.Db.Columns]: rpc<{ config: DbConfig; table: string }, DbColumns>(),
+  [Channel.Db.Query]: rpc<{ config: DbConfig; sql: string }, DbResult>(),
+  [Channel.Db.Disconnect]: rpc<{ id: string }, boolean>(),
+  [Channel.Dbq.List]: rpc<{ connId: string }, SavedQueryRef[]>(),
+  [Channel.Dbq.Read]: rpc<{ connId: string; name: string }, string>(),
+  [Channel.Dbq.Write]: rpc<{ connId: string; name: string; sql: string }, boolean>(),
+  [Channel.Dbq.Delete]: rpc<{ connId: string; name: string }, boolean>(),
 
   // ── docker ──
-  'docker:available': rpc<void, DockerAvailable>(),
-  'docker:containers': rpc<void, DockerRow[]>(),
-  'docker:images': rpc<void, DockerRow[]>(),
-  'docker:volumes': rpc<void, DockerRow[]>(),
-  'docker:networks': rpc<void, DockerRow[]>(),
-  'docker:compose': rpc<void, DockerRow[]>(),
-  'docker:stats': rpc<void, DockerRow[]>(),
-  'docker:inspect': rpc<{ kind: DockerKind; id: string }, string>(),
-  'docker:logs': rpc<{ id: string; tail?: number }, string>(),
-  'docker:action': rpc<
+  [Channel.Docker.Available]: rpc<void, DockerAvailable>(),
+  [Channel.Docker.Containers]: rpc<void, DockerRow[]>(),
+  [Channel.Docker.Images]: rpc<void, DockerRow[]>(),
+  [Channel.Docker.Volumes]: rpc<void, DockerRow[]>(),
+  [Channel.Docker.Networks]: rpc<void, DockerRow[]>(),
+  [Channel.Docker.Compose]: rpc<void, DockerRow[]>(),
+  [Channel.Docker.Stats]: rpc<void, DockerRow[]>(),
+  [Channel.Docker.Inspect]: rpc<{ kind: DockerKind; id: string }, string>(),
+  [Channel.Docker.Logs]: rpc<{ id: string; tail?: number }, string>(),
+  [Channel.Docker.Action]: rpc<
     { kind: DockerKind | 'compose'; action: string; id: string; configFile?: string },
     DockerActionResult
   >(),
-  'docker:prune': rpc<{ target: string }, DockerPruneResult>(),
+  [Channel.Docker.Prune]: rpc<{ target: string }, DockerPruneResult>(),
 
   // ── pr / gh ──
-  'pr:available': rpc<{ cwd: string }, { ok: boolean; repo?: string; error?: string }>(),
-  'pr:list': rpc<{ cwd: string }, { ok: boolean; error?: string; prs: PullRequest[] }>(),
-  'pr:repos': rpc<
+  [Channel.Pr.Available]: rpc<{ cwd: string }, { ok: boolean; repo?: string; error?: string }>(),
+  [Channel.Pr.List]: rpc<{ cwd: string }, { ok: boolean; error?: string; prs: PullRequest[] }>(),
+  [Channel.Pr.Repos]: rpc<
     { root: string },
     { ok: boolean; error?: string; repos: { name: string; path: string }[] }
   >(),
-  'pr:list-all': rpc<
+  [Channel.Pr.ListAll]: rpc<
     { root: string; paths: string[] },
     { ok: boolean; error?: string; projects: ProjectPullRequests[] }
   >(),
-  'pr:merge': rpc<
+  [Channel.Pr.Merge]: rpc<
     { cwd: string; number: number; method: string },
     { ok: boolean; error?: string }
   >(),
-  'pr:view': rpc<{ cwd: string; number: number }, string>(),
-  'pr:diff': rpc<
+  [Channel.Pr.View]: rpc<{ cwd: string; number: number }, string>(),
+  [Channel.Pr.Diff]: rpc<
     { cwd: string; number: number },
     { ok: boolean; patch?: string; error?: string }
   >(),
-  'pr:comment': rpc<
+  [Channel.Pr.Comment]: rpc<
     {
       cwd: string
       number: number
@@ -205,59 +413,59 @@ export const channels = {
     },
     { ok: boolean; error?: string }
   >(),
-  'gh:runs': rpc<{ cwd: string }, { ok: boolean; error?: string; runs: WorkflowRun[] }>(),
-  'gh:run-jobs': rpc<{ cwd: string; id: number }, string>(),
-  'gh:deployments': rpc<
+  [Channel.Gh.Runs]: rpc<{ cwd: string }, { ok: boolean; error?: string; runs: WorkflowRun[] }>(),
+  [Channel.Gh.RunJobs]: rpc<{ cwd: string; id: number }, string>(),
+  [Channel.Gh.Deployments]: rpc<
     { cwd: string },
     { ok: boolean; error?: string; deployments: DeploymentStatus[] }
   >(),
-  'gh:deploys-all': rpc<
+  [Channel.Gh.DeploysAll]: rpc<
     { root: string; paths: string[] },
     { ok: boolean; error?: string; projects: ProjectDeployments[] }
   >(),
 
   // ── secrets ──
-  'secrets:available': rpc<void, boolean>(),
-  'secrets:get': rpc<{ entryId: string; key: string }, string | null>(),
-  'secrets:set': rpc<{ entryId: string; key: string; value: string }, SecretsResult>(),
-  'secrets:delete': rpc<{ entryId: string; key?: string }, SecretsResult>(),
+  [Channel.Secrets.Available]: rpc<void, boolean>(),
+  [Channel.Secrets.Get]: rpc<{ entryId: string; key: string }, string | null>(),
+  [Channel.Secrets.Set]: rpc<{ entryId: string; key: string; value: string }, SecretsResult>(),
+  [Channel.Secrets.Delete]: rpc<{ entryId: string; key?: string }, SecretsResult>(),
 
   // ── ios ──
-  'iosWorktree:scriptPath': rpc<void, string>(),
-  'iosWorktree:report': rpc<
+  [Channel.IosWorktree.ScriptPath]: rpc<void, string>(),
+  [Channel.IosWorktree.Report]: rpc<
     { repoRoot: string; cfg?: SavedIosConfig },
     IosWorktreeReport | null
   >(),
-  'iosWorktree:stop': rpc<{ worktreePath: string; cfg?: SavedIosConfig }, boolean>(),
-  'ios:listTargets': rpc<void, IosTargets>(),
-  'ios:listSchemes': rpc<{ repoRoot: string; cfg?: SavedIosConfig }, string[]>(),
+  [Channel.IosWorktree.Stop]: rpc<{ worktreePath: string; cfg?: SavedIosConfig }, boolean>(),
+  [Channel.Ios.ListTargets]: rpc<void, IosTargets>(),
+  [Channel.Ios.ListSchemes]: rpc<{ repoRoot: string; cfg?: SavedIosConfig }, string[]>(),
 
   // ── app / deploy / monaco / zsh / todo / backlog / sound / improve-window ──
-  'app:version': rpc<void, string>(),
-  'app:buildInfo': rpc<void, BuildInfo | null>(),
-  'app:buildCounter': rpc<{ repoPath: string }, number | null>(),
-  'app:repoGit': rpc<{ repoPath: string }, RepoGit | null>(),
-  'deploy:build': rpc<{ repoPath: string; command: string }, DeployResult>(),
-  'deploy:killAllPtys': rpc<void, boolean>(),
-  'deploy:swap': rpc<{ repoPath: string }, boolean>(),
-  'deploy:wasUpdating': rpc<void, boolean>(),
-  'open-external': msg<{ url: string }>(),
-  'notify': msg<{ title: string; body: string; paneId?: string }>(),
-  'monaco:theme': rpc<{ name: string }, Record<string, unknown> | null>(),
-  'zsh:commands': rpc<void, ZshCommand[]>(),
-  'todo:read': rpc<{ path?: string }, string | null>(),
-  'todo:write': rpc<{ path: string; content: string }, boolean>(),
-  'backlog:read': rpc<void, BacklogFile | null>(),
-  'sound:play': msg<{ name: string }>(),
-  'sound:event': msg<{ event: 'question' | 'done' }>(),
-  'app:quitting': evt<void>(),
-  'window:fullscreen': evt<boolean>(),
-  'improve-window:open': rpc<void, void>(),
-  'improve-window:set-always-on-top': msg<{ value: boolean }>(),
+  [Channel.App.Version]: rpc<void, string>(),
+  [Channel.App.BuildInfo]: rpc<void, BuildInfo | null>(),
+  [Channel.App.BuildCounter]: rpc<{ repoPath: string }, number | null>(),
+  [Channel.App.RepoGit]: rpc<{ repoPath: string }, RepoGit | null>(),
+  [Channel.Deploy.Build]: rpc<{ repoPath: string; command: string }, DeployResult>(),
+  [Channel.Deploy.KillAllPtys]: rpc<void, boolean>(),
+  [Channel.Deploy.Swap]: rpc<{ repoPath: string }, boolean>(),
+  [Channel.Deploy.WasUpdating]: rpc<void, boolean>(),
+  [Channel.External.Open]: msg<{ url: string }>(),
+  [Channel.Notify.Show]: msg<{ title: string; body: string; paneId?: string }>(),
+  [Channel.Monaco.Theme]: rpc<{ name: string }, Record<string, unknown> | null>(),
+  [Channel.Zsh.Commands]: rpc<void, ZshCommand[]>(),
+  [Channel.Todo.Read]: rpc<{ path?: string }, string | null>(),
+  [Channel.Todo.Write]: rpc<{ path: string; content: string }, boolean>(),
+  [Channel.Backlog.Read]: rpc<void, BacklogFile | null>(),
+  [Channel.Sound.Play]: msg<{ name: string }>(),
+  [Channel.Sound.Event]: msg<{ event: 'question' | 'done' }>(),
+  [Channel.App.Quitting]: evt<void>(),
+  [Channel.Window.Fullscreen]: evt<boolean>(),
+  [Channel.ImproveWindow.Open]: rpc<void, void>(),
+  [Channel.ImproveWindow.SetAlwaysOnTop]: msg<{ value: boolean }>(),
 
   // ── store ──
-  'store:load': rpc<void, SavedState | null>(),
-  'store:save': msg<SavedState>()
+  [Channel.Store.Load]: rpc<void, SavedState | null>(),
+  [Channel.Store.Save]: msg<SavedState>()
 } as const
 
 export type Channels = typeof channels

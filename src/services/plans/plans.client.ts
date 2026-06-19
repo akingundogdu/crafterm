@@ -1,9 +1,9 @@
-import { call, listen } from '../channels.client'
+import { call, listen, Channel } from '../channels.client'
 
 // Plans IPC (~/.claude/plans + project docs/plans scan + live watch).
 export const plansService = {
-  list: () => call('plans:list'),
-  forBranch: (cwd: string, branch: string) => call('plans:forBranch', { cwd, branch }),
-  scan: (paths: string[]) => call('plans:scan', { paths }),
-  onChanged: (cb: (plansDir: string) => void) => listen('plans:changed', (p) => cb(p.plansDir))
+  list: () => call(Channel.Plans.List),
+  forBranch: (cwd: string, branch: string) => call(Channel.Plans.ForBranch, { cwd, branch }),
+  scan: (paths: string[]) => call(Channel.Plans.Scan, { paths }),
+  onChanged: (cb: (plansDir: string) => void) => listen(Channel.Plans.Changed, (p) => cb(p.plansDir))
 }

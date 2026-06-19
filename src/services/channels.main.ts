@@ -2,6 +2,10 @@ import { ipcMain } from 'electron'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import type { ChannelName, ReqOf, ResOf, PayloadOf, RpcChannel, MsgChannel, EvtChannel } from './channels'
 
+// Re-export the channel-name namespace so main-side modules import their handlers
+// and the channel constants from one place.
+export { Channel } from './channels'
+
 // MAIN-side typed IPC wrappers, generic over the channel registry. Each `*.main.ts`
 // registers handlers through these instead of touching `ipcMain` with raw channel
 // strings, so the request/response types are checked against channels.ts and can't

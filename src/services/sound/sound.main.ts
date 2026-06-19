@@ -1,4 +1,4 @@
-import { on } from '@services/channels.main'
+import { on, Channel } from '@services/channels.main'
 import { existsSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
@@ -14,12 +14,12 @@ const EVENT_SOUNDS: Record<string, string> = {
 // Sound bridge (sound:*): play macOS system sounds + bundled event sounds.
 export function registerSoundIpc(): void {
   // Play a macOS system sound by name (e.g. "Glass") for notifications.
-  on('sound:play', ({ name }) => {
+  on(Channel.Sound.Play, ({ name }) => {
     if (!name) return
     const p = `/System/Library/Sounds/${name}.aiff`
     if (existsSync(p)) execFile('/usr/bin/afplay', [p], () => {})
   })
-  on('sound:event', ({ event }) => {
+  on(Channel.Sound.Event, ({ event }) => {
     const file = EVENT_SOUNDS[event]
     if (!file) return
     const p = join(soundsDir(), file)
