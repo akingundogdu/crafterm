@@ -9,16 +9,16 @@ import { fmtHM, rangeStart, reportByProject, type Range } from '../../../service
 export function showReport(): void {
   const ov = createOverlay({ closeOnBackdrop: true })
   const modal = document.createElement('div')
-  modal.className = 'modal report-modal'
+  modal.className = 'modal time-report-modal'
   ov.overlay.appendChild(modal)
   modal.appendChild(makeCloseButton(ov.close))
   modal.insertAdjacentHTML('beforeend', '<h2>Time report</h2>')
 
   let range: Range = 'week'
   const chipsRow = document.createElement('div')
-  chipsRow.className = 'report-chips'
+  chipsRow.className = 'time-report-chips'
   const body = document.createElement('div')
-  body.className = 'report-body'
+  body.className = 'time-report-body'
   modal.append(chipsRow, body)
 
   // Plain-text version of the current report, rebuilt on every render so the
@@ -33,7 +33,7 @@ export function showReport(): void {
       chipsRow.appendChild(
         createButton({
           text: r === 'today' ? 'Today' : r === 'week' ? '7 days' : r === 'month' ? '30 days' : 'All',
-          className: 'report-chip' + (r === range ? ' active' : ''),
+          className: 'time-report-chip' + (r === range ? ' active' : ''),
           onClick: () => {
             range = r
             render()
@@ -56,22 +56,22 @@ export function showReport(): void {
       grand += info.total
       const proj = findProjectByPath(state.tree, path)
       const pr = document.createElement('div')
-      pr.className = 'report-row report-proj'
-      pr.innerHTML = `<span class="report-name">${proj?.name ?? path}</span><span class="report-dur">${fmtHM(info.total)}</span>`
+      pr.className = 'time-report-row time-report-proj'
+      pr.innerHTML = `<span class="time-report-name">${proj?.name ?? path}</span><span class="time-report-dur">${fmtHM(info.total)}</span>`
       body.appendChild(pr)
       lines.push(`${proj?.name ?? path}: ${fmtHM(info.total)}`)
       for (const [fid, ms] of [...info.feats].sort((a, b) => b[1] - a[1])) {
         const feat = fid ? findFeature(state.tree, fid)?.feature : null
         const fr = document.createElement('div')
-        fr.className = 'report-row report-feat'
-        fr.innerHTML = `<span class="report-name">${feat?.name ?? '(no feature)'}</span><span class="report-dur">${fmtHM(ms)}</span>`
+        fr.className = 'time-report-row time-report-feat'
+        fr.innerHTML = `<span class="time-report-name">${feat?.name ?? '(no feature)'}</span><span class="time-report-dur">${fmtHM(ms)}</span>`
         body.appendChild(fr)
         lines.push(`  - ${feat?.name ?? '(no feature)'}: ${fmtHM(ms)}`)
       }
     }
     const tot = document.createElement('div')
-    tot.className = 'report-row report-total'
-    tot.innerHTML = `<span class="report-name">Total</span><span class="report-dur">${fmtHM(grand)}</span>`
+    tot.className = 'time-report-row time-report-total'
+    tot.innerHTML = `<span class="time-report-name">Total</span><span class="time-report-dur">${fmtHM(grand)}</span>`
     body.appendChild(tot)
     lines.push('', `Total: ${fmtHM(grand)}`)
     reportText = lines.join('\n')
@@ -79,7 +79,7 @@ export function showReport(): void {
   render()
 
   const foot = document.createElement('div')
-  foot.className = 'report-foot'
+  foot.className = 'time-report-foot'
   const copyBtn = createButton({ text: 'Copy report', className: 'settings-inline-btn' })
   copyBtn.addEventListener('click', () => {
     void navigator.clipboard.writeText(reportText)

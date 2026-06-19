@@ -1,3 +1,4 @@
+import './time.css'
 import { settings, uid, state, panes } from '../../state'
 import { persistence } from '../../services/storage/persistence.service'
 import { promptText } from '../../dialog'
