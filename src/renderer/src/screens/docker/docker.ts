@@ -1,3 +1,4 @@
+import './docker.css'
 import type { DockerRow, DockerKind } from '../../../../preload/api'
 import { openTerminalRunning } from '../../commands'
 import { promptConfirm } from '../../dialog'
