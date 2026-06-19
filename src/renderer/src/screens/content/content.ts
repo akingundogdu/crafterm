@@ -1,3 +1,4 @@
+import '../../popout.css'
 import type { LayoutNode } from '../../types'
 import {
   panes,

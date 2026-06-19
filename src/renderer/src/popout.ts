@@ -1,6 +1,7 @@
 import '@xterm/xterm/css/xterm.css'
 import '../../../packages/crafterm-ui/src/tokens.css'
 import './global.css'
+import './popout.css'
 import './style.css'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
