@@ -9,7 +9,7 @@ import { TYPE_LABEL } from '../bookmark-meta'
 export function showBookmarkForm(existing: Bookmark | undefined, onSaved: () => void): void {
   const m = createModal({
     title: existing ? 'Edit bookmark' : 'New bookmark',
-    className: 'bm-form',
+    className: 'bookmarks-form',
     confirmText: 'Save'
   })
 

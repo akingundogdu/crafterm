@@ -39,22 +39,22 @@ export interface BookmarkCardHandlers {
 
 export function createBookmarkCard(bm: Bookmark, handlers: BookmarkCardHandlers): HTMLElement {
   const el = document.createElement('div')
-  el.className = 'bm-card'
+  el.className = 'bookmarks-card'
 
   const top = document.createElement('div')
-  top.className = 'bm-card-top'
+  top.className = 'bookmarks-card-top'
   const badge = document.createElement('span')
-  badge.className = 'bm-type ' + bm.type
+  badge.className = 'bookmarks-type ' + bm.type
   badge.textContent = TYPE_LABEL[bm.type]
   const title = document.createElement('span')
-  title.className = 'bm-title'
+  title.className = 'bookmarks-title'
   title.textContent = bm.title
   title.title = bm.title
   top.append(badge, title)
   const rem = bookmarkReminder(bm.id)
   if (rem) {
     const chip = document.createElement('span')
-    chip.className = 'bm-remind-badge'
+    chip.className = 'bookmarks-remind-badge'
     chip.textContent = `⏰ ${formatReminderTime(rem.time)}`
     chip.title = 'A reminder is set for this bookmark'
     top.appendChild(chip)
@@ -62,18 +62,18 @@ export function createBookmarkCard(bm: Bookmark, handlers: BookmarkCardHandlers)
   el.appendChild(top)
 
   const body = document.createElement('div')
-  body.className = bm.type === 'code' || bm.type === 'snippet' ? 'bm-body mono' : 'bm-body'
+  body.className = bm.type === 'code' || bm.type === 'snippet' ? 'bookmarks-body mono' : 'bookmarks-body'
   body.textContent = bm.content
   el.appendChild(body)
 
   if (bm.tags.length) {
     const tags = document.createElement('div')
-    tags.className = 'bm-tags'
+    tags.className = 'bookmarks-tags'
     bm.tags.forEach((t) => {
       tags.appendChild(
         createButton({
           text: t,
-          className: 'bm-tag',
+          className: 'bookmarks-tag',
           title: 'Filter by tag',
           onClick: () => handlers.onTagFilter(t)
         })
@@ -83,30 +83,30 @@ export function createBookmarkCard(bm: Bookmark, handlers: BookmarkCardHandlers)
   }
 
   const acts = document.createElement('div')
-  acts.className = 'bm-actions'
+  acts.className = 'bookmarks-actions'
   if (bm.type === 'link') {
     acts.appendChild(
       createButton({
         text: 'Open',
-        className: 'bm-act primary',
+        className: 'bookmarks-act primary',
         onClick: () => void openLink(bm.content)
       })
     )
   } else {
-    const copy = createButton({ text: 'Copy', className: 'bm-act primary' })
+    const copy = createButton({ text: 'Copy', className: 'bookmarks-act primary' })
     copy.addEventListener('click', () => copyContent(bm, copy))
     acts.appendChild(copy)
   }
   acts.append(
-    createButton({ text: 'Remind', className: 'bm-act', onClick: () => showRemindPicker(bm) }),
+    createButton({ text: 'Remind', className: 'bookmarks-act', onClick: () => showRemindPicker(bm) }),
     createButton({
       text: 'Edit',
-      className: 'bm-act',
+      className: 'bookmarks-act',
       onClick: () => showBookmarkForm(bm, handlers.onChanged)
     }),
     createButton({
       text: 'Delete',
-      className: 'bm-act danger',
+      className: 'bookmarks-act danger',
       onClick: async () => {
         const ok = await promptConfirm({ title: 'Delete bookmark', message: bm.title, confirmText: 'Delete' })
         if (!ok) return

@@ -63,7 +63,7 @@ test('bookmarks: add, delete, and restore on relaunch', async () => {
     })
 
     await test.step('delete one bookmark -> gone from view + disk', async () => {
-      const card = win.locator('#notif-bm-view .bm-card', { hasText: B2 })
+      const card = win.locator('#notif-bm-view .bookmarks-card', { hasText: B2 })
       await card.getByRole('button', { name: 'Delete' }).click()
       const confirm = win.locator('.modal-overlay') // promptConfirm
       await confirm.getByRole('button', { name: 'Delete' }).click()

@@ -21,12 +21,12 @@ export function showRemindPicker(bm: Bookmark): void {
   modal.appendChild(sub)
 
   const chips = document.createElement('div')
-  chips.className = 'bm-remind-chips'
+  chips.className = 'bookmarks-remind-chips'
   for (const opt of snoozeOptions()) {
     chips.appendChild(
       createButton({
         text: opt.label,
-        className: 'bm-remind-chip',
+        className: 'bookmarks-remind-chip',
         onClick: () => {
           snoozeReminder(`Bookmark: ${bm.title}`, opt.at, { kind: 'bookmark', bookmarkId: bm.id })
           ov.close()

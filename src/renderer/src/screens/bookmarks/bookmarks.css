@@ -1,0 +1,220 @@
+/* ---- Bookmarks panel (right side) ---- */
+#notif-bm-view {
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.bookmarks-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: 8px 8px 6px;
+}
+.bookmarks-toolbar .settings-inline-btn {
+  flex: 0 0 auto;
+}
+.bookmarks-search {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-term);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11.5px;
+  padding: 4px 8px;
+  outline: none;
+}
+.bookmarks-search:focus {
+  border-color: var(--accent, #58a6ff);
+}
+.bookmarks-filters {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 6px;
+}
+.bookmarks-filter {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-mute);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.bookmarks-filter:hover {
+  color: var(--text);
+}
+.bookmarks-filter.active {
+  color: var(--text);
+  background: var(--accent-soft, rgba(88, 166, 255, 0.16));
+  border-color: var(--accent, #58a6ff);
+}
+.bookmarks-tagfilter {
+  flex: 0 0 auto;
+  margin: 0 8px 6px;
+  align-self: flex-start;
+  border: 1px solid var(--accent, #58a6ff);
+  border-radius: 5px;
+  background: rgba(88, 166, 255, 0.1);
+  color: var(--accent, #58a6ff);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.bookmarks-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.bookmarks-card {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 10px;
+  margin-bottom: 7px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.bookmarks-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bookmarks-type {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: rgba(139, 148, 158, 0.16);
+  color: var(--text-mute);
+}
+.bookmarks-type.link {
+  background: rgba(88, 166, 255, 0.18);
+  color: var(--accent, #58a6ff);
+}
+.bookmarks-type.code,
+.bookmarks-type.snippet {
+  background: rgba(63, 185, 80, 0.16);
+  color: #3fb950;
+}
+.bookmarks-title {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bookmarks-remind-badge {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: rgba(210, 153, 34, 0.18);
+  color: #d29922;
+}
+.bookmarks-body {
+  font-size: 11px;
+  color: var(--text-mute);
+  margin-top: 5px;
+  max-height: 54px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.bookmarks-body.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  background: var(--bg-term);
+  border-radius: 6px;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+}
+.bookmarks-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.bookmarks-tag {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-mute);
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+.bookmarks-tag:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.bookmarks-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 8px;
+}
+.bookmarks-act {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 4px 5px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.bookmarks-act:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.bookmarks-act.button-primary {
+  border-color: var(--accent, #58a6ff);
+  color: var(--accent, #58a6ff);
+}
+.bookmarks-act.button-danger:hover {
+  border-color: #f85149;
+  color: #f85149;
+}
+.bookmarks-remind-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.bookmarks-remind-chip {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.bookmarks-remind-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border-color: var(--accent, #58a6ff);
+}
+.bookmarks-form textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}
+

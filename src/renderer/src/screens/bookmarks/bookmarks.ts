@@ -1,3 +1,4 @@
+import './bookmarks.css'
 import { createButton, createInput } from '@crafterm/ui'
 import { bookmarkRepo } from '../../services/storage/repositories'
 import { TYPE_LABEL, type TypeFilter } from './bookmark-meta'
@@ -15,14 +16,14 @@ export function renderBookmarks(): void {
   el.replaceChildren()
 
   const bar = document.createElement('div')
-  bar.className = 'bm-toolbar'
+  bar.className = 'bookmarks-toolbar'
   const add = createButton({
     text: '+ Bookmark',
     className: 'settings-inline-btn',
     onClick: () => showBookmarkForm(undefined, renderBookmarks)
   })
   const search = createInput({ value: query, placeholder: 'Search…' })
-  search.className = 'bm-search'
+  search.className = 'bookmarks-search'
   search.addEventListener('input', () => {
     query = search.value.trim().toLowerCase()
     renderList()
@@ -32,12 +33,12 @@ export function renderBookmarks(): void {
 
   // type filter chips
   const typeBar = document.createElement('div')
-  typeBar.className = 'bm-filters'
+  typeBar.className = 'bookmarks-filters'
   ;(['all', 'link', 'text', 'code', 'snippet'] as TypeFilter[]).forEach((t) => {
     typeBar.appendChild(
       createButton({
         text: t === 'all' ? 'All' : TYPE_LABEL[t],
-        className: 'bm-filter' + (t === typeFilter ? ' active' : ''),
+        className: 'bookmarks-filter' + (t === typeFilter ? ' active' : ''),
         onClick: () => {
           typeFilter = t
           renderBookmarks()
@@ -52,7 +53,7 @@ export function renderBookmarks(): void {
     el.appendChild(
       createButton({
         text: `tag: ${tagFilter} ✕`,
-        className: 'bm-tagfilter',
+        className: 'bookmarks-tagfilter',
         title: 'Clear tag filter',
         onClick: () => {
           tagFilter = ''
@@ -63,7 +64,7 @@ export function renderBookmarks(): void {
   }
 
   const list = document.createElement('div')
-  list.className = 'bm-list'
+  list.className = 'bookmarks-list'
   el.appendChild(list)
 
   const renderList = (): void => {

@@ -187,7 +187,7 @@ export function renderAccounts(): void {
   bar.className = 'acc-filters'
   ;(['all', 'account', 'secret'] as const).forEach((k) => {
     const b = document.createElement('button')
-    b.className = 'bm-filter' + (k === kindFilter ? ' active' : '')
+    b.className = 'bookmarks-filter' + (k === kindFilter ? ' active' : '')
     b.textContent = k === 'all' ? 'All' : k === 'account' ? 'Accounts' : 'Secrets'
     b.addEventListener('click', () => {
       kindFilter = k
