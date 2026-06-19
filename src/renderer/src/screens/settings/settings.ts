@@ -1,3 +1,4 @@
+import './settings.css'
 import { themes } from '../../themes'
 import {
   settings,
