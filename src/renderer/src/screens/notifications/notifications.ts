@@ -1,3 +1,4 @@
+import './notifications.css'
 import { notifState, panes, poppedOut, settings, pushNotification } from '../../state'
 import { persistence } from '../../services/storage/persistence.service'
 import { selectPane, openLink, openNote, openMarkdownFile } from '../../commands'
