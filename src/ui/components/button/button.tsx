@@ -13,15 +13,18 @@ export interface ButtonOptions {
 }
 
 export function createButton(opts: ButtonOptions = {}): HTMLButtonElement {
-  const btn = document.createElement('button')
   const classes: string[] = []
   if (opts.variant) classes.push('button-' + opts.variant)
   if (opts.className) classes.push(opts.className)
-  if (classes.length) btn.className = classes.join(' ')
-  if (opts.type) btn.type = opts.type
-  if (opts.title) btn.title = opts.title
-  if (opts.ariaLabel) btn.setAttribute('aria-label', opts.ariaLabel)
-  if (opts.text != null) btn.textContent = opts.text
-  if (opts.onClick) btn.addEventListener('click', opts.onClick)
-  return btn
+  return (
+    <button
+      class={classes.length ? classes.join(' ') : undefined}
+      type={opts.type}
+      title={opts.title}
+      aria-label={opts.ariaLabel}
+      onClick={opts.onClick}
+    >
+      {opts.text}
+    </button>
+  ) as HTMLButtonElement
 }

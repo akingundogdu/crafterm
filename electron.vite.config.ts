@@ -30,6 +30,7 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src/ui'),
     resolve: { alias },
+    esbuild: { jsx: 'automatic', jsxImportSource: '@ui' },
     build: {
       rollupOptions: {
         input: {
