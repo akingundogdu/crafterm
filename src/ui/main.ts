@@ -18,9 +18,9 @@ import {
   applyDocFont,
   settings
 } from './state'
-import { persistence } from './services/storage/persistence.service'
-import { loadSettings, migrateLegacyState, seedActionMenu } from './services/storage/settings.service'
-import { actionMenuRepo } from './services/storage/repositories'
+import { persistence } from '@services/storage/persistence.service'
+import { loadSettings, migrateLegacyState, seedActionMenu } from '@services/storage/settings.service'
+import { actionMenuRepo } from '@services/storage/repositories'
 import { firstPaneOf, allTabs, findById } from './tree'
 import { flattenProjects } from './catalog'
 import {
@@ -89,8 +89,8 @@ import { showCommandPalette, showTerminalSwitcher } from './screens/pickers/comm
 import { showStashManager, showBranchCheckout } from './screens/pickers/git/git'
 import { showGlobalSearch } from './screens/pickers/global-search/global-search'
 import { showSpotlight } from './screens/spotlight/spotlight'
-import { startWorktreeReconcile } from './services/worktrees'
-import { onProcessExit } from './services/bgproc'
+import { startWorktreeReconcile } from '@services/worktrees'
+import { onProcessExit } from '@services/bgproc'
 import { startIosWorktreePoll } from './screens/ios-worktree/ios-worktree'
 import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
 import { databaseNewProject } from './screens/database/database'

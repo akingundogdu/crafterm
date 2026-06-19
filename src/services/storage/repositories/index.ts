@@ -9,8 +9,8 @@ import type {
   MeetingNote,
   DailyPlanTask,
   DailyPlanTag
-} from '../../../types'
-import { settings } from '../../../state'
+} from '@ui/types'
+import { settings } from '@ui/state'
 import { persistence } from '../persistence.service'
 import { createArrayRepository, validated } from './repository'
 import { bookmarkSchema } from '../../domain/model/bookmark'

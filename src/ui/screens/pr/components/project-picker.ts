@@ -1,5 +1,5 @@
 import { settings } from '../../../state'
-import { persistence } from '../../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { prService } from '@services'
 import { createOverlay, createSearchBox, createButton } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'

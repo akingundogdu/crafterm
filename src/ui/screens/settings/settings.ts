@@ -8,12 +8,12 @@ import {
   applyBgColor,
   uid
 } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from '../../types'
 import { BUILTIN_ACTIONS } from '../../types'
 import { flattenProjects, removeProject } from '../../catalog'
 import { makeProject } from '../../tree'
-import { reconcileWorktrees, purgeWorktrees } from '../../services/worktrees'
+import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
 import { applyAppearance } from '../../pane'
 import { ALL_THEME_NAMES, applyTheme } from '../../editor/monaco-setup'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from '../sidebar/sidebar'
@@ -31,7 +31,7 @@ import {
   isModifierKey
 } from '../../keybindings'
 import { appService } from '@services'
-import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from '../../services/storage/repositories'
+import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from '@services/storage/repositories'
 import { settingsCleanups, toHex6, buildSubTabs, labeledInput, labeledSelect } from './shared'
 import { buildTabsPanel } from './tabs/tabs'
 import { buildRemindersPanel } from './tabs/reminders'

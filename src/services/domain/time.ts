@@ -1,4 +1,4 @@
-import type { TimeEntry } from '../../types'
+import type { TimeEntry } from '@ui/types'
 
 // Pure time-tracking logic: duration formatting, range boundaries, and the
 // per-project / per-feature aggregation that the Time panel and report modal

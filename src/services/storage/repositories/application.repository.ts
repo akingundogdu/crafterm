@@ -1,6 +1,6 @@
-import type { Application } from '../../../types'
-import { state } from '../../../state'
-import { flattenProjects, findProjectById } from '../../../catalog'
+import type { Application } from '@ui/types'
+import { state } from '@ui/state'
+import { flattenProjects, findProjectById } from '@ui/catalog'
 import { persistence } from '../persistence.service'
 
 // Applications are nested under their owning ProjectNode (ProjectNode.apps). In

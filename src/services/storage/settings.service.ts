@@ -5,10 +5,10 @@ import type {
   SidebarNode,
   Project,
   AppNotification
-} from '../../types'
-import { BUILTIN_ACTIONS } from '../../types'
+} from '@ui/types'
+import { BUILTIN_ACTIONS } from '@ui/types'
 import type { SavedState } from '@bridge/api'
-import { themes } from '../../themes'
+import { themes } from '@ui/themes'
 import {
   settings,
   state,
@@ -17,7 +17,7 @@ import {
   NOTIF_PERSIST_WINDOW_MS,
   NOTIF_PERSIST_CAP,
   uid
-} from '../../state'
+} from '@ui/state'
 import { persistence } from './persistence.service'
 import { reminderSchema } from '../domain/model/reminder'
 import { bookmarkSchema } from '../domain/model/bookmark'

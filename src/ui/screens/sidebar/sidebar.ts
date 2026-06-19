@@ -1,7 +1,7 @@
 import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from '../../types'
-import { openProcessView, killProcess, startBackgroundProcess } from '../../services/bgproc'
+import { openProcessView, killProcess, startBackgroundProcess } from '@services/bgproc'
 import { state, panes, settings, paneActions } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import {
   collectPinnedRoots,
   allTabs,
@@ -64,7 +64,7 @@ import { renderDocker, dockerHandleKey, dockerApplyQuery } from '../docker/docke
 import { renderAccounts, accountsApplyQuery, initAccounts } from '../accounts/accounts'
 import { type ContextMenuItem } from '@ui/components'
 import { iosWorktreeTrailing, iosWorktreeMenuItems } from '../ios-worktree/ios-worktree'
-import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '../../services/worktrees'
+import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '@services/worktrees'
 import { createTreeView, createOverlay, type TreeAdapter, type TreeSection, type DropPos } from '@ui/components'
 import {
   renderNotebook,
@@ -75,7 +75,7 @@ import {
 } from '../../notebook'
 import './sidebar.css'
 import { fsService } from '@services'
-import { actionMenuRepo } from '../../services/storage/repositories'
+import { actionMenuRepo } from '@services/storage/repositories'
 
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!

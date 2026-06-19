@@ -1,6 +1,6 @@
 import './code-pane.css'
 import { codePanes, panes, state, paneActions, uid, settings } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { findTabByPane, panesInLayout } from '../../tree'
 import { setupPaneDnd } from '../../pane'
 import { createButton, createSelect } from '@ui/components'

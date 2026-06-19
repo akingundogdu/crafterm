@@ -1,7 +1,7 @@
 import './meeting-notes.css'
 import type { MeetingNote } from '../../types'
 import { state } from '../../state'
-import { meetingNoteRepo } from '../../services/storage/repositories'
+import { meetingNoteRepo } from '@services/storage/repositories'
 import { promptConfirm } from '../../dialog'
 import { findProjectById } from '../../catalog'
 import { showRemindModal } from '../reminders/reminders'

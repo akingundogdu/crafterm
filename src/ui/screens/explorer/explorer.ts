@@ -1,6 +1,6 @@
 import './explorer.css'
 import { settings, state, panes } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { openMarkdownFile, openCodeEditor } from '../../commands'
 import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from '@ui/components'
 import { promptText, promptConfirm } from '../../dialog'

@@ -1,6 +1,6 @@
 import type { Pane, LayoutNode } from '../types'
 import { panes, state, requestSidebar } from '../state'
-import { persistence } from '../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { findTabByPane } from '../tree'
 
 export function onPaneTitle(pane: Pane, raw: string): void {

@@ -1,7 +1,7 @@
 import { createModal, createField, createInput, createTextarea, createSelect, createDateField } from '@ui/components'
 import type { MeetingNote } from '../../../types'
 import { state, uid } from '../../../state'
-import { meetingNoteRepo } from '../../../services/storage/repositories'
+import { meetingNoteRepo } from '@services/storage/repositories'
 import { makeCloseButton } from '../../../dialog'
 import { flattenProjects } from '../../../catalog'
 

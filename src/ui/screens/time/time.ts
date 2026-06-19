@@ -1,16 +1,16 @@
 import './time.css'
 import { settings, uid, state, panes } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { promptText } from '../../dialog'
 import { flattenProjects, findProjectByPath } from '../../catalog'
 import { appService } from '@services'
-import { timeEntryRepo } from '../../services/storage/repositories'
+import { timeEntryRepo } from '@services/storage/repositories'
 import {
   fmtClock,
   fmtHM,
   startOfToday,
   sumByProject
-} from '../../services/domain/time'
+} from '@services/domain/time'
 import { showReport } from './components/time-report'
 import { openTrackModal } from './components/track-modal'
 

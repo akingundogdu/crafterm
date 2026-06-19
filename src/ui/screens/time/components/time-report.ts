@@ -2,8 +2,8 @@ import { createOverlay, createButton } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 import { state } from '../../../state'
 import { findProjectByPath, findFeature } from '../../../catalog'
-import { timeEntryRepo } from '../../../services/storage/repositories'
-import { fmtHM, rangeStart, reportByProject, type Range } from '../../../services/domain/time'
+import { timeEntryRepo } from '@services/storage/repositories'
+import { fmtHM, rangeStart, reportByProject, type Range } from '@services/domain/time'
 
 // Report modal: total per project (and per feature) over a date range.
 export function showReport(): void {

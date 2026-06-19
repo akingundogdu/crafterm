@@ -12,7 +12,7 @@ import {
   state,
   poppedOut
 } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { findTab } from '../../tree'
 import { mountPanes } from '../../pane'
 import { terminalService } from '@services'

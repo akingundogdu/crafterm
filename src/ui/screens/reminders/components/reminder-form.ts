@@ -1,7 +1,7 @@
 import { createOverlay, createButton, createSelect, createTextarea, createDateField } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 import { settings, uid } from '../../../state'
-import { reminderRepo, bookmarkRepo, dailyTaskRepo } from '../../../services/storage/repositories'
+import { reminderRepo, bookmarkRepo, dailyTaskRepo } from '@services/storage/repositories'
 import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from '../../../types'
 import { renderReminders } from '../reminders'
 

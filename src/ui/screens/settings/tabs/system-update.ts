@@ -1,5 +1,5 @@
 import { settings } from '../../../state'
-import { persistence } from '../../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { labeledInput } from '../shared'
 
 export function buildSystemUpdatePanel(panel: HTMLElement): void {

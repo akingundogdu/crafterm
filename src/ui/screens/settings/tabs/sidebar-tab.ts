@@ -1,5 +1,5 @@
 import { settings, requestSidebar } from '../../../state'
-import { persistence } from '../../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { applyOrientation, applySidebarFont } from '../../sidebar/sidebar'
 import { labeledInput, labeledSelect } from '../shared'
 

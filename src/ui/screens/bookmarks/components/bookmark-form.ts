@@ -1,7 +1,7 @@
 import { createModal, createField, createInput, createTextarea, createSelect } from '@ui/components'
 import type { Bookmark } from '../../../types'
 import { uid } from '../../../state'
-import { bookmarkRepo } from '../../../services/storage/repositories'
+import { bookmarkRepo } from '@services/storage/repositories'
 import { makeCloseButton } from '../../../dialog'
 import { TYPE_LABEL } from '../bookmark-meta'
 

@@ -1,6 +1,6 @@
 import './notifications.css'
 import { notifState, panes, poppedOut, settings, pushNotification } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { selectPane, openLink, openNote, openMarkdownFile } from '../../commands'
 import {
   renderReminders,
@@ -17,8 +17,8 @@ import { openMeetingNote } from '../meeting-notes/meeting-notes'
 import { renderTime, initTime, startAutoTracker } from '../time/time'
 import { runUpdate } from '../pickers/update/update'
 import { terminalService, claudeService, secretsService, appService } from '@services'
-import { fmtResetTime, usageErrorShort, usageErrorLong } from '../../services/domain/usage'
-import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from '../../services/storage/repositories'
+import { fmtResetTime, usageErrorShort, usageErrorLong } from '@services/domain/usage'
+import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from '@services/storage/repositories'
 import { relTime, pathTail, shortModel } from './notif-format'
 
 const appEl = document.getElementById('app')!

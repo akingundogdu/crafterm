@@ -20,7 +20,7 @@ import {
 import { findTabByPane, panesInLayout } from './tree'
 import { findProjectById, findApp, flattenProjects } from './catalog'
 import { terminalService, fsService, notebookService, appService } from '@services'
-import { sshConnectionRepo } from './services/storage/repositories'
+import { sshConnectionRepo } from '@services/storage/repositories'
 // buildPaneMenu (below) is the only in-file consumer of the terminal module's
 // background palette + setter.
 import { PANE_BG_PALETTE, setPaneBackground } from './terminal/terminal'

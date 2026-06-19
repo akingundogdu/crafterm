@@ -3,7 +3,7 @@ import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, CodePane,
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from './themes'
 import { PALETTE_SEED } from './palette-seed'
 import { allTabs } from './tree'
-import { notificationRepo } from './services/storage/repositories/notification.repository'
+import { notificationRepo } from '@services/storage/repositories/notification.repository'
 
 // ---- Live state (mutated in place; modules import these singletons) ----
 

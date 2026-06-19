@@ -28,7 +28,7 @@ import {
   updatePaneActive,
   applyDocFont
 } from './state'
-import { persistence } from './services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import {
   firstPaneOf,
   panesInLayout,
@@ -66,9 +66,9 @@ import { createDiffPane, destroyDiffPane } from './screens/diff-pane/diff-pane'
 import { createFilePane, destroyFilePane } from './screens/file-pane/file-pane'
 import { createCodePane, destroyCodePane } from './screens/code-pane/code-pane'
 import { promptText, promptForm, promptConfirm, promptCloseActions } from './dialog'
-import { removeWorktree, worktreeForCwd } from './services/worktrees'
+import { removeWorktree, worktreeForCwd } from '@services/worktrees'
 import { terminalService, fsService } from '@services'
-import { dailyTaskRepo } from './services/storage/repositories'
+import { dailyTaskRepo } from '@services/storage/repositories'
 
 function focusActivePane(): void {
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()

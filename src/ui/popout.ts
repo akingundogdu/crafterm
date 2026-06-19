@@ -5,7 +5,7 @@ import './popout.css'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { settings, resolveTheme, applyBgColor } from './state'
-import { loadSettings } from './services/storage/settings.service'
+import { loadSettings } from '@services/storage/settings.service'
 import { promptConfirm } from './dialog'
 import { terminalService, storeService } from '@services'
 

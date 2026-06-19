@@ -1,7 +1,7 @@
 import { settings } from '../../../state'
-import { persistence } from '../../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { appService } from '@services'
-import { accountRepo } from '../../../services/storage/repositories'
+import { accountRepo } from '@services/storage/repositories'
 import { labeledInput, labeledSelect } from '../shared'
 
 export function buildWorkspacePanel(panel: HTMLElement): void {

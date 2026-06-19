@@ -1,5 +1,5 @@
-import { collectBackgroundProcesses, killProcess, openProcessView } from '../../../services/bgproc'
-import type { CollectedProcess } from '../../../services/bgproc'
+import { collectBackgroundProcesses, killProcess, openProcessView } from '@services/bgproc'
+import type { CollectedProcess } from '@services/bgproc'
 import { iosService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
 

@@ -1,6 +1,6 @@
 import './bookmarks.css'
 import { createButton, createInput } from '@ui/components'
-import { bookmarkRepo } from '../../services/storage/repositories'
+import { bookmarkRepo } from '@services/storage/repositories'
 import { TYPE_LABEL, type TypeFilter } from './bookmark-meta'
 import { showBookmarkForm } from './components/bookmark-form'
 import { createBookmarkCard } from './components/bookmark-card'

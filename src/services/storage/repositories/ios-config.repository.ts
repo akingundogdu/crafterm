@@ -1,6 +1,6 @@
-import type { IosDevConfig } from '../../../types'
-import { state } from '../../../state'
-import { findProjectById } from '../../../catalog'
+import type { IosDevConfig } from '@ui/types'
+import { state } from '@ui/state'
+import { findProjectById } from '@ui/catalog'
 import { persistence } from '../persistence.service'
 
 // Per-project iOS config is a single embedded value object on ProjectNode

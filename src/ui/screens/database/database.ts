@@ -1,5 +1,5 @@
 import { settings, uid } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from '../../types'
 import type { DbObjects } from '@bridge/api'
 import { makeCloseButton, promptText } from '../../dialog'
@@ -7,7 +7,7 @@ import { openSqlInSplit } from '../../commands'
 import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@ui/components'
 import './database.css'
 import { dbService } from '@services'
-import { dbConnectionRepo } from '../../services/storage/repositories'
+import { dbConnectionRepo } from '@services/storage/repositories'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object
 // introspection under each connection, a Queries section of saved .sql files,

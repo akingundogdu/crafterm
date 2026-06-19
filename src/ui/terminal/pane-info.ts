@@ -1,6 +1,6 @@
 import type { Pane } from '../types'
 import { panes, state, paneActions, requestSidebar, requestStatuses } from '../state'
-import { persistence } from '../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { findTabByPane } from '../tree'
 import { claudeService, terminalService, plansService } from '@services'
 import { mirrorPaneTitleToTab } from './osc-title'

@@ -11,7 +11,7 @@ import {
   openNote
 } from '../../../commands'
 import { notebookService } from '@services'
-import { bookmarkRepo, accountRepo } from '../../../services/storage/repositories'
+import { bookmarkRepo, accountRepo } from '@services/storage/repositories'
 import { actionMenuSearchEntries } from '../../sidebar/sidebar'
 import { overlayModal } from '../shared'
 

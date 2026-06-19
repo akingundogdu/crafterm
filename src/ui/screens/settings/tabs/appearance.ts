@@ -1,5 +1,5 @@
 import { settings, applyBgColor, resolveTheme } from '../../../state'
-import { persistence } from '../../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { applyAppearance } from '../../../pane'
 import { themes } from '../../../themes'
 import { ALL_THEME_NAMES, applyTheme } from '../../../editor/monaco-setup'

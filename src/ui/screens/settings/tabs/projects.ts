@@ -1,10 +1,10 @@
 import { settings, state, requestSidebar, uid } from '../../../state'
-import { persistence } from '../../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { promptForm, promptText } from '../../../dialog'
-import { reconcileWorktrees, purgeWorktrees } from '../../../services/worktrees'
+import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
 import { flattenProjects, removeProject } from '../../../catalog'
 import { makeProject } from '../../../tree'
-import { applicationRepo, iosConfigRepo } from '../../../services/storage/repositories'
+import { applicationRepo, iosConfigRepo } from '@services/storage/repositories'
 import type { ProjectNode, Application, IosDevConfig } from '../../../types'
 import { buildSubTabs, labeledInput } from '../shared'
 

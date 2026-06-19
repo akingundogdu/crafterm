@@ -6,20 +6,20 @@
 // Only nodes carrying the auto markers (`worktreeContainer` / `worktreePath`) are
 // ever created or removed here; the user's own folders/tabs are never touched.
 
-import type { ProjectNode, FolderNode, SidebarNode, WorktreeNode } from '../types'
+import type { ProjectNode, FolderNode, SidebarNode, WorktreeNode } from '@ui/types'
 import {
   state,
   settings,
   requestSidebar,
   uid,
   pushNotification
-} from '../state'
+} from '@ui/state'
 import { persistence } from './storage/persistence.service'
-import { makeFolder, allTabs, projectOf } from '../tree'
-import { flattenProjects } from '../catalog'
-import { archiveTab } from '../commands'
+import { makeFolder, allTabs, projectOf } from '@ui/tree'
+import { flattenProjects } from '@ui/catalog'
+import { archiveTab } from '@ui/commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
-import { promptForm, promptConfirm } from '../dialog'
+import { promptForm, promptConfirm } from '@ui/dialog'
 import { gitService, appService } from '@services'
 import { norm, baseName, shq } from './domain/worktree-path'
 

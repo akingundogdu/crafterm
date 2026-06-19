@@ -1,9 +1,9 @@
 import { settings, uid } from '../../../state'
-import { persistence } from '../../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { promptForm } from '../../../dialog'
 import { BUILTIN_ACTIONS } from '../../../types'
 import type { ActionMenuItem } from '../../../types'
-import { actionMenuRepo } from '../../../services/storage/repositories'
+import { actionMenuRepo } from '@services/storage/repositories'
 
 export function buildActionMenuPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', '<h3>Action menu</h3>')

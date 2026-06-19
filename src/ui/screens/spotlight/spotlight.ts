@@ -1,6 +1,6 @@
 import './spotlight.css'
 import { settings, panes, state, hooks } from '../../state'
-import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '../../services/storage/repositories'
+import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '@services/storage/repositories'
 import { overlayModal } from '../pickers/shared'
 import { showRunApp } from '../pickers/project/project'
 import { loadZshCommands } from '../pickers/command/command'

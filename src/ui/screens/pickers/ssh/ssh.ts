@@ -2,7 +2,7 @@ import type { SshConnection } from '../../../types'
 import { uid } from '../../../state'
 import { openTerminalRunning } from '../../../commands'
 import { promptForm, promptConfirm } from '../../../dialog'
-import { sshConnectionRepo } from '../../../services/storage/repositories'
+import { sshConnectionRepo } from '@services/storage/repositories'
 import { overlayModal, makeSearchInput } from '../shared'
 
 // ---- SSH connections: saved hosts, connect in a new terminal ----

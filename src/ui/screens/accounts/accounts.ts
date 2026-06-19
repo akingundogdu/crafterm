@@ -1,6 +1,6 @@
 import './accounts.css'
 import type { AccountEntry, AccountField } from '../../types'
-import { accountRepo } from '../../services/storage/repositories'
+import { accountRepo } from '@services/storage/repositories'
 import { promptConfirm } from '../../dialog'
 import { secretsService } from '@services'
 import { showAccountForm } from './components/account-form'

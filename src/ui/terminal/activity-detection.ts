@@ -1,6 +1,6 @@
 import type { Pane, PaneStatus, NodeStatus } from '../types'
 import { state, requestStatuses, pushNotification } from '../state'
-import { persistence } from '../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import { findTabByPane, ancestorFolders } from '../tree'
 import { findProjectById } from '../catalog'
 import { appService } from '@services'

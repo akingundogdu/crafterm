@@ -1,6 +1,6 @@
-import type { LayoutNode, NodeStatus, SidebarNode, AppNotification } from '../../types'
+import type { LayoutNode, NodeStatus, SidebarNode, AppNotification } from '@ui/types'
 import type { SavedState, SavedSidebarNode, SavedNode } from '@bridge/api'
-import { panesInLayout } from '../../tree'
+import { panesInLayout } from '@ui/tree'
 import {
   panes,
   sqlPanes,
@@ -11,7 +11,7 @@ import {
   commandHistory,
   NOTIF_PERSIST_WINDOW_MS,
   NOTIF_PERSIST_CAP
-} from '../../state'
+} from '@ui/state'
 import { storeService } from '@services'
 
 // Renderer persistence/data layer. Owns the debounced save, the serialize

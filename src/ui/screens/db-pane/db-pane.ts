@@ -1,5 +1,5 @@
 import { sqlPanes, paneActions, settings, uid } from '../../state'
-import { persistence } from '../../services/storage/persistence.service'
+import { persistence } from '@services/storage/persistence.service'
 import type { DbConnection, DbEngine, DbConnNode, DbNode } from '../../types'
 import { createSqlEditor, type SqlEditor } from '../../editor/sql-editor'
 import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
@@ -10,7 +10,7 @@ import { renderResultGrid, type SortState } from './components/result-grid'
 import { quoteIdent } from './sql-literal'
 import './db-pane.css'
 import { dbService } from '@services'
-import { dbConnectionRepo } from '../../services/storage/repositories'
+import { dbConnectionRepo } from '@services/storage/repositories'
 
 // SQL query pane: the workbench (toolbar + editor + result grid) shown as a
 // first-class pane (split next to the active pane), replacing the old modal.

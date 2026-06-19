@@ -1,6 +1,6 @@
 import { createButton } from '@ui/components'
 import type { Bookmark } from '../../../types'
-import { bookmarkRepo, reminderRepo } from '../../../services/storage/repositories'
+import { bookmarkRepo, reminderRepo } from '@services/storage/repositories'
 import { openLink } from '../../../commands'
 import { promptConfirm } from '../../../dialog'
 import { TYPE_LABEL } from '../bookmark-meta'

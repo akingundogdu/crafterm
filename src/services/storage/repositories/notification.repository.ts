@@ -1,5 +1,5 @@
-import type { AppNotification } from '../../../types'
-import { notifications } from '../../../state'
+import type { AppNotification } from '@ui/types'
+import { notifications } from '@ui/state'
 
 // Notification repository over the live `notifications` singleton. Notifications
 // are an in-memory, capped (newest-first, max 100) collection; they are NOT

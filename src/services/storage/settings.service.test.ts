@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadSettings } from './settings.service'
-import { settings } from '../../state'
+import { settings } from '@ui/state'
 import type { SavedState } from '@bridge/api'
 
 // Minimal SavedState; only the fields under test are populated. Everything else

@@ -10,7 +10,7 @@ import {
   paneActions,
   state
 } from '../state'
-import { persistence, recordCommand } from '../services/storage/persistence.service'
+import { persistence, recordCommand } from '@services/storage/persistence.service'
 import { terminalService } from '@services'
 import { onPaneTitle } from './osc-title'
 import { commandRunsClaude, onBell } from './activity-detection'

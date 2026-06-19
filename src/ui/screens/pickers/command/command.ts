@@ -3,7 +3,7 @@ import { selectPane } from '../../../commands'
 import { allTabs, panesInLayout, ancestorFolders } from '../../../tree'
 import { paneStatus } from '../../../pane'
 import { terminalService, appService } from '@services'
-import { paletteCommandRepo } from '../../../services/storage/repositories'
+import { paletteCommandRepo } from '@services/storage/repositories'
 import { overlayModal } from '../shared'
 
 // ---- Command palette: zsh + user categories (predefined / cheatsheets) ----
