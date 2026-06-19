@@ -1,3 +1,4 @@
+import './pr.css'
 import type { PullRequest, WorkflowRun } from '../../../../preload/api'
 import { state, panes, settings, pushNotification } from '../../state'
 import { openLink, runInSplit, openPrDiff } from '../../commands'
