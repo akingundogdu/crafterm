@@ -7,7 +7,15 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["src/core/*"],
+      "@services/*": ["src/services/*"],
+      "@ui/*": ["src/ui/*"],
+      "@resources/*": ["src/resources/*"],
+      "@tests/*": ["src/tests/*"]
+    }
   },
   "include": ["src/renderer/src/**/*", "src/preload/api.d.ts"]
 }

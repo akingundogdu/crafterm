@@ -9,7 +9,15 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["src/core/*"],
+      "@services/*": ["src/services/*"],
+      "@ui/*": ["src/ui/*"],
+      "@resources/*": ["src/resources/*"],
+      "@tests/*": ["src/tests/*"]
+    }
   },
   "include": ["src/main/**/*", "src/preload/**/*", "electron.vite.config.ts"]
 }
