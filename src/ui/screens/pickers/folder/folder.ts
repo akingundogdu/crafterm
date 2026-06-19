@@ -1,7 +1,7 @@
 import type { DirEntry } from '@bridge/api'
 import { settings } from '../../../state'
 import { openTerminalInDir } from '../../../commands'
-import { fsService } from '../../../services/ipc'
+import { fsService } from '@services'
 import { overlayModal } from '../shared'
 
 // ---- Pick a folder (returns its path) — used by Settings to choose md folders ----

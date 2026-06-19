@@ -11,6 +11,7 @@
     "baseUrl": ".",
     "paths": {
       "@core/*": ["src/core/*"],
+      "@services": ["src/services/index.ts"],
       "@services/*": ["src/services/*"],
       "@ui/*": ["src/ui/*"],
       "@resources/*": ["src/resources/*"],
@@ -18,5 +19,6 @@
       "@bridge/*": ["src/core/bridge/*"]
     }
   },
-  "include": ["src/ui/**/*", "src/core/bridge/api.d.ts"]
+  "include": ["src/ui/**/*", "src/services/**/*", "src/core/bridge/api.d.ts"],
+  "exclude": ["src/services/**/*.main.ts"]
 }

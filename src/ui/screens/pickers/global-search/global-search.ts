@@ -10,7 +10,7 @@ import {
   openMarkdownFile,
   openNote
 } from '../../../commands'
-import { notebookService } from '../../../services/ipc'
+import { notebookService } from '@services'
 import { bookmarkRepo, accountRepo } from '../../../services/storage/repositories'
 import { actionMenuSearchEntries } from '../../sidebar/sidebar'
 import { overlayModal } from '../shared'

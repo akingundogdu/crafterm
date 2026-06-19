@@ -74,7 +74,7 @@ import {
   notebookSelectFirst
 } from '../../notebook'
 import './sidebar.css'
-import { fsService } from '../../services/ipc'
+import { fsService } from '@services'
 import { actionMenuRepo } from '../../services/storage/repositories'
 
 const appEl = document.getElementById('app')!

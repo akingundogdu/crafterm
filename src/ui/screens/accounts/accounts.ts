@@ -2,7 +2,7 @@ import './accounts.css'
 import type { AccountEntry, AccountField } from '../../types'
 import { accountRepo } from '../../services/storage/repositories'
 import { promptConfirm } from '../../dialog'
-import { secretsService } from '../../services/ipc'
+import { secretsService } from '@services'
 import { showAccountForm } from './components/account-form'
 
 // One sidebar mode for both 'account' (full credential ledger row) and 'secret'

@@ -2,7 +2,7 @@ import type { DbColumn } from '@bridge/api'
 import type { DbConnection } from '../../../types'
 import { createOverlay } from '@ui/components'
 import { makeCloseButton, promptConfirm } from '../../../dialog'
-import { dbService } from '../../../services/ipc'
+import { dbService } from '@services'
 import { quoteIdent, literalOf } from '../sql-literal'
 
 // Result grid renderer with optional row-level actions (edit/delete/insert)

@@ -1,5 +1,5 @@
 import { panes, state, paneActions } from '../../state'
-import { terminalService } from '../../services/ipc'
+import { terminalService } from '@services'
 
 // Shared terminal-targeting helpers for the file/diff viewer panes. They resolve
 // which terminal a `path:line` reference should be pasted into and perform the

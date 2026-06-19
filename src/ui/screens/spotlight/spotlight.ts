@@ -25,7 +25,7 @@ import { KEYBINDINGS, effectiveCombo, comboFromEvent, comboLabel } from '../../k
 import { showDailyPlanModal } from '../daily-plan/daily-plan'
 import { openReminderForm } from '../reminders/reminders'
 import { paneStatus } from '../../pane'
-import { terminalService, fsService, plansService, appService } from '../../services/ipc'
+import { terminalService, fsService, plansService, appService } from '@services'
 import { createSpotTabs, TABS, TAB_ACTION } from './components/spot-tabs'
 import { createResultList, type SpotEntry, type SpotSource } from './components/result-list'
 

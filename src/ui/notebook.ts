@@ -11,7 +11,7 @@ import { showRemindModal } from './screens/reminders/reminders'
 import { renderDailyCompact } from './screens/daily-plan/daily-plan'
 import { renderMeetingNotes } from './screens/meeting-notes/meeting-notes'
 import './notebook.css'
-import { fsService, notebookService, plansService } from './services/ipc'
+import { fsService, notebookService, plansService } from '@services'
 
 const FOLDER_SVG =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1.6 4.4c0-.6.4-1 1-1h3.1l1.2 1.4H13.4c.6 0 1 .4 1 1V11.6c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1z" fill="currentColor"/></svg>'

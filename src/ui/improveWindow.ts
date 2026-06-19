@@ -4,7 +4,7 @@ import './global.css'
 import { applyBgColor } from './state'
 import { loadSettings } from './services/storage/settings.service'
 import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
-import { storeService } from './services/ipc'
+import { storeService } from '@services'
 
 // A standalone window that hosts only the Improve Crafterm panel — meant to stay
 // open on a second monitor. State/settings are loaded so themes + the todo file

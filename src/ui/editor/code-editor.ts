@@ -1,5 +1,5 @@
 import { monaco, ensureThemes, currentThemeId, applyTheme } from './monaco-setup'
-import { fsService } from '../services/ipc'
+import { fsService } from '@services'
 
 // Monaco-backed code editor pane: VSCode's editor engine (TextMate-grade
 // highlighting + full TS/JS IntelliSense out of the box). Worker wiring + themes

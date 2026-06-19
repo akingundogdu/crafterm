@@ -15,7 +15,7 @@ import type {
   SidebarNode,
   PaneRole
 } from '../types'
-import { terminalService } from './ipc'
+import { terminalService } from '@services'
 
 // A node that can own hidden background shells: a worktree (iOS build/run) or a
 // project (e.g. a `git worktree add` before the worktree node exists).

@@ -5,7 +5,7 @@ import { openMarkdownFile, openCodeEditor } from '../../commands'
 import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from '@ui/components'
 import { promptText, promptConfirm } from '../../dialog'
 import type { SidebarNode } from '../../types'
-import { gitService, fsService } from '../../services/ipc'
+import { gitService, fsService } from '@services'
 import { FOLDER_SVG, iconFor, iconCategory } from './file-icons'
 
 function treeEl(): HTMLElement {

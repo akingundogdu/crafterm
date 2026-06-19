@@ -3,7 +3,7 @@ import { createButton, createOverlay } from '@ui/components'
 import { settings, state } from '../../../state'
 import { persistence } from '../../../services/storage/persistence.service'
 import { promptConfirm } from '../../../dialog'
-import { appService } from '../../../services/ipc'
+import { appService } from '@services'
 import { pickFolderPath } from '../folder/folder'
 
 // ---------------------------------------------------------------------------

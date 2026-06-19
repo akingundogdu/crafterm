@@ -3,7 +3,7 @@ import { settings, uid, state, panes } from '../../state'
 import { persistence } from '../../services/storage/persistence.service'
 import { promptText } from '../../dialog'
 import { flattenProjects, findProjectByPath } from '../../catalog'
-import { appService } from '../../services/ipc'
+import { appService } from '@services'
 import { timeEntryRepo } from '../../services/storage/repositories'
 import {
   fmtClock,

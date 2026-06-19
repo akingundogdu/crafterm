@@ -2,7 +2,7 @@ import './reminders.css'
 import { settings, pushNotification, uid } from '../../state'
 import { reminderRepo } from '../../services/storage/repositories'
 import type { Reminder, ReminderPayload } from '../../types'
-import { appService } from '../../services/ipc'
+import { appService } from '@services'
 import { openReminderForm } from './components/reminder-form'
 
 // Re-exported for the many callers that import these from the reminders module

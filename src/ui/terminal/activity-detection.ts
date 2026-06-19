@@ -3,7 +3,7 @@ import { state, requestStatuses, pushNotification } from '../state'
 import { persistence } from '../services/storage/persistence.service'
 import { findTabByPane, ancestorFolders } from '../tree'
 import { findProjectById } from '../catalog'
-import { appService } from '../services/ipc'
+import { appService } from '@services'
 
 // Does a typed command launch Claude? Matches the first word of each pipeline
 // segment so `claude`, `claude-movve`, `code-foo && claude`, `run-…-claude` count,

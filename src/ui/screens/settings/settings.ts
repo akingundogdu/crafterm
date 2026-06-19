@@ -30,7 +30,7 @@ import {
   setRecording,
   isModifierKey
 } from '../../keybindings'
-import { appService } from '../../services/ipc'
+import { appService } from '@services'
 import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from '../../services/storage/repositories'
 import { settingsCleanups, toHex6, buildSubTabs, labeledInput, labeledSelect } from './shared'
 import { buildTabsPanel } from './tabs/tabs'

@@ -1,5 +1,5 @@
 import { openMarkdownFile } from '../../../commands'
-import { plansService } from '../../../services/ipc'
+import { plansService } from '@services'
 import { overlayModal } from '../shared'
 
 // ---- Plans: list ~/.claude/plans and open one in the Markdown app ----

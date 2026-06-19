@@ -1,6 +1,6 @@
 import { settings } from '../../../state'
 import { openMarkdownFile } from '../../../commands'
-import { fsService } from '../../../services/ipc'
+import { fsService } from '@services'
 import { overlayModal, makeSearchInput, baseName } from '../shared'
 
 // ---- All markdown finder (Cmd+O in Notebook): files under the configured folders ----

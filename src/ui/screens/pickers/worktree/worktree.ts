@@ -5,7 +5,7 @@ import {
   openTerminalInDir,
   createWorktreeFromPane
 } from '../../../commands'
-import { gitService } from '../../../services/ipc'
+import { gitService } from '@services'
 import { overlayModal, makeSearchInput, baseName } from '../shared'
 
 // ---- Worktree dashboard: list the active repo's worktrees, act on them ----

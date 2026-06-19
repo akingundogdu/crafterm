@@ -2,7 +2,7 @@ import { state, panes } from '../../../state'
 import { allTabs, panesInLayout, ancestorFolders } from '../../../tree'
 import { paneStatus } from '../../../pane'
 import { selectPane, openTerminalRunning, resumeClaudeSession } from '../../../commands'
-import { appService, claudeService } from '../../../services/ipc'
+import { appService, claudeService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
 
 // ---- Claude sessions dashboard: list all Claude panes, jump to one ----

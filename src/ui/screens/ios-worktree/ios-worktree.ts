@@ -13,7 +13,7 @@ import { showContextMenu, type ContextMenuItem } from '@ui/components'
 import { isWorktreeFolder, worktreeProjectOf } from '../../services/worktrees'
 import { startBackgroundProcess } from '../../services/bgproc'
 import { findById, ancestorFolders } from '../../tree'
-import { iosService } from '../../services/ipc'
+import { iosService } from '@services'
 
 type RunTarget = { kind: 'device' | 'simulator'; name: string; udid: string; scheme?: string }
 

@@ -7,7 +7,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { settings, resolveTheme, applyBgColor } from './state'
 import { loadSettings } from './services/storage/settings.service'
 import { promptConfirm } from './dialog'
-import { terminalService, storeService } from './services/ipc'
+import { terminalService, storeService } from '@services'
 
 // A pop-out window hosts a single terminal pane. The PTY already exists in the
 // main process (created by the main window); we adopt it so its output streams

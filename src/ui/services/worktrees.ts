@@ -20,7 +20,7 @@ import { flattenProjects } from '../catalog'
 import { archiveTab } from '../commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
 import { promptForm, promptConfirm } from '../dialog'
-import { gitService, appService } from './ipc'
+import { gitService, appService } from '@services'
 import { norm, baseName, shq } from './domain/worktree-path'
 
 const RECONCILE_INTERVAL_MS = 20_000

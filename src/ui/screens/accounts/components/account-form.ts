@@ -3,7 +3,7 @@ import type { AccountEntry } from '../../../types'
 import { uid } from '../../../state'
 import { accountRepo } from '../../../services/storage/repositories'
 import { makeCloseButton } from '../../../dialog'
-import { secretsService } from '../../../services/ipc'
+import { secretsService } from '@services'
 import { renderAccounts } from '../accounts'
 
 // Create/edit an account or secret. Secret field values never round-trip through

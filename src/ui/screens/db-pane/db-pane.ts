@@ -9,7 +9,7 @@ import type { DbObjects, DbColumn } from '@bridge/api'
 import { renderResultGrid, type SortState } from './components/result-grid'
 import { quoteIdent } from './sql-literal'
 import './db-pane.css'
-import { dbService } from '../../services/ipc'
+import { dbService } from '@services'
 import { dbConnectionRepo } from '../../services/storage/repositories'
 
 // SQL query pane: the workbench (toolbar + editor + result grid) shown as a

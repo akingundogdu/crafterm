@@ -6,7 +6,7 @@ import { makeCloseButton, promptText } from '../../dialog'
 import { openSqlInSplit } from '../../commands'
 import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@ui/components'
 import './database.css'
-import { dbService } from '../../services/ipc'
+import { dbService } from '@services'
 import { dbConnectionRepo } from '../../services/storage/repositories'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object

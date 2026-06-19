@@ -1,6 +1,6 @@
 import { filePanes, paneActions, uid } from '../../state'
 import { setupPaneDnd } from '../../pane'
-import { fsService } from '../../services/ipc'
+import { fsService } from '@services'
 import { createButton } from '@ui/components'
 import { createLineSelect, type LineRow } from '../diff/line-select'
 import { sendRef, targetCwd } from '../diff/pane-ref'

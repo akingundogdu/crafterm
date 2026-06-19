@@ -15,7 +15,7 @@ import {
 import { persistence } from '../../services/storage/persistence.service'
 import { findTab } from '../../tree'
 import { mountPanes } from '../../pane'
-import { terminalService } from '../../services/ipc'
+import { terminalService } from '@services'
 
 const contentEl = document.getElementById('content')!
 

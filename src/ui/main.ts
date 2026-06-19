@@ -96,7 +96,7 @@ import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'
 import { databaseNewProject } from './screens/database/database'
 import { renderDocker } from './screens/docker/docker'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, isRecording } from './keybindings'
-import { terminalService, claudeService, plansService, appService, storeService } from './services/ipc'
+import { terminalService, claudeService, plansService, appService, storeService } from '@services'
 
 // New terminals: if the selected container (project or folder) has a command
 // defined, open a terminal there and run it (project command runs in the

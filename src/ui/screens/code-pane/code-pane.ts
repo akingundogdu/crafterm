@@ -7,7 +7,7 @@ import { createButton, createSelect } from '@ui/components'
 import { createCodeEditor, type CodeEditor } from '../../editor/code-editor'
 import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
 import { DEFAULT_EDITOR_THEME } from '../../editor/editor-themes'
-import { terminalService, fsService } from '../../services/ipc'
+import { terminalService, fsService } from '@services'
 import { breadcrumb, refPath } from './path-ref'
 
 // An editable code editor pane (Monaco) opened from the Files panel.

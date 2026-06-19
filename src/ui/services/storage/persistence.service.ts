@@ -12,7 +12,7 @@ import {
   NOTIF_PERSIST_WINDOW_MS,
   NOTIF_PERSIST_CAP
 } from '../../state'
-import { storeService } from '../ipc'
+import { storeService } from '@services'
 
 // Renderer persistence/data layer. Owns the debounced save, the serialize
 // pipeline (live singletons -> SavedState), and the save-status chip feed.

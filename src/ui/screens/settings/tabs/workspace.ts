@@ -1,6 +1,6 @@
 import { settings } from '../../../state'
 import { persistence } from '../../../services/storage/persistence.service'
-import { appService } from '../../../services/ipc'
+import { appService } from '@services'
 import { accountRepo } from '../../../services/storage/repositories'
 import { labeledInput, labeledSelect } from '../shared'
 

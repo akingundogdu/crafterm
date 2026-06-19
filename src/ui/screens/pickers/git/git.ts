@@ -1,6 +1,6 @@
 import { selectPane } from '../../../commands'
 import { promptConfirm } from '../../../dialog'
-import { terminalService, gitService } from '../../../services/ipc'
+import { terminalService, gitService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
 
 // ---- Git stash manager: list stashes, apply or drop, for a pane's repo ----
