@@ -8,7 +8,8 @@ const alias = {
   '@services': resolve(__dirname, 'src/services'),
   '@ui': resolve(__dirname, 'src/ui'),
   '@resources': resolve(__dirname, 'src/resources'),
-  '@tests': resolve(__dirname, 'src/tests')
+  '@tests': resolve(__dirname, 'src/tests'),
+  '@bridge': resolve(__dirname, 'src/preload')
 }
 
 export default defineConfig({
@@ -28,14 +29,14 @@ export default defineConfig({
     }
   },
   renderer: {
-    root: resolve(__dirname, 'src/renderer'),
+    root: resolve(__dirname, 'src/ui'),
     resolve: { alias },
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/renderer/index.html'),
-          popout: resolve(__dirname, 'src/renderer/popout.html'),
-          improveWindow: resolve(__dirname, 'src/renderer/improve-window.html')
+          index: resolve(__dirname, 'src/ui/index.html'),
+          popout: resolve(__dirname, 'src/ui/popout.html'),
+          improveWindow: resolve(__dirname, 'src/ui/improve-window.html')
         }
       }
     }
