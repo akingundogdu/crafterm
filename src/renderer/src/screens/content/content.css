@@ -1,0 +1,315 @@
+.tab-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.split {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.split.row {
+  flex-direction: row;
+}
+.split.col {
+  flex-direction: column;
+}
+
+.resizer {
+  flex: 0 0 6px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.resizer.row {
+  cursor: col-resize;
+}
+.resizer.col {
+  cursor: row-resize;
+}
+.resizer:hover {
+  background: var(--accent-soft);
+}
+/* Sits above the <webview> panes during a split drag so the document keeps
+   receiving mousemove/mouseup instead of the webview swallowing them. */
+.resize-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+}
+
+.pane-box {
+  position: relative; /* containing block for the .pane-drop drag overlay (inset:0) */
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-term);
+  transition: border-color 0.15s ease;
+}
+.pane-box.active {
+  border-color: rgba(76, 141, 255, 0.55);
+}
+
+.pane-header {
+  flex: 0 0 auto;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  background: linear-gradient(180deg, #181a21, #15171d);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+.pane-box.active .pane-header {
+  color: var(--text);
+}
+.pane-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.005em;
+}
+.pane-daily-chip {
+  flex: 0 0 auto;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-strong);
+  background: rgba(88, 166, 255, 0.14);
+  color: var(--accent, #58a6ff);
+  border-radius: 5px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+.pane-daily-chip:hover {
+  background: rgba(88, 166, 255, 0.24);
+}
+.pane-close {
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 3px;
+  border-radius: 4px;
+  transition: color 0.13s ease, background 0.13s ease;
+}
+.pane-close:hover {
+  color: #ff7b72;
+  background: rgba(248, 81, 73, 0.12);
+}
+.pane-rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-term);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+  padding: 0 4px;
+  outline: none;
+}
+
+.pane-term {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  padding: 6px 8px;
+}
+
+/* Per-pane bottom status bar: branch · worktree/repo · cwd */
+.pane-status {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 9px;
+  background: linear-gradient(180deg, #15171d, #131419);
+  border-top: 1px solid var(--border);
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--text-mute);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pane-box.active .pane-status {
+  color: var(--text-dim);
+}
+.pane-status-seg {
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane-status-seg.branch {
+  color: var(--green);
+  font-weight: 500;
+}
+.pane-status-seg.branch::before {
+  content: "⎇ ";
+  opacity: 0.8;
+}
+.pane-status-seg.clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 3px;
+  margin: 0 -3px;
+  transition: background 0.12s ease;
+}
+.pane-status-seg.clickable:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.pane-status-seg.worktree {
+  color: var(--amber);
+}
+.pane-status-seg.worktree::before {
+  content: "⑂ ";
+  opacity: 0.8;
+}
+.pane-status-seg.cwd {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.pane-status-sep {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+.pane-status-copy {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.pane-status-copy:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+.pane-status-copy.copied {
+  color: var(--green);
+}
+
+/* embedded browser pane */
+.pane-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 3px;
+  border-radius: 4px;
+  transition: color 0.13s ease, background 0.13s ease;
+}
+.pane-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+.pane-web {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* drag-to-rearrange: header is the handle; this overlay catches drops */
+.pane-grip {
+  flex: 0 0 auto;
+  cursor: grab;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 6px;
+  user-select: none;
+  letter-spacing: -2px;
+}
+.pane-grip:hover {
+  color: var(--text);
+}
+body.dragging-pane .pane-grip {
+  cursor: grabbing;
+}
+body.dragging-pane .pane-header {
+  cursor: grabbing;
+}
+.pane-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none; /* visual indicator only; drag is pointer-event based */
+}
+/* during a pane drag: grab cursor, no text selection, and let the move pass
+   over terminals (xterm must not capture the pointer or select text) */
+body.dragging-pane {
+  cursor: grabbing;
+  user-select: none;
+}
+body.dragging-pane .pane-term {
+  pointer-events: none;
+}
+.pane-drop::after {
+  content: "";
+  position: absolute;
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  opacity: 0;
+  transition: inset 0.08s ease;
+}
+.pane-drop[data-zone="left"]::after {
+  inset: 3px 50% 3px 3px;
+  opacity: 1;
+}
+.pane-drop[data-zone="right"]::after {
+  inset: 3px 3px 3px 50%;
+  opacity: 1;
+}
+.pane-drop[data-zone="top"]::after {
+  inset: 3px 3px 50% 3px;
+  opacity: 1;
+}
+.pane-drop[data-zone="bottom"]::after {
+  inset: 50% 3px 3px 3px;
+  opacity: 1;
+}
+
+.xterm,
+.xterm-viewport {
+  width: 100% !important;
+  height: 100% !important;
+}
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+
