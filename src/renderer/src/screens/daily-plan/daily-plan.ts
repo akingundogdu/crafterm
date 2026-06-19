@@ -1,3 +1,4 @@
+import './daily-plan.css'
 import type {
   DailyPlanTask,
   DailyPlanTag,
