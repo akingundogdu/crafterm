@@ -1,6 +1,6 @@
 import type { DbColumn } from '../../../../../preload/api'
 import type { DbConnection } from '../../../types'
-import { createOverlay } from '@crafterm/ui'
+import { createOverlay } from '@ui/components'
 import { makeCloseButton, promptConfirm } from '../../../dialog'
 import { dbService } from '../../../services/ipc'
 import { quoteIdent, literalOf } from '../sql-literal'

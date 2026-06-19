@@ -1,4 +1,4 @@
-import { createOverlay, createSelect, createButton } from '@crafterm/ui'
+import { createOverlay, createSelect, createButton } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 import { state, panes } from '../../../state'
 import { flattenProjects, findProjectByPath } from '../../../catalog'

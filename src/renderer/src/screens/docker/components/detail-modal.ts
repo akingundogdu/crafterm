@@ -4,7 +4,7 @@ import type { DockerKind } from '../../../../../preload/api'
 import { settings, resolveTheme } from '../../../state'
 import { terminalService, dockerService } from '../../../services/ipc'
 import { makeCloseButton } from '../../../dialog'
-import { createButton, createOverlay } from '@crafterm/ui'
+import { createButton, createOverlay } from '@ui/components'
 import { inspectFields } from '../inspect'
 
 // The Docker resource detail modal: a tabbed Inspect / Logs / Terminal view.

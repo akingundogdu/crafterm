@@ -9,7 +9,7 @@ import {
   SOURCE_LABEL,
   type GsEntry
 } from '../pickers/global-search/global-search'
-import { createSearchBox } from '@crafterm/ui'
+import { createSearchBox } from '@ui/components'
 import {
   openMarkdownFile,
   selectPane,

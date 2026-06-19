@@ -1,4 +1,4 @@
-import { createOverlay, createButton, createSelect, createTextarea, createDateField } from '@crafterm/ui'
+import { createOverlay, createButton, createSelect, createTextarea, createDateField } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 import { settings, uid } from '../../../state'
 import { reminderRepo, bookmarkRepo, dailyTaskRepo } from '../../../services/storage/repositories'

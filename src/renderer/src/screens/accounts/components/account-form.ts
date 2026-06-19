@@ -1,4 +1,4 @@
-import { createOverlay, createButton, createInput, createTextarea, createField } from '@crafterm/ui'
+import { createOverlay, createButton, createInput, createTextarea, createField } from '@ui/components'
 import type { AccountEntry } from '../../../types'
 import { uid } from '../../../state'
 import { accountRepo } from '../../../services/storage/repositories'

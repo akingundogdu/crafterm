@@ -18,7 +18,7 @@ import { applyAppearance } from '../../pane'
 import { ALL_THEME_NAMES, applyTheme } from '../../editor/monaco-setup'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from '../sidebar/sidebar'
 import { pickFolderPath } from '../pickers/folder/folder'
-import { createOverlay } from '@crafterm/ui'
+import { createOverlay } from '@ui/components'
 import { makeCloseButton, promptForm, promptText } from '../../dialog'
 import {
   KEYBINDINGS,

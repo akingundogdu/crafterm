@@ -1,4 +1,4 @@
-import { createOverlay, createButton } from '@crafterm/ui'
+import { createOverlay, createButton } from '@ui/components'
 import type { Bookmark } from '../../../types'
 import { makeCloseButton } from '../../../dialog'
 import { snoozeReminder, snoozeOptions } from '../../../screens/reminders/reminders'

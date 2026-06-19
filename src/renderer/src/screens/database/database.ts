@@ -4,7 +4,7 @@ import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from '../../
 import type { DbObjects } from '../../../../preload/api'
 import { makeCloseButton, promptText } from '../../dialog'
 import { openSqlInSplit } from '../../commands'
-import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@crafterm/ui'
+import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@ui/components'
 import './database.css'
 import { dbService } from '../../services/ipc'
 import { dbConnectionRepo } from '../../services/storage/repositories'

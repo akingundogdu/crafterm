@@ -17,5 +17,5 @@
       "@tests/*": ["src/tests/*"]
     }
   },
-  "include": ["src/renderer/src/**/*", "src/preload/api.d.ts"]
+  "include": ["src/renderer/src/**/*", "src/ui/**/*", "src/preload/api.d.ts"]
 }

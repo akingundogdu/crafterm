@@ -1,5 +1,5 @@
 import type { PullRequest, WorkflowRun, DeploymentStatus } from '../../../../../preload/api'
-import { createButton } from '@crafterm/ui'
+import { createButton } from '@ui/components'
 import { overallState, runState, deployState, ago } from '../pr-status'
 
 // DOM builders for the PR tab cards and their status badges. Card action handlers

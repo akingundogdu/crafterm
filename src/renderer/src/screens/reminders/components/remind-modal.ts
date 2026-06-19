@@ -1,4 +1,4 @@
-import { createOverlay, createButton } from '@crafterm/ui'
+import { createOverlay, createButton } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 import type { ReminderPayload } from '../../../types'
 import { snoozeOptions, snoozeReminder } from '../reminders'

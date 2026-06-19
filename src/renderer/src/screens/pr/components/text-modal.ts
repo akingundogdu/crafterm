@@ -1,4 +1,4 @@
-import { createOverlay } from '@crafterm/ui'
+import { createOverlay } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 
 // Read-only text viewer modal (run job/step logs, merge errors). Title + a

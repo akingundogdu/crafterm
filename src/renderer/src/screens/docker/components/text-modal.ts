@@ -1,4 +1,4 @@
-import { createOverlay } from '@crafterm/ui'
+import { createOverlay } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 
 // Read-only text modal for Docker action/prune errors. Title + monospace <pre>,

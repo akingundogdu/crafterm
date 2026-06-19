@@ -1,5 +1,5 @@
 import './bookmarks.css'
-import { createButton, createInput } from '@crafterm/ui'
+import { createButton, createInput } from '@ui/components'
 import { bookmarkRepo } from '../../services/storage/repositories'
 import { TYPE_LABEL, type TypeFilter } from './bookmark-meta'
 import { showBookmarkForm } from './components/bookmark-form'

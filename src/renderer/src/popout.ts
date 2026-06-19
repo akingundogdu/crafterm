@@ -1,5 +1,5 @@
 import '@xterm/xterm/css/xterm.css'
-import '../../../packages/crafterm-ui/src/tokens.css'
+import '@ui/styles/tokens.css'
 import './global.css'
 import './popout.css'
 import { Terminal } from '@xterm/xterm'

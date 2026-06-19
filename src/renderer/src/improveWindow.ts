@@ -1,5 +1,5 @@
-import '../../../packages/crafterm-ui/src/tokens.css'
-import '../../../packages/crafterm-ui/src/modal/modal.css'
+import '@ui/styles/tokens.css'
+import '@ui/components/modal/modal.css'
 import './global.css'
 import { applyBgColor } from './state'
 import { loadSettings } from './services/storage/settings.service'

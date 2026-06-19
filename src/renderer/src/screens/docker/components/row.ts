@@ -1,4 +1,4 @@
-import { createButton } from '@crafterm/ui'
+import { createButton } from '@ui/components'
 
 // DOM builders for the Docker list rows. Action handlers are injected via
 // RowAction.run, so this module carries no IPC/state imports.

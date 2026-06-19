@@ -1,6 +1,6 @@
 import '@xterm/xterm/css/xterm.css'
-import '../../../packages/crafterm-ui/src/tokens.css'
-import '../../../packages/crafterm-ui/src/modal/modal.css'
+import '@ui/styles/tokens.css'
+import '@ui/components/modal/modal.css'
 import './global.css'
 import './app-shell.css'
 import type { LayoutNode, SidebarNode, DiffPane, CodePane } from './types'

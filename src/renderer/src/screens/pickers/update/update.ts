@@ -1,5 +1,5 @@
 import './update.css'
-import { createButton, createOverlay } from '@crafterm/ui'
+import { createButton, createOverlay } from '@ui/components'
 import { settings, state } from '../../../state'
 import { persistence } from '../../../services/storage/persistence.service'
 import { promptConfirm } from '../../../dialog'

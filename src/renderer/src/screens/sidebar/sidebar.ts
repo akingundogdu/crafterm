@@ -62,10 +62,10 @@ import { promptText, promptSelect } from '../../dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from '../database/database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from '../docker/docker'
 import { renderAccounts, accountsApplyQuery, initAccounts } from '../accounts/accounts'
-import { type ContextMenuItem } from '@crafterm/ui'
+import { type ContextMenuItem } from '@ui/components'
 import { iosWorktreeTrailing, iosWorktreeMenuItems } from '../ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '../../services/worktrees'
-import { createTreeView, createOverlay, type TreeAdapter, type TreeSection, type DropPos } from '@crafterm/ui'
+import { createTreeView, createOverlay, type TreeAdapter, type TreeSection, type DropPos } from '@ui/components'
 import {
   renderNotebook,
   handleNotebookKey,

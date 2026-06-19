@@ -1,7 +1,7 @@
 import { settings } from '../../../state'
 import { persistence } from '../../../services/storage/persistence.service'
 import { prService } from '../../../services/ipc'
-import { createOverlay, createSearchBox, createButton } from '@crafterm/ui'
+import { createOverlay, createSearchBox, createButton } from '@ui/components'
 import { makeCloseButton } from '../../../dialog'
 
 // Searchable, multi-select repo picker for the "All projects" PR/Deployments

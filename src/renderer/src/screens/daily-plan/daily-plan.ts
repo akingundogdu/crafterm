@@ -16,7 +16,7 @@ import { findProjectById } from '../../catalog'
 import { openClaudeWithPrompt } from '../../commands'
 import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from '../../services/worktrees'
 import { refreshPaneDailyTask } from '../../pane'
-import { createDateField, createOverlay } from '@crafterm/ui'
+import { createDateField, createOverlay } from '@ui/components'
 import { boardColumnOf, ymd, parseYmd, shiftDays } from './task-helpers'
 
 // Board columns. 'review' is intentionally absent — it's an intermediate status

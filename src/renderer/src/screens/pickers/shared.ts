@@ -1,5 +1,5 @@
 import './pickers.css'
-import { createOverlay } from '@crafterm/ui'
+import { createOverlay } from '@ui/components'
 import { makeCloseButton } from '../../dialog'
 
 // Shared primitive for the picker family: a bare overlay+modal box with a close
@@ -26,4 +26,4 @@ export function baseName(p: string): string {
 
 // The pickers' "contains" search box is exactly @crafterm/ui's search-box —
 // re-exported under the legacy name so the per-picker modules consume one impl.
-export { createSearchBox as makeSearchInput } from '@crafterm/ui'
+export { createSearchBox as makeSearchInput } from '@ui/components'
