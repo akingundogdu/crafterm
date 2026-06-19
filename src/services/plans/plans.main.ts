@@ -5,6 +5,7 @@ import { readdirSync, statSync } from 'fs'
 import * as plansWatcher from '@core/services/plans.watcher'
 import { run, gitBin } from '@core/services/exec'
 import { parsePlanFilename } from '@core/planFilename'
+import type { PlanForBranch } from './plans.types'
 
 // Plans bridge (plans:*): Claude plan files (~/.claude/plans), per-project
 // docs/plans aggregation, and per-branch plan ownership for the sidebar.
@@ -62,23 +63,15 @@ export function registerPlansIpc(): void {
   // session id. Slashes in the branch are matched as dashes since filenames can't
   // contain "/".
   handle(Channel.Plans.ForBranch, async ({ cwd, branch }) => {
-    type PlanRow = {
-      name: string
-      slug: string
-      path: string
-      mtime: number
-      ownerStableId: string | null
-      ownerSessionId: string | null
-    }
-    if (!cwd || !branch) return [] as PlanRow[]
+    if (!cwd || !branch) return [] as PlanForBranch[]
     let dir = cwd.trim()
     if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
     const root = await run(gitBin(), ['-C', dir, 'rev-parse', '--show-toplevel'])
-    if (!root) return [] as PlanRow[]
+    if (!root) return [] as PlanForBranch[]
     const plansDir = join(root.trim(), 'docs', 'plans')
     plansWatcher.ensure(plansDir)
     try {
-      const rows: PlanRow[] = []
+      const rows: PlanForBranch[] = []
       for (const f of readdirSync(plansDir).sort()) {
         const parsed = parsePlanFilename(f, branch)
         if (!parsed || (!parsed.ownerStableId && !parsed.ownerSessionId)) continue
@@ -100,7 +93,7 @@ export function registerPlansIpc(): void {
       }
       return rows
     } catch {
-      return [] as PlanRow[]
+      return [] as PlanForBranch[]
     }
   })
 }

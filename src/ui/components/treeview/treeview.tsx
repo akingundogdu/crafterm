@@ -69,21 +69,18 @@ const CHEVRON =
 
 function buildGuides(depth: number, guides: boolean[], isLast: boolean): HTMLElement | null {
   if (depth === 0) return null
-  const wrap = document.createElement('div')
-  wrap.className = 'row-guides'
   const x = (level: number): number => 10 + level * INDENT + 7
+  const lines: HTMLElement[] = []
   for (let level = 0; level < depth - 1; level++) {
     if (!guides[level]) continue
-    const line = document.createElement('span')
-    line.className = 'guide-line'
-    line.style.left = x(level) + 'px'
-    wrap.appendChild(line)
+    lines.push((<span class="guide-line" style={{ left: x(level) + 'px' }} />) as HTMLSpanElement)
   }
-  const elbow = document.createElement('span')
-  elbow.className = 'guide-elbow' + (isLast ? ' last' : '')
-  elbow.style.left = x(depth - 1) + 'px'
-  wrap.appendChild(elbow)
-  return wrap
+  return (
+    <div class="row-guides">
+      {lines}
+      <span class={'guide-elbow' + (isLast ? ' last' : '')} style={{ left: x(depth - 1) + 'px' }} />
+    </div>
+  ) as HTMLDivElement
 }
 
 // A rendered row, kept so keyboard nav + light refresh can find it without a
@@ -142,8 +139,7 @@ export function createTreeView<T>(host: HTMLElement, a: TreeAdapter<T>): TreeVie
   function startRename(node: T, labelEl: HTMLElement): void {
     if (!a.onRename) return
     renaming = a.id(node)
-    const input = document.createElement('input')
-    input.className = 'rename-input'
+    const input = (<input class="rename-input" />) as HTMLInputElement
     input.value = a.label(node)
     labelEl.replaceWith(input)
     input.focus()
@@ -181,75 +177,76 @@ export function createTreeView<T>(host: HTMLElement, a: TreeAdapter<T>): TreeVie
     const container = a.isContainer(node)
     const filtering = filter.length > 0
     const open = container && (filtering || !a.collapsed(node))
-    const row = document.createElement('div')
-    row.className =
-      'tab-item' +
-      (container ? ' folder' : '') +
-      (id === state.selectedId ? ' selected' : '') +
-      (a.rowClass ? ' ' + a.rowClass(node) : '')
-    row.dataset.treeId = id
-    row.style.paddingLeft = 10 + depth * INDENT + 'px'
-    if (a.color) applyRowColor(row, a.color(node))
-    const g = buildGuides(depth, guides, isLast)
-    if (g) row.appendChild(g)
 
     const above = a.aboveRow?.(node)
-    if (above) row.appendChild(above)
 
-    const top = document.createElement('div')
-    top.className = 'tab-row'
-
+    let tri: HTMLElement | null = null
     if (container) {
-      const tri = document.createElement('span')
-      tri.className = 'tri' + (open ? ' expanded' : '')
-      tri.innerHTML = CHEVRON
+      tri = (<span class={'tri' + (open ? ' expanded' : '')} innerHTML={CHEVRON} />) as HTMLSpanElement
       tri.addEventListener('click', (e) => {
         e.stopPropagation()
         a.onToggle(node)
       })
-      top.appendChild(tri)
     }
-    const leadingHost = document.createElement('span')
-    leadingHost.className = 'tree-leading'
+
+    const leadingHost = (<span class="tree-leading" />) as HTMLSpanElement
     const lead = a.leading?.(node)
     if (lead) leadingHost.appendChild(lead)
-    if (lead || a.leading) top.appendChild(leadingHost)
 
     const iconHtml = a.icon?.(node)
-    if (iconHtml) {
-      const icon = document.createElement('span')
-      icon.className = 'folder-icon' + (a.iconClass ? ' ' + a.iconClass(node) : '')
-      icon.innerHTML = iconHtml
-      top.appendChild(icon)
-    }
-    const label = document.createElement('span')
-    label.className = 'tab-title'
-    label.textContent = a.label(node)
-    top.appendChild(label)
+    const icon = iconHtml
+      ? ((
+          <span class={'folder-icon' + (a.iconClass ? ' ' + a.iconClass(node) : '')} innerHTML={iconHtml} />
+        ) as HTMLSpanElement)
+      : null
 
-    const trailingHost = document.createElement('span')
-    trailingHost.className = 'tree-trailing'
+    const label = (<span class="tab-title">{a.label(node)}</span>) as HTMLSpanElement
+
+    const trailingHost = (<span class="tree-trailing" />) as HTMLSpanElement
     const trailing = a.trailing?.(node)
     if (trailing) trailingHost.appendChild(trailing)
-    top.appendChild(trailingHost)
 
     let numEl: HTMLElement | null = null
     if (a.numbered) {
-      numEl = document.createElement('span')
-      numEl.className = 'order-num'
-      top.appendChild(numEl)
+      numEl = (<span class="order-num" />) as HTMLSpanElement
     }
 
     const actions = a.hoverActions?.(node)
-    if (actions) top.appendChild(actions)
 
-    row.appendChild(top)
+    const top = (
+      <div class="tab-row">
+        {tri}
+        {(lead || a.leading) && leadingHost}
+        {icon}
+        {label}
+        {trailingHost}
+        {numEl}
+        {actions}
+      </div>
+    ) as HTMLDivElement
 
-    const belowHost = document.createElement('div')
-    belowHost.className = 'tree-below'
+    const belowHost = (<div class="tree-below" />) as HTMLDivElement
     const below = a.below?.(node)
     if (below) belowHost.appendChild(below)
-    row.appendChild(belowHost)
+
+    const row = (
+      <div
+        class={
+          'tab-item' +
+          (container ? ' folder' : '') +
+          (id === state.selectedId ? ' selected' : '') +
+          (a.rowClass ? ' ' + a.rowClass(node) : '')
+        }
+        dataset={{ treeId: id }}
+        style={{ paddingLeft: 10 + depth * INDENT + 'px' }}
+      >
+        {buildGuides(depth, guides, isLast)}
+        {above}
+        {top}
+        {belowHost}
+      </div>
+    ) as HTMLDivElement
+    if (a.color) applyRowColor(row, a.color(node))
 
     // interactions
     row.addEventListener('click', () => {
@@ -365,9 +362,9 @@ export function createTreeView<T>(host: HTMLElement, a: TreeAdapter<T>): TreeVie
       if (headerEl && live.length === before) headerEl.remove() // empty section: drop header
     }
     if (!live.length) {
-      const hint = document.createElement('div')
-      hint.className = 'empty-hint'
-      hint.textContent = filter ? 'No matches' : 'Nothing here yet.'
+      const hint = (
+        <div class="empty-hint">{filter ? 'No matches' : 'Nothing here yet.'}</div>
+      ) as HTMLDivElement
       host.appendChild(hint)
     }
     applyOrder()

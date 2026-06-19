@@ -7,9 +7,9 @@ export interface TextareaOptions {
 }
 
 export function createTextarea(opts: TextareaOptions = {}): HTMLTextAreaElement {
-  const textarea = document.createElement('textarea')
-  if (opts.rows != null) textarea.rows = opts.rows
-  textarea.value = opts.value ?? ''
-  if (opts.placeholder) textarea.placeholder = opts.placeholder
-  return textarea
+  return (
+    <textarea rows={opts.rows} placeholder={opts.placeholder}>
+      {opts.value ?? ''}
+    </textarea>
+  ) as HTMLTextAreaElement
 }

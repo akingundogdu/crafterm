@@ -17,30 +17,20 @@ export interface SelectOptions {
 }
 
 export function createSelect(opts: SelectOptions): HTMLSelectElement {
-  const sel = document.createElement('select')
-  if (opts.emptyLabel != null) {
-    const o = document.createElement('option')
-    o.value = ''
-    o.textContent = opts.emptyLabel
-    sel.appendChild(o)
-  }
-  for (const opt of opts.options) {
-    const o = document.createElement('option')
-    if (typeof opt === 'string') {
-      o.value = opt
-      o.textContent = opt
-    } else {
-      o.value = opt.value
-      o.textContent = opt.label
-    }
-    sel.appendChild(o)
-  }
-  if (opts.allowCreate) {
-    const o = document.createElement('option')
-    o.value = CREATE_OPTION
-    o.textContent = opts.createLabel ?? '+ New…'
-    sel.appendChild(o)
-  }
+  const sel = (
+    <select>
+      {opts.emptyLabel != null && <option value="">{opts.emptyLabel}</option>}
+      {opts.options.map((opt) =>
+        typeof opt === 'string' ? (
+          <option value={opt}>{opt}</option>
+        ) : (
+          <option value={opt.value}>{opt.label}</option>
+        )
+      )}
+      {opts.allowCreate && <option value={CREATE_OPTION}>{opts.createLabel ?? '+ New…'}</option>}
+    </select>
+  ) as HTMLSelectElement
+  // Must run after the options exist, or the value won't take.
   sel.value = opts.value ?? ''
   return sel
 }

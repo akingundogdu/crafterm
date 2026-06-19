@@ -7,9 +7,7 @@ export interface InputOptions {
 }
 
 export function createInput(opts: InputOptions = {}): HTMLInputElement {
-  const input = document.createElement('input')
-  input.type = opts.type ?? 'text'
-  input.value = opts.value ?? ''
-  if (opts.placeholder) input.placeholder = opts.placeholder
-  return input
+  return (
+    <input type={opts.type ?? 'text'} value={opts.value ?? ''} placeholder={opts.placeholder} />
+  ) as HTMLInputElement
 }

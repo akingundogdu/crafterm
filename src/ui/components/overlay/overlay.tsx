@@ -12,8 +12,7 @@ export interface OverlayHandle {
 }
 
 export function createOverlay(opts: { closeOnBackdrop?: boolean } = {}): OverlayHandle {
-  const overlay = document.createElement('div')
-  overlay.className = 'modal-overlay'
+  const overlay = (<div class="modal-overlay" />) as HTMLDivElement
   let done = false
   const cbs: Array<() => void> = []
   const close = (): void => {

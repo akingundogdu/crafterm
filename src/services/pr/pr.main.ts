@@ -3,13 +3,23 @@ import { execFile } from 'child_process'
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
-import type {
-  PullRequest,
-  PrChecks,
-  WorkflowRun,
-  DeploymentStatus,
-  ProjectPullRequests,
-  ProjectDeployments
+import {
+  Gh,
+  GhFields,
+  PASS_CHECK_STATUSES,
+  FAIL_CHECK_STATUSES,
+  type PullRequest,
+  type PrChecks,
+  type WorkflowRun,
+  type DeploymentStatus,
+  type ProjectPullRequests,
+  type ProjectDeployments,
+  type RollupItem,
+  type PrFileEntry,
+  type RawPr,
+  type RawRun,
+  type RawDeployment,
+  type RawDeployStatus
 } from './pr.types'
 
 // PR + GitHub Actions/deployments bridge (pr:* / gh:*) over the `gh` CLI. This is
@@ -92,13 +102,6 @@ function ghRun(
 // Reconstruct a unified diff from the PR "files" API, which paginates and so
 // works past the 300-file cap that fails `gh pr diff`. Each file carries its own
 // hunks in `patch`; we prepend the git/path headers our diff parser expects.
-interface PrFileEntry {
-  filename: string
-  status: string // added | removed | modified | renamed | …
-  patch?: string
-  previous_filename?: string
-}
-
 function buildPatchFromFiles(json: string): string {
   const arr = JSON.parse(json || '[]') as PrFileEntry[]
   const parts: string[] = []
@@ -112,13 +115,6 @@ function buildPatchFromFiles(json: string): string {
   return parts.join('\n')
 }
 
-interface RollupItem {
-  __typename?: string
-  status?: string // CheckRun: QUEUED | IN_PROGRESS | COMPLETED
-  conclusion?: string // CheckRun: SUCCESS | FAILURE | …
-  state?: string // StatusContext: SUCCESS | PENDING | FAILURE | ERROR
-}
-
 // Collapse the per-check rollup into pass/fail/pending counts + an overall state.
 function summarizeChecks(rollup: RollupItem[] | undefined): PrChecks {
   let pass = 0
@@ -126,45 +122,13 @@ function summarizeChecks(rollup: RollupItem[] | undefined): PrChecks {
   let pending = 0
   for (const c of rollup ?? []) {
     const v = (c.conclusion || c.state || c.status || '').toUpperCase()
-    if (['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(v)) pass++
-    else if (['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE'].includes(v))
-      fail++
+    if (PASS_CHECK_STATUSES.includes(v)) pass++
+    else if (FAIL_CHECK_STATUSES.includes(v)) fail++
     else pending++ // PENDING | QUEUED | IN_PROGRESS | EXPECTED | ''
   }
   const total = pass + fail + pending
   const state = total === 0 ? 'none' : fail > 0 ? 'failure' : pending > 0 ? 'pending' : 'success'
   return { pass, fail, pending, total, state }
-}
-
-const PR_FIELDS =
-  'number,title,headRefName,baseRefName,state,isDraft,mergeable,reviewDecision,url,statusCheckRollup,comments,updatedAt'
-
-interface RawPr {
-  number: number
-  title: string
-  headRefName: string
-  baseRefName: string
-  state: string
-  isDraft: boolean
-  mergeable: string
-  reviewDecision: string
-  url: string
-  statusCheckRollup?: RollupItem[]
-  comments?: unknown[]
-  updatedAt?: string
-}
-
-interface RawRun {
-  databaseId: number
-  name?: string
-  displayTitle?: string
-  status?: string
-  conclusion?: string
-  event?: string
-  headBranch?: string
-  headSha?: string
-  url?: string
-  createdAt?: string
 }
 
 function shapeRun(r: RawRun): WorkflowRun {
@@ -180,24 +144,6 @@ function shapeRun(r: RawRun): WorkflowRun {
     url: r.url ?? '',
     createdAt: r.createdAt ?? ''
   }
-}
-
-interface RawDeployment {
-  id: number
-  environment?: string
-  ref?: string
-  sha?: string
-  description?: string
-  created_at?: string
-}
-
-interface RawDeployStatus {
-  state?: string // pending | in_progress | success | failure | error | inactive | queued
-  description?: string
-  environment_url?: string
-  log_url?: string
-  target_url?: string
-  created_at?: string
 }
 
 function shapePr(p: RawPr): PullRequest {
@@ -219,17 +165,7 @@ function shapePr(p: RawPr): PullRequest {
 
 // Recent GitHub Actions workflow runs for the repo at `cwd`, newest first.
 async function loadRuns(cwd: string): Promise<{ ok: boolean; error?: string; runs: WorkflowRun[] }> {
-  const r = await ghRun(
-    [
-      'run',
-      'list',
-      '--limit',
-      '20',
-      '--json',
-      'databaseId,name,displayTitle,status,conclusion,event,headBranch,headSha,url,createdAt'
-    ],
-    cwd
-  )
+  const r = await ghRun([Gh.Sub.Run, Gh.Verb.List, '--limit', '20', '--json', GhFields.Run], cwd)
   if (!r.ok) return { ok: false, error: (r.err || 'gh run list failed').trim(), runs: [] }
   try {
     const arr = JSON.parse(r.out.trim() || '[]') as RawRun[]
@@ -245,14 +181,14 @@ async function loadDeployments(
   cwd: string
 ): Promise<{ ok: boolean; error?: string; deployments: DeploymentStatus[] }> {
   const repoRes = await ghRun(
-    ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
+    [Gh.Sub.Repo, Gh.Verb.View, '--json', GhFields.NameWithOwner, '-q', '.nameWithOwner'],
     cwd,
     6000
   )
   const repo = repoRes.out.trim()
   if (!repo) return { ok: false, error: 'Not a GitHub repository (or no remote).', deployments: [] }
 
-  const list = await ghRun(['api', `repos/${repo}/deployments?per_page=10`], cwd)
+  const list = await ghRun([Gh.Sub.Api, `repos/${repo}/deployments?per_page=10`], cwd)
   if (!list.ok) return { ok: false, error: (list.err || 'gh api deployments failed').trim(), deployments: [] }
   let raw: RawDeployment[]
   try {
@@ -263,7 +199,7 @@ async function loadDeployments(
 
   const deployments: DeploymentStatus[] = await Promise.all(
     raw.map(async (d) => {
-      const sres = await ghRun(['api', `repos/${repo}/deployments/${d.id}/statuses?per_page=1`], cwd)
+      const sres = await ghRun([Gh.Sub.Api, `repos/${repo}/deployments/${d.id}/statuses?per_page=1`], cwd)
       let status: RawDeployStatus = {}
       try {
         const statuses = JSON.parse(sres.out.trim() || '[]') as RawDeployStatus[]
@@ -292,9 +228,9 @@ export function registerPrIpc(): void {
       // ghBin() returns 'gh' only when no known path exists; a PATH lookup may
       // still succeed, so fall through to auth check rather than failing here.
     }
-    const auth = await ghRun(['auth', 'status'], cwd, 6000)
+    const auth = await ghRun([Gh.Sub.Auth, Gh.Verb.Status], cwd, 6000)
     if (!auth.ok) return { ok: false, error: 'GitHub CLI not authenticated. Run `gh auth login`.' }
-    const repo = await ghRun(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], cwd, 6000)
+    const repo = await ghRun([Gh.Sub.Repo, Gh.Verb.View, '--json', GhFields.NameWithOwner, '-q', '.nameWithOwner'], cwd, 6000)
     if (!repo.ok || !repo.out.trim())
       return { ok: false, error: 'Not a GitHub repository (or no remote).' }
     return { ok: true, repo: repo.out.trim() }
@@ -302,7 +238,7 @@ export function registerPrIpc(): void {
 
   // Open PRs for the repo at `cwd`, newest-updated first.
   handle(Channel.Pr.List, async ({ cwd }) => {
-    const r = await ghRun(['pr', 'list', '--state', 'open', '--limit', '30', '--json', PR_FIELDS], cwd)
+    const r = await ghRun([Gh.Sub.Pr, Gh.Verb.List, '--state', 'open', '--limit', '30', '--json', GhFields.Pr], cwd)
     if (!r.ok) return { ok: false, error: (r.err || 'gh pr list failed').trim(), prs: [] }
     try {
       const arr = JSON.parse(r.out.trim() || '[]') as RawPr[]
@@ -329,7 +265,7 @@ export function registerPrIpc(): void {
     const sel = (Array.isArray(paths) ? paths : []).filter((p) => existsSync(join(p, '.git')))
     if (!sel.length) return { ok: true, projects: [] }
     const groups: ProjectPullRequests[] = await mapPool(sel, 8, async (p) => {
-      const r = await ghRun(['pr', 'list', '--state', 'open', '--limit', '30', '--json', PR_FIELDS], p)
+      const r = await ghRun([Gh.Sub.Pr, Gh.Verb.List, '--state', 'open', '--limit', '30', '--json', GhFields.Pr], p)
       let prs: PullRequest[] = []
       if (r.ok) {
         try {
@@ -346,13 +282,13 @@ export function registerPrIpc(): void {
 
   handle(Channel.Pr.Merge, async ({ cwd, number, method }) => {
     const flag = method === 'rebase' ? '--rebase' : method === 'merge' ? '--merge' : '--squash'
-    const r = await ghRun(['pr', 'merge', String(number), flag, '--delete-branch'], cwd, 30000)
+    const r = await ghRun([Gh.Sub.Pr, Gh.Verb.Merge, String(number), flag, '--delete-branch'], cwd, 30000)
     return r.ok ? { ok: true } : { ok: false, error: (r.err || 'merge failed').trim() }
   })
 
   // Full `gh pr view` text for the detail modal.
   handle(Channel.Pr.View, async ({ cwd, number }) => {
-    const r = await ghRun(['pr', 'view', String(number), '--comments'], cwd)
+    const r = await ghRun([Gh.Sub.Pr, Gh.Verb.View, String(number), '--comments'], cwd)
     return r.ok ? r.out : r.err || 'pr view failed'
   })
 
@@ -360,11 +296,11 @@ export function registerPrIpc(): void {
   // large-PR failure (HTTP 406, "diff exceeded the maximum number of files"),
   // fall back to the paginated files API and rebuild the patch ourselves.
   handle(Channel.Pr.Diff, async ({ cwd, number }) => {
-    const direct = await ghRun(['pr', 'diff', String(number)], cwd, 30000)
+    const direct = await ghRun([Gh.Sub.Pr, Gh.Verb.Diff, String(number)], cwd, 30000)
     if (direct.ok && direct.out.trim()) return { ok: true, patch: direct.out }
 
     const repoRes = await ghRun(
-      ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
+      [Gh.Sub.Repo, Gh.Verb.View, '--json', GhFields.NameWithOwner, '-q', '.nameWithOwner'],
       cwd,
       6000
     )
@@ -372,7 +308,7 @@ export function registerPrIpc(): void {
     if (!repo) return { ok: false, error: (direct.err || 'gh pr diff failed').trim() }
 
     const files = await ghRun(
-      ['api', '--paginate', `repos/${repo}/pulls/${number}/files`],
+      [Gh.Sub.Api, '--paginate', `repos/${repo}/pulls/${number}/files`],
       cwd,
       60000,
       64 * 1024 * 1024
@@ -395,14 +331,14 @@ export function registerPrIpc(): void {
   handle(Channel.Pr.Comment, async ({ cwd, number, path, startLine, endLine, body }) => {
     if (!body.trim()) return { ok: false, error: 'Comment body is empty.' }
     const repoRes = await ghRun(
-      ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
+      [Gh.Sub.Repo, Gh.Verb.View, '--json', GhFields.NameWithOwner, '-q', '.nameWithOwner'],
       cwd,
       6000
     )
     const repo = repoRes.out.trim()
     if (!repo) return { ok: false, error: 'Not a GitHub repository (or no remote).' }
     const shaRes = await ghRun(
-      ['pr', 'view', String(number), '--json', 'headRefOid', '-q', '.headRefOid'],
+      [Gh.Sub.Pr, Gh.Verb.View, String(number), '--json', GhFields.HeadRefOid, '-q', '.headRefOid'],
       cwd,
       10000
     )
@@ -412,7 +348,7 @@ export function registerPrIpc(): void {
     const lo = Math.min(startLine, endLine)
     const hi = Math.max(startLine, endLine)
     const args = [
-      'api',
+      Gh.Sub.Api,
       '--method',
       'POST',
       `repos/${repo}/pulls/${number}/comments`,
@@ -459,7 +395,7 @@ export function registerPrIpc(): void {
 
   // Job/step breakdown for one run; fetched lazily when a run card is expanded.
   handle(Channel.Gh.RunJobs, async ({ cwd, id }) => {
-    const r = await ghRun(['run', 'view', String(id), '--json', 'jobs'], cwd)
+    const r = await ghRun([Gh.Sub.Run, Gh.Verb.View, String(id), '--json', GhFields.RunJobs], cwd)
     return r.ok ? r.out : r.err || 'gh run view failed'
   })
 

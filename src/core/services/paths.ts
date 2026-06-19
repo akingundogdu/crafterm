@@ -30,10 +30,10 @@ export const buildCounterPath = (): string => join(stateDir(), 'build-counter.js
 
 // Bundled runtime assets ship via extraResources when packaged and resolve from
 // process.resourcesPath; in dev they read from the repo's resources/ dir.
-export const scriptsDir = (): string =>
+export const runtimeDir = (): string =>
   app.isPackaged
-    ? join(process.resourcesPath, 'scripts')
-    : join(__dirname, '../../src/resources/scripts')
+    ? join(process.resourcesPath, 'runtime')
+    : join(__dirname, '../../src/resources/runtime')
 
 export const soundsDir = (): string =>
   app.isPackaged

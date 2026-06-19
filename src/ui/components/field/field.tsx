@@ -10,16 +10,18 @@ export function createField(
   control: HTMLElement,
   opts?: { hint?: string }
 ): HTMLDivElement {
-  const field = document.createElement('div')
-  field.className = 'field'
-  const label = document.createElement('label')
-  label.textContent = labelText
-  if (opts?.hint) {
-    const hint = document.createElement('span')
-    hint.className = 'field-hint'
-    hint.textContent = opts.hint
-    label.append(' ', hint)
-  }
-  field.append(label, control)
-  return field
+  return (
+    <div class="field">
+      <label>
+        {labelText}
+        {opts?.hint ? (
+          <>
+            {' '}
+            <span class="field-hint">{opts.hint}</span>
+          </>
+        ) : null}
+      </label>
+      {control}
+    </div>
+  ) as HTMLDivElement
 }

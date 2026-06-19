@@ -61,16 +61,15 @@ function renderMenu(
   reopen?: () => void
 ): void {
   closeFromDepth(depth)
-  const menu = document.createElement('div')
-  menu.className = 'context-menu'
-  menu.style.left = x + 'px'
-  menu.style.top = y + 'px'
+  const menu = (<div class="context-menu" style={{ left: x + 'px', top: y + 'px' }} />) as HTMLDivElement
 
   for (const item of items) {
-    const b = document.createElement('button')
     const hasChildren = !!item.children
-    b.textContent = hasChildren ? `${item.label}  ▸` : item.label
-    if (item.danger) b.classList.add('context-menu-danger')
+    const b = (
+      <button class={item.danger ? 'context-menu-danger' : undefined}>
+        {hasChildren ? `${item.label}  ▸` : item.label}
+      </button>
+    ) as HTMLButtonElement
     if (hasChildren) {
       const open = async (): Promise<void> => {
         closeFromDepth(depth + 1)
@@ -112,28 +111,37 @@ function renderMenu(
   }
 
   if (depth === 0 && color) {
-    const colors = document.createElement('div')
-    colors.className = 'context-menu-swatches'
-    const none = document.createElement('button')
-    none.className =
-      'context-menu-swatch context-menu-swatch-none' +
-      (color.current === null ? ' context-menu-swatch-active' : '')
-    none.title = 'No color'
+    const none = (
+      <button
+        class={
+          'context-menu-swatch context-menu-swatch-none' +
+          (color.current === null ? ' context-menu-swatch-active' : '')
+        }
+        title="No color"
+      />
+    ) as HTMLButtonElement
     none.addEventListener('click', () => {
       closeContextMenu()
       color.onPick(null)
     })
-    colors.appendChild(none)
-    for (const c of NODE_PALETTE) {
-      const s = document.createElement('button')
-      s.className = 'context-menu-swatch' + (color.current === c ? ' context-menu-swatch-active' : '')
-      s.style.background = c
-      s.addEventListener('click', () => {
-        closeContextMenu()
-        color.onPick(c)
-      })
-      colors.appendChild(s)
-    }
+    const colors = (
+      <div class="context-menu-swatches">
+        {none}
+        {NODE_PALETTE.map((c) => {
+          const s = (
+            <button
+              class={'context-menu-swatch' + (color.current === c ? ' context-menu-swatch-active' : '')}
+              style={{ background: c }}
+            />
+          ) as HTMLButtonElement
+          s.addEventListener('click', () => {
+            closeContextMenu()
+            color.onPick(c)
+          })
+          return s
+        })}
+      </div>
+    ) as HTMLDivElement
     menu.appendChild(colors)
   }
 

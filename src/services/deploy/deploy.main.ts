@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync, openSync, rmSync } from 'fs'
 import { execFile, spawn } from 'child_process'
 import { loadScript } from '@core/services/scripts'
 import * as terminal from '@core/services/terminal.manager'
-import { stateDir, scriptsDir } from '@core/services/paths'
+import { stateDir, runtimeDir } from '@core/services/paths'
 import { shq } from '@core/services/exec'
 import { APP_NAME } from '@core/constants'
 
@@ -24,7 +24,7 @@ export function registerDeployIpc(): void {
     return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
       execFile(
         '/bin/zsh',
-        ['-lic', loadScript(join(scriptsDir(), 'templates'), 'deploy-run.sh.tmpl', { cmd, log: shq(log) })],
+        ['-lic', loadScript(join(runtimeDir(), 'templates'), 'deploy-run.sh.tmpl', { cmd, log: shq(log) })],
         { cwd: repo },
         (err) => {
           if (!err) return resolve({ ok: true })
@@ -54,7 +54,7 @@ export function registerDeployIpc(): void {
     } catch {
       /* ignore */
     }
-    const steps = loadScript(join(scriptsDir(), 'templates'), 'self-update.sh.tmpl', {
+    const steps = loadScript(join(runtimeDir(), 'templates'), 'self-update.sh.tmpl', {
       appName: shq(APP_NAME),
       distDir: shq(join(repo, 'dist')),
       appBundle: shq(APP_NAME + '.app'),

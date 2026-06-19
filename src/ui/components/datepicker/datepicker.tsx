@@ -89,16 +89,16 @@ export function createDateField(opts: {
   className?: string
 }): DateField {
   const { mode } = opts
-  const btn = document.createElement('button') as DateField
-  btn.type = 'button'
-  btn.className = 'datepicker-field' + (opts.className ? ` ${opts.className}` : '')
-
-  const text = document.createElement('span')
-  text.className = 'datepicker-field-text'
-  const glyph = document.createElement('span')
-  glyph.className = 'datepicker-field-glyph'
-  glyph.innerHTML = CAL_SVG
-  btn.append(text, glyph)
+  const text = (<span class="datepicker-field-text" />) as HTMLSpanElement
+  const btn = (
+    <button
+      type="button"
+      class={'datepicker-field' + (opts.className ? ` ${opts.className}` : '')}
+    >
+      {text}
+      <span class="datepicker-field-glyph" innerHTML={CAL_SVG} />
+    </button>
+  ) as DateField
 
   let selected: DateState | null = parseValue(mode, opts.value ?? '')
 
@@ -141,32 +141,24 @@ export function createDateField(opts: {
     let viewY = view.y
     let viewM = view.m
 
-    const pop = document.createElement('div')
-    pop.className = 'datepicker-pop'
-    pop.addEventListener('mousedown', (e) => e.stopPropagation())
+    const monthLabel = (<span class="datepicker-pop-month" />) as HTMLSpanElement
+    const prev = (<button class="datepicker-pop-nav">‹</button>) as HTMLButtonElement
+    const next = (<button class="datepicker-pop-nav">›</button>) as HTMLButtonElement
+    const head = (
+      <div class="datepicker-pop-head">
+        {prev}
+        {monthLabel}
+        {next}
+      </div>
+    ) as HTMLDivElement
 
-    const head = document.createElement('div')
-    head.className = 'datepicker-pop-head'
-    const prev = document.createElement('button')
-    prev.className = 'datepicker-pop-nav'
-    prev.textContent = '‹'
-    const monthLabel = document.createElement('span')
-    monthLabel.className = 'datepicker-pop-month'
-    const next = document.createElement('button')
-    next.className = 'datepicker-pop-nav'
-    next.textContent = '›'
-    head.append(prev, monthLabel, next)
+    const weekRow = (
+      <div class="datepicker-pop-week">
+        {WEEKDAYS.map((w) => <span>{w}</span>)}
+      </div>
+    ) as HTMLDivElement
 
-    const weekRow = document.createElement('div')
-    weekRow.className = 'datepicker-pop-week'
-    for (const w of WEEKDAYS) {
-      const c = document.createElement('span')
-      c.textContent = w
-      weekRow.appendChild(c)
-    }
-
-    const grid = document.createElement('div')
-    grid.className = 'datepicker-pop-grid'
+    const grid = (<div class="datepicker-pop-grid" />) as HTMLDivElement
 
     let timeInput: HTMLInputElement | null = null
 
@@ -227,16 +219,15 @@ export function createDateField(opts: {
       renderGrid()
     })
 
+    const pop = (<div class="datepicker-pop" />) as HTMLDivElement
+    pop.addEventListener('mousedown', (e) => e.stopPropagation())
+
     pop.append(head, weekRow, grid)
 
     if (mode === 'datetime') {
-      const timeRow = document.createElement('div')
-      timeRow.className = 'datepicker-pop-time'
-      const tlabel = document.createElement('span')
-      tlabel.textContent = 'Time'
-      timeInput = document.createElement('input')
-      timeInput.type = 'time'
-      timeInput.className = 'datepicker-pop-time-input'
+      timeInput = (
+        <input type="time" class="datepicker-pop-time-input" />
+      ) as HTMLInputElement
       timeInput.value = selected ? `${pad2(selected.hh)}:${pad2(selected.mm)}` : ''
       timeInput.addEventListener('input', () => {
         const m = timeInput!.value.match(/^(\d{2}):(\d{2})/)
@@ -246,24 +237,27 @@ export function createDateField(opts: {
         syncText()
         emitChange()
       })
-      timeRow.append(tlabel, timeInput)
+      const timeRow = (
+        <div class="datepicker-pop-time">
+          <span>Time</span>
+          {timeInput}
+        </div>
+      ) as HTMLDivElement
       pop.appendChild(timeRow)
     }
 
-    const foot = document.createElement('div')
-    foot.className = 'datepicker-pop-foot'
-    const clearBtn = document.createElement('button')
-    clearBtn.className = 'datepicker-pop-foot-btn'
-    clearBtn.textContent = 'Clear'
+    const clearBtn = (<button class="datepicker-pop-foot-btn">Clear</button>) as HTMLButtonElement
     clearBtn.addEventListener('click', () => {
       selected = null
       syncText()
       emitChange()
       close()
     })
-    const todayBtn = document.createElement('button')
-    todayBtn.className = 'datepicker-pop-foot-btn datepicker-pop-foot-btn-accent'
-    todayBtn.textContent = mode === 'datetime' ? 'Now' : 'Today'
+    const todayBtn = (
+      <button class="datepicker-pop-foot-btn datepicker-pop-foot-btn-accent">
+        {mode === 'datetime' ? 'Now' : 'Today'}
+      </button>
+    ) as HTMLButtonElement
     todayBtn.addEventListener('click', () => {
       selected = nowState(mode)
       viewY = selected.y
@@ -277,7 +271,12 @@ export function createDateField(opts: {
         close()
       }
     })
-    foot.append(clearBtn, todayBtn)
+    const foot = (
+      <div class="datepicker-pop-foot">
+        {clearBtn}
+        {todayBtn}
+      </div>
+    ) as HTMLDivElement
     pop.appendChild(foot)
 
     renderGrid()

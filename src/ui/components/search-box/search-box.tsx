@@ -5,11 +5,16 @@
 import './search-box.css'
 
 export function createSearchBox(placeholder: string, onInput: () => void): HTMLInputElement {
-  const input = document.createElement('input')
-  input.className = 'search-box-input'
-  input.type = 'text'
-  input.placeholder = placeholder
-  input.spellcheck = false
-  input.addEventListener('input', onInput)
-  return input
+  return (
+    <input
+      class="search-box-input"
+      type="text"
+      placeholder={placeholder}
+      onInput={onInput}
+      ref={(el: HTMLInputElement) => {
+        // Set the property (not just the attribute) so it reflects on `.spellcheck`.
+        el.spellcheck = false
+      }}
+    />
+  ) as HTMLInputElement
 }

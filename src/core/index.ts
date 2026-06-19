@@ -1,7 +1,7 @@
 import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'path'
 import { loadScript } from './services/scripts'
-import { lastCmdDir, zdotDir, scriptsDir } from './services/paths'
+import { lastCmdDir, zdotDir, runtimeDir } from './services/paths'
 import * as terminal from './services/terminal.manager'
 import * as plansWatcher from './services/plans.watcher'
 import { writeFileSync, existsSync, mkdirSync } from 'fs'
@@ -119,7 +119,7 @@ function setupShellIntegration(): void {
     mkdirSync(lastCmdDir(), { recursive: true })
     const dir = zdotDir()
     mkdirSync(dir, { recursive: true })
-    const templates = join(scriptsDir(), 'templates')
+    const templates = join(runtimeDir(), 'templates')
     // .zshenv runs for every shell. A user .zshenv may itself set ZDOTDIR, so the
     // shim snapshots the shim dir first and reasserts it afterwards (see template).
     writeFileSync(join(dir, '.zshenv'), loadScript(templates, 'claude-shim.zshenv.tmpl'))

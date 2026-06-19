@@ -57,8 +57,8 @@
         "to": "sounds"
       },
       {
-        "from": "src/resources/scripts",
-        "to": "scripts"
+        "from": "src/resources/runtime",
+        "to": "runtime"
       },
       {
         "from": "node_modules/monaco-themes/themes",

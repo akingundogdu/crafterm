@@ -7,7 +7,7 @@ import { join } from 'node:path'
 // preexec last-cmd capture") is generated from script templates at startup. The
 // golden unit tests prove loadScript's output is byte-identical, but only the
 // real app proves setupShellIntegration() resolves the templates dir
-// (scriptsDir()/templates) and actually writes the shim files. If template
+// (runtimeDir()/templates) and actually writes the shim files. If template
 // resolution broke, the shim would silently fail (try/catch) and command-history
 // capture would stop working — this spec catches that. HR-5: throwaway dir.
 

@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// Phase 3 (HR-4): shell-command bodies live in resources/scripts/templates/*.tmpl
+// Phase 3 (HR-4): shell-command bodies live in resources/runtime/templates/*.tmpl
 // with {{token}} placeholders instead of inline strings. `loadScript` reads a
 // template and substitutes every token; an unreplaced `{{…}}` left behind throws
 // (catches typos / missing vars). The caller passes the resolved templates dir
-// (main resolves it via scriptsDir(); tests point at the repo's resources/) so
+// (main resolves it via runtimeDir(); tests point at the repo's resources/) so
 // this module needs no Electron import and stays unit-testable.
 
 export function loadScript(

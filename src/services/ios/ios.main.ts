@@ -1,13 +1,13 @@
 import { handle, Channel } from '@services/channels.main'
 import { join } from 'path'
 import * as ios from '@core/services/ios.service'
-import { scriptsDir } from '@core/services/paths'
+import { runtimeDir } from '@core/services/paths'
 import type { IosWorktreeReport } from './ios.types'
 
 // iOS bridge (ios:* / iosWorktree:*): build/run an iOS worktree + list
 // targets/schemes. Logic lives in services/ios.service.ts; these handlers
 // resolve the bundled ios-worktree.sh path and delegate.
-const iosWorktreeScript = (): string => join(scriptsDir(), 'ios-worktree.sh')
+const iosWorktreeScript = (): string => join(runtimeDir(), 'ios-worktree.sh')
 
 export function registerIosIpc(): void {
   // Absolute path to the bundled iOS worktree helper script. The renderer types

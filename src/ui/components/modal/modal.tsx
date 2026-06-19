@@ -26,19 +26,21 @@ export interface ModalHandle extends OverlayHandle {
 export function createModal(opts: ModalOptions): ModalHandle {
   const base = createOverlay({ closeOnBackdrop: opts.closeOnBackdrop })
 
-  const modal = document.createElement('div')
-  modal.className = 'modal modal-prompt' + (opts.className ? ' ' + opts.className : '')
-
-  const h = document.createElement('h2')
-  h.textContent = opts.title
-  modal.appendChild(h)
-
-  const actions = document.createElement('div')
-  actions.className = 'modal-actions'
   const cancelBtn = createButton({ text: opts.cancelText ?? 'Cancel' })
   const confirmBtn = createButton({ text: opts.confirmText ?? 'OK', variant: 'primary' })
-  actions.append(cancelBtn, confirmBtn)
-  modal.appendChild(actions)
+  const actions = (
+    <div class="modal-actions">
+      {cancelBtn}
+      {confirmBtn}
+    </div>
+  ) as HTMLDivElement
+
+  const modal = (
+    <div class={'modal modal-prompt' + (opts.className ? ' ' + opts.className : '')}>
+      <h2>{opts.title}</h2>
+      {actions}
+    </div>
+  ) as HTMLDivElement
 
   base.overlay.appendChild(modal)
 
