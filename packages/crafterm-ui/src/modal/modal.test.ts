@@ -10,9 +10,9 @@ afterEach(() => {
 })
 
 describe('createButton', () => {
-  it('primary variant adds .primary and sets text', () => {
+  it('primary variant adds .button-primary and sets text', () => {
     const b = createButton({ text: 'OK', variant: 'primary' })
-    expect(b.className).toBe('primary')
+    expect(b.className).toBe('button-primary')
     expect(b.textContent).toBe('OK')
   })
   it('plain button has no class and no explicit type', () => {
@@ -48,7 +48,7 @@ describe('createModal', () => {
     const m = createModal({ title: 'T', confirmText: 'Go', cancelText: 'No' })
     const btns = m.actions.querySelectorAll('button')
     expect(btns[0].textContent).toBe('No')
-    expect(btns[1].className).toBe('primary')
+    expect(btns[1].className).toBe('button-primary')
     expect(btns[1].textContent).toBe('Go')
   })
   it('close removes overlay and fires onClose exactly once', () => {

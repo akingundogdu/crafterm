@@ -18,7 +18,7 @@ describe('promptText', () => {
 
   it('resolves null when confirmed empty', async () => {
     const p = promptText({ title: 'T', label: 'L' })
-    ;(document.querySelector('.modal-actions .primary') as HTMLButtonElement).click()
+    ;(document.querySelector('.modal-actions .button-primary') as HTMLButtonElement).click()
     expect(await p).toBeNull()
   })
 
@@ -33,7 +33,7 @@ describe('promptText', () => {
 describe('promptConfirm', () => {
   it('resolves true on confirm', async () => {
     const p = promptConfirm({ title: 'T', message: 'M' })
-    ;(document.querySelector('.modal-actions .primary') as HTMLButtonElement).click()
+    ;(document.querySelector('.modal-actions .button-primary') as HTMLButtonElement).click()
     expect(await p).toBe(true)
   })
 
@@ -47,7 +47,7 @@ describe('promptConfirm', () => {
 describe('promptForm', () => {
   it('requires the first field to be non-empty', async () => {
     const p = promptForm({ title: 'T', fields: [{ key: 'name', label: 'Name' }] })
-    const ok = document.querySelector('.modal-actions .primary') as HTMLButtonElement
+    const ok = document.querySelector('.modal-actions .button-primary') as HTMLButtonElement
     ok.click() // first field empty → no-op, stays open
     expect(document.querySelector('.modal-overlay')).toBeTruthy()
     const input = document.querySelector('.modal input') as HTMLInputElement
