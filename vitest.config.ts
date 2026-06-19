@@ -12,7 +12,7 @@ export default defineConfig({
       '@ui': resolve(__dirname, 'src/ui'),
       '@resources': resolve(__dirname, 'src/resources'),
       '@tests': resolve(__dirname, 'src/tests'),
-      '@bridge': resolve(__dirname, 'src/preload')
+      '@bridge': resolve(__dirname, 'src/core/bridge')
     }
   },
   test: {

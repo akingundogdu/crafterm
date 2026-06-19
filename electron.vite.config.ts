@@ -9,7 +9,7 @@ const alias = {
   '@ui': resolve(__dirname, 'src/ui'),
   '@resources': resolve(__dirname, 'src/resources'),
   '@tests': resolve(__dirname, 'src/tests'),
-  '@bridge': resolve(__dirname, 'src/preload')
+  '@bridge': resolve(__dirname, 'src/core/bridge')
 }
 
 export default defineConfig({
@@ -18,14 +18,14 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
-      rollupOptions: { input: resolve(__dirname, 'src/main/index.ts') }
+      rollupOptions: { input: resolve(__dirname, 'src/core/index.ts') }
     }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
-      rollupOptions: { input: resolve(__dirname, 'src/preload/index.ts') }
+      rollupOptions: { input: resolve(__dirname, 'src/core/bridge/index.ts') }
     }
   },
   renderer: {

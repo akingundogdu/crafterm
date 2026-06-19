@@ -17,8 +17,8 @@
       "@ui/*": ["src/ui/*"],
       "@resources/*": ["src/resources/*"],
       "@tests/*": ["src/tests/*"],
-      "@bridge/*": ["src/preload/*"]
+      "@bridge/*": ["src/core/bridge/*"]
     }
   },
-  "include": ["src/main/**/*", "src/preload/**/*", "electron.vite.config.ts"]
+  "include": ["src/core/**/*", "src/core/bridge/**/*", "electron.vite.config.ts"]
 }

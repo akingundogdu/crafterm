@@ -15,8 +15,8 @@
       "@ui/*": ["src/ui/*"],
       "@resources/*": ["src/resources/*"],
       "@tests/*": ["src/tests/*"],
-      "@bridge/*": ["src/preload/*"]
+      "@bridge/*": ["src/core/bridge/*"]
     }
   },
-  "include": ["src/ui/**/*", "src/preload/api.d.ts"]
+  "include": ["src/ui/**/*", "src/core/bridge/api.d.ts"]
 }
