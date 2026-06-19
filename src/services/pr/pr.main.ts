@@ -1,8 +1,20 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { execFile } from 'child_process'
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
+import type {
+  PullRequest,
+  PrChecks,
+  WorkflowRun,
+  DeploymentStatus,
+  ProjectPullRequests,
+  ProjectDeployments
+} from './pr.types'
+
+// PR + GitHub Actions/deployments bridge (pr:* / gh:*) over the `gh` CLI. This is
+// self-contained gh glue (no reusable model elsewhere), so the helpers live here
+// alongside the IPC registration; the shared data shapes are in ./pr.types.
 
 // Resolve the GitHub CLI; GUI-launched apps don't inherit the shell PATH.
 function ghBin(): string {
@@ -108,13 +120,7 @@ interface RollupItem {
 }
 
 // Collapse the per-check rollup into pass/fail/pending counts + an overall state.
-function summarizeChecks(rollup: RollupItem[] | undefined): {
-  pass: number
-  fail: number
-  pending: number
-  total: number
-  state: 'success' | 'failure' | 'pending' | 'none'
-} {
+function summarizeChecks(rollup: RollupItem[] | undefined): PrChecks {
   let pass = 0
   let fail = 0
   let pending = 0
@@ -161,7 +167,7 @@ interface RawRun {
   createdAt?: string
 }
 
-function shapeRun(r: RawRun): Record<string, unknown> {
+function shapeRun(r: RawRun): WorkflowRun {
   return {
     id: r.databaseId,
     name: r.name ?? '',
@@ -194,7 +200,7 @@ interface RawDeployStatus {
   created_at?: string
 }
 
-function shapePr(p: RawPr): Record<string, unknown> {
+function shapePr(p: RawPr): PullRequest {
   return {
     number: p.number,
     title: p.title,
@@ -212,7 +218,7 @@ function shapePr(p: RawPr): Record<string, unknown> {
 }
 
 // Recent GitHub Actions workflow runs for the repo at `cwd`, newest first.
-async function loadRuns(cwd: string): Promise<{ ok: boolean; error?: string; runs: Record<string, unknown>[] }> {
+async function loadRuns(cwd: string): Promise<{ ok: boolean; error?: string; runs: WorkflowRun[] }> {
   const r = await ghRun(
     [
       'run',
@@ -237,7 +243,7 @@ async function loadRuns(cwd: string): Promise<{ ok: boolean; error?: string; run
 // Capped at 10 deployments to bound the per-status API fan-out.
 async function loadDeployments(
   cwd: string
-): Promise<{ ok: boolean; error?: string; deployments: Record<string, unknown>[] }> {
+): Promise<{ ok: boolean; error?: string; deployments: DeploymentStatus[] }> {
   const repoRes = await ghRun(
     ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
     cwd,
@@ -255,7 +261,7 @@ async function loadDeployments(
     return { ok: false, error: 'failed to parse deployments', deployments: [] }
   }
 
-  const deployments = await Promise.all(
+  const deployments: DeploymentStatus[] = await Promise.all(
     raw.map(async (d) => {
       const sres = await ghRun(['api', `repos/${repo}/deployments/${d.id}/statuses?per_page=1`], cwd)
       let status: RawDeployStatus = {}
@@ -281,7 +287,7 @@ async function loadDeployments(
 
 export function registerPrIpc(): void {
   // gh present + authenticated + cwd inside a GitHub repo?
-  ipcMain.handle('pr:available', async (_e, { cwd }: { cwd: string }) => {
+  handle('pr:available', async ({ cwd }) => {
     if (!existsSync(ghBin()) && ghBin() === 'gh') {
       // ghBin() returns 'gh' only when no known path exists; a PATH lookup may
       // still succeed, so fall through to auth check rather than failing here.
@@ -295,7 +301,7 @@ export function registerPrIpc(): void {
   })
 
   // Open PRs for the repo at `cwd`, newest-updated first.
-  ipcMain.handle('pr:list', async (_e, { cwd }: { cwd: string }) => {
+  handle('pr:list', async ({ cwd }) => {
     const r = await ghRun(['pr', 'list', '--state', 'open', '--limit', '30', '--json', PR_FIELDS], cwd)
     if (!r.ok) return { ok: false, error: (r.err || 'gh pr list failed').trim(), prs: [] }
     try {
@@ -307,7 +313,7 @@ export function registerPrIpc(): void {
   })
 
   // All git repos under the code root (no gh calls) — feeds the project picker.
-  ipcMain.handle('pr:repos', (_e, { root }: { root: string }) => {
+  handle('pr:repos', ({ root }) => {
     const base = resolveBase(root)
     if (!base) return { ok: false, error: 'Set a Code root in settings.', repos: [] }
     const repos = scanRepos(base)
@@ -318,13 +324,13 @@ export function registerPrIpc(): void {
   // Open PRs for the explicitly selected repo paths, grouped per-project. A
   // selected repo with no open PRs is still returned (empty `prs`) so the user
   // sees every project they chose to track.
-  ipcMain.handle('pr:list-all', async (_e, { root, paths }: { root: string; paths: string[] }) => {
+  handle('pr:list-all', async ({ root, paths }) => {
     const base = resolveBase(root)
     const sel = (Array.isArray(paths) ? paths : []).filter((p) => existsSync(join(p, '.git')))
     if (!sel.length) return { ok: true, projects: [] }
-    const groups = await mapPool(sel, 8, async (p) => {
+    const groups: ProjectPullRequests[] = await mapPool(sel, 8, async (p) => {
       const r = await ghRun(['pr', 'list', '--state', 'open', '--limit', '30', '--json', PR_FIELDS], p)
-      let prs: Record<string, unknown>[] = []
+      let prs: PullRequest[] = []
       if (r.ok) {
         try {
           prs = (JSON.parse(r.out.trim() || '[]') as RawPr[]).map(shapePr)
@@ -338,20 +344,14 @@ export function registerPrIpc(): void {
     return { ok: true, projects: groups }
   })
 
-  ipcMain.handle(
-    'pr:merge',
-    async (
-      _e,
-      { cwd, number, method }: { cwd: string; number: number; method: string }
-    ): Promise<{ ok: boolean; error?: string }> => {
-      const flag = method === 'rebase' ? '--rebase' : method === 'merge' ? '--merge' : '--squash'
-      const r = await ghRun(['pr', 'merge', String(number), flag, '--delete-branch'], cwd, 30000)
-      return r.ok ? { ok: true } : { ok: false, error: (r.err || 'merge failed').trim() }
-    }
-  )
+  handle('pr:merge', async ({ cwd, number, method }) => {
+    const flag = method === 'rebase' ? '--rebase' : method === 'merge' ? '--merge' : '--squash'
+    const r = await ghRun(['pr', 'merge', String(number), flag, '--delete-branch'], cwd, 30000)
+    return r.ok ? { ok: true } : { ok: false, error: (r.err || 'merge failed').trim() }
+  })
 
   // Full `gh pr view` text for the detail modal.
-  ipcMain.handle('pr:view', async (_e, { cwd, number }: { cwd: string; number: number }) => {
+  handle('pr:view', async ({ cwd, number }) => {
     const r = await ghRun(['pr', 'view', String(number), '--comments'], cwd)
     return r.ok ? r.out : r.err || 'pr view failed'
   })
@@ -359,7 +359,7 @@ export function registerPrIpc(): void {
   // Unified diff for the in-app diff pane. Try the fast direct diff first; on a
   // large-PR failure (HTTP 406, "diff exceeded the maximum number of files"),
   // fall back to the paginated files API and rebuild the patch ourselves.
-  ipcMain.handle('pr:diff', async (_e, { cwd, number }: { cwd: string; number: number }) => {
+  handle('pr:diff', async ({ cwd, number }) => {
     const direct = await ghRun(['pr', 'diff', String(number)], cwd, 30000)
     if (direct.ok && direct.out.trim()) return { ok: true, patch: direct.out }
 
@@ -392,80 +392,60 @@ export function registerPrIpc(): void {
   // Post an inline review comment on a contiguous range of new-file lines. The
   // selected rows in the diff pane are always RIGHT-side (added/context) lines,
   // so we anchor to the PR head commit and use start_line/line on the RIGHT.
-  ipcMain.handle(
-    'pr:comment',
-    async (
-      _e,
-      {
-        cwd,
-        number,
-        path,
-        startLine,
-        endLine,
-        body
-      }: {
-        cwd: string
-        number: number
-        path: string
-        startLine: number
-        endLine: number
-        body: string
-      }
-    ): Promise<{ ok: boolean; error?: string }> => {
-      if (!body.trim()) return { ok: false, error: 'Comment body is empty.' }
-      const repoRes = await ghRun(
-        ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
-        cwd,
-        6000
-      )
-      const repo = repoRes.out.trim()
-      if (!repo) return { ok: false, error: 'Not a GitHub repository (or no remote).' }
-      const shaRes = await ghRun(
-        ['pr', 'view', String(number), '--json', 'headRefOid', '-q', '.headRefOid'],
-        cwd,
-        10000
-      )
-      const sha = shaRes.out.trim()
-      if (!sha) return { ok: false, error: (shaRes.err || 'failed to resolve PR head commit').trim() }
+  handle('pr:comment', async ({ cwd, number, path, startLine, endLine, body }) => {
+    if (!body.trim()) return { ok: false, error: 'Comment body is empty.' }
+    const repoRes = await ghRun(
+      ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
+      cwd,
+      6000
+    )
+    const repo = repoRes.out.trim()
+    if (!repo) return { ok: false, error: 'Not a GitHub repository (or no remote).' }
+    const shaRes = await ghRun(
+      ['pr', 'view', String(number), '--json', 'headRefOid', '-q', '.headRefOid'],
+      cwd,
+      10000
+    )
+    const sha = shaRes.out.trim()
+    if (!sha) return { ok: false, error: (shaRes.err || 'failed to resolve PR head commit').trim() }
 
-      const lo = Math.min(startLine, endLine)
-      const hi = Math.max(startLine, endLine)
-      const args = [
-        'api',
-        '--method',
-        'POST',
-        `repos/${repo}/pulls/${number}/comments`,
-        '-f',
-        `body=${body}`,
-        '-f',
-        `commit_id=${sha}`,
-        '-f',
-        `path=${path}`,
-        '-F',
-        `line=${hi}`,
-        '-f',
-        'side=RIGHT'
-      ]
-      if (lo !== hi) {
-        args.push('-F', `start_line=${lo}`, '-f', 'start_side=RIGHT')
-      }
-      const r = await ghRun(args, cwd, 20000)
-      return r.ok ? { ok: true } : { ok: false, error: (r.err || 'failed to post comment').trim() }
+    const lo = Math.min(startLine, endLine)
+    const hi = Math.max(startLine, endLine)
+    const args = [
+      'api',
+      '--method',
+      'POST',
+      `repos/${repo}/pulls/${number}/comments`,
+      '-f',
+      `body=${body}`,
+      '-f',
+      `commit_id=${sha}`,
+      '-f',
+      `path=${path}`,
+      '-F',
+      `line=${hi}`,
+      '-f',
+      'side=RIGHT'
+    ]
+    if (lo !== hi) {
+      args.push('-F', `start_line=${lo}`, '-f', 'start_side=RIGHT')
     }
-  )
+    const r = await ghRun(args, cwd, 20000)
+    return r.ok ? { ok: true } : { ok: false, error: (r.err || 'failed to post comment').trim() }
+  })
 
   // Recent GitHub Actions workflow runs for the repo, newest first. Repo-wide
   // (gh has no PR-scoped run list); the renderer keys off headBranch/headSha to
   // associate a run with a merge.
-  ipcMain.handle('gh:runs', async (_e, { cwd }: { cwd: string }) => loadRuns(cwd))
+  handle('gh:runs', async ({ cwd }) => loadRuns(cwd))
 
   // Deployments + workflow runs for the explicitly selected repo paths, grouped
   // per-project (mirror of pr:list-all for the Deployments view).
-  ipcMain.handle('gh:deploys-all', async (_e, { root, paths }: { root: string; paths: string[] }) => {
+  handle('gh:deploys-all', async ({ root, paths }) => {
     const base = resolveBase(root)
     const sel = (Array.isArray(paths) ? paths : []).filter((p) => existsSync(join(p, '.git')))
     if (!sel.length) return { ok: true, projects: [] }
-    const projects = await mapPool(sel, 6, async (p) => {
+    const projects: ProjectDeployments[] = await mapPool(sel, 6, async (p) => {
       const [dep, runs] = await Promise.all([loadDeployments(p), loadRuns(p)])
       return {
         name: relName(base, p),
@@ -478,11 +458,11 @@ export function registerPrIpc(): void {
   })
 
   // Job/step breakdown for one run; fetched lazily when a run card is expanded.
-  ipcMain.handle('gh:run-jobs', async (_e, { cwd, id }: { cwd: string; id: number }) => {
+  handle('gh:run-jobs', async ({ cwd, id }) => {
     const r = await ghRun(['run', 'view', String(id), '--json', 'jobs'], cwd)
     return r.ok ? r.out : r.err || 'gh run view failed'
   })
 
   // Latest deployment per recent deployment record, with its current status.
-  ipcMain.handle('gh:deployments', async (_e, { cwd }: { cwd: string }) => loadDeployments(cwd))
+  handle('gh:deployments', async ({ cwd }) => loadDeployments(cwd))
 }

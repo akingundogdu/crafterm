@@ -1,58 +1,15 @@
-import { ipcMain } from 'electron'
 import { homedir } from 'os'
 import { join } from 'path'
 import { Pool as PgPool } from 'pg'
 import * as mysql from 'mysql2/promise'
 import Database from 'better-sqlite3'
+import type { DbConfig, DbResult, DbObjects, DbColumn, DbColumns } from '@services/db/db.types'
 
 // Database tool: connect to Postgres/MySQL/SQLite, introspect objects, run SQL.
 // Live handles are cached by connection id; the renderer passes the full config
-// on each call (passwords live in app state, the user's explicit choice).
-
-export type DbEngine = 'postgres' | 'mysql' | 'sqlite'
-
-export interface DbConfig {
-  id: string
-  engine: DbEngine
-  host?: string
-  port?: number
-  user?: string
-  password?: string
-  database?: string
-  ssl?: boolean
-  file?: string // sqlite
-}
-
-export interface DbResult {
-  columns: string[]
-  rows: unknown[][]
-  rowCount: number
-  command?: string
-  error?: string
-}
-
-export interface DbObjects {
-  tables: string[]
-  views: string[]
-  procedures: string[]
-  error?: string
-}
-
-// Column metadata for a single table. `isPrimary` lets the UI build correct
-// WHERE clauses for UPDATE/DELETE; `isAutoIncrement` disables the column in
-// the INSERT modal (the engine fills it).
-export interface DbColumn {
-  name: string
-  type: string
-  nullable: boolean
-  isPrimary: boolean
-  isAutoIncrement: boolean
-  hasDefault: boolean
-}
-export interface DbColumns {
-  columns: DbColumn[]
-  error?: string
-}
+// on each call (passwords live in app state, the user's explicit choice). The
+// data shapes (DbConfig/DbResult/…) live in @services/db/db.types; the IPC
+// registration lives in @services/db/db.main. This file is the pure model.
 
 const pgPools = new Map<string, PgPool>()
 const myPools = new Map<string, mysql.Pool>()
@@ -143,7 +100,7 @@ function runSqlite(cfg: DbConfig, sql: string): DbResult {
   return { columns: [], rows: [], rowCount: info.changes, command: 'OK' }
 }
 
-async function runQuery(cfg: DbConfig, sql: string): Promise<DbResult> {
+export async function runQuery(cfg: DbConfig, sql: string): Promise<DbResult> {
   try {
     if (cfg.engine === 'postgres') return await runPg(cfg, sql)
     if (cfg.engine === 'mysql') return await runMy(cfg, sql)
@@ -153,7 +110,7 @@ async function runQuery(cfg: DbConfig, sql: string): Promise<DbResult> {
   }
 }
 
-async function listObjects(cfg: DbConfig): Promise<DbObjects> {
+export async function listObjects(cfg: DbConfig): Promise<DbObjects> {
   const col0 = (r: DbResult): string[] => r.rows.map((row) => String(row[0]))
   try {
     if (cfg.engine === 'postgres') {
@@ -201,7 +158,7 @@ async function listObjects(cfg: DbConfig): Promise<DbObjects> {
 // from the user's SELECT (we only enable this for simple SELECT * FROM <table>),
 // so it may include a "schema.name" qualifier — strip the leading schema for
 // information_schema lookups when present.
-async function listColumns(cfg: DbConfig, table: string): Promise<DbColumns> {
+export async function listColumns(cfg: DbConfig, table: string): Promise<DbColumns> {
   const unquote = (s: string): string => s.replace(/^["`\[]|["`\]]$/g, '')
   const parts = table.split('.').map(unquote)
   const schema = parts.length > 1 ? parts[0] : null
@@ -292,7 +249,7 @@ async function listColumns(cfg: DbConfig, table: string): Promise<DbColumns> {
   }
 }
 
-async function disconnect(id: string): Promise<void> {
+export async function disconnect(id: string): Promise<void> {
   const pg = pgPools.get(id)
   if (pg) {
     pgPools.delete(id)
@@ -322,28 +279,3 @@ async function disconnect(id: string): Promise<void> {
   }
 }
 
-export function registerDbIpc(): void {
-  // Validate a connection by running a trivial query; returns { error } on failure.
-  ipcMain.handle('db:connect', async (_e, { config }: { config: DbConfig }) => {
-    await disconnect(config.id) // re-create with the latest config
-    const probe = config.engine === 'sqlite' ? 'select 1' : 'select 1'
-    const res = await runQuery(config, probe)
-    return { ok: !res.error, error: res.error }
-  })
-
-  ipcMain.handle('db:objects', async (_e, { config }: { config: DbConfig }) => listObjects(config))
-
-  ipcMain.handle(
-    'db:columns',
-    async (_e, { config, table }: { config: DbConfig; table: string }) => listColumns(config, table)
-  )
-
-  ipcMain.handle('db:query', async (_e, { config, sql }: { config: DbConfig; sql: string }) =>
-    runQuery(config, sql)
-  )
-
-  ipcMain.handle('db:disconnect', async (_e, { id }: { id: string }) => {
-    await disconnect(id)
-    return true
-  })
-}

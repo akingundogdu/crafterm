@@ -7,7 +7,7 @@ import type {
   AppNotification
 } from '@ui/types'
 import { BUILTIN_ACTIONS } from '@ui/types'
-import type { SavedState } from '@bridge/api'
+import type { SavedState } from '@services/storage/state.types'
 import { themes } from '@ui/themes'
 import {
   settings,

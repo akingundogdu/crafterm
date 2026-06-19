@@ -1,7 +1,8 @@
-// Renderer IPC service layer — the ONLY place that touches `window.crafterm`.
-// Feature code imports these typed, domain-grouped wrappers instead of the raw
-// bridge. Callers migrate onto them incrementally (Phase 6); the Phase 4
-// namespacing of the bridge stays contained behind `_forward.ts`.
+// Renderer IPC service layer — the ONLY callers of the generic preload bridge
+// (window.crafterm.invoke/send/on). Feature code imports these typed,
+// domain-grouped wrappers; each routes to a channel string via the helpers in
+// channels.client.ts, with request/response types checked against the central
+// channels.ts registry.
 
 export { terminalService } from './terminal/terminal.client'
 export { gitService } from './git/git.client'

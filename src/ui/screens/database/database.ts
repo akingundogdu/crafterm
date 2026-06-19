@@ -1,7 +1,7 @@
 import { settings, uid } from '../../state'
 import { persistence } from '@services/storage/persistence.service'
 import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from '../../types'
-import type { DbObjects } from '@bridge/api'
+import type { DbObjects } from '@services/db/db.types'
 import { makeCloseButton, promptText } from '../../dialog'
 import { openSqlInSplit } from '../../commands'
 import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@ui/components'

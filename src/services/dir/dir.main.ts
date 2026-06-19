@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
 import { readdirSync } from 'fs'
@@ -6,7 +6,7 @@ import { readdirSync } from 'fs'
 // Directory bridge (dir:*): list sub-directories for the Cmd+P folder picker.
 export function registerDirIpc(): void {
   // List sub-directories of a path (for the Cmd+P folder picker). Empty -> home.
-  ipcMain.handle('dir:list', (_e, { path }: { path?: string }) => {
+  handle('dir:list', ({ path }) => {
     let dir = path && path.trim() ? path.trim() : homedir()
     if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
     try {

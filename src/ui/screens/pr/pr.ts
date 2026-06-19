@@ -1,5 +1,5 @@
 import './pr.css'
-import type { PullRequest, WorkflowRun } from '@bridge/api'
+import type { PullRequest, WorkflowRun } from '@services/pr/pr.types'
 import { state, panes, settings, pushNotification } from '../../state'
 import { openLink, runInSplit, openPrDiff } from '../../commands'
 import { promptConfirm } from '../../dialog'

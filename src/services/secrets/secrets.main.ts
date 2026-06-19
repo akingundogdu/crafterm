@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from '@core/services/secrets.service'
 import { stateDir } from '@core/services/paths'
@@ -11,16 +11,8 @@ function secretsDir(): string {
 }
 
 export function registerSecretsIpc(): void {
-  ipcMain.handle(
-    'secrets:set',
-    (_e, { entryId, key, value }: { entryId: string; key: string; value: string }) =>
-      setSecret(secretsDir(), entryId, key, value)
-  )
-  ipcMain.handle('secrets:get', (_e, { entryId, key }: { entryId: string; key: string }) =>
-    getSecret(secretsDir(), entryId, key)
-  )
-  ipcMain.handle('secrets:delete', (_e, { entryId, key }: { entryId: string; key?: string }) =>
-    deleteSecret(secretsDir(), entryId, key)
-  )
-  ipcMain.handle('secrets:available', () => isSecretsAvailable())
+  handle('secrets:set', ({ entryId, key, value }) => setSecret(secretsDir(), entryId, key, value))
+  handle('secrets:get', ({ entryId, key }) => getSecret(secretsDir(), entryId, key))
+  handle('secrets:delete', ({ entryId, key }) => deleteSecret(secretsDir(), entryId, key))
+  handle('secrets:available', () => isSecretsAvailable())
 }

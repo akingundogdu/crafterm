@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Notification, Menu } from 'electron'
+import { app, BrowserWindow, Notification, Menu } from 'electron'
 import { join } from 'path'
+import { handle, on, emit } from '@services/channels.main'
 import * as terminal from '../services/terminal.manager'
 import { APP_NAME } from '../constants'
 
@@ -48,7 +49,7 @@ export function createMainWindow(): void {
   // for them. Re-broadcast on every transition and once on initial load.
   const broadcastFullscreen = (): void => {
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('window:fullscreen', mainWindow.isFullScreen())
+      emit(mainWindow.webContents, 'window:fullscreen', mainWindow.isFullScreen())
     }
   }
   mainWindow.on('enter-full-screen', broadcastFullscreen)
@@ -99,7 +100,7 @@ function createPopoutWindow(paneId: string, title?: string): void {
   win.on('close', (e) => {
     if (quitting || allowClose.has(paneId)) return
     e.preventDefault()
-    if (!win.webContents.isDestroyed()) win.webContents.send('popout:confirm-close', { id: paneId })
+    if (!win.webContents.isDestroyed()) emit(win.webContents, 'popout:confirm-close', { id: paneId })
   })
   win.on('closed', () => {
     terminal.deletePopout(paneId)
@@ -163,25 +164,25 @@ export function buildAppMenu(): void {
 // Window bridge: pop-out windows (popout:*), the detached Improve panel
 // (improve-window:*), and native notifications (notify).
 export function registerWindowIpc(): void {
-  ipcMain.handle('popout:open', (_e, { paneId, title }: { paneId: string; title?: string }) => {
+  handle('popout:open', ({ paneId, title }) => {
     createPopoutWindow(paneId, title)
   })
 
   // The pop-out renderer confirmed the kill: close its window and tell the main
   // window to drop the pane (which kills the PTY).
-  ipcMain.on('popout:close-confirmed', (_e, { id }: { id: string }) => {
+  on('popout:close-confirmed', ({ id }) => {
     allowClose.add(id)
     terminal.getPopout(id)?.close()
     terminal.sendToRenderer('popout:killed', { id })
   })
 
-  ipcMain.on('popout:focus', (_e, { id }: { id: string }) => {
+  on('popout:focus', ({ id }) => {
     const win = terminal.getPopout(id)
     if (win && !win.isDestroyed()) win.focus()
   })
 
   // --- Improve Crafterm detached window: a standalone Improve panel window ---
-  ipcMain.handle('improve-window:open', () => {
+  handle('improve-window:open', () => {
     if (improveWin && !improveWin.isDestroyed()) {
       improveWin.focus()
       return
@@ -207,17 +208,15 @@ export function registerWindowIpc(): void {
     })
   })
 
-  ipcMain.on('improve-window:set-always-on-top', (_e, { value }: { value: boolean }) => {
+  on('improve-window:set-always-on-top', ({ value }) => {
     if (improveWin && !improveWin.isDestroyed()) improveWin.setAlwaysOnTop(!!value)
   })
 
-  ipcMain.on(
-    'notify',
-    (_e, { title, body, paneId }: { title: string; body: string; paneId?: string }) => {
-      if (!Notification.isSupported()) {
-        console.warn('[notify] native notifications are not supported here')
-        return
-      }
+  on('notify', ({ title, body, paneId }) => {
+    if (!Notification.isSupported()) {
+      console.warn('[notify] native notifications are not supported here')
+      return
+    }
       // When the app window is in the foreground the user is already looking at
       // it — show only the in-app card (the renderer surfaces that itself) and
       // skip the OS notification so it doesn't double-notify.
@@ -238,6 +237,5 @@ export function registerWindowIpc(): void {
       } catch (err) {
         console.error('[notify] failed to show notification:', err)
       }
-    }
-  )
+  })
 }

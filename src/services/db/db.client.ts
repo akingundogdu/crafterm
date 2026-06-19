@@ -1,14 +1,16 @@
-import { call } from '../_forward'
+import { call } from '../channels.client'
+import type { DbConfig } from './db.types'
 
 // Database tool IPC (connect/introspect/query + saved .sql queries).
 export const dbService = {
-  connect: call('db', 'connect'),
-  objects: call('db', 'objects'),
-  columns: call('db', 'columns'),
-  query: call('db', 'query'),
-  disconnect: call('db', 'disconnect'),
-  savedList: call('db', 'savedList'),
-  savedRead: call('db', 'savedRead'),
-  savedWrite: call('db', 'savedWrite'),
-  savedDelete: call('db', 'savedDelete')
+  connect: (config: DbConfig) => call('db:connect', { config }),
+  objects: (config: DbConfig) => call('db:objects', { config }),
+  columns: (config: DbConfig, table: string) => call('db:columns', { config, table }),
+  query: (config: DbConfig, sql: string) => call('db:query', { config, sql }),
+  disconnect: (id: string) => call('db:disconnect', { id }),
+  savedList: (connId: string) => call('dbq:list', { connId }),
+  savedRead: (connId: string, name: string) => call('dbq:read', { connId, name }),
+  savedWrite: (connId: string, name: string, sql: string) =>
+    call('dbq:write', { connId, name, sql }),
+  savedDelete: (connId: string, name: string) => call('dbq:delete', { connId, name })
 }

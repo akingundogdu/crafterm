@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
+import { handle, emit } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
 import {
@@ -74,7 +75,7 @@ const claudeBroadcastTimers = new Map<string, NodeJS.Timeout>()
 function broadcastClaudeSessionsChanged(cwd: string): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-      win.webContents.send('claude:sessionsChanged', { cwd })
+      emit(win.webContents, 'claude:sessionsChanged', { cwd })
     }
   }
 }
@@ -86,7 +87,7 @@ export function registerClaudeIpc(): void {
   // Aggregate Claude token usage across every session under
   // `~/.claude/projects/**/*.jsonl` for three periods (today, this week, this
   // month) so the top status bar can show quota-style percentages. Cached for 30s.
-  ipcMain.handle('claude:usageSummary', () => {
+  handle('claude:usageSummary', () => {
     const now = Date.now()
     if (claudeUsageCache && claudeUsageCache.expiresAt > now) return claudeUsageCache.data
     const root = claudeProjectsDir()
@@ -139,16 +140,12 @@ export function registerClaudeIpc(): void {
   // Anthropic's `GET /api/oauth/usage` endpoint, using the OAuth token Claude Code
   // stores in the macOS keychain (or a user-provided fallback secret). Lives in
   // services/claude-account.service.ts.
-  ipcMain.handle(
-    'claude:realUsage',
-    (_e, opts: { keychainService?: string; fallbackToken?: string | null; force?: boolean }) =>
-      claudeAccount.realUsage(opts)
-  )
+  handle('claude:realUsage', (opts) => claudeAccount.realUsage(opts))
 
   // Pull the user-set "custom-title" out of a session's jsonl head — used by
   // pane.ts to reflect a /rename'd title into the sidebar pane title without
   // having to wait for the next xterm OSC repaint.
-  ipcMain.handle('claude:sessionTitle', (_e, { cwd, sessionId }: { cwd?: string; sessionId?: string }) => {
+  handle('claude:sessionTitle', ({ cwd, sessionId }) => {
     if (!cwd || !sessionId) return null
     const key = `${cwd}::${sessionId}`
     const cached = claudeTitleCache.get(key)
@@ -180,99 +177,90 @@ export function registerClaudeIpc(): void {
   //                   assistant turn still holding an unresolved tool_use;
   //   'question'    — assistant turn ended on a question to the user;
   //   'idle'        — assistant turn ended normally (waiting on the user).
-  ipcMain.handle(
-    'claude:sessionStatus',
-    (_e, { cwd, sessionId }: { cwd?: string; sessionId?: string }) => {
-      if (!cwd || !sessionId) return null
-      const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
-      if (!existsSync(file)) return null
-      const lines = readTail(file)
-        .split('\n')
-        .filter((l) => l.trim())
-      let last: Record<string, unknown> | null = null
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try {
-          const o = JSON.parse(lines[i]) as Record<string, unknown>
-          if (o.type === 'user' || o.type === 'assistant') {
-            last = o
-            break
-          }
-        } catch {
-          // truncated/partial line at the tail boundary — skip
+  handle('claude:sessionStatus', ({ cwd, sessionId }) => {
+    if (!cwd || !sessionId) return null
+    const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
+    if (!existsSync(file)) return null
+    const lines = readTail(file)
+      .split('\n')
+      .filter((l) => l.trim())
+    let last: Record<string, unknown> | null = null
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const o = JSON.parse(lines[i]) as Record<string, unknown>
+        if (o.type === 'user' || o.type === 'assistant') {
+          last = o
+          break
         }
+      } catch {
+        // truncated/partial line at the tail boundary — skip
       }
-      if (!last) return 'idle'
-      if (last.type === 'user') return 'in-progress'
-      const msg = (last.message as Record<string, unknown>) ?? last
-      const content = msg.content
-      let hasToolUse = false
-      let lastText = ''
-      if (Array.isArray(content)) {
-        for (const c of content as Record<string, unknown>[]) {
-          if (c.type === 'tool_use') hasToolUse = true
-          if (c.type === 'text' && typeof c.text === 'string') lastText = c.text
-        }
-      } else if (typeof content === 'string') {
-        lastText = content
-      }
-      if (hasToolUse || msg.stop_reason === 'tool_use') return 'in-progress'
-      if (lastText.trim().endsWith('?')) return 'question'
-      return 'idle'
     }
-  )
+    if (!last) return 'idle'
+    if (last.type === 'user') return 'in-progress'
+    const msg = (last.message as Record<string, unknown>) ?? last
+    const content = msg.content
+    let hasToolUse = false
+    let lastText = ''
+    if (Array.isArray(content)) {
+      for (const c of content as Record<string, unknown>[]) {
+        if (c.type === 'tool_use') hasToolUse = true
+        if (c.type === 'text' && typeof c.text === 'string') lastText = c.text
+      }
+    } else if (typeof content === 'string') {
+      lastText = content
+    }
+    if (hasToolUse || msg.stop_reason === 'tool_use') return 'in-progress'
+    if (lastText.trim().endsWith('?')) return 'question'
+    return 'idle'
+  })
 
   // Current permission mode of a Claude session ('plan' | 'default' | 'auto' |
   // 'acceptEdits' | null). Claude appends a {type:'permission-mode',
   // permissionMode} record to the session JSONL on every mode change, so the last
   // such record in the file is the live mode.
-  ipcMain.handle(
-    'claude:permissionMode',
-    (_e, { cwd, sessionId }: { cwd?: string; sessionId?: string }) => {
-      if (!cwd || !sessionId) return null
-      const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
-      if (!existsSync(file)) return null
-      const lines = readTail(file, 262144)
-        .split('\n')
-        .filter((l) => l.trim())
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try {
-          const o = JSON.parse(lines[i]) as Record<string, unknown>
-          if (o.type === 'permission-mode' && typeof o.permissionMode === 'string') {
-            return o.permissionMode
-          }
-        } catch {
-          // truncated/partial line at the tail boundary — skip
-        }
-      }
-      return null
-    }
-  )
-
-  ipcMain.handle(
-    'claude:latestSession',
-    (_e, { cwd, since }: { cwd?: string; since?: number }) => {
-      if (!cwd) return null
-      const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))
-      if (!existsSync(dir)) return null
-      let best: { id: string; mtimeMs: number } | null = null
+  handle('claude:permissionMode', ({ cwd, sessionId }) => {
+    if (!cwd || !sessionId) return null
+    const file = join(claudeProjectsDir(), encodeClaudeCwd(cwd), sessionId + '.jsonl')
+    if (!existsSync(file)) return null
+    const lines = readTail(file, 262144)
+      .split('\n')
+      .filter((l) => l.trim())
+    for (let i = lines.length - 1; i >= 0; i--) {
       try {
-        for (const f of readdirSync(dir)) {
-          if (!f.endsWith('.jsonl')) continue
-          const m = statSync(join(dir, f)).mtimeMs
-          if (typeof since === 'number' && m <= since) continue
-          if (!best || m > best.mtimeMs) best = { id: f.replace(/\.jsonl$/, ''), mtimeMs: m }
+        const o = JSON.parse(lines[i]) as Record<string, unknown>
+        if (o.type === 'permission-mode' && typeof o.permissionMode === 'string') {
+          return o.permissionMode
         }
       } catch {
-        return null
+        // truncated/partial line at the tail boundary — skip
       }
-      return best ? best.id : null
     }
-  )
+    return null
+  })
+
+  handle('claude:latestSession', ({ cwd, since }) => {
+    if (!cwd) return null
+    const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))
+    if (!existsSync(dir)) return null
+    let best: { id: string; mtimeMs: number } | null = null
+    try {
+      for (const f of readdirSync(dir)) {
+        if (!f.endsWith('.jsonl')) continue
+        const m = statSync(join(dir, f)).mtimeMs
+        if (typeof since === 'number' && m <= since) continue
+        if (!best || m > best.mtimeMs) best = { id: f.replace(/\.jsonl$/, ''), mtimeMs: m }
+      }
+    } catch {
+      return null
+    }
+    return best ? best.id : null
+  })
 
   // Recover a Claude session's working directory from its jsonl (each line carries
   // a `cwd` field). The encoded project-dir name is lossy, so we scan every project
   // dir for `<sessionId>.jsonl` and read the first line that has a cwd.
-  ipcMain.handle('claude:sessionCwd', (_e, { sessionId }: { sessionId?: string }) => {
+  handle('claude:sessionCwd', ({ sessionId }) => {
     if (!sessionId) return null
     const root = claudeProjectsDir()
     if (!existsSync(root)) return null
@@ -298,7 +286,7 @@ export function registerClaudeIpc(): void {
   })
 
   // All Claude sessions across projects, newest first, with a short summary + cwd.
-  ipcMain.handle('claude:sessions', () => {
+  handle('claude:sessions', () => {
     const root = claudeProjectsDir()
     if (!existsSync(root)) return []
     const out: { id: string; cwd: string | null; summary: string; mtimeMs: number }[] = []
@@ -368,7 +356,7 @@ export function registerClaudeIpc(): void {
     return out.slice(0, 300)
   })
 
-  ipcMain.handle('claude:watchSessions', (_e, { cwd }: { cwd?: string }) => {
+  handle('claude:watchSessions', ({ cwd }) => {
     if (!cwd) return false
     if (claudeWatchers.has(cwd)) return true
     const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))

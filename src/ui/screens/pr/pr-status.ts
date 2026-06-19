@@ -1,4 +1,4 @@
-import type { PullRequest, WorkflowRun, DeploymentStatus } from '@bridge/api'
+import type { PullRequest, WorkflowRun, DeploymentStatus } from '@services/pr/pr.types'
 
 // Pure status helpers for the PR tab: map each entity to the four-state rail
 // color and format the small text bits. No DOM/IPC — unit-testable in isolation.

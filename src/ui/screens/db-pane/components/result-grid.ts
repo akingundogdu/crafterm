@@ -1,4 +1,4 @@
-import type { DbColumn } from '@bridge/api'
+import type { DbColumn } from '@services/db/db.types'
 import type { DbConnection } from '../../../types'
 import { createOverlay } from '@ui/components'
 import { makeCloseButton, promptConfirm } from '../../../dialog'

@@ -1,7 +1,8 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import * as ios from '@core/services/ios.service'
 import { scriptsDir } from '@core/services/paths'
+import type { IosWorktreeReport } from './ios.types'
 
 // iOS bridge (ios:* / iosWorktree:*): build/run an iOS worktree + list
 // targets/schemes. Logic lives in services/ios.service.ts; these handlers
@@ -12,23 +13,19 @@ export function registerIosIpc(): void {
   // Absolute path to the bundled iOS worktree helper script. The renderer types
   // `bash "<path>" <subcommand>` into a pane (with IOSWT_* env from settings.iosDev),
   // so a build's output streams live in the terminal.
-  ipcMain.handle('iosWorktree:scriptPath', () => iosWorktreeScript())
+  handle('iosWorktree:scriptPath', () => iosWorktreeScript())
 
-  ipcMain.handle(
+  handle(
     'iosWorktree:report',
-    (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: ios.IosCfg }) =>
-      ios.report(iosWorktreeScript(), repoRoot, cfg)
+    ({ repoRoot, cfg }) =>
+      ios.report(iosWorktreeScript(), repoRoot, cfg) as Promise<IosWorktreeReport | null>
   )
 
-  ipcMain.handle(
-    'iosWorktree:stop',
-    (_e, { worktreePath, cfg }: { worktreePath: string; cfg?: ios.IosCfg }) =>
-      ios.stop(iosWorktreeScript(), worktreePath, cfg)
+  handle('iosWorktree:stop', ({ worktreePath, cfg }) =>
+    ios.stop(iosWorktreeScript(), worktreePath, cfg)
   )
 
-  ipcMain.handle('ios:listTargets', () => ios.listTargets())
+  handle('ios:listTargets', () => ios.listTargets())
 
-  ipcMain.handle('ios:listSchemes', (_e, { repoRoot, cfg }: { repoRoot: string; cfg?: ios.IosCfg }) =>
-    ios.listSchemes(repoRoot, cfg)
-  )
+  handle('ios:listSchemes', ({ repoRoot, cfg }) => ios.listSchemes(repoRoot, cfg))
 }

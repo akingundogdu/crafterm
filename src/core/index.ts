@@ -6,9 +6,9 @@ import * as terminal from './services/terminal.manager'
 import * as plansWatcher from './services/plans.watcher'
 import { writeFileSync, existsSync, mkdirSync } from 'fs'
 import { APP_NAME } from './constants'
-import { registerDbIpc } from './db'
-import { registerDockerIpc } from './docker'
-import { registerPrIpc } from './pr'
+import { registerDbIpc } from '@services/db/db.main'
+import { registerDockerIpc } from '@services/docker/docker.main'
+import { registerPrIpc } from '@services/pr/pr.main'
 import { registerFsIpc } from '@services/fs/fs.main'
 import { registerNotebookIpc } from '@services/notebook/notebook.main'
 import { registerShellIpc } from '@services/shell/shell.main'
@@ -32,6 +32,7 @@ import { registerBacklogIpc } from '@services/backlog/backlog.main'
 import { registerZshIpc } from '@services/zsh/zsh.main'
 import { registerIosIpc } from '@services/ios/ios.main'
 import { registerTerminalIpc } from '@services/terminal/terminal.main'
+import { emit } from '@services/channels.main'
 import {
   createMainWindow,
   getMainWindow,
@@ -192,7 +193,7 @@ app.on('before-quit', (e) => {
     !mainWindow.webContents.isDestroyed()
   ) {
     e.preventDefault()
-    mainWindow.webContents.send('app:quitting')
+    emit(mainWindow.webContents, 'app:quitting')
     setTimeout(() => {
       didFlushState = true
       app.quit()

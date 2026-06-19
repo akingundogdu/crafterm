@@ -1,4 +1,5 @@
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, openSync, rmSync } from 'fs'
 import { execFile, spawn } from 'child_process'
@@ -13,39 +14,36 @@ import { APP_NAME } from '@core/constants'
 // UI can show progress); the swap + relaunch runs as a fully detached process so
 // it survives this app quitting.
 export function registerDeployIpc(): void {
-  ipcMain.handle(
-    'deploy:build',
-    async (_e, { repoPath, command }: { repoPath: string; command?: string }) => {
-      const repo = repoPath?.trim()
-      if (!repo || !existsSync(join(repo, 'package.json'))) {
-        return { ok: false, error: 'Repo path is not a valid Crafterm checkout (no package.json).' }
-      }
-      const cmd = (command ?? '').trim() || 'run-crafterm-deploy'
-      const log = join(stateDir(), 'deploy.log')
-      return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
-        execFile(
-          '/bin/zsh',
-          ['-lic', loadScript(join(scriptsDir(), 'templates'), 'deploy-run.sh.tmpl', { cmd, log: shq(log) })],
-          { cwd: repo },
-          (err) => {
-            if (!err) return resolve({ ok: true })
-            let tail = ''
-            try {
-              tail = readFileSync(log, 'utf8').slice(-1500)
-            } catch {
-              /* ignore */
-            }
-            resolve({ ok: false, error: tail || err.message })
-          }
-        )
-      })
+  handle('deploy:build', async ({ repoPath, command }) => {
+    const repo = repoPath?.trim()
+    if (!repo || !existsSync(join(repo, 'package.json'))) {
+      return { ok: false, error: 'Repo path is not a valid Crafterm checkout (no package.json).' }
     }
-  )
-  ipcMain.handle('deploy:killAllPtys', async () => {
+    const cmd = (command ?? '').trim() || 'run-crafterm-deploy'
+    const log = join(stateDir(), 'deploy.log')
+    return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      execFile(
+        '/bin/zsh',
+        ['-lic', loadScript(join(scriptsDir(), 'templates'), 'deploy-run.sh.tmpl', { cmd, log: shq(log) })],
+        { cwd: repo },
+        (err) => {
+          if (!err) return resolve({ ok: true })
+          let tail = ''
+          try {
+            tail = readFileSync(log, 'utf8').slice(-1500)
+          } catch {
+            /* ignore */
+          }
+          resolve({ ok: false, error: tail || err.message })
+        }
+      )
+    })
+  })
+  handle('deploy:killAllPtys', async () => {
     await terminal.drain()
     return true
   })
-  ipcMain.handle('deploy:swap', (_e, { repoPath }: { repoPath: string }) => {
+  handle('deploy:swap', ({ repoPath }) => {
     const repo = repoPath?.trim()
     if (!repo) return false
     const dest = `/Applications/${APP_NAME}.app`
@@ -78,7 +76,7 @@ export function registerDeployIpc(): void {
     return true
   })
   // One-shot: did we just relaunch after an update? Consumes the sentinel.
-  ipcMain.handle('deploy:wasUpdating', () => {
+  handle('deploy:wasUpdating', () => {
     const flag = join(stateDir(), '.updating')
     if (!existsSync(flag)) return false
     try {

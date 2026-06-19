@@ -91,7 +91,7 @@ export function toggleNotifPanel(): void {
 // Status bar Claude usage chip: polls every 30s. Compact display shows the
 // active model + this-week percentage; clicking opens a popover with full
 // today / week / month progress bars (mirrors Claude's /usage TUI).
-type RealUsage = Awaited<ReturnType<Window['crafterm']['claude']['realUsage']>>
+type RealUsage = Awaited<ReturnType<typeof claudeService.realUsage>>
 type UsageWindow = NonNullable<RealUsage['fiveHour']>
 
 // Resolve the OAuth token source from settings, then pull the real server-side

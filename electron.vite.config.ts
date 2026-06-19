@@ -8,8 +8,7 @@ const alias = {
   '@services': resolve(__dirname, 'src/services'),
   '@ui': resolve(__dirname, 'src/ui'),
   '@resources': resolve(__dirname, 'src/resources'),
-  '@tests': resolve(__dirname, 'src/tests'),
-  '@bridge': resolve(__dirname, 'src/core/bridge')
+  '@tests': resolve(__dirname, 'src/tests')
 }
 
 export default defineConfig({

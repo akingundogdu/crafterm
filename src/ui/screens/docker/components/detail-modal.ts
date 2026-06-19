@@ -1,6 +1,6 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import type { DockerKind } from '@bridge/api'
+import type { DockerKind } from '@services/docker/docker.types'
 import { settings, resolveTheme } from '../../../state'
 import { terminalService, dockerService } from '@services'
 import { makeCloseButton } from '../../../dialog'

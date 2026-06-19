@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'fs'
 import { stateDir } from '@core/services/paths'
@@ -18,7 +18,7 @@ function dbqSafe(name: string): string | null {
 
 // Saved SQL queries bridge (dbq:*).
 export function registerDbqIpc(): void {
-  ipcMain.handle('dbq:list', (_e, { connId }: { connId: string }) => {
+  handle('dbq:list', ({ connId }) => {
     const dir = dbqDir(connId)
     if (!dir) return [] as { name: string; path: string }[]
     try {
@@ -30,7 +30,7 @@ export function registerDbqIpc(): void {
       return [] as { name: string; path: string }[]
     }
   })
-  ipcMain.handle('dbq:read', (_e, { connId, name }: { connId: string; name: string }) => {
+  handle('dbq:read', ({ connId, name }) => {
     const dir = dbqDir(connId)
     const safe = dbqSafe(name)
     if (!dir || !safe) return ''
@@ -40,22 +40,19 @@ export function registerDbqIpc(): void {
       return ''
     }
   })
-  ipcMain.handle(
-    'dbq:write',
-    (_e, { connId, name, sql }: { connId: string; name: string; sql: string }) => {
-      const dir = dbqDir(connId)
-      const safe = dbqSafe(name)
-      if (!dir || !safe) return false
-      try {
-        mkdirSync(dir, { recursive: true })
-        writeFileSync(join(dir, safe), sql)
-        return true
-      } catch {
-        return false
-      }
+  handle('dbq:write', ({ connId, name, sql }) => {
+    const dir = dbqDir(connId)
+    const safe = dbqSafe(name)
+    if (!dir || !safe) return false
+    try {
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, safe), sql)
+      return true
+    } catch {
+      return false
     }
-  )
-  ipcMain.handle('dbq:delete', (_e, { connId, name }: { connId: string; name: string }) => {
+  })
+  handle('dbq:delete', ({ connId, name }) => {
     const dir = dbqDir(connId)
     const safe = dbqSafe(name)
     if (!dir || !safe) return false

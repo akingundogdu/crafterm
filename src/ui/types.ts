@@ -1,7 +1,7 @@
 import type { Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
-import type { NodeStatus, PaneRole, SavedNode } from '@bridge/api'
-export type { NodeStatus, PaneRole } from '@bridge/api'
+import type { NodeStatus, PaneRole, SavedNode } from '@services/storage/state.types'
+export type { NodeStatus, PaneRole } from '@services/storage/state.types'
 
 export type Dir = 'row' | 'col'
 

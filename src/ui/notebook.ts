@@ -1,4 +1,4 @@
-import type { NbNode } from '@bridge/api'
+import type { NbNode } from '@services/notebook/notebook.types'
 import { openNote, openMarkdownFile } from './commands'
 import { promptText } from './dialog'
 import { showFileFinder } from './screens/pickers/finders/finders'

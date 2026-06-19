@@ -1,5 +1,5 @@
 import type { LayoutNode, NodeStatus, SidebarNode, AppNotification } from '@ui/types'
-import type { SavedState, SavedSidebarNode, SavedNode } from '@bridge/api'
+import type { SavedState, SavedSidebarNode, SavedNode } from '@services/storage/state.types'
 import { panesInLayout } from '@ui/tree'
 import {
   panes,

@@ -15,10 +15,9 @@
       "@services/*": ["src/services/*"],
       "@ui/*": ["src/ui/*"],
       "@resources/*": ["src/resources/*"],
-      "@tests/*": ["src/tests/*"],
-      "@bridge/*": ["src/core/bridge/*"]
+      "@tests/*": ["src/tests/*"]
     }
   },
-  "include": ["src/ui/**/*", "src/services/**/*", "src/core/bridge/api.d.ts"],
+  "include": ["src/ui/**/*", "src/services/**/*"],
   "exclude": ["src/services/**/*.main.ts"]
 }

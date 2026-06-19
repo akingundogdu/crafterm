@@ -1,4 +1,4 @@
-import type { ClaudeRealUsage } from '@bridge/api'
+import type { ClaudeRealUsage } from '@services/claude/claude.types'
 
 // Pure shaping for the Claude usage chip/popover: reset-time formatting and
 // error-message strings. No DOM, no IPC — `now` is injectable for tests.

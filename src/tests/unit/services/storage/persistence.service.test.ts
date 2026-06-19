@@ -5,15 +5,16 @@ import { settings, state, notifications, commandHistory } from '@ui/state'
 import type { LayoutNode } from '@ui/types'
 
 // persistence.service owns the renderer's serialize pipeline + debounced save.
-// We capture writes by mocking the bridge channel storeService.save targets
-// (window.crafterm.store.save) and assert the serialized payload + debounce.
+// We capture writes by mocking the generic bridge `send` that storeService.save
+// targets (window.crafterm.send('store:save', data)) and assert the serialized
+// payload + debounce.
 
 let saveState: ReturnType<typeof vi.fn>
 beforeEach(() => {
   saveState = vi.fn()
-  ;(window as unknown as { crafterm: { store: Record<string, unknown> } }).crafterm = {
-    store: { save: saveState }
-  }
+  ;(window as unknown as { crafterm: { send: ReturnType<typeof vi.fn> } }).crafterm = {
+    send: saveState
+  } as never
   state.tree = []
   settings.bookmarks = []
   notifications.length = 0
@@ -26,7 +27,8 @@ describe('serialize / persist', () => {
     settings.bookmarks = [{ id: 'b1', type: 'link', title: 'T', content: 'c', tags: [], createdAt: 1 }]
     persistence.flush()
     expect(saveState).toHaveBeenCalledTimes(1)
-    const payload = saveState.mock.calls[0][0]
+    expect(saveState.mock.calls[0][0]).toBe('store:save') // channel
+    const payload = saveState.mock.calls[0][1] // data is the send payload
     expect(payload.schemaVersion).toBe(4)
     expect(payload.tree).toEqual([])
     expect(payload.bookmarks).toEqual(settings.bookmarks)

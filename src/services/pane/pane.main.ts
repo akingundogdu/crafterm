@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import * as terminal from '@core/services/terminal.manager'
@@ -26,7 +26,7 @@ function readLastCommand(stableId: string): string | null {
 // Pane info bridge (pane:*): a pane's cwd (pid → lsof), git branch/worktree, and
 // the last command it ran.
 export function registerPaneIpc(): void {
-  ipcMain.handle('pane:info', async (_e, { id, stableId }: { id: string; stableId?: string }) => {
+  handle('pane:info', async ({ id, stableId }) => {
     const lastCommand = stableId ? readLastCommand(stableId) : null
     const p = terminal.get(id)
     if (!p) return { cwd: null, branch: null, worktree: null, lastCommand }

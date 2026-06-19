@@ -1,4 +1,4 @@
-import type { DockerRow, DockerKind } from '@bridge/api'
+import type { DockerRow, DockerKind } from '@services/docker/docker.types'
 
 // Pure data helpers for the Docker tab: tolerant field lookup over docker's
 // capitalised JSON keys, and the high-value [label, value] inspect tables per

@@ -1,4 +1,4 @@
-import type { WorkflowRun, DeploymentStatus } from '@bridge/api'
+import type { WorkflowRun, DeploymentStatus } from '@services/pr/pr.types'
 
 // Change-detection for the PR tab's background notifications. Each tracker holds
 // the previous snapshot and emits only on the transition that matters (CI leaving

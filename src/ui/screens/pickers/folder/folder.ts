@@ -1,4 +1,4 @@
-import type { DirEntry } from '@bridge/api'
+import type { DirEntry } from '@services/fs/fs.types'
 import { settings } from '../../../state'
 import { openTerminalInDir } from '../../../commands'
 import { fsService } from '@services'

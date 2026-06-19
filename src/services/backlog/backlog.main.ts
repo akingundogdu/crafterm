@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync, readFileSync } from 'fs'
@@ -8,7 +8,7 @@ export function registerBacklogIpc(): void {
   // Read the project backlog (~/.crafterm/todo-list.json, shared by dev + prod) and
   // return its items plus the resolved path so the renderer's spotlight can list
   // backlog entries and open the file in the code editor without hardcoding a path.
-  ipcMain.handle('backlog:read', () => {
+  handle('backlog:read', () => {
     const file = join(homedir(), '.crafterm', 'todo-list.json')
     if (!existsSync(file)) return null
     try {

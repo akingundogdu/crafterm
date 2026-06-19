@@ -4,7 +4,7 @@ import '@ui/components/modal/modal.css'
 import './global.css'
 import './app-shell.css'
 import type { LayoutNode, SidebarNode, DiffPane, CodePane } from './types'
-import type { SavedNode, SavedSidebarNode } from '@bridge/api'
+import type { SavedNode, SavedSidebarNode } from '@services/storage/state.types'
 import {
   state,
   panes,

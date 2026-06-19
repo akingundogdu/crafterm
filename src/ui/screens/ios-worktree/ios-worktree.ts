@@ -4,7 +4,7 @@
 // node. Build/run/etc. open a terminal *inside* the worktree folder node.
 
 import type { SidebarNode, ProjectNode, WorktreeNode } from '../../types'
-import type { IosWorktreeStatus } from '@bridge/api'
+import type { IosWorktreeStatus } from '@services/ios/ios.types'
 import { requestSidebar } from '../../state'
 import { persistence } from '@services/storage/persistence.service'
 import { flattenProjects } from '../../catalog'

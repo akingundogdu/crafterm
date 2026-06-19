@@ -17,9 +17,14 @@
       "@services/*": ["src/services/*"],
       "@ui/*": ["src/ui/*"],
       "@resources/*": ["src/resources/*"],
-      "@tests/*": ["src/tests/*"],
-      "@bridge/*": ["src/core/bridge/*"]
+      "@tests/*": ["src/tests/*"]
     }
   },
-  "include": ["src/core/**/*", "src/services/**/*.main.ts", "electron.vite.config.ts"]
+  "include": [
+    "src/core/**/*",
+    "src/services/**/*.main.ts",
+    "src/services/**/*.types.ts",
+    "src/services/channels.ts",
+    "electron.vite.config.ts"
+  ]
 }

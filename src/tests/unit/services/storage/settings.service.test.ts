@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadSettings } from '@services/storage/settings.service'
 import { settings } from '@ui/state'
-import type { SavedState } from '@bridge/api'
+import type { SavedState } from '@services/storage/state.types'
 
 // Minimal SavedState; only the fields under test are populated. Everything else
 // is guarded in loadSettings and left at its default.

@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync, readdirSync } from 'fs'
@@ -27,7 +27,7 @@ function walkMd(dir: string, acc: string[], limit: number): void {
 
 // Markdown finder bridge (md:*): recursively list .md files for the Cmd+O finder.
 export function registerMdIpc(): void {
-  ipcMain.handle('md:findAll', (_e, { root }: { root?: string }) => {
+  handle('md:findAll', ({ root }) => {
     let dir = root && root.trim() ? root.trim() : homedir()
     if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
     if (!existsSync(dir)) dir = homedir()

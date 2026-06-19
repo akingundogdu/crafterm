@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { handle } from '@services/channels.main'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
@@ -12,7 +12,7 @@ function resolveTodoPath(p?: string): string {
 
 // Todo bridge (todo:*): read/write the user-configured todo-list.md.
 export function registerTodoIpc(): void {
-  ipcMain.handle('todo:read', (_e, { path }: { path?: string }) => {
+  handle('todo:read', ({ path }) => {
     const file = resolveTodoPath(path)
     if (!file || !existsSync(file)) return null
     try {
@@ -21,7 +21,7 @@ export function registerTodoIpc(): void {
       return null
     }
   })
-  ipcMain.handle('todo:write', (_e, { path, content }: { path?: string; content: string }) => {
+  handle('todo:write', ({ path, content }) => {
     const file = resolveTodoPath(path)
     if (!file) return false
     try {

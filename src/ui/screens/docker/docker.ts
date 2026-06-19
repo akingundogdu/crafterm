@@ -1,5 +1,5 @@
 import './docker.css'
-import type { DockerRow, DockerKind } from '@bridge/api'
+import type { DockerRow, DockerKind } from '@services/docker/docker.types'
 import { openTerminalRunning } from '../../commands'
 import { promptConfirm } from '../../dialog'
 import { dockerService } from '@services'

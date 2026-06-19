@@ -62,18 +62,29 @@ stopped, ask first and wait for an explicit OK.
 
 ## Process Model
 
-- **Main** (`src/main/index.ts`, single file): owns node-pty processes, the
-  `BrowserWindow`(s) and pop-out windows, native `Notification`s, the app menu,
-  and **every IPC handler** (`pty:*`, `store:*`, `git:*`, `claude:*`, `fs:*`,
-  `notebook:*`, `sound:*`, `dir:*`, `md:*`, `zsh:*`, `popout:*`, …). Anything that
-  touches the OS (spawn shells, read the filesystem, `afplay`, `git`) lives here.
-- **Preload** (`src/preload/index.ts` + `src/preload/api.d.ts`): a narrow,
-  **typed** `contextBridge` exposing `window.crafterm`. This is the **only** channel
-  between renderer and shell. Adding an IPC call means three edits together:
-  handler in `index.ts` (main) → method in `preload/index.ts` → signature in
-  `preload/api.d.ts` (and `SavedState` there if it's persisted).
-- **Renderer** (`src/renderer/src/*`): the UI. No Node/Electron APIs directly —
-  always go through `window.crafterm`.
+- **Main / model** (`src/core/`): bootstrap `src/core/index.ts` registers every
+  controller, owns the `BrowserWindow`(s) + pop-out windows, native `Notification`s,
+  and the app menu; the domain models (`services/terminal.manager`, `git`/`fs`/
+  `claude` services, `db`/`docker`, `windows`, `domain`) live under `src/core/`.
+  Anything that touches the OS (spawn shells, read the filesystem, `afplay`, `git`,
+  the `gh`/`docker` CLIs) lives here.
+- **Controllers** (`src/services/<domain>/`): each domain is one folder with
+  `<domain>.main.ts` (registers handlers via the typed `handle`/`on`/`emit` helpers
+  in `services/channels.main.ts`), `<domain>.client.ts` (renderer wrappers via
+  `call`/`send`/`listen` in `services/channels.client.ts`), and `<domain>.types.ts`
+  (shared request/response/data shapes). **Adding an IPC call = three edits:** a
+  channel entry in **`src/services/channels.ts`** (the central typed registry) → a
+  `handle`/`on` in `<domain>.main.ts` → a `call`/`send`/`listen` wrapper in
+  `<domain>.client.ts`. Both sides reference only the registry, so a channel-name
+  or req/res type drift fails at compile time. A grep guard
+  (`tests/.../cross-process.guard.test.ts`) blocks a `*.main.ts` from leaking into
+  the renderer (or `*.client.ts`/`window` into main).
+- **Preload** (`src/core/bridge/index.ts`): a generic `contextBridge` exposing
+  `window.crafterm.{invoke,send,on}` — an untyped pass-through over the registry;
+  the `*.client.ts` wrappers are its only callers (they supply the typed channel +
+  payload).
+- **Renderer / view** (`src/ui/*`): the UI. No Node/Electron APIs directly — always
+  go through the `@services` client wrappers (never `window.crafterm` raw).
 
 ## Architecture (renderer)
 
@@ -161,7 +172,7 @@ stopped, ask first and wait for an explicit OK.
 - Adding a persisted setting requires four edits in lockstep: the field on
   `settings` (`state.ts`), the `persist()` payload, `loadSettings()` (guarded by a
   type check / `Array.isArray`), and the type in `SavedState`
-  (`preload/api.d.ts`). Migrate old shapes on read.
+  (`src/services/storage/state.types.ts`). Migrate old shapes on read.
 
 ## Distribution
 

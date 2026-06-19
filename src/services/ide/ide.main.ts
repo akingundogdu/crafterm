@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { on } from '@services/channels.main'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { execFile } from 'child_process'
@@ -9,7 +9,7 @@ import { shq } from '@core/services/exec'
 // IDE bridge (ide:*): open a path in the user's IDE via their `ide` command.
 export function registerIdeIpc(): void {
   // Open a path in the user's IDE via their `ide` command (no terminal spawned).
-  ipcMain.on('ide:open', (_e, { path, ide }: { path: string; ide: string }) => {
+  on('ide:open', ({ path, ide }) => {
     if (!path || !existsSync(path)) return
     const cmd = ide && ide.trim() ? ide.trim() : 'open'
     execFile(
