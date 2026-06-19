@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
+import { env } from '@configs/environment-variables'
 
 // Centralized filesystem path resolution for the main process. Every directory
 // the app reads/writes is derived here so IPC handlers and services share one
@@ -13,8 +14,7 @@ import { homedir } from 'os'
 // throwaway temp dir so they never touch the real ~/.crafterm (HR-5); the default
 // is unchanged when the env var is absent.
 export const stateDir = (): string =>
-  process.env.CRAFTERM_STATE_DIR ||
-  join(homedir(), app.isPackaged ? '.crafterm' : '.crafterm-dev')
+  env.stateDir() || join(homedir(), app.isPackaged ? '.crafterm' : '.crafterm-dev')
 
 export const statePath = (): string => join(stateDir(), 'crafterm-state.json')
 

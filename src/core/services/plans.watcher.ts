@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { mkdirSync, watch as fsWatch, type FSWatcher } from 'fs'
 import { emit, Channel } from '@services/channels.main'
+import { Events } from '../events'
 
 // Live fs watchers per <repo>/docs/plans dir. A change there means a plan file
 // was created/renamed/removed, so we broadcast `plans:changed` to every window
@@ -30,7 +31,7 @@ export function ensure(plansDir: string): void {
       }, 150)
       timers.set(plansDir, t)
     })
-    watcher.on('error', () => {
+    watcher.on(Events.Watcher.Error, () => {
       watcher.close()
       watchers.delete(plansDir)
     })

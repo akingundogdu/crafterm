@@ -1,8 +1,10 @@
 import { app, BrowserWindow, Notification, Menu } from 'electron'
-import { join } from 'path'
 import { handle, on, emit, Channel } from '@services/channels.main'
 import * as terminal from '../services/terminal.manager'
 import { APP_NAME } from '../constants'
+import { Events } from '../events'
+import { env } from '@configs/environment-variables'
+import { preloadPath, rendererHtmlPath, RENDERER_HTML } from './window-paths'
 
 let mainWindow: BrowserWindow | null = null
 // The single detached "Improve Crafterm" window, if open.
@@ -25,7 +27,7 @@ export function createMainWindow(): void {
   // hidden, so the test run never steals focus or flips macOS Spaces. Playwright
   // still captures the offscreen-rendered page. A fixed size also makes
   // visual-regression snapshots independent of the developer's actual display.
-  const isE2E = !!process.env['CRAFTERM_E2E']
+  const isE2E = env.isE2E()
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -34,13 +36,13 @@ export function createMainWindow(): void {
     backgroundColor: '#0d1117',
     titleBarStyle: 'hiddenInset', // native traffic lights floating over the sidebar
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: preloadPath(),
       sandbox: false,
       webviewTag: true // embedded browser panes (opening terminal links in-app)
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
+  mainWindow.on(Events.Window.ReadyToShow, () => {
     if (!isE2E) mainWindow?.show()
   })
 
@@ -52,21 +54,22 @@ export function createMainWindow(): void {
       emit(mainWindow.webContents, Channel.Window.Fullscreen, mainWindow.isFullScreen())
     }
   }
-  mainWindow.on('enter-full-screen', broadcastFullscreen)
-  mainWindow.on('leave-full-screen', broadcastFullscreen)
-  mainWindow.webContents.once('did-finish-load', broadcastFullscreen)
+  mainWindow.on(Events.Window.EnterFullScreen, broadcastFullscreen)
+  mainWindow.on(Events.Window.LeaveFullScreen, broadcastFullscreen)
+  mainWindow.webContents.once(Events.WebContents.DidFinishLoad, broadcastFullscreen)
 
   // Drop the reference once the window is gone, so the guards in the PTY
   // callbacks short-circuit instead of touching a destroyed object.
-  mainWindow.on('closed', () => {
+  mainWindow.on(Events.Window.Closed, () => {
     mainWindow = null
   })
 
   // electron-vite sets ELECTRON_RENDERER_URL in dev (Vite server); in prod we load the built file.
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  const devUrl = env.rendererUrl()
+  if (devUrl) {
+    mainWindow.loadURL(devUrl)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(rendererHtmlPath('index'))
   }
 }
 
@@ -84,25 +87,26 @@ function createPopoutWindow(paneId: string, title?: string): void {
     title: title || APP_NAME,
     titleBarStyle: 'hiddenInset',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: preloadPath(),
       sandbox: false
     }
   })
   const qs = `id=${encodeURIComponent(paneId)}`
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/popout.html?${qs}`)
+  const devUrl = env.rendererUrl()
+  if (devUrl) {
+    win.loadURL(`${devUrl}/${RENDERER_HTML.popout}?${qs}`)
   } else {
-    win.loadFile(join(__dirname, '../renderer/popout.html'), { search: qs })
+    win.loadFile(rendererHtmlPath('popout'), { search: qs })
   }
   terminal.setPopout(paneId, win)
   // The native close button needs a running-process confirm (done in the
   // pop-out renderer). Intercept unless we're quitting or the kill is confirmed.
-  win.on('close', (e) => {
+  win.on(Events.Window.Close, (e) => {
     if (quitting || allowClose.has(paneId)) return
     e.preventDefault()
     if (!win.webContents.isDestroyed()) emit(win.webContents, Channel.Popout.ConfirmClose, { id: paneId })
   })
-  win.on('closed', () => {
+  win.on(Events.Window.Closed, () => {
     terminal.deletePopout(paneId)
     allowClose.delete(paneId)
     terminal.deleteOwner(paneId)
@@ -194,16 +198,17 @@ export function registerWindowIpc(): void {
       title: 'Improve Crafterm',
       titleBarStyle: 'hiddenInset',
       webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
+        preload: preloadPath(),
         sandbox: false
       }
     })
-    if (process.env['ELECTRON_RENDERER_URL']) {
-      improveWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/improve-window.html`)
+    const devUrl = env.rendererUrl()
+    if (devUrl) {
+      improveWin.loadURL(`${devUrl}/${RENDERER_HTML.improveWindow}`)
     } else {
-      improveWin.loadFile(join(__dirname, '../renderer/improve-window.html'))
+      improveWin.loadFile(rendererHtmlPath('improveWindow'))
     }
-    improveWin.on('closed', () => {
+    improveWin.on(Events.Window.Closed, () => {
       improveWin = null
     })
   })
@@ -223,7 +228,7 @@ export function registerWindowIpc(): void {
       if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return
       try {
         const n = new Notification({ title, body, silent: false })
-        n.on('click', () => {
+        n.on(Events.Notification.Click, () => {
           // bring the app/window forward and focus the pane that triggered it
           if (mainWindow && !mainWindow.isDestroyed()) {
             if (mainWindow.isMinimized()) mainWindow.restore()

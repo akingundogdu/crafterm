@@ -1,4 +1,5 @@
 import { execFile } from 'child_process'
+import { BIN } from './exec'
 
 // Real ("server-side") Claude usage windows, fetched from the Anthropic OAuth
 // usage endpoint using the credential Claude Code stores in the macOS keychain.
@@ -51,7 +52,7 @@ export function readKeychainBlob(service: string): Promise<string | null> {
   return new Promise((resolve) => {
     if (!service) return resolve(null)
     execFile(
-      '/usr/bin/security',
+      BIN.security,
       ['find-generic-password', '-s', service, '-w'],
       { timeout: 3000 },
       (err, stdout) => resolve(err ? null : (stdout || '').trim() || null)

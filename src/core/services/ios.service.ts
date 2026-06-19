@@ -1,5 +1,5 @@
 import { execFile } from 'child_process'
-import { run } from './exec'
+import { run, BIN } from './exec'
 
 export interface IosCfg {
   project?: string
@@ -70,7 +70,7 @@ export async function listTargets(): Promise<{ simulators: IosTarget[]; devices:
   const simulators: IosTarget[] = []
   const devices: IosTarget[] = []
   try {
-    const out = await run('/usr/bin/xcrun', ['simctl', 'list', 'devices', 'available', '--json'])
+    const out = await run(BIN.xcrun, ['simctl', 'list', 'devices', 'available', '--json'])
     if (out) {
       const data = JSON.parse(out) as { devices: Record<string, { name: string; udid: string; isAvailable?: boolean }[]> }
       for (const [runtime, list] of Object.entries(data.devices)) {
@@ -85,7 +85,7 @@ export async function listTargets(): Promise<{ simulators: IosTarget[]; devices:
     /* simctl missing / parse error — leave simulators empty */
   }
   try {
-    const out = await run('/usr/bin/xcrun', ['xctrace', 'list', 'devices'])
+    const out = await run(BIN.xcrun, ['xctrace', 'list', 'devices'])
     if (out) {
       // Physical devices live under "== Devices ==" AND "== Devices Offline =="
       // (a USB device is often listed "offline" until trusted/tunneled — still
@@ -119,7 +119,7 @@ export function listSchemes(repoRoot: string, cfg?: IosCfg): Promise<string[]> {
     const container = cfg?.project?.trim()
     if (container) args.push(/\.xcworkspace$/.test(container) ? '-workspace' : '-project', container)
     execFile(
-      '/usr/bin/xcrun',
+      BIN.xcrun,
       args,
       { cwd: repoRoot, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout) => {

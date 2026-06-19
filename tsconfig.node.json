@@ -13,6 +13,7 @@
     "baseUrl": ".",
     "paths": {
       "@core/*": ["src/core/*"],
+      "@configs/*": ["src/configs/*"],
       "@services": ["src/services/index.ts"],
       "@services/*": ["src/services/*"],
       "@ui/*": ["src/ui/*"],
@@ -22,6 +23,7 @@
   },
   "include": [
     "src/core/**/*",
+    "src/configs/**/*",
     "src/services/**/*.main.ts",
     "src/services/**/*.types.ts",
     "src/services/channels.ts",

@@ -5,7 +5,7 @@ import { call, send, Channel } from '../channels.client'
 export const fsService = {
   listDir: (path?: string) => call(Channel.Dir.List, { path }),
   listEntries: (path?: string) => call(Channel.Fs.ListEntries, { path }),
-  findAllMarkdown: (root?: string) => call(Channel.Md.FindAll, { root }),
+  findAllMarkdown: (root?: string) => call(Channel.Markdown.FindAll, { root }),
   findFiles: (root?: string, exclude?: string[]) => call(Channel.Fs.FindFiles, { root, exclude }),
   resolveFile: (base: string, rel: string) => call(Channel.Fs.ResolveFile, { base, rel }),
   readMd: (path: string) => call(Channel.Fs.ReadMd, { path }),

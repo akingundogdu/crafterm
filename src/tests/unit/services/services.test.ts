@@ -77,7 +77,7 @@ const ENTRIES: Entry[] = [
   // ── fs ──
   { ns: 'fs', method: 'listDir', kind: 'invoke', channel: 'dir:list', args: ['p'], payload: { path: 'p' } },
   { ns: 'fs', method: 'listEntries', kind: 'invoke', channel: 'fs:listEntries', args: ['p'], payload: { path: 'p' } },
-  { ns: 'fs', method: 'findAllMarkdown', kind: 'invoke', channel: 'md:findAll', args: ['r'], payload: { root: 'r' } },
+  { ns: 'fs', method: 'findAllMarkdown', kind: 'invoke', channel: 'markdown:findAll', args: ['r'], payload: { root: 'r' } },
   { ns: 'fs', method: 'findFiles', kind: 'invoke', channel: 'fs:findFiles', args: ['r', ['x']], payload: { root: 'r', exclude: ['x'] } },
   { ns: 'fs', method: 'resolveFile', kind: 'invoke', channel: 'fs:resolveFile', args: ['b', 'rel'], payload: { base: 'b', rel: 'rel' } },
   { ns: 'fs', method: 'readMd', kind: 'invoke', channel: 'fs:readMd', args: ['p'], payload: { path: 'p' } },

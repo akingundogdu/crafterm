@@ -111,9 +111,6 @@ export const Channel = {
     Trash: 'fs:trash',
     ResolveImport: 'fs:resolveImport'
   },
-  Md: {
-    FindAll: 'md:findAll'
-  },
   Ide: {
     Open: 'ide:open'
   },
@@ -122,7 +119,8 @@ export const Channel = {
     RevealPath: 'shell:revealPath'
   },
   Markdown: {
-    Open: 'markdown:open'
+    Open: 'markdown:open',
+    FindAll: 'markdown:findAll'
   },
   Claude: {
     LatestSession: 'claude:latestSession',
@@ -303,7 +301,7 @@ export const channels = {
   // ── fs (dir/md/fs/ide/shell/markdown) ──
   [Channel.Dir.List]: rpc<{ path?: string }, DirListing>(),
   [Channel.Fs.ListEntries]: rpc<{ path?: string }, FsEntryListing>(),
-  [Channel.Md.FindAll]: rpc<{ root?: string }, MarkdownFiles>(),
+  [Channel.Markdown.FindAll]: rpc<{ root?: string }, MarkdownFiles>(),
   [Channel.Fs.FindFiles]: rpc<{ root?: string; exclude?: string[] }, MarkdownFiles>(),
   [Channel.Fs.ResolveFile]: rpc<{ base: string; rel: string }, string | null>(),
   [Channel.Fs.ReadMd]: rpc<{ path: string }, string>(),

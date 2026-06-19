@@ -3,6 +3,7 @@ import { execFile } from 'child_process'
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
+import { ghBin } from '@core/services/exec'
 import {
   Gh,
   GhFields,
@@ -25,14 +26,6 @@ import {
 // PR + GitHub Actions/deployments bridge (pr:* / gh:*) over the `gh` CLI. This is
 // self-contained gh glue (no reusable model elsewhere), so the helpers live here
 // alongside the IPC registration; the shared data shapes are in ./pr.types.
-
-// Resolve the GitHub CLI; GUI-launched apps don't inherit the shell PATH.
-function ghBin(): string {
-  for (const p of ['/opt/homebrew/bin/gh', '/usr/local/bin/gh', '/usr/bin/gh']) {
-    if (existsSync(p)) return p
-  }
-  return 'gh'
-}
 
 // Run an async mapper over items with a fixed concurrency cap, preserving order.
 async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {

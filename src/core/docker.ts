@@ -1,15 +1,6 @@
 import { execFile } from 'child_process'
-import { existsSync } from 'fs'
+import { dockerBin } from './services/exec'
 import type { DockerRow } from '@services/docker/docker.types'
-
-// Resolve the docker CLI: Docker Desktop / Colima install under these paths and
-// GUI-launched apps don't inherit the user's shell PATH.
-function dockerBin(): string {
-  for (const p of ['/usr/local/bin/docker', '/opt/homebrew/bin/docker', '/usr/bin/docker']) {
-    if (existsSync(p)) return p
-  }
-  return 'docker'
-}
 
 // Run docker with args; resolve { ok, out, err }. `timeout` guards slow calls
 // (image pulls aside, the read commands here are quick; stats is the slowest).

@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import { existsSync } from 'fs'
 import * as pty from 'node-pty'
 import * as terminal from '@core/services/terminal.manager'
+import { env as appEnv, ENV_NAMES } from '@configs/environment-variables'
 
 // --- Background processes ("hidden shells"): a PTY that runs a one-shot command
 // (e.g. an iOS build/run), keyed by the renderer-supplied stableId. Output is
@@ -41,11 +42,11 @@ export function registerTerminalIpc(): void {
     const id = opts.stableId
     if (terminal.has(id)) return id // already running — don't double-spawn
     terminal.setOwner(id, e.sender)
-    const shell = process.env.SHELL || '/bin/zsh'
+    const shell = appEnv.shell() || '/bin/zsh'
     let cwd = opts.cwd || homedir()
     if (cwd.startsWith('~')) cwd = join(homedir(), cwd.slice(1))
     if (!existsSync(cwd)) cwd = homedir()
-    const env = { ...process.env, ...(opts.env ?? {}), CRAFTERM_PANE_ID: id }
+    const env = { ...process.env, ...(opts.env ?? {}), [ENV_NAMES.PaneId]: id }
     procBuffers.set(id, '')
     const p = pty.spawn(shell, ['-lc', opts.command], {
       name: 'xterm-256color',

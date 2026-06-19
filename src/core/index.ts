@@ -6,6 +6,7 @@ import * as terminal from './services/terminal.manager'
 import * as plansWatcher from './services/plans.watcher'
 import { writeFileSync, existsSync, mkdirSync } from 'fs'
 import { APP_NAME } from './constants'
+import { Events } from './events'
 import { registerDbIpc } from '@services/db/db.main'
 import { registerDockerIpc } from '@services/docker/docker.main'
 import { registerPrIpc } from '@services/pr/pr.main'
@@ -25,7 +26,6 @@ import { registerDbqIpc } from '@services/dbq/dbq.main'
 import { registerDeployIpc } from '@services/deploy/deploy.main'
 import { registerAppIpc } from '@services/app/app.main'
 import { registerMarkdownIpc } from '@services/markdown/markdown.main'
-import { registerMdIpc } from '@services/md/md.main'
 import { registerMonacoIpc } from '@services/monaco/monaco.main'
 import { registerTodoIpc } from '@services/todo/todo.main'
 import { registerBacklogIpc } from '@services/backlog/backlog.main'
@@ -83,9 +83,8 @@ registerDbqIpc()
 registerDeployIpc()
 registerAppIpc()
 
-// Markdown open (markdown:*) + finder (md:*), monaco themes (monaco:*).
+// Markdown open + .md finder (markdown:*), monaco themes (monaco:*).
 registerMarkdownIpc()
-registerMdIpc()
 registerMonacoIpc()
 
 // todo-list.md (todo:*), backlog (backlog:*), zsh commands (zsh:*).
@@ -136,7 +135,7 @@ setupShellIntegration()
 // Last-resort guard: a stray teardown error (e.g. a PTY firing onExit just as the
 // window is destroyed) should be logged, not surfaced as a blocking dialog and
 // not crash the app.
-process.on('uncaughtException', (err) => {
+process.on(Events.Process.UncaughtException, (err) => {
   console.error('[main] uncaught exception:', err)
 })
 
@@ -161,25 +160,25 @@ app.whenReady().then(() => {
   // Belt-and-suspenders against accidental Cmd+R reloads (in addition to the
   // custom View menu that omits the Reload role). Catches any stray reload
   // accelerator from devtools, webviews, or pop-out windows before it fires.
-  app.on('web-contents-created', (_e, wc) => {
-    wc.on('before-input-event', (event, input) => {
+  app.on(Events.App.WebContentsCreated, (_e, wc) => {
+    wc.on(Events.WebContents.BeforeInputEvent, (event, input) => {
       if (input.type !== 'keyDown') return
       if (!(input.control || input.meta)) return
       if (input.key.toLowerCase() === 'r') event.preventDefault()
     })
   })
   createMainWindow()
-  app.on('activate', () => {
+  app.on(Events.App.Activate, () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
   })
 })
 
-app.on('window-all-closed', () => {
+app.on(Events.App.WindowAllClosed, () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
 let didFlushState = false
-app.on('before-quit', (e) => {
+app.on(Events.App.BeforeQuit, (e) => {
   setQuitting()
   plansWatcher.closeAll()
   const mainWindow = getMainWindow()

@@ -3,6 +3,7 @@ import { existsSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
 import { soundsDir } from '@core/services/paths'
+import { BIN } from '@core/services/exec'
 
 // Bundled, per-event notification sounds. 'question' plays when a pane wants
 // attention (e.g. Claude asks something), 'done' when a long command finishes.
@@ -17,12 +18,12 @@ export function registerSoundIpc(): void {
   on(Channel.Sound.Play, ({ name }) => {
     if (!name) return
     const p = `/System/Library/Sounds/${name}.aiff`
-    if (existsSync(p)) execFile('/usr/bin/afplay', [p], () => {})
+    if (existsSync(p)) execFile(BIN.afplay, [p], () => {})
   })
   on(Channel.Sound.Event, ({ event }) => {
     const file = EVENT_SOUNDS[event]
     if (!file) return
     const p = join(soundsDir(), file)
-    if (existsSync(p)) execFile('/usr/bin/afplay', [p], () => {})
+    if (existsSync(p)) execFile(BIN.afplay, [p], () => {})
   })
 }

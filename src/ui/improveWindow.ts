@@ -1,6 +1,6 @@
 import '@ui/styles/tokens.css'
 import '@ui/components/modal/modal.css'
-import './global.css'
+import '@ui/styles/global.css'
 import { applyBgColor } from './state'
 import { loadSettings } from '@services/storage/settings.service'
 import { showImproveModal } from './screens/improve-crafterm/improve-crafterm'

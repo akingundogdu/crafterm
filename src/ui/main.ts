@@ -1,8 +1,8 @@
 import '@xterm/xterm/css/xterm.css'
 import '@ui/styles/tokens.css'
 import '@ui/components/modal/modal.css'
-import './global.css'
-import './app-shell.css'
+import '@ui/styles/global.css'
+import '@ui/app-shell/app-shell.css'
 import type { LayoutNode, SidebarNode, DiffPane, CodePane } from './types'
 import type { SavedNode, SavedSidebarNode } from '@services/storage/state.types'
 import {

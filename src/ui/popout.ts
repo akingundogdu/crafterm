@@ -1,6 +1,6 @@
 import '@xterm/xterm/css/xterm.css'
 import '@ui/styles/tokens.css'
-import './global.css'
+import '@ui/styles/global.css'
 import './popout.css'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'

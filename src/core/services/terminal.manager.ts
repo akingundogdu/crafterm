@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import { existsSync } from 'fs'
 import * as pty from 'node-pty'
 import { Channel } from '@services/channels'
+import { env as appEnv, ENV_NAMES } from '@configs/environment-variables'
 
 // Dependencies the manager can't own itself yet: the main window (created in
 // index.ts) and the ZDOTDIR shell-integration state (set up alongside the shim).
@@ -62,20 +63,20 @@ export function create(
 ): string {
   const id = String(++seq)
   owners.set(id, sender) // the window that created it receives its output
-  const shell = opts?.shell || process.env.SHELL || '/bin/zsh'
+  const shell = opts?.shell || appEnv.shell() || '/bin/zsh'
   let cwd = opts?.cwd || homedir()
   if (cwd.startsWith('~')) cwd = join(homedir(), cwd.slice(1))
   if (!existsSync(cwd)) cwd = homedir() // fall back if the saved path is gone
   // Renderer-supplied env wins over the inherited environment so that
   // CRAFTERM_PANE_ID always reflects the pane that owns this PTY.
   const env = { ...process.env, ...(opts?.env ?? {}) }
-  if (opts?.env?.CRAFTERM_PANE_ID) env.CRAFTERM_PANE_ID = opts.env.CRAFTERM_PANE_ID
+  if (opts?.env?.[ENV_NAMES.PaneId]) env[ENV_NAMES.PaneId] = opts.env[ENV_NAMES.PaneId]
   // Route zsh through our ZDOTDIR shim so a preexec hook records the last
   // command for this pane (restored as pre-typed text). USER_ZDOTDIR points the
   // shim at the user's real rc dir so their config still loads.
   if (deps.isShellIntegrationReady() && /zsh/.test(shell)) {
-    env.USER_ZDOTDIR = process.env.ZDOTDIR || homedir()
-    env.ZDOTDIR = deps.getZdotDir()
+    env[ENV_NAMES.UserZdotdir] = appEnv.zdotDir() || homedir()
+    env[ENV_NAMES.Zdotdir] = deps.getZdotDir()
   }
   const p = pty.spawn(shell, ['-l'], {
     name: 'xterm-256color',

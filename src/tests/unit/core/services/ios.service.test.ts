@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const runMock = vi.fn<(cmd: string, args: string[]) => Promise<string | null>>()
-vi.mock('@core/services/exec', () => ({ run: (cmd: string, args: string[]) => runMock(cmd, args) }))
+vi.mock('@core/services/exec', () => ({
+  run: (cmd: string, args: string[]) => runMock(cmd, args),
+  BIN: { lsof: '/usr/sbin/lsof', xcrun: '/usr/bin/xcrun', security: '/usr/bin/security', afplay: '/usr/bin/afplay' }
+}))
 
 // execFile(cmd, args, opts, cb) — dispatch stdout per test via execImpl.
 let execImpl: (cmd: string, args: string[]) => { err: Error | null; stdout: string }
