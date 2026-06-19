@@ -1,5 +1,6 @@
 // Modal prompts, rebuilt on the @crafterm/ui modal primitives. Same exported
 // signatures, same DOM/classes, same behavior — callers are unchanged.
+import './close-panes.css'
 import { createButton, createField, createInput, createModal, createSelect, CREATE_OPTION } from '@crafterm/ui'
 
 // A reusable "×" close button pinned to a modal's top-right corner.
