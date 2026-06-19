@@ -20,11 +20,16 @@ export function setQuitting(): void {
 }
 
 export function createMainWindow(): void {
+  // Under E2E the window launches windowed (no native fullscreen) and stays
+  // hidden, so the test run never steals focus or flips macOS Spaces. Playwright
+  // still captures the offscreen-rendered page. A fixed size also makes
+  // visual-regression snapshots independent of the developer's actual display.
+  const isE2E = !!process.env['CRAFTERM_E2E']
   mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 1280,
     height: 800,
     show: false,
-    fullscreen: true, // always launch in native macOS fullscreen
+    fullscreen: !isE2E, // always launch in native macOS fullscreen (except E2E)
     backgroundColor: '#0d1117',
     titleBarStyle: 'hiddenInset', // native traffic lights floating over the sidebar
     webPreferences: {
@@ -34,7 +39,9 @@ export function createMainWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.on('ready-to-show', () => {
+    if (!isE2E) mainWindow?.show()
+  })
 
   // Tell the renderer about fullscreen state — macOS hides the traffic lights
   // while fullscreen, so the renderer can drop the left-side padding reserved

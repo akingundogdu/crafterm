@@ -16,7 +16,7 @@ test('app launches with an isolated state dir and shows the shell (HR-5)', async
 
   app = await electron.launch({
     args: ['.'],
-    env: { ...process.env, CRAFTERM_STATE_DIR: stateDir }
+    env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: stateDir }
   })
 
   const win = await app.firstWindow()

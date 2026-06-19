@@ -95,7 +95,7 @@ test('every persisted entity survives load-validation and round-trips to disk', 
 
   let app: ElectronApplication | null = null
   try {
-    app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_STATE_DIR: dir } })
+    app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
     const win: Page = await app.firstWindow()
     // The malformed rows must not crash the load: the shell still boots.
     await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })

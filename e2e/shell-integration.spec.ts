@@ -17,7 +17,7 @@ test('startup writes the ZDOTDIR shim from templates into the state dir', async 
 
   let app: ElectronApplication | null = null
   try {
-    app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_STATE_DIR: dir } })
+    app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
     const win = await app.firstWindow()
     await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
 

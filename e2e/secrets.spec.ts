@@ -15,7 +15,7 @@ function freshDir(): string {
 }
 
 async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_STATE_DIR: dir } })
+  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
   const win = await app.firstWindow()
   await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
   return { app, win }

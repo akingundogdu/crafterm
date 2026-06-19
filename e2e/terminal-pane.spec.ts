@@ -17,7 +17,7 @@ let win: Page
 test.beforeAll(async () => {
   stateDir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-pane-'))
   if (/\.crafterm(-dev)?(\/|$)/.test(stateDir)) throw new Error('HR-5 violated: refusing real state dir')
-  app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_STATE_DIR: stateDir } })
+  app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: stateDir } })
   win = await app.firstWindow()
   await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
 })
