@@ -1,7 +1,15 @@
 import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
 import { labeledInput } from '../shared'
+import {
+  saveDefaultHour,
+  commitPresetLabel,
+  applyPresetValue,
+  addDefaultPreset,
+  removePreset,
+  presetKind,
+  presetInitialValue
+} from './reminders.state'
 
 export function buildRemindersPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.reminders.heading}</h3>`)
@@ -11,13 +19,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
     UITexts.Settings.reminders.defaultHour,
     'number',
     String(settings.reminderDefaults.defaultHour),
-    (v) => {
-      const n = parseInt(v, 10)
-      if (Number.isInteger(n) && n >= 0 && n <= 23) {
-        settings.reminderDefaults.defaultHour = n
-        persistence.save()
-      }
-    }
+    saveDefaultHour
   )
 
   panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Quick-time presets</div>')
@@ -37,9 +39,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
         />
       ) as HTMLInputElement
       labelI.addEventListener('change', () => {
-        p.label = labelI.value.trim() || p.label
-        labelI.value = p.label
-        persistence.save()
+        labelI.value = commitPresetLabel(p, labelI.value)
       })
 
       // kind: relative offset (minutes) vs day-based jump
@@ -62,14 +62,14 @@ export function buildRemindersPanel(panel: HTMLElement): void {
           )}
         </select>
       ) as HTMLSelectElement
-      kindSel.value = typeof p.days === 'number' ? 'days' : 'offset'
+      kindSel.value = presetKind(p)
 
       const valueI = (
         <input
           type="number"
           min="0"
           ref={(el: HTMLInputElement) => {
-            el.value = String(typeof p.days === 'number' ? p.days : (p.offsetMin ?? 0))
+            el.value = presetInitialValue(p)
           }}
         />
       ) as HTMLInputElement
@@ -94,19 +94,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
       }
       syncSnapVisibility()
 
-      const applyValue = (): void => {
-        const n = Math.max(0, parseInt(valueI.value, 10) || 0)
-        if (kindSel.value === 'days') {
-          p.days = n
-          p.offsetMin = undefined
-          p.snapHour = snap.checked ? true : undefined
-        } else {
-          p.offsetMin = n
-          p.days = undefined
-          p.snapHour = undefined
-        }
-        persistence.save()
-      }
+      const applyValue = (): void => applyPresetValue(p, kindSel.value, valueI.value, snap.checked)
       kindSel.addEventListener('change', () => {
         syncSnapVisibility()
         applyValue()
@@ -120,8 +108,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
         </button>
       ) as HTMLButtonElement
       del.addEventListener('click', () => {
-        settings.reminderDefaults.presets.splice(idx, 1)
-        persistence.save()
+        removePreset(idx)
         renderList()
       })
 
@@ -139,8 +126,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
 
     const add = (<button class="settings-inline-btn">+ Add preset</button>) as HTMLButtonElement
     add.addEventListener('click', () => {
-      settings.reminderDefaults.presets.push({ label: '+1h', offsetMin: 60 })
-      persistence.save()
+      addDefaultPreset()
       renderList()
     })
     list.appendChild(add)
