@@ -31,8 +31,7 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
   const windowMode = !!opts.windowMode
   const { overlay, mount, close, onClose } = createOverlay({ closeOnBackdrop: !windowMode })
   if (windowMode) overlay.classList.add('improve-window-overlay')
-  const modal = document.createElement('div')
-  modal.className = 'modal improve-modal'
+  const modal = (<div class="modal improve-modal" />) as HTMLDivElement
   overlay.appendChild(modal)
   // In window mode the close button shuts the host window; Esc is inert.
   onClose(() => {
@@ -69,32 +68,34 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
   mount()
 
   // header: title + search box + request-new-feature button
-  const head = document.createElement('div')
-  head.className = 'improve-head'
-  const h = document.createElement('h2')
-  h.textContent = 'Improve Crafterm'
-  const searchInput = document.createElement('input')
-  searchInput.type = 'text'
-  searchInput.className = 'improve-search'
-  searchInput.placeholder = 'Search Todo / Ready / Done…'
-  const reqBtn = document.createElement('button')
-  reqBtn.className = 'settings-inline-btn'
-  reqBtn.textContent = '+ Request new feature'
-  head.append(h, searchInput)
+  const searchInput = (
+    <input type="text" class="improve-search" placeholder="Search Todo / Ready / Done…" />
+  ) as HTMLInputElement
+  const reqBtn = (<button class="settings-inline-btn">+ Request new feature</button>) as HTMLButtonElement
+  const head = (
+    <div class="improve-head">
+      <h2>Improve Crafterm</h2>
+      {searchInput}
+    </div>
+  ) as HTMLDivElement
   // "Open in window" detaches Improve into a standalone always-available window
   // (e.g. on a second monitor). Hidden when already running in window mode.
   if (!windowMode) {
-    const popBtn = document.createElement('button')
-    popBtn.className = 'settings-inline-btn improve-popout-btn'
-    popBtn.textContent = '⤢ Open in window'
-    popBtn.title = 'Open Improve Crafterm in its own window'
-    popBtn.addEventListener('click', makePopoutClick(close))
+    const popBtn = (
+      <button
+        class="settings-inline-btn improve-popout-btn"
+        title="Open Improve Crafterm in its own window"
+        onClick={makePopoutClick(close)}
+      >
+        ⤢ Open in window
+      </button>
+    ) as HTMLButtonElement
     head.append(popBtn)
   } else {
     // In window mode, offer an always-on-top toggle instead.
-    const topBtn = document.createElement('button')
-    topBtn.className = 'settings-inline-btn improve-ontop-btn'
-    topBtn.textContent = '📌 Always on top'
+    const topBtn = (
+      <button class="settings-inline-btn improve-ontop-btn">📌 Always on top</button>
+    ) as HTMLButtonElement
     topBtn.addEventListener('click', makeOnTopClick(topBtn))
     head.append(topBtn)
   }
@@ -121,13 +122,14 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
   })
 
   if (!settings.todoFile) {
-    const hint = document.createElement('div')
-    hint.className = 'empty-hint'
-    hint.innerHTML = 'Set the todo list file in Settings → Workspace first.'
-    const open = document.createElement('button')
-    open.className = 'settings-inline-btn'
-    open.textContent = 'Open Settings'
-    open.addEventListener('click', makeOpenSettingsClick(close))
+    const hint = (
+      <div class="empty-hint" innerHTML="Set the todo list file in Settings → Workspace first." />
+    ) as HTMLDivElement
+    const open = (
+      <button class="settings-inline-btn" onClick={makeOpenSettingsClick(close)}>
+        Open Settings
+      </button>
+    ) as HTMLButtonElement
     modal.append(hint, open)
     reqBtn.disabled = true
     return
@@ -157,28 +159,24 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
   }
 
   // progress overview (counts + bar), refreshed on every render
-  const stats = document.createElement('div')
-  stats.className = 'improve-stats'
+  const stats = (<div class="improve-stats" />) as HTMLDivElement
   modal.appendChild(stats)
 
   // new-feature form (hidden until requested)
-  const form = document.createElement('div')
-  form.className = 'improve-form'
-  form.style.display = 'none'
-  const ta = document.createElement('textarea')
-  ta.className = 'improve-textarea'
-  ta.placeholder = 'Describe the feature you want…'
-  ta.rows = 3
-  const formActions = document.createElement('div')
-  formActions.className = 'improve-form-actions'
-  const saveBtn = document.createElement('button')
-  saveBtn.className = 'settings-inline-btn'
-  saveBtn.textContent = 'Save'
-  const cancelBtn = document.createElement('button')
-  cancelBtn.className = 'improve-cancel'
-  cancelBtn.textContent = 'Cancel'
-  formActions.append(saveBtn, cancelBtn)
-  form.append(ta, formActions)
+  const ta = (
+    <textarea class="improve-textarea" placeholder="Describe the feature you want…" rows={3} />
+  ) as HTMLTextAreaElement
+  const saveBtn = (<button class="settings-inline-btn">Save</button>) as HTMLButtonElement
+  const cancelBtn = (<button class="improve-cancel">Cancel</button>) as HTMLButtonElement
+  const form = (
+    <div class="improve-form" style={{ display: 'none' }}>
+      {ta}
+      <div class="improve-form-actions">
+        {saveBtn}
+        {cancelBtn}
+      </div>
+    </div>
+  ) as HTMLDivElement
   modal.appendChild(form)
 
   function openFeatureForm(): void {
@@ -186,22 +184,19 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
     ta.focus()
   }
 
-  const cols = document.createElement('div')
-  cols.className = 'improve-cols'
+  const cols = (<div class="improve-cols" />) as HTMLDivElement
   modal.appendChild(cols)
 
   // Footer status bar: show the path of the todo file so the user can see
   // which file is being edited (and copy it out if needed).
-  const foot = document.createElement('div')
-  foot.className = 'improve-foot'
-  const footLabel = document.createElement('span')
-  footLabel.className = 'improve-foot-label'
-  footLabel.textContent = 'todo file'
-  const footPath = document.createElement('span')
-  footPath.className = 'improve-foot-path'
-  footPath.textContent = jsonPath
-  footPath.title = jsonPath
-  foot.append(footLabel, footPath)
+  const foot = (
+    <div class="improve-foot">
+      <span class="improve-foot-label">todo file</span>
+      <span class="improve-foot-path" title={jsonPath}>
+        {jsonPath}
+      </span>
+    </div>
+  ) as HTMLDivElement
   modal.appendChild(foot)
 
   // Persist: flatten the working model to JSON (keeping ids/timestamps) and
@@ -224,9 +219,7 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
 
   // Replace a row's text with an editable input; commit on Enter/blur, cancel on Esc.
   const beginEdit = (entry: Entry, row: HTMLElement): void => {
-    const input = document.createElement('input')
-    input.className = 'improve-edit-input'
-    input.value = entry.text
+    const input = (<input class="improve-edit-input" value={entry.text} />) as HTMLInputElement
     row.replaceChildren(input)
     input.focus()
     input.select()
@@ -255,63 +248,59 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
     entry: Entry,
     opts: { editable?: boolean; nextUp?: boolean; orderNum?: number; actions: RowAction[] }
   ): HTMLElement => {
-    const row = document.createElement('div')
-    row.className = 'improve-item'
-    if (opts.nextUp) row.classList.add('next-up')
     const { num, body } = splitOrder(entry.text)
     // Auto-number by list position; fall back to a text-embedded leading number.
     const badgeNum = opts.orderNum != null ? String(opts.orderNum) : num
-    if (badgeNum) {
-      const order = document.createElement('span')
-      order.className = 'improve-order'
-      order.title = `Priority #${badgeNum}`
-      order.textContent = badgeNum
-      row.appendChild(order)
-    }
-    const text = document.createElement('span')
-    text.className = 'improve-item-text'
-    if (opts.nextUp) {
-      const tag = document.createElement('span')
-      tag.className = 'improve-badge next'
-      tag.title = 'Next up — AI will implement this one next'
-      tag.textContent = '▶ next'
-      text.appendChild(tag)
-    }
-    if (entry.inProgress) {
-      const badge = document.createElement('span')
-      badge.className = 'improve-badge ai'
-      badge.title = 'In progress — being worked on by AI'
-      badge.textContent = '🤖 in progress'
-      text.appendChild(badge)
-    }
-    text.appendChild(document.createTextNode(body))
-    text.title = 'Click to read full text'
+    const text = (
+      <span class="improve-item-text" title="Click to read full text">
+        {opts.nextUp && (
+          <span class="improve-badge next" title="Next up — AI will implement this one next">
+            ▶ next
+          </span>
+        )}
+        {entry.inProgress && (
+          <span class="improve-badge ai" title="In progress — being worked on by AI">
+            🤖 in progress
+          </span>
+        )}
+        {body}
+      </span>
+    ) as HTMLSpanElement
     text.addEventListener('click', (e) => {
       e.stopPropagation()
       showDetail(entry.text)
     })
 
-    const acts = document.createElement('div')
-    acts.className = 'improve-item-actions'
+    const acts = (<div class="improve-item-actions" />) as HTMLDivElement
     if (opts.editable) {
-      const eb = document.createElement('button')
-      eb.className = 'improve-item-btn'
-      eb.type = 'button'
-      eb.textContent = '✎'
-      eb.title = 'Edit'
+      const eb = (
+        <button class="improve-item-btn" type="button" title="Edit">
+          ✎
+        </button>
+      ) as HTMLButtonElement
       eb.addEventListener('click', () => beginEdit(entry, row))
       acts.appendChild(eb)
     }
     opts.actions.forEach((a) => {
-      const b = document.createElement('button')
-      b.className = 'improve-item-btn' + (a.cls ? ' ' + a.cls : '')
-      b.type = 'button'
-      b.textContent = a.icon
-      b.title = a.title
+      const b = (
+        <button class={'improve-item-btn' + (a.cls ? ' ' + a.cls : '')} type="button" title={a.title}>
+          {a.icon}
+        </button>
+      ) as HTMLButtonElement
       b.addEventListener('click', () => void a.run())
       acts.appendChild(b)
     })
-    row.append(text, acts)
+    const row = (
+      <div class={'improve-item' + (opts.nextUp ? ' next-up' : '')}>
+        {badgeNum && (
+          <span class="improve-order" title={`Priority #${badgeNum}`}>
+            {badgeNum}
+          </span>
+        )}
+        {text}
+        {acts}
+      </div>
+    ) as HTMLDivElement
     return row
   }
 
@@ -321,10 +310,7 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
   // Small uppercase divider used inside the Todo list to separate the
   // "in progress" group from the "up next" (backlog) group.
   const addSubhead = (list: HTMLElement, label: string): void => {
-    const sh = document.createElement('div')
-    sh.className = 'improve-subhead'
-    sh.textContent = label
-    list.appendChild(sh)
+    list.appendChild(<div class="improve-subhead">{label}</div>)
   }
 
   const renderStats = (): void => {
@@ -335,28 +321,20 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
     const total = p + b + r + d
     const pct = total ? Math.round((d / total) * 100) : 0
     stats.replaceChildren()
-    const counts = document.createElement('div')
-    counts.className = 'improve-stats-counts'
+    const counts = (<div class="improve-stats-counts" />) as HTMLDivElement
     const chip = (n: number, label: string, cls: string): void => {
-      const c = document.createElement('span')
-      c.className = 'improve-stat ' + cls
-      c.innerHTML = `<b>${n}</b> ${label}`
-      counts.appendChild(c)
+      counts.appendChild(<span class={'improve-stat ' + cls} innerHTML={`<b>${n}</b> ${label}`} />)
     }
     chip(p, 'in progress', 'st-prog')
     chip(b, 'backlog', 'st-back')
     chip(r, 'ready to test', 'st-ready')
     chip(d, 'done', 'st-done')
-    const pctEl = document.createElement('span')
-    pctEl.className = 'improve-stats-pct'
-    pctEl.textContent = `${pct}% done`
-    counts.appendChild(pctEl)
-    const bar = document.createElement('div')
-    bar.className = 'improve-progress'
-    const fillEl = document.createElement('div')
-    fillEl.className = 'improve-progress-fill'
-    fillEl.style.width = pct + '%'
-    bar.appendChild(fillEl)
+    counts.appendChild(<span class="improve-stats-pct">{`${pct}% done`}</span>)
+    const bar = (
+      <div class="improve-progress">
+        <div class="improve-progress-fill" style={{ width: pct + '%' }} />
+      </div>
+    ) as HTMLDivElement
     stats.append(counts, bar)
   }
 
@@ -437,23 +415,20 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
         .filter((x) => matches(x.text))
       const totalMatches = filteredProg.length + filteredBack.length + filteredReady.length + filteredDone.length
 
-      const summary = document.createElement('div')
-      summary.className = 'improve-search-summary'
-      summary.textContent = `${totalMatches} match${totalMatches === 1 ? '' : 'es'} for "${searchQuery}"`
-      cols.appendChild(summary)
+      cols.appendChild(
+        <div class="improve-search-summary">
+          {`${totalMatches} match${totalMatches === 1 ? '' : 'es'} for "${searchQuery}"`}
+        </div>
+      )
 
       const renderSection = (label: string, count: number, build: (sec: HTMLElement) => void): void => {
-        const sec = document.createElement('div')
-        sec.className = 'improve-search-section'
-        const head = document.createElement('div')
-        head.className = 'improve-search-head'
-        head.textContent = `${label} · ${count}`
-        sec.appendChild(head)
+        const sec = (
+          <div class="improve-search-section">
+            <div class="improve-search-head">{`${label} · ${count}`}</div>
+          </div>
+        ) as HTMLDivElement
         if (count === 0) {
-          const empty = document.createElement('div')
-          empty.className = 'empty-hint'
-          empty.textContent = 'No matches'
-          sec.appendChild(empty)
+          sec.appendChild(<div class="empty-hint">No matches</div>)
         } else build(sec)
         cols.appendChild(sec)
       }
@@ -481,35 +456,27 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
       })
       renderSection('Done', filteredDone.length, (sec) => {
         filteredDone.forEach((x, i) => {
-          const row = document.createElement('div')
-          row.className = 'improve-item done'
-          const order = document.createElement('span')
-          order.className = 'improve-order'
-          order.textContent = String(i + 1)
-          const tick = document.createElement('span')
-          tick.className = 'improve-tick'
-          tick.textContent = '✓'
-          const span = document.createElement('span')
-          span.className = 'improve-item-text'
-          span.textContent = splitOrder(x.text).body
-          row.append(order, tick, span)
-          sec.appendChild(row)
+          sec.appendChild(
+            <div class="improve-item done">
+              <span class="improve-order">{String(i + 1)}</span>
+              <span class="improve-tick">✓</span>
+              <span class="improve-item-text">{splitOrder(x.text).body}</span>
+            </div>
+          )
         })
       })
       return
     }
 
     // --- tab bar: one wide panel at a time, easier to read long ideas ---
-    const tabs = document.createElement('div')
-    tabs.className = 'improve-tabs'
+    const tabs = (<div class="improve-tabs" />) as HTMLDivElement
     const mkTab = (key: typeof activeTab, label: string, count: number): void => {
-      const b = document.createElement('button')
-      b.type = 'button'
-      b.className = 'improve-tab' + (activeTab === key ? ' active' : '')
-      const c = document.createElement('span')
-      c.className = 'improve-tab-count'
-      c.textContent = String(count)
-      b.append(document.createTextNode(label + ' '), c)
+      const b = (
+        <button type="button" class={'improve-tab' + (activeTab === key ? ' active' : '')}>
+          {label + ' '}
+          <span class="improve-tab-count">{String(count)}</span>
+        </button>
+      ) as HTMLButtonElement
       b.addEventListener('click', () => {
         activeTab = key
         render()
@@ -523,13 +490,11 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
 
     // "Clear all" toolbar only on the Done tab when there's something to clear
     if (activeTab === 'done' && doneItems.length) {
-      const toolbar = document.createElement('div')
-      toolbar.className = 'improve-panel-toolbar'
-      const clearBtn = document.createElement('button')
-      clearBtn.className = 'improve-clear-done'
-      clearBtn.type = 'button'
-      clearBtn.textContent = 'Clear all'
-      clearBtn.title = 'Remove all done items from todo-list.md'
+      const clearBtn = (
+        <button class="improve-clear-done" type="button" title="Remove all done items from todo-list.md">
+          Clear all
+        </button>
+      ) as HTMLButtonElement
       clearBtn.addEventListener('click', async () => {
         const ok = await promptConfirm({
           title: 'Clear done items',
@@ -541,12 +506,12 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
         await save()
         render()
       })
+      const toolbar = (<div class="improve-panel-toolbar" />) as HTMLDivElement
       toolbar.appendChild(clearBtn)
       cols.appendChild(toolbar)
     }
 
-    const list = document.createElement('div')
-    list.className = 'improve-list improve-panel'
+    const list = (<div class="improve-list improve-panel" />) as HTMLDivElement
     cols.appendChild(list)
 
     const empty = (): void => {
@@ -575,19 +540,13 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
       if (!doneItems.length) empty()
       else
         doneItems.forEach((text, i) => {
-          const row = document.createElement('div')
-          row.className = 'improve-item done'
-          const order = document.createElement('span')
-          order.className = 'improve-order'
-          order.textContent = String(i + 1)
-          const tick = document.createElement('span')
-          tick.className = 'improve-tick'
-          tick.textContent = '✓'
-          const span = document.createElement('span')
-          span.className = 'improve-item-text'
-          span.textContent = splitOrder(text).body
-          row.append(order, tick, span)
-          list.appendChild(row)
+          list.appendChild(
+            <div class="improve-item done">
+              <span class="improve-order">{String(i + 1)}</span>
+              <span class="improve-tick">✓</span>
+              <span class="improve-item-text">{splitOrder(text).body}</span>
+            </div>
+          )
         })
     }
   }
