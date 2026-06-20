@@ -1,18 +1,15 @@
 import { createModal, createField, createInput, createTextarea, createSelect, createDateField } from '@ui/components'
 import { UITexts } from '@texts'
 import type { MeetingNote } from '@ui/types/types'
-import { state, uid } from '@ui/state/state'
-import { meetingNoteRepo } from '@repositories'
+import { state } from '@ui/state/state'
 import { makeCloseButton } from '@ui/dialog/dialog'
 import { flattenProjects } from '@ui/catalog/catalog'
-
-function todayKey(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+import {
+  type MeetingFormControls,
+  todayKey,
+  makeSaveMeeting,
+  makeEscapeClose
+} from './meeting-form.state'
 
 // Create/edit a meeting note. `onSaved` re-renders the list after upsert.
 export function showMeetingForm(existing: MeetingNote | null, onSaved: () => void): void {
@@ -30,15 +27,15 @@ export function showMeetingForm(existing: MeetingNote | null, onSaved: () => voi
     document.removeEventListener('keydown', onKey, true)
     m.close()
   }
-  const onKey = (e: KeyboardEvent): void => {
-    e.stopPropagation()
-    if (e.key === 'Escape') close()
-  }
+  const onKey = makeEscapeClose(close)
   document.addEventListener('keydown', onKey, true)
   m.onClose(close)
   m.modal.prepend(makeCloseButton(close))
 
-  const titleInput = createInput({ value: existing?.title ?? '', placeholder: UITexts.MeetingNotes.form.subjectPlaceholder })
+  const titleInput = createInput({
+    value: existing?.title ?? '',
+    placeholder: UITexts.MeetingNotes.form.subjectPlaceholder
+  })
   const dateInput = createDateField({ mode: 'date', value: existing?.date ?? todayKey() })
   const attInput = createInput({
     value: (existing?.attendees ?? []).join(', '),
@@ -64,46 +61,8 @@ export function showMeetingForm(existing: MeetingNote | null, onSaved: () => voi
     createField(UITexts.MeetingNotes.form.fieldNotes, notesInput)
   )
 
-  const commit = (): boolean => {
-    const title = titleInput.value.trim()
-    const notes = notesInput.value
-    if (!title && !notes.trim()) {
-      titleInput.focus()
-      return false
-    }
-    const attendees = attInput.value
-      .split(',')
-      .map((a) => a.trim())
-      .filter(Boolean)
-    const now = Date.now()
-    if (existing) {
-      existing.title = title
-      existing.date = dateInput.value || todayKey()
-      existing.attendees = attendees
-      existing.notes = notes
-      existing.projectId = projSel.value || undefined
-      existing.updatedAt = now
-      meetingNoteRepo.upsert(existing)
-    } else {
-      meetingNoteRepo.upsert({
-        id: uid('mtg'),
-        title,
-        date: dateInput.value || todayKey(),
-        attendees,
-        notes,
-        projectId: projSel.value || undefined,
-        createdAt: now,
-        updatedAt: now
-      })
-    }
-    return true
-  }
-
-  m.confirmBtn.addEventListener('click', () => {
-    if (!commit()) return
-    close()
-    onSaved()
-  })
+  const controls: MeetingFormControls = { titleInput, dateInput, attInput, projSel, notesInput }
+  m.confirmBtn.addEventListener('click', makeSaveMeeting(controls, existing, close, onSaved))
   m.cancelBtn.addEventListener('click', close)
 
   m.mount()
