@@ -1,8 +1,17 @@
-import { selectPane } from '@ui/commands/commands'
-import { promptConfirm } from '@ui/dialog/dialog'
-import { terminalService, gitService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
 import { UITexts } from '@texts'
+import type { Stash } from './git.types'
+import {
+  loadStashes,
+  filterStashes,
+  makeStashApplyClick,
+  makeStashDropClick,
+  loadBranches,
+  filterBranches,
+  checkoutBranch,
+  makeQuickRun,
+  disableSpellcheck
+} from './git.state'
 
 // ---- Git stash manager: list stashes, apply or drop, for a pane's repo ----
 
@@ -14,20 +23,13 @@ export async function showStashManager(paneId: string): Promise<void> {
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, search, list)
 
-  // Run a git command in the pane's own terminal so its output is visible.
-  const runInPane = (cmd: string): void => {
-    selectPane(paneId)
-    terminalService.input(paneId, cmd + '\r')
-  }
-
-  let allStashes: { ref: string; description: string }[] = []
+  let allStashes: Stash[] = []
   const reload = async (): Promise<void> => {
-    allStashes = await gitService.stashList(paneId)
+    allStashes = await loadStashes(paneId)
     renderList()
   }
   const renderList = (): void => {
-    const q = search.value.trim().toLowerCase()
-    const stashes = allStashes.filter((s) => !q || `${s.ref} ${s.description}`.toLowerCase().includes(q))
+    const stashes = filterStashes(allStashes, search.value)
     list.replaceChildren()
     if (!stashes.length) {
       list.insertAdjacentHTML(
@@ -38,31 +40,23 @@ export async function showStashManager(paneId: string): Promise<void> {
     }
     stashes.forEach((s) => {
       const applyBtn = (
-        <button class="settings-inline-btn" title={UITexts.Pickers.git.restoreTitle}>
+        <button
+          class="settings-inline-btn"
+          title={UITexts.Pickers.git.restoreTitle}
+          onClick={makeStashApplyClick(paneId, s.ref, close)}
+        >
           Apply
         </button>
       ) as HTMLButtonElement
-      applyBtn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        runInPane(`git stash apply '${s.ref}'`)
-        close()
-      })
       const dropBtn = (
-        <button class="improve-cancel" title={UITexts.Pickers.git.deleteStashTitle}>
+        <button
+          class="improve-cancel"
+          title={UITexts.Pickers.git.deleteStashTitle}
+          onClick={makeStashDropClick(paneId, s.ref, reload)}
+        >
           Drop
         </button>
       ) as HTMLButtonElement
-      dropBtn.addEventListener('click', async (e) => {
-        e.stopPropagation()
-        const ok = await promptConfirm({
-          title: 'Drop stash',
-          message: `Drop ${s.ref}? This cannot be undone.`,
-          confirmText: UITexts.Pickers.git.dropConfirm
-        })
-        if (!ok) return
-        runInPane(`git stash drop '${s.ref}'`)
-        window.setTimeout(() => void reload(), 500) // refresh after git runs
-      })
       const row = (
         <div class="pick-row stash-row">
           <div class="claude-main">
@@ -85,31 +79,26 @@ export async function showStashManager(paneId: string): Promise<void> {
 // ---- Branch checkout: search the pane's repo branches, checkout the chosen one ----
 
 export async function showBranchCheckout(paneId: string): Promise<void> {
-  const branches = await gitService.branches(paneId)
+  const branches = await loadBranches(paneId)
   const { modal, close } = overlayModal('picker-modal')
 
   const h = (<h2>{UITexts.Pickers.git.branchHeading}</h2>) as HTMLHeadingElement
   modal.append(h)
 
   // Quick chips: fire common git commands into the pane without leaving the modal.
-  const actions = (<div class="git-quick-actions" />) as HTMLDivElement
-  const runInPane = (cmd: string): void => {
-    selectPane(paneId)
-    terminalService.input(paneId, cmd + '\r')
-    close()
-  }
-  const addChip = (label: string, cmd: string, title: string): void => {
-    const b = (
-      <button class="git-quick-chip" type="button" title={title}>
-        {label}
+  const actions = (
+    <div class="git-quick-actions">
+      <button class="git-quick-chip" type="button" title="git fetch --all --prune" onClick={makeQuickRun(paneId, 'git fetch --all --prune', close)}>
+        Fetch
       </button>
-    ) as HTMLButtonElement
-    b.addEventListener('click', () => runInPane(cmd))
-    actions.appendChild(b)
-  }
-  addChip('Fetch', 'git fetch --all --prune', 'git fetch --all --prune')
-  addChip('Pull', 'git pull', 'git pull')
-  addChip('Status', 'git status', 'git status')
+      <button class="git-quick-chip" type="button" title="git pull" onClick={makeQuickRun(paneId, 'git pull', close)}>
+        Pull
+      </button>
+      <button class="git-quick-chip" type="button" title="git status" onClick={makeQuickRun(paneId, 'git status', close)}>
+        Status
+      </button>
+    </div>
+  ) as HTMLDivElement
   modal.append(actions)
 
   const sub = (<div class="git-quick-sub">Checkout</div>) as HTMLDivElement
@@ -120,9 +109,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
       class="search-box-input"
       type="text"
       placeholder={UITexts.Pickers.git.branchPlaceholder}
-      ref={(el: HTMLInputElement) => {
-        el.spellcheck = false
-      }}
+      ref={disableSpellcheck}
     />
   ) as HTMLInputElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
@@ -134,16 +121,8 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   }
 
   let sel = 0
-  const filtered = (): string[] => {
-    const q = input.value.trim().toLowerCase()
-    if (!q) return branches
-    return branches.filter((b) => b.toLowerCase().includes(q))
-  }
-  const checkout = (branch: string): void => {
-    selectPane(paneId)
-    terminalService.input(paneId, `git checkout '${branch}'\r`)
-    close()
-  }
+  const filtered = (): string[] => filterBranches(branches, input.value)
+  const checkout = (branch: string): void => checkoutBranch(paneId, branch, close)
   const highlight = (): void => {
     list.querySelectorAll<HTMLElement>('.pick-row').forEach((el, i) => {
       el.classList.toggle('active', i === sel)
