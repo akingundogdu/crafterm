@@ -1,8 +1,12 @@
-import { settings, requestSidebar } from '@ui/state/state'
+import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
-import { applyOrientation, applySidebarFont } from '../../sidebar/sidebar'
 import { labeledInput, labeledSelect } from '../shared'
+import {
+  makeOrientationChange,
+  makeFontSizeChange,
+  makeDetailToggle,
+  makeRecencyToggle
+} from './sidebar-tab.state'
 
 export function buildSidebarPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.sidebar.heading}</h3>`)
@@ -14,20 +18,15 @@ export function buildSidebarPanel(panel: HTMLElement): void {
       ['top', UITexts.Settings.sidebar.horizontalTop]
     ],
     settings.sidebar.orientation,
-    (v) => {
-      settings.sidebar.orientation = v as 'left' | 'top'
-      applyOrientation()
-      persistence.save()
-    }
+    makeOrientationChange()
   )
-  labeledInput(panel, UITexts.Settings.sidebar.fontSize, 'number', String(settings.sidebar.fontSize), (v) => {
-    const n = parseInt(v, 10)
-    if (!Number.isNaN(n) && n >= 9 && n <= 22) {
-      settings.sidebar.fontSize = n
-      applySidebarFont()
-      persistence.save()
-    }
-  })
+  labeledInput(
+    panel,
+    UITexts.Settings.sidebar.fontSize,
+    'number',
+    String(settings.sidebar.fontSize),
+    makeFontSizeChange()
+  )
 
   const detailDefs: Array<[keyof typeof settings.sidebar.details, string]> = [
     ['status', UITexts.Settings.sidebar.showStatusText],
@@ -38,11 +37,7 @@ export function buildSidebarPanel(panel: HTMLElement): void {
   detailDefs.forEach(([key, label]) => {
     const cb = (<input type="checkbox" />) as HTMLInputElement
     cb.checked = settings.sidebar.details[key]
-    cb.addEventListener('change', () => {
-      settings.sidebar.details[key] = cb.checked
-      requestSidebar()
-      persistence.save()
-    })
+    cb.addEventListener('change', makeDetailToggle(key, cb))
     const r = (
       <label class="checkbox-row">
         {cb}
@@ -54,11 +49,7 @@ export function buildSidebarPanel(panel: HTMLElement): void {
 
   const recCb = (<input type="checkbox" />) as HTMLInputElement
   recCb.checked = !!settings.sidebar.groupByRecency
-  recCb.addEventListener('change', () => {
-    settings.sidebar.groupByRecency = recCb.checked
-    requestSidebar()
-    persistence.save()
-  })
+  recCb.addEventListener('change', makeRecencyToggle(recCb))
   const recRow = (
     <label class="checkbox-row">
       {recCb}
