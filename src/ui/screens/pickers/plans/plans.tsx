@@ -1,7 +1,7 @@
-import { openMarkdownFile } from '@ui/commands/commands'
 import { plansService } from '@services'
 import { overlayModal } from '../shared'
 import { UITexts } from '@texts'
+import { planTitle, filterPlans, disableSpellcheck, makeChoosePlan } from './plans.state'
 
 // ---- Plans: list ~/.claude/plans and open one in the Markdown app ----
 
@@ -21,27 +21,15 @@ export async function showPlansModal(): Promise<void> {
       class="search-box-input"
       type="text"
       placeholder={UITexts.Pickers.plans.placeholder}
-      ref={(el: HTMLInputElement) => {
-        el.spellcheck = false
-      }}
+      ref={disableSpellcheck}
     />
   ) as HTMLInputElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(input, list)
 
-  const title = (p: (typeof plans)[number]): string => p.name.replace(/\.(md|mdx|mdc)$/i, '')
   let sel = 0
-
-  const filtered = (): typeof plans => {
-    const q = input.value.trim().toLowerCase()
-    if (!q) return plans
-    return plans.filter((p) => title(p).toLowerCase().includes(q))
-  }
-
-  const choose = (p: (typeof plans)[number]): void => {
-    openMarkdownFile(p.path)
-    close()
-  }
+  const choose = makeChoosePlan(close)
+  const filtered = (): typeof plans => filterPlans(plans, input.value)
 
   const highlight = (): void => {
     list.querySelectorAll<HTMLElement>('.pick-row').forEach((el, i) => {
@@ -60,7 +48,7 @@ export async function showPlansModal(): Promise<void> {
     items.forEach((p, i) => {
       const row = (
         <button class={'pick-row' + (i === sel ? ' active' : '')} onClick={() => choose(p)}>
-          {title(p)}
+          {planTitle(p)}
         </button>
       ) as HTMLButtonElement
       row.addEventListener('mouseenter', () => {
