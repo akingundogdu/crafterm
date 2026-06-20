@@ -1,27 +1,22 @@
 import { UITexts } from '@texts'
+import type { CommentPopoverHandle, CommentPopoverOptions } from './comment-popover.types'
+import {
+  locationLabel,
+  disableSpellcheck,
+  positionPopover,
+  stopMousedown,
+  makeSubmit,
+  makeSendClick,
+  makeTextareaKeydown
+} from './comment-popover.state'
+
+export type { CommentRange, CommentPopoverHandle } from './comment-popover.types'
+
 // Inline PR review-comment popover for the diff pane. Anchored under the comment
 // button, it posts a comment on the currently selected line range. The range
 // source, the submit action, and the success hook are injected so the popover
 // carries no IPC/state imports and is unit-testable.
-
-export interface CommentRange {
-  path: string
-  a: number
-  b: number
-}
-
-export interface CommentPopoverHandle {
-  open: () => void
-  close: () => void
-  isOpen: () => boolean
-}
-
-export function createCommentPopover(opts: {
-  anchorRect: () => DOMRect
-  getRange: () => CommentRange | null
-  submit: (range: CommentRange, text: string) => Promise<{ ok: boolean; error?: string }>
-  onSuccess: (range: CommentRange) => void
-}): CommentPopoverHandle {
+export function createCommentPopover(opts: CommentPopoverOptions): CommentPopoverHandle {
   let pop: HTMLElement | null = null
 
   const onOutside = (e: MouseEvent): void => {
@@ -39,21 +34,14 @@ export function createCommentPopover(opts: {
     close()
     const range = opts.getRange()
     if (!range) return
-    const loc = range.a === range.b ? `line ${range.a}` : `lines ${range.a}-${range.b}`
     const ta = (
-      <textarea
-        class="diff-comment-input"
-        placeholder={UITexts.DiffPane.commentPlaceholder}
-        ref={(el: HTMLTextAreaElement) => {
-          el.spellcheck = false
-        }}
-      />
+      <textarea class="diff-comment-input" placeholder={UITexts.DiffPane.commentPlaceholder} ref={disableSpellcheck} />
     ) as HTMLTextAreaElement
     const err = (<span class="diff-comment-err" />) as HTMLSpanElement
     const sendBtn = (<button class="diff-comment-send">{UITexts.DiffPane.comment}</button>) as HTMLButtonElement
     pop = (
       <div class="diff-comment-pop">
-        <div class="diff-comment-label">{`Comment on ${range.path} · ${loc}`}</div>
+        <div class="diff-comment-label">{`Comment on ${range.path} · ${locationLabel(range)}`}</div>
         {ta}
         <div class="diff-comment-footer">
           {err}
@@ -62,46 +50,13 @@ export function createCommentPopover(opts: {
       </div>
     ) as HTMLElement
 
-    const submit = async (): Promise<void> => {
-      const text = ta.value.trim()
-      if (!text) {
-        ta.focus()
-        return
-      }
-      sendBtn.disabled = true
-      sendBtn.textContent = UITexts.DiffPane.sending
-      err.textContent = ''
-      const r = await opts.submit(range, text)
-      if (r.ok) {
-        close()
-        opts.onSuccess(range)
-      } else {
-        sendBtn.disabled = false
-        sendBtn.textContent = UITexts.DiffPane.comment
-        err.textContent = r.error || UITexts.DiffPane.failedToPost
-      }
-    }
-    sendBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void submit()
-    })
-    ta.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        close()
-      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        void submit()
-      }
-    })
-    pop.addEventListener('mousedown', (e) => e.stopPropagation())
+    const submit = makeSubmit({ ta, sendBtn, err, range, submit: opts.submit, onSuccess: opts.onSuccess, close })
+    sendBtn.addEventListener('click', makeSendClick(submit))
+    ta.addEventListener('keydown', makeTextareaKeydown(submit, close))
+    pop.addEventListener('mousedown', stopMousedown)
 
     document.body.appendChild(pop)
-    const r = opts.anchorRect()
-    const top = Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)
-    const left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)
-    pop.style.top = Math.max(8, top) + 'px'
-    pop.style.left = Math.max(8, left) + 'px'
+    positionPopover(pop, opts.anchorRect())
     ta.focus()
     document.addEventListener('mousedown', onOutside, true)
   }

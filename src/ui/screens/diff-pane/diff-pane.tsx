@@ -3,33 +3,31 @@ import { diffPanes, state, paneActions, uid, pushNotification } from '@ui/state/
 import { setupPaneDnd } from '@ui/pane/pane'
 import { prService } from '@services'
 import { createButton } from '@ui/components'
-import { createLineSelect, type LineRow } from '../diff/line-select'
+import { createLineSelect } from '../diff/line-select'
 import { sendRef } from '../diff/pane-ref'
 import { parseDiff, type FileDiff } from './parse-diff'
 import { createFileSearch } from './components/file-search'
 import { createCommentPopover } from './components/comment-popover'
+import type { CreateDiffPaneOptions } from './diff-pane.types'
+import {
+  SEARCH_SVG,
+  COMMENT_SVG,
+  registerDiffCleanup,
+  destroyDiffPane,
+  fileToLineRows,
+  stopAnd,
+  preventStop
+} from './diff-pane.state'
+
+export type { CreateDiffPaneOptions } from './diff-pane.types'
+export { destroyDiffPane } from './diff-pane.state'
 
 // A read-only PR diff pane. Shows one file at a time (prev/next + searchable file
 // list). Selection + the floating "+" ref live in the shared diff/line-select
 // engine; the comment popover and file-search dropdown are local children. The
 // inline "+" pastes a `path:line[-line]` reference into a terminal; the comment
 // button posts a GitHub PR review comment on the selected range. Transient.
-
-const SEARCH_SVG =
-  '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M11.7 10.3a5 5 0 1 0-1.4 1.4l3 3 1.4-1.4-3-3zM7 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg>'
-
-const COMMENT_SVG =
-  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M14 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2v2.2L7.6 12H14a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1zM3.5 6h9v1.2h-9V6zm0 2.6h6V9.8h-6V8.6z"/></svg>'
-
-// Per-pane teardown (engine + key listener + popover), run on close.
-const cleanups = new Map<string, () => void>()
-
-export function createDiffPane(opts: {
-  cwd: string
-  prNumber: number
-  title: string
-  targetPaneId: string | null
-}): string {
+export function createDiffPane(opts: CreateDiffPaneOptions): string {
   const id = uid('df')
 
   const el = (<div class="pane-box diff-pane" dataset={{ paneId: id }} />) as HTMLDivElement
@@ -42,18 +40,12 @@ export function createDiffPane(opts: {
     className: 'diff-nav',
     text: '‹',
     title: 'Previous file',
-    onClick: (e) => {
-      e.stopPropagation()
-      showFile(activeIdx - 1)
-    }
+    onClick: stopAnd(() => showFile(activeIdx - 1))
   })
   const searchBtn = createButton({
     className: 'diff-hbtn',
     title: 'Find a file in this diff',
-    onClick: (e) => {
-      e.stopPropagation()
-      fileSearch.toggle()
-    }
+    onClick: stopAnd(() => fileSearch.toggle())
   })
   searchBtn.innerHTML = SEARCH_SVG
   const htitle = (<span class="diff-path" />) as HTMLSpanElement
@@ -68,28 +60,19 @@ export function createDiffPane(opts: {
     className: 'diff-hbtn',
     text: '⟳',
     title: 'Reload diff',
-    onClick: (e) => {
-      e.stopPropagation()
-      void load()
-    }
+    onClick: stopAnd(() => void load())
   })
   const next = createButton({
     className: 'diff-nav',
     text: '›',
     title: 'Next file',
-    onClick: (e) => {
-      e.stopPropagation()
-      showFile(activeIdx + 1)
-    }
+    onClick: stopAnd(() => showFile(activeIdx + 1))
   })
   const close = createButton({
     className: 'diff-hbtn diff-hclose',
     text: '×',
     title: 'Close',
-    onClick: (e) => {
-      e.stopPropagation()
-      paneActions.close(id)
-    }
+    onClick: stopAnd(() => paneActions.close(id))
   })
   const header = (
     <div class="pane-header diff-header">
@@ -106,16 +89,10 @@ export function createDiffPane(opts: {
   const commentBtn = createButton({
     className: 'diff-act diff-act-comment',
     title: 'Comment on these lines in the GitHub PR',
-    onClick: (e) => {
-      e.stopPropagation()
-      commentPopover.open()
-    }
+    onClick: stopAnd(() => commentPopover.open())
   })
   commentBtn.innerHTML = COMMENT_SVG
-  commentBtn.addEventListener('mousedown', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-  })
+  commentBtn.addEventListener('mousedown', preventStop)
 
   const view = createLineSelect({
     refFile: () => files[activeIdx]?.path ?? null,
@@ -156,13 +133,7 @@ export function createDiffPane(opts: {
       view.setMessage('Empty diff.')
       return
     }
-    const descs: LineRow[] = files[activeIdx].rows.map((r) => ({
-      className: 'diff-row ' + r.kind,
-      gutter: r.line != null ? String(r.line) : '',
-      text: r.text,
-      line: r.line
-    }))
-    view.setRows(descs)
+    view.setRows(fileToLineRows(files[activeIdx]))
   }
 
   function showFile(idx: number): void {
@@ -189,7 +160,7 @@ export function createDiffPane(opts: {
     e.stopPropagation()
   }
   window.addEventListener('keydown', onKey, true)
-  cleanups.set(id, () => {
+  registerDiffCleanup(id, () => {
     view.destroy()
     window.removeEventListener('keydown', onKey, true)
     commentPopover.close()
@@ -220,10 +191,4 @@ export function createDiffPane(opts: {
 
   void load()
   return id
-}
-
-export function destroyDiffPane(id: string): void {
-  cleanups.get(id)?.()
-  cleanups.delete(id)
-  diffPanes.delete(id)
 }
