@@ -1,23 +1,15 @@
-// Shared state + form controls for the settings panels. Extracted from the
-// settings monolith so each per-tab panel module can consume them. settingsCleanups
-// is a stable array (cleared in place by openSettings) holding teardown callbacks
-// run when the modal closes — e.g. stopping shortcut recording.
+import type { SubTab, SubTabsOptions } from './shared.types'
+import { makeInputChange, makeSelectChange } from './shared.state'
 
-export const settingsCleanups: (() => void)[] = []
+export type { SubTab, SubTabsOptions } from './shared.types'
+export { settingsCleanups, toHex6 } from './shared.state'
 
-export function toHex6(v: string): string {
-  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v
-  if (/^#[0-9a-fA-F]{3}$/.test(v)) return '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3]
-  return '#000000'
-}
+// Shared form controls for the settings panels. Each per-tab panel module consumes
+// these so the markup stays consistent across the settings screen.
 
 // Render a horizontal sub-tab strip with one body panel shown at a time.
 // Each tab's `build` runs once, lazily, the first time its tab is shown.
-export function buildSubTabs(
-  parent: HTMLElement,
-  tabs: { label: string; build: (el: HTMLElement) => void }[],
-  opts?: { initialIndex?: number; onTabChange?: (idx: number) => void }
-): void {
+export function buildSubTabs(parent: HTMLElement, tabs: SubTab[], opts?: SubTabsOptions): void {
   const bar = (<div class="settings-subtabs" />) as HTMLDivElement
   const body = (<div class="settings-subtab-body" />) as HTMLDivElement
   parent.append(bar, body)
@@ -59,7 +51,7 @@ export function labeledInput(
   value: string,
   onChange: (v: string) => void
 ): HTMLInputElement {
-  const input = (<input type={type} onChange={() => onChange(input.value)} />) as HTMLInputElement
+  const input = (<input type={type} onChange={makeInputChange(onChange)} />) as HTMLInputElement
   input.value = value
   const field = (
     <div class="field">
@@ -78,7 +70,7 @@ export function labeledSelect(
   selected: string,
   onChange: (v: string) => void
 ): HTMLSelectElement {
-  const sel = (<select onChange={() => onChange(sel.value)} />) as HTMLSelectElement
+  const sel = (<select onChange={makeSelectChange(onChange)} />) as HTMLSelectElement
   options.forEach(([val, text]) => {
     const o = (<option value={val}>{text}</option>) as HTMLOptionElement
     if (val === selected) o.selected = true
