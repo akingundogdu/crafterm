@@ -1,64 +1,28 @@
-import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from '@ui/types/types'
+import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode } from '@ui/types/types'
 import { UITexts } from '@texts'
-import { openProcessView, killProcess, startBackgroundProcess } from '@services/bgproc'
+import { startBackgroundProcess } from '@services/bgproc'
 import { state, panes, settings, paneActions } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
-import {
-  collectPinnedRoots,
-  allTabs,
-  panesInLayout,
-  firstPaneOf,
-  ancestorFolders,
-  findById,
-  isContainer
-} from '@ui/tree/tree'
-import { paneStatus, isPlanOwnedByPane } from '@ui/pane/pane'
+import { collectPinnedRoots, allTabs, panesInLayout, ancestorFolders, findById, isContainer } from '@ui/tree/tree'
 import {
   selectTab,
-  selectPane,
   selectNode,
-  openMarkdownFile,
   closeTab,
   togglePin,
   toggleCollapse,
   setAllFoldersCollapsed,
   anyFolderExpanded,
-  toggleTabDetails,
   deleteFolder,
   newTab,
   newClaudeTab,
   newFolder,
-  openTerminalRunning,
-  contextFolderId,
   setNodeColor,
   setNodeName,
   autoNameTab,
   moveNode,
-  setNodeGroup,
-  runInSplit
+  setNodeGroup
 } from '@ui/commands/commands'
-import {
-  showProjectPicker,
-  showRunApps,
-  showFeatureSetup,
-  showRunCommand
-} from '../pickers/project/project'
-import { runUpdate } from '../pickers/update/update'
-import { showCommandPalette, showCommandHistory } from '../pickers/command/command'
-import { showSshConnections } from '../pickers/ssh/ssh'
-import {
-  showClaudeDashboard,
-  showClaudeAccountSwitcher,
-  showClaudeSessionResume
-} from '../pickers/claude/claude'
-import { showPlansModal } from '../pickers/plans/plans'
-import { showWorktreeDashboard } from '../pickers/worktree/worktree'
-import {
-  showRunningProcessesDashboard,
-  showRunningDevicesDashboard
-} from '../pickers/processes/processes'
-import { showImproveModal } from '../improve-crafterm/improve-crafterm'
-import { showDailyPlanModal } from '../daily-plan/daily-plan'
+import { showRunApps, showFeatureSetup, showRunCommand } from '../pickers/project/project'
 import { promptText, promptSelect } from '@ui/dialog/dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from '../database/database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from '../docker/docker'
@@ -67,16 +31,44 @@ import { type ContextMenuItem } from '@ui/components'
 import { iosWorktreeTrailing, iosWorktreeMenuItems } from '../ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '@services/worktrees'
 import { createTreeView, createOverlay, type TreeAdapter, type TreeSection, type DropPos } from '@ui/components'
-import {
-  renderNotebook,
-  handleNotebookKey,
-  nbApplyQuery,
-  nbClearQuery,
-  notebookSelectFirst
-} from '@ui/notebook/notebook'
+import { renderNotebook, handleNotebookKey, nbApplyQuery, nbClearQuery, notebookSelectFirst } from '@ui/notebook/notebook'
 import './sidebar.css'
-import { fsService , shellService } from '@services'
+import { shellService } from '@services'
 import { actionMenuRepo } from '@repositories'
+import type { SidebarMode, Crumb } from './sidebar.types'
+import {
+  CHEVRON_SVG,
+  FOLDER_SVG,
+  PROJECT_SVG,
+  PLAN_SVG,
+  WORKTREE_SVG,
+  CLAUDE_STATUS_LABEL,
+  CLAUDE_STATUS_TITLE,
+  TAB_ICON,
+  TAB_META,
+  tabOrder,
+  tabDetail,
+  tabExpandable,
+  plansForTab,
+  claudeStatusOfTab,
+  tabTaskBadge,
+  tabIssueKey,
+  folderCrumb,
+  knownGroups,
+  recencyBucket,
+  maxActivityOf,
+  stripPinned,
+  isArchivedTab,
+  hasArchivedDescendant,
+  BUILTIN_ACTION_RUN,
+  runActionItem,
+  makeToggleDetails,
+  makeProcessRowClick,
+  makeKillProcess,
+  makePaneRowClick,
+  makePlanRowClick,
+  makeNewWorktreeClick
+} from './sidebar.state'
 
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!
@@ -149,26 +141,6 @@ sidebarActionsEl.addEventListener('click', (e) => {
   showActionsMenu(sidebarActionsEl)
 })
 
-// Registry of built-in actions, keyed by the id stored in settings.actionMenu.
-// The Settings editor picks from these; the menu invokes them here.
-const BUILTIN_ACTION_RUN: Record<string, () => void> = {
-  openProject: () => showProjectPicker(contextFolderId()),
-  commandPalette: () => void showCommandPalette(),
-  claudeSessions: () => showClaudeDashboard(),
-  resumeClaude: () => void showClaudeSessionResume(),
-  switchClaude: () => void showClaudeAccountSwitcher(),
-  worktrees: () => void showWorktreeDashboard(),
-  sshConnections: () => showSshConnections(),
-  showPlans: () => void showPlansModal(),
-  commandHistory: () => showCommandHistory(),
-  updateZsh: () => void openTerminalRunning(settings.commands.openMyZsh, 'zsh config'),
-  improve: () => void showImproveModal(),
-  updateCrafterm: () => void runUpdate(),
-  dailyPlan: () => showDailyPlanModal(),
-  runningProcesses: () => showRunningProcessesDashboard(),
-  runningDevices: () => showRunningDevicesDashboard()
-}
-
 // Flattened sidebar ⋯ action-menu entries for the global search (Cmd+J). Skips
 // hidden rows and builtins whose id is no longer registered, mirroring the menu.
 export function actionMenuSearchEntries(): { label: string; run: () => void }[] {
@@ -179,17 +151,6 @@ export function actionMenuSearchEntries(): { label: string; run: () => void }[] 
     out.push({ label: item.title, run: () => runActionItem(item) })
   }
   return out
-}
-
-function runActionItem(item: import('@ui/types/types').ActionMenuItem): void {
-  if (item.kind === 'builtin') {
-    BUILTIN_ACTION_RUN[item.builtinId ?? '']?.()
-    return
-  }
-  const cmd = (item.command ?? '').trim()
-  if (!cmd) return
-  if (item.opensAs === 'split') void runInSplit(cmd)
-  else void openTerminalRunning(cmd, item.title)
 }
 
 function showActionsMenu(anchor: HTMLElement): void {
@@ -234,9 +195,7 @@ function focusList(): void {
 
 function scrollSelectedIntoView(center = false): void {
   if (!state.selectedNodeId) return
-  const el = tabListEl.querySelector<HTMLElement>(
-    `[data-tree-id="${CSS.escape(state.selectedNodeId)}"]`
-  )
+  const el = tabListEl.querySelector<HTMLElement>(`[data-tree-id="${CSS.escape(state.selectedNodeId)}"]`)
   if (!el) return
   if (!center) {
     el.scrollIntoView({ block: 'nearest' })
@@ -283,66 +242,10 @@ tabListEl.addEventListener('keydown', (e) => {
   tree.handleKey(e)
 })
 
-const STATUS_LABEL: Record<PaneStatus, string> = {
-  running: 'running',
-  idle: 'idle',
-  attention: 'needs input'
-}
-
-// Crisp disclosure chevron — CSS rotates it 90° when expanded.
-const CHEVRON_SVG =
-  '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-// Folder glyph shown on group rows (file-explorer look).
-const FOLDER_SVG =
-  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1.6 4.4c0-.6.4-1 1-1h3.1l1.2 1.4H13.4c.6 0 1 .4 1 1V11.6c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1z" fill="currentColor"/></svg>'
-// project icon: a stack/box, distinct from the folder
-const PROJECT_SVG =
-  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 1.5l5.5 3.1v6.8L8 14.5 2.5 11.4V4.6z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M2.6 4.7L8 7.8l5.4-3.1M8 7.8v6.5" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>'
-// plan-file glyph (document) shown on plan sub-rows under a terminal node
-const PLAN_SVG =
-  '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 1.5v3h3M6 8h4M6 10.5h4" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>'
-// feature/worktree folder icon: a git-branch glyph (marks a worktree feature)
-const WORKTREE_SVG =
-  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="12.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 5.1v5.8M11.5 5.1v1.2c0 2.2-1.8 3.4-3.9 3.9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
-
-// ---------------------------------------------------------------------------
-// Status / detail helpers
-// ---------------------------------------------------------------------------
-
-function statusOfNode(node: SidebarNode): PaneStatus {
-  const tabs: TabNode[] = node.kind === 'tab' ? [node] : allTabs([node])
-  let running = false
-  for (const t of tabs) {
-    for (const id of panesInLayout(t.root)) {
-      const p = panes.get(id)
-      if (!p) continue
-      const s = paneStatus(p)
-      if (s === 'attention') return 'attention'
-      if (s === 'running') running = true
-    }
-  }
-  return running ? 'running' : 'idle'
-}
-
-function tabDetail(node: TabNode): string {
-  const parts: string[] = []
-  if (settings.sidebar.details.status) parts.push(STATUS_LABEL[statusOfNode(node)])
-  if (settings.sidebar.details.git) {
-    const branch = panes.get(firstPaneOf(node.root) ?? '')?.branch
-    if (branch) parts.push(branch)
-  }
-  if (settings.sidebar.details.panes) {
-    const n = panesInLayout(node.root).length
-    parts.push(n === 1 ? '1 pane' : `${n} panes`)
-  }
-  return parts.join(' · ')
-}
-
 // ---------------------------------------------------------------------------
 // Sidebar mode (terminal / notebook / database)
 // ---------------------------------------------------------------------------
 
-type SidebarMode = 'terminal' | 'notebook' | 'database' | 'docker' | 'accounts'
 let sidebarMode: SidebarMode = 'terminal'
 
 const tabTerminalEl = document.getElementById('tab-terminal')!
@@ -434,22 +337,6 @@ function groupHeader(name: string, isUngrouped = false): HTMLElement {
   return el
 }
 
-interface Crumb {
-  text: string
-  color: string | null
-}
-
-// Group path of a node ("Movve / Mobil") — shown in the Pinned section so a
-// pinned terminal still tells you which group it belongs to.
-function folderCrumb(id: string): Crumb | null {
-  const trail = ancestorFolders(state.tree, id)
-  if (!trail || trail.length === 0) return null
-  return {
-    text: trail.map((f) => f.name).join(' / '),
-    color: [...trail].reverse().find((f) => f.color)?.color ?? null
-  }
-}
-
 function buildCrumb(crumb: Crumb): HTMLElement {
   return (
     <div class="tab-crumb">
@@ -462,18 +349,6 @@ function buildCrumb(crumb: Crumb): HTMLElement {
       <span class="crumb-text">{crumb.text}</span>
     </div>
   ) as HTMLDivElement
-}
-
-// Union of registered groups (settings.groups) and any group already in use on
-// a container in the tree — keeps the dropdown accurate even for legacy labels.
-function knownGroups(): string[] {
-  const set = new Set<string>(settings.groups)
-  const walk = (n: SidebarNode): void => {
-    if ((n.kind === 'project' || n.kind === 'folder') && n.group) set.add(n.group)
-    if (n.kind !== 'tab') n.children.forEach(walk)
-  }
-  state.tree.forEach(walk)
-  return [...set].sort((a, b) => a.localeCompare(b))
 }
 
 // Context-menu action: pick a group/workspace for a container from a dropdown
@@ -509,34 +384,6 @@ function pinBadge(): HTMLElement {
   ) as HTMLSpanElement
 }
 
-// Plans owned by any pane in this tab, deduped by path. A plan is owned by the
-// pane whose stableId matches the filename's --pane-<uuid> tag, or whose captured
-// Claude session id matches a trailing -<uuid> (see isPlanOwnedByPane). That pane
-// is not necessarily the tab's first pane (the Claude session may live in any
-// split), so we have to scan every pane in the layout, not just firstPaneOf.
-function plansForTab(node: TabNode): import('@ui/types/types').PlanEntry[] {
-  const seen = new Set<string>()
-  const out: import('@ui/types/types').PlanEntry[] = []
-  for (const id of panesInLayout(node.root)) {
-    const pane = panes.get(id)
-    if (!pane) continue
-    for (const plan of pane.plans) {
-      if (!isPlanOwnedByPane(plan, pane)) continue
-      if (seen.has(plan.path)) continue
-      seen.add(plan.path)
-      out.push(plan)
-    }
-  }
-  return out
-}
-
-// Is there anything to reveal under a terminal row (detail line, panes, plans)?
-function tabExpandable(node: TabNode): boolean {
-  if (tabDetail(node)) return true
-  if (settings.sidebar.details.paneList && panesInLayout(node.root).length > 1) return true
-  return plansForTab(node).length > 0
-}
-
 // leading slot: a terminal's detail chevron (if expandable).
 function buildLeading(node: SidebarNode): HTMLElement | null {
   if (node.kind !== 'tab') return null
@@ -546,19 +393,13 @@ function buildLeading(node: SidebarNode): HTMLElement | null {
       class={'tri' + (node.detailsOpen ? ' expanded' : '')}
       innerHTML={CHEVRON_SVG}
       title={node.detailsOpen ? UITexts.Sidebar.hideDetails : UITexts.Sidebar.showDetails}
-      onClick={(e: MouseEvent) => {
-        e.stopPropagation()
-        toggleTabDetails(node.id)
-      }}
+      onClick={makeToggleDetails(node)}
     />
   ) as HTMLSpanElement
   return (<span class="tab-leading">{tri}</span>) as HTMLSpanElement
 }
 
-// below slot: detail line + per-pane sub-rows (when expanded) + plan sub-rows.
-// Background-process sub-rows under a worktree (the "hidden shells"): status dot,
-// title, and a stop (×) button. Clicking a row opens a transient view onto the
-// still-running process.
+// below slot: background-process sub-rows under a worktree (the "hidden shells").
 function buildWorktreeProcesses(wt: WorktreeNode | ProjectNode): HTMLElement | null {
   // Respect the node's collapse state — like plan rows, hide the process
   // sub-rows when the node is collapsed.
@@ -568,22 +409,9 @@ function buildWorktreeProcesses(wt: WorktreeNode | ProjectNode): HTMLElement | n
   const rows = procs.map(
     (proc) =>
       (
-        <div
-          class="tab-pane-row"
-          onClick={(e: MouseEvent) => {
-            e.stopPropagation()
-            void openProcessView(proc.stableId)
-          }}
-        >
+        <div class="tab-pane-row" onClick={makeProcessRowClick(proc.stableId)}>
           <span class="tab-pane-title">{(proc.status === 'done' ? '✓ ' : '') + proc.title}</span>
-          <button
-            class="tab-proc-kill"
-            title={UITexts.Sidebar.stopProcess}
-            onClick={(e: MouseEvent) => {
-              e.stopPropagation()
-              killProcess(proc.stableId)
-            }}
-          >
+          <button class="tab-proc-kill" title={UITexts.Sidebar.stopProcess} onClick={makeKillProcess(proc.stableId)}>
             ×
           </button>
         </div>
@@ -594,20 +422,6 @@ function buildWorktreeProcesses(wt: WorktreeNode | ProjectNode): HTMLElement | n
       <div class="tab-panes">{rows}</div>
     </div>
   ) as HTMLDivElement
-}
-
-// The issue key (e.g. CRF-12) for a terminal tab — from whichever pane in its
-// layout is assigned to a daily task. Rendered as a "(KEY)" suffix so the title
-// stays a free, renameable label (todo14).
-function tabIssueKey(tab: TabNode): string | null {
-  for (const id of panesInLayout(tab.root)) {
-    const taskId = panes.get(id)?.dailyTaskId
-    if (taskId) {
-      const key = paneActions.dailyTaskIssueKey(taskId)
-      if (key) return key
-    }
-  }
-  return null
 }
 
 function buildBelow(node: SidebarNode): HTMLElement | null {
@@ -627,13 +441,7 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
       const prows = paneIds.map((id) => {
         const p = panes.get(id)
         return (
-          <div
-            class="tab-pane-row"
-            onClick={(e: MouseEvent) => {
-              e.stopPropagation()
-              selectPane(id)
-            }}
-          >
+          <div class="tab-pane-row" onClick={makePaneRowClick(id)}>
             <span class="tab-pane-title">{p?.title || 'terminal'}</span>
           </div>
         ) as HTMLDivElement
@@ -644,8 +452,7 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
 
   // Plan files for this terminal's branch. Only shown when the user has
   // expanded the tab's detail line, so plans don't sit between rows and get
-  // mis-clicked as a terminal. A plan is attributed to whichever pane in the
-  // tab owns its --pane-<uuid> suffix; legacy plans (no suffix) are ignored.
+  // mis-clicked as a terminal.
   if (node.detailsOpen) {
     const plans = plansForTab(node)
     if (plans.length) {
@@ -656,10 +463,7 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
               class="tab-plan-row"
               title={plan.path}
               onMouseDown={(e: MouseEvent) => e.stopPropagation()}
-              onClick={(e: MouseEvent) => {
-                e.stopPropagation()
-                openMarkdownFile(plan.path)
-              }}
+              onClick={makePlanRowClick(plan.path)}
             >
               <span class="tab-plan-icon" innerHTML={PLAN_SVG} />
               <span class="tab-plan-title">{plan.slug || plan.name.replace(/\.(md|mdx|mdc)$/i, '')}</span>
@@ -673,60 +477,65 @@ function buildBelow(node: SidebarNode): HTMLElement | null {
   return frag.childElementCount ? frag : null
 }
 
+// trailing slot: Claude status pill + folder child-count badge + pin badge.
+function buildTrailing(node: SidebarNode): HTMLElement | null {
+  const wrap = document.createElement('span')
+  // iOS worktree folder → ▶/⋯ build-run actions.
+  const iosActions = iosWorktreeTrailing(node)
+  if (iosActions) wrap.appendChild(iosActions)
+  // Worktrees container → quick "+ new worktree".
+  if (isWorktreeContainer(node)) {
+    const proj = worktreeProjectOf(node)
+    if (proj) {
+      wrap.appendChild(
+        (
+          <button class="ios-wt-act" title={UITexts.Sidebar.newWorktreeTitle} onClick={makeNewWorktreeClick(proj)}>
+            +
+          </button>
+        ) as HTMLButtonElement
+      )
+    }
+  }
+  if (node.kind === 'tab') {
+    // A code-review/test task overrides the Claude status pill with its badge.
+    const taskBadge = tabTaskBadge(node)
+    if (taskBadge) {
+      wrap.appendChild(
+        (
+          <span
+            class={'claude-status claude-' + taskBadge}
+            title={taskBadge === 'review' ? 'Ticket is in code review' : 'Ticket is in test'}
+          >
+            {taskBadge}
+          </span>
+        ) as HTMLSpanElement
+      )
+    } else {
+      const cs = claudeStatusOfTab(node)
+      if (cs) {
+        wrap.appendChild(
+          (
+            <span class={'claude-status claude-' + cs} title={CLAUDE_STATUS_TITLE[cs]}>
+              {CLAUDE_STATUS_LABEL[cs]}
+            </span>
+          ) as HTMLSpanElement
+        )
+      }
+    }
+  }
+  if (node.kind === 'folder' || node.kind === 'project') {
+    wrap.appendChild((<span class="tab-badge">{String(allTabs([node]).length)}</span>) as HTMLSpanElement)
+  }
+  if (node.pinned) wrap.appendChild(pinBadge())
+  return wrap.childElementCount ? wrap : null
+}
+
 // ---------------------------------------------------------------------------
 // Tab strips display mode (icon / text / both) + per-tab hide (Settings → Tabs)
 // ---------------------------------------------------------------------------
 
-const TAB_ICON: Record<string, string> = {
-  'tab-terminal':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 4l3 3-3 3M8.5 11H13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  'tab-notebook':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 2.5H12v11H4.5zM4.5 2.5a1.5 1.5 0 0 0 0 11M7 5.5h3M7 8h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-  'tab-database':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><ellipse cx="8" cy="4" rx="5" ry="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
-  'tab-docker':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 9h12v1.5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 10.5z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 6h1.6v2H3.5zM6.2 6h1.6v2H6.2zM8.9 6h1.6v2H8.9zM6.2 3.4h1.6v2H6.2z" fill="currentColor"/></svg>',
-  'tab-accounts':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="5.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.4 13c0-2.5 2-4.2 4.6-4.2s4.6 1.7 4.6 4.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-  'notif-tab-notifs':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2.5a3.4 3.4 0 0 0-3.4 3.4V8L3.2 10h9.6L11.4 8V5.9A3.4 3.4 0 0 0 8 2.5zM6.6 12a1.5 1.5 0 0 0 2.8 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
-  'notif-tab-reminders':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8.5" r="5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 5.8V8.5l2 1.4M5.5 2.5L3 4.3M10.5 2.5L13 4.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-  'notif-tab-files':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 4.2c0-.6.4-1 1-1h3.1l1.2 1.4H13c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
-  'notif-tab-time':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 2.5h7M4.5 13.5h7M5.3 2.5c0 2.8 5.4 3.2 5.4 5.5s-5.4 2.7-5.4 5.5M10.7 2.5c0 2.8-5.4 3.2-5.4 5.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-  'notif-tab-pr':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="4.5" cy="4" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="12" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="12" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 5.7v4.6M11.5 10.3V7.5a2 2 0 0 0-2-2H7.5l1.4-1.4M8.9 5.5L7.5 4.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  'notif-tab-bm':
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M5 2.7h6v10.6l-3-2.3-3 2.3z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
-}
-
-// Every tab in the two strips, with the shortcut shown in its hover tooltip.
-const TAB_META: { id: string; strip: 'left' | 'right'; label: string; shortcut?: string }[] = [
-  { id: 'tab-terminal', strip: 'left', label: UITexts.Sidebar.tabs.terminal, shortcut: '⌘1' },
-  { id: 'tab-notebook', strip: 'left', label: UITexts.Sidebar.tabs.notebook, shortcut: '⌘2' },
-  { id: 'tab-database', strip: 'left', label: UITexts.Sidebar.tabs.database, shortcut: '⌘3' },
-  { id: 'tab-docker', strip: 'left', label: UITexts.Sidebar.tabs.docker },
-  { id: 'tab-accounts', strip: 'left', label: UITexts.Sidebar.tabs.accounts },
-  { id: 'notif-tab-notifs', strip: 'right', label: UITexts.Sidebar.tabs.alerts },
-  { id: 'notif-tab-reminders', strip: 'right', label: UITexts.Sidebar.tabs.reminders },
-  { id: 'notif-tab-files', strip: 'right', label: UITexts.Sidebar.tabs.files },
-  { id: 'notif-tab-time', strip: 'right', label: UITexts.Sidebar.tabs.time },
-  { id: 'notif-tab-pr', strip: 'right', label: UITexts.Sidebar.tabs.pr },
-  { id: 'notif-tab-bm', strip: 'right', label: UITexts.Sidebar.tabs.bookmarks }
-]
-
 export function tabMeta(): typeof TAB_META {
   return TAB_META
-}
-
-// Effective tab id order for a strip: saved order (filtered to ids that still
-// exist) followed by any TAB_META ids missing from it, so new tabs always show.
-function tabOrder(strip: 'left' | 'right'): string[] {
-  const ids = TAB_META.filter((m) => m.strip === strip).map((m) => m.id)
-  const saved = settings.tabDisplay.order[strip].filter((id) => ids.includes(id))
-  return [...saved, ...ids.filter((id) => !saved.includes(id))]
 }
 
 // Apply the icon/text/both mode + per-tab hide + per-strip order to both strips.
@@ -780,8 +589,7 @@ let dragTabId: string | null = null
 function wireTabReorder(strips: Record<'left' | 'right', HTMLElement | null>): void {
   if (tabReorderWired) return
   tabReorderWired = true
-  const stripOf = (id: string): 'left' | 'right' | null =>
-    TAB_META.find((m) => m.id === id)?.strip ?? null
+  const stripOf = (id: string): 'left' | 'right' | null => TAB_META.find((m) => m.id === id)?.strip ?? null
   for (const key of ['left', 'right'] as const) {
     const strip = strips[key]
     if (!strip) continue
@@ -832,106 +640,6 @@ function wireTabReorder(strips: Record<'left' | 'right', HTMLElement | null>): v
   }
 }
 
-// Claude session state for a tab: the most "active" status among its Claude
-// panes (in-progress > question > idle). Null when no Claude pane reports one.
-function claudeStatusOfTab(node: TabNode): 'in-progress' | 'question' | 'idle' | null {
-  let result: 'in-progress' | 'question' | 'idle' | null = null
-  for (const id of panesInLayout(node.root)) {
-    const p = panes.get(id)
-    const s = p?.claudeStatus
-    if (!s) continue
-    if (s === 'in-progress') return 'in-progress'
-    if (s === 'question') result = 'question'
-    else if (!result) result = 'idle'
-  }
-  return result
-}
-
-// The intermediate daily-task status (review/test) of any pane in the tab, if
-// any. Drives the badge that takes precedence over the Claude status pill.
-function tabTaskBadge(node: TabNode): 'review' | 'test' | null {
-  let test = false
-  for (const id of panesInLayout(node.root)) {
-    const taskId = panes.get(id)?.dailyTaskId
-    if (!taskId) continue
-    const s = paneActions.dailyTaskStatus(taskId)
-    if (s === 'review') return 'review'
-    if (s === 'test') test = true
-  }
-  return test ? 'test' : null
-}
-
-const CLAUDE_STATUS_LABEL: Record<'in-progress' | 'question' | 'idle', string> = {
-  'in-progress': 'working',
-  question: 'ask',
-  idle: 'idle'
-}
-const CLAUDE_STATUS_TITLE: Record<'in-progress' | 'question' | 'idle', string> = {
-  'in-progress': 'Claude is working',
-  question: 'Claude is waiting on you',
-  idle: 'Claude is idle'
-}
-
-// trailing slot: Claude status pill + folder child-count badge + pin badge.
-function buildTrailing(node: SidebarNode): HTMLElement | null {
-  const wrap = document.createElement('span')
-  // iOS worktree folder → ▶/⋯ build-run actions.
-  const iosActions = iosWorktreeTrailing(node)
-  if (iosActions) wrap.appendChild(iosActions)
-  // Worktrees container → quick "+ new worktree".
-  if (isWorktreeContainer(node)) {
-    const proj = worktreeProjectOf(node)
-    if (proj) {
-      wrap.appendChild(
-        (
-          <button
-            class="ios-wt-act"
-            title={UITexts.Sidebar.newWorktreeTitle}
-            onClick={(e: MouseEvent) => {
-              e.stopPropagation()
-              void newWorktree(proj)
-            }}
-          >
-            +
-          </button>
-        ) as HTMLButtonElement
-      )
-    }
-  }
-  if (node.kind === 'tab') {
-    // A code-review/test task overrides the Claude status pill with its badge.
-    const taskBadge = tabTaskBadge(node)
-    if (taskBadge) {
-      wrap.appendChild(
-        (
-          <span
-            class={'claude-status claude-' + taskBadge}
-            title={taskBadge === 'review' ? 'Ticket is in code review' : 'Ticket is in test'}
-          >
-            {taskBadge}
-          </span>
-        ) as HTMLSpanElement
-      )
-    } else {
-      const cs = claudeStatusOfTab(node)
-      if (cs) {
-        wrap.appendChild(
-          (
-            <span class={'claude-status claude-' + cs} title={CLAUDE_STATUS_TITLE[cs]}>
-              {CLAUDE_STATUS_LABEL[cs]}
-            </span>
-          ) as HTMLSpanElement
-        )
-      }
-    }
-  }
-  if (node.kind === 'folder' || node.kind === 'project') {
-    wrap.appendChild((<span class="tab-badge">{String(allTabs([node]).length)}</span>) as HTMLSpanElement)
-  }
-  if (node.pinned) wrap.appendChild(pinBadge())
-  return wrap.childElementCount ? wrap : null
-}
-
 // ---------------------------------------------------------------------------
 // Context menu (per-node items; color swatch is added by the tree)
 // ---------------------------------------------------------------------------
@@ -940,7 +648,6 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
   const items: ContextMenuItem[] = []
   if (node.kind === 'tab' && node.status === 'archived') {
     // Archived session (shown only under "Show archived items"): reactivate it.
-    // Never permanently deleted — that's the whole point of archiving.
     items.push({ label: UITexts.Sidebar.menu.restoreSession, run: () => paneActions.reactivateTab(node.id) })
   } else if (node.kind === 'tab') {
     const trail = ancestorFolders(state.tree, node.id)
@@ -952,7 +659,7 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
     items.push({ label: UITexts.Sidebar.menu.closeTab, run: () => closeTab(node.id), danger: true })
   } else if (isWorktreeFolder(node)) {
     // A worktree node: a dedicated, type-aware menu — git-managed, so the generic
-    // folder operations (subfolder / rename / delete folder / settings) don't apply.
+    // folder operations don't apply.
     const wt = node.worktreePath
     const proj = worktreeProjectOf(node)
     items.push({ label: UITexts.Sidebar.menu.newTerminalHere, run: () => void newTab(node.id, wt) })
@@ -965,12 +672,10 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
           label: UITexts.Sidebar.menu.command,
           placeholder: UITexts.Sidebar.commandPlaceholder,
           confirmText: 'Run'
-        }).then(
-          (command) => {
-            const cmd = command?.trim()
-            if (cmd) void startBackgroundProcess(node, { title: cmd, command: cmd, role: 'shell' })
-          }
-        )
+        }).then((command) => {
+          const cmd = command?.trim()
+          if (cmd) void startBackgroundProcess(node, { title: cmd, command: cmd, role: 'shell' })
+        })
     })
     for (const it of iosWorktreeMenuItems(node)) items.push(it)
     items.push({ label: UITexts.Sidebar.menu.revealInFinder, run: () => shellService.revealPath(wt) })
@@ -1010,25 +715,11 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
 }
 
 // ---------------------------------------------------------------------------
-// Archived-view filtering (never-delete model): archived sessions stay in the
-// tree but are hidden by default; "Show archived items" flips to show only them.
+// Archived-view filtering (never-delete model)
 // ---------------------------------------------------------------------------
 
 let showArchivedView = false
 
-function isArchivedTab(n: SidebarNode): boolean {
-  return n.kind === 'tab' && n.status === 'archived'
-}
-// A node that is itself archived: a closed session (tab) or a removed worktree.
-function isArchivedNode(n: SidebarNode): boolean {
-  return (n.kind === 'tab' || n.kind === 'worktree') && n.status === 'archived'
-}
-function hasArchivedDescendant(n: SidebarNode): boolean {
-  if (isArchivedNode(n)) return true
-  if (n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree')
-    return n.children.some(hasArchivedDescendant)
-  return false
-}
 function passesArchiveFilter(n: SidebarNode): boolean {
   if (showArchivedView) {
     if (n.kind === 'tab') return isArchivedTab(n)
@@ -1107,8 +798,7 @@ const adapter: TreeAdapter<SidebarNode> = {
     if (n) state.selectedNodeId = n.id
   },
   onRename: (n, name) => setNodeName(n.id, name),
-  onMove: (dragId, targetId, pos: DropPos) =>
-    moveNode(dragId, targetId, pos === 'inside' ? 'into' : pos),
+  onMove: (dragId, targetId, pos: DropPos) => moveNode(dragId, targetId, pos === 'inside' ? 'into' : pos),
   menu: buildMenu
 }
 
@@ -1125,52 +815,7 @@ tabListEl.addEventListener('drop', (e) => {
 // Rendering
 // ---------------------------------------------------------------------------
 
-// Recursively drop pinned nodes (they render in the Pinned section instead).
-// Containers are shallow-copied so the real tree is never mutated.
-function stripPinned(nodes: SidebarNode[]): SidebarNode[] {
-  const out: SidebarNode[] = []
-  for (const n of nodes) {
-    if (n.pinned) continue
-    if (n.kind === 'folder' || n.kind === 'project') out.push({ ...n, children: stripPinned(n.children) })
-    else out.push(n)
-  }
-  return out
-}
-
-// Walk a node's subtree, returning the most recent pane activity timestamp.
-// Containers expose their last-touched moment via whatever terminal they hold.
-function maxActivityOf(node: SidebarNode): number {
-  if (node.kind === 'tab') {
-    let best = 0
-    for (const id of panesInLayout(node.root)) {
-      const p = panes.get(id)
-      if (p && p.lastActivity > best) best = p.lastActivity
-    }
-    return best
-  }
-  let best = 0
-  for (const c of node.children) {
-    const t = maxActivityOf(c)
-    if (t > best) best = t
-  }
-  return best
-}
-
-// Bucket name for an activity timestamp (today / yesterday / earlier).
-function recencyBucket(ts: number): 'today' | 'yesterday' | 'earlier' {
-  if (!ts) return 'earlier'
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const startOfYesterday = startOfToday - 86_400_000
-  if (ts >= startOfToday) return 'today'
-  if (ts >= startOfYesterday) return 'yesterday'
-  return 'earlier'
-}
-
-// Build the section list: Pinned → Free (top-level terminals not under any
-// project/folder) → group buckets (workspace headers + Ungrouped), OR when
-// Settings → Sidebar "Group by recency" is on, Today/Yesterday/Earlier buckets
-// of every top-level row.
+// Build the section list: Pinned → Free → group buckets (or recency buckets).
 function buildSections(): TreeSection<SidebarNode>[] {
   const sections: TreeSection<SidebarNode>[] = []
 
@@ -1271,9 +916,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
   overlay.appendChild(modal)
 
   modal.appendChild(
-    (
-      <h2>{(isProject ? 'Project settings — ' : 'Folder settings — ') + node.name}</h2>
-    ) as HTMLHeadingElement
+    (<h2>{(isProject ? 'Project settings — ' : 'Folder settings — ') + node.name}</h2>) as HTMLHeadingElement
   )
 
   const textField = (label: string, value: string, ph: string): HTMLInputElement => {
@@ -1293,15 +936,11 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
   // don't have those — just the per-terminal defaults below.
   const nameInput = isProject ? textField('Name', node.name, 'Movve') : null
   const pathInput = isProject ? textField('Path', node.path, '~/code/movve') : null
-  const commandInput = isProject
-    ? textField('Command', node.command ?? '', 'claude (run on open, optional)')
-    : null
+  const commandInput = isProject ? textField('Command', node.command ?? '', 'claude (run on open, optional)') : null
   const startup = textField('Startup command', node.startup ?? '', 'e.g. claude')
   const shell = textField('Shell', node.shell ?? '', '(default)')
 
-  const env = (
-    <textarea class="folder-env" placeholder={'FOO=bar\nNODE_ENV=development'} />
-  ) as HTMLTextAreaElement
+  const env = (<textarea class="folder-env" placeholder={'FOO=bar\nNODE_ENV=development'} />) as HTMLTextAreaElement
   env.value = node.env ?? ''
   env.rows = 4
   modal.appendChild(
@@ -1340,9 +979,7 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
     renderSidebar()
     close()
   })
-  modal.querySelectorAll('input, textarea').forEach((el) =>
-    el.addEventListener('keydown', (e) => e.stopPropagation())
-  )
+  modal.querySelectorAll('input, textarea').forEach((el) => el.addEventListener('keydown', (e) => e.stopPropagation()))
 
   mount()
   ;(nameInput ?? startup).focus()
