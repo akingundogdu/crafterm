@@ -27,8 +27,8 @@ node-pty (TypeScript). Work happens here, in `src/`.
 | Build/dev | **electron-vite** (Vite 5); `electron-builder` for packaging |
 | Terminal UI | **xterm.js** (`@xterm/xterm` + `@xterm/addon-fit`) |
 | PTY | **node-pty** (native; externalized from the bundle, rebuilt via electron-rebuild) |
-| Renderer UI | **Vanilla TS + DOM** — no UI framework. Design tokens in `src/ui/styles/tokens.css`; global + per-screen CSS co-located in `src/ui/` and each `src/ui/screens/<feature>/` |
-| Markdown | hand-written renderer in `src/ui/markdown.ts` (→ HTML string) |
+| Renderer UI | **React-free JSX/TSX over the DOM** — no UI framework. A custom JSX runtime (`src/ui/jsx-runtime.ts`, no React) compiles `<div/>` straight to real DOM nodes; views are `.tsx`. Design tokens in `src/ui/styles/tokens.css`; global + per-screen CSS co-located in `src/ui/` and each `src/ui/screens/<feature>/` |
+| Markdown | hand-written renderer in `src/ui/markdown/markdown.ts` (→ HTML string) |
 | Browser pane | Electron `<webview>` tag (the only web-content surface) |
 | Persistence | JSON at `~/.crafterm/crafterm-state.json` (dev: `~/.crafterm-dev/`); notebooks + bundled sounds under the same dir / app resources |
 
@@ -99,7 +99,39 @@ stopped, ask first and wait for an explicit OK.
   (`hooks`, `paneActions`) — wire real implementations in `src/ui/main.ts`. Cross-module
   calls used only inside functions (not at module top-level) are fine.
 - Keep one responsibility per module; extract shared UI into helpers
-  (`dialog.ts`) rather than duplicating.
+  (`components/dialog`) rather than duplicating.
+
+### Module structure convention
+
+Every module under `src/ui/` follows a consistent decomposition. **New work MUST
+conform; this is the structural rule set.**
+
+- **types / state / view split.** Each feature/screen/component is a folder split
+  into: `<name>.types.ts` (module-local TS types; global types stay in
+  `types/types.ts`) · `<name>.state.ts` (state, data fetching, business logic, IPC
+  client calls — no DOM) · `<name>.tsx` (the view; DOM via JSX) · `<name>.css`
+  (co-located, imported by the view).
+- **`.tsx` ↔ JSX.** A file that builds DOM with JSX is `.tsx`. A file that
+  delegates DOM to component helpers (`overlayModal`, `createField`, …) with no
+  JSX of its own may stay `.ts`. Hand-rolled `createElement`/`innerHTML` is the
+  old way — migrate it to JSX + `.tsx`.
+- **Thin bootstraps.** Window entries (`main`, `popout`, `improveWindow`) are a
+  thin `<name>.ts` (wiring only) over a `<name>.state.ts`.
+- **CSS co-location.** A CSS block lives in the folder of the module that owns the
+  DOM it styles. Global/shell CSS only in `styles/` and `app-shell/`.
+- **Markup ownership.** New UI builds its markup in its own `.tsx`; nothing static
+  is added to `index.html`. `index.html` holds only the shell skeleton, empty
+  containers for dynamic content, and rare static overlays.
+- **Folder shape.** A single-file module in its own folder (`catalog/catalog.ts`)
+  is correct. A loose `.ts` directly at `src/ui/` root is a smell — move it into a
+  folder, unless it is a build/infra shim (`jsx-runtime.ts`, `jsx-dev-runtime.ts`,
+  `vite-env.d.ts`) or the main-window `index.html`. DOM-free pure logic/data
+  utilities need no `.tsx`/`.state.ts`/`.css`.
+- **Child components.** A `.tsx` does not hold multiple separable UI parts inline;
+  extract each into `<feature>/components/<part>.tsx`. The parent keeps
+  mount/orchestration only.
+- **Naming.** CSS class names are descriptive and module-prefixed; no cryptic
+  abbreviations (`.code-editor-button`, not `.code-sel-btn`). English only.
 
 ### Module map (`src/ui/`)
 
