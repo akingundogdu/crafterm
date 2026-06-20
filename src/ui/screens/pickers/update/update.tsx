@@ -1,20 +1,21 @@
 import './update.css'
 import { createButton, createOverlay } from '@ui/components'
-import { settings, state } from '@ui/state/state'
+import { settings } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
 import { promptConfirm } from '@ui/dialog/dialog'
-import { appService , deployService } from '@services'
+import { deployService } from '@services'
 import { pickFolderPath } from '../folder/folder'
 import { UITexts } from '@texts'
+import type { UpdateStep } from './update.types'
+import { resolveUpdateCommand } from './update.state'
+
+export type { UpdateStep } from './update.types'
 
 // ---------------------------------------------------------------------------
 // Update Crafterm (self-update): save state, rebuild from the source repo, and
 // relaunch. The build runs in the main process (progress shown here); only the
 // quit → swap → relaunch step is detached so it survives the app quitting.
 // ---------------------------------------------------------------------------
-
-type UpdateStep = { done: () => void; fail: (msg: string) => void }
-
 export async function runUpdate(): Promise<void> {
   // 1. Resolve the source repo (ask once on first use, then remember it).
   let repo = settings.repoPath.trim()
@@ -67,7 +68,7 @@ export async function runUpdate(): Promise<void> {
         row.classList.add('failed')
         const e = (<div class="update-error">{msg}</div>) as HTMLDivElement
         modal.appendChild(e)
-        const btn = createButton({ className: 'primary', text: 'Close', onClick: () => close() })
+        const btn = createButton({ className: 'primary', text: 'Close', onClick: close })
         btn.style.marginTop = '12px'
         modal.appendChild(btn)
       }
@@ -81,8 +82,7 @@ export async function runUpdate(): Promise<void> {
 
   // Build the new bundle (runs in main; can take a while).
   const s2 = step('Building new bundle…')
-  const cmd = settings.updateCommand.trim() || 'run-crafterm-deploy'
-  const res = await deployService.build(repo, cmd)
+  const res = await deployService.build(repo, resolveUpdateCommand())
   if (!res.ok) {
     s2.fail(res.error || 'Build failed. See ~/.crafterm/deploy.log for details.')
     return
