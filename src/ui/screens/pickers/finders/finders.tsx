@@ -1,8 +1,12 @@
 import { settings } from '@ui/state/state'
 import { openMarkdownFile } from '@ui/commands/commands'
-import { fsService , markdownService } from '@services'
+import { fsService, markdownService } from '@services'
 import { overlayModal, makeSearchInput, baseName } from '../shared'
 import { UITexts } from '@texts'
+import type { MdFile } from './finders.types'
+import { ALL_FOLDERS, prettyPath, filterByName, dedupeByPath, fileCountLabel } from './finders.state'
+
+export type { MdFile, FileFinderOptions } from './finders.types'
 
 // ---- All markdown finder (Cmd+O in Notebook): files under the configured folders ----
 
@@ -14,9 +18,8 @@ export async function showAllMarkdown(): Promise<void> {
   const input = (<input class="search-box-input" type="text" placeholder={UITexts.Pickers.finders.searchPlaceholder} />) as HTMLInputElement
   input.spellcheck = false
 
-  const ALL = ' all'
   let folderFilter: string | null = null // null = nothing loaded yet
-  let files: { path: string; name: string }[] = []
+  let files: MdFile[] = []
 
   const filterBar = (<div class="md-filters" />) as HTMLDivElement
   const chips: HTMLButtonElement[] = []
@@ -24,7 +27,7 @@ export async function showAllMarkdown(): Promise<void> {
     const c = (
       <button
         class="md-chip"
-        title={value === ALL ? 'All configured folders' : value}
+        title={value === ALL_FOLDERS ? 'All configured folders' : value}
         onClick={() => void load(value, c)}
       >
         {label}
@@ -34,7 +37,7 @@ export async function showAllMarkdown(): Promise<void> {
     chips.push(c)
   }
   if (folders.length) {
-    makeChip('All', ALL)
+    makeChip('All', ALL_FOLDERS)
     folders.forEach((f) => makeChip(baseName(f), f))
   }
 
@@ -42,7 +45,6 @@ export async function showAllMarkdown(): Promise<void> {
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, input, filterBar, countEl, list)
 
-  const pretty = (p: string): string => p.replace(/^\/Users\/[^/]+/, '~')
   let sel = 0
 
   // fetch markdown for the clicked folder — or, for "All", every configured folder
@@ -51,11 +53,9 @@ export async function showAllMarkdown(): Promise<void> {
     chips.forEach((x) => x.classList.toggle('active', x === chip))
     list.replaceChildren()
     countEl.textContent = UITexts.Pickers.finders.loading
-    if (value === ALL) {
+    if (value === ALL_FOLDERS) {
       const results = await Promise.all(folders.map((f) => markdownService.findAll(f)))
-      const byPath = new Map<string, { path: string; name: string }>()
-      results.forEach((r) => r.files.forEach((f) => byPath.set(f.path, f)))
-      files = [...byPath.values()]
+      files = dedupeByPath(results.map((r) => r.files))
     } else {
       const res = await markdownService.findAll(value)
       files = res.files
@@ -64,11 +64,7 @@ export async function showAllMarkdown(): Promise<void> {
     render()
   }
 
-  const filtered = (): typeof files => {
-    if (folderFilter === null) return []
-    const q = input.value.trim().toLowerCase()
-    return q ? files.filter((f) => f.name.toLowerCase().includes(q)) : files
-  }
+  const filtered = (): MdFile[] => (folderFilter === null ? [] : filterByName(files, input.value))
   const open = (p: string): void => {
     openMarkdownFile(p)
     close()
@@ -77,7 +73,7 @@ export async function showAllMarkdown(): Promise<void> {
     const items = filtered()
     if (sel >= items.length) sel = Math.max(0, items.length - 1)
     const idle = folderFilter === null
-    countEl.textContent = idle ? '' : `${items.length} file${items.length === 1 ? '' : 's'}`
+    countEl.textContent = idle ? '' : fileCountLabel(items.length)
     list.replaceChildren()
     if (!items.length) {
       const hint = (
@@ -97,7 +93,7 @@ export async function showAllMarkdown(): Promise<void> {
         <div class={'pick-row mdfile-row' + (i === sel ? ' active' : '')}>
           <div class="claude-main">
             <span class="picker-name">{f.name}</span>
-            <span class="project-sub">{pretty(f.path.slice(0, f.path.length - f.name.length))}</span>
+            <span class="project-sub">{prettyPath(f.path.slice(0, f.path.length - f.name.length))}</span>
           </div>
         </div>
       ) as HTMLDivElement
@@ -153,16 +149,15 @@ export async function showFileFinder(opts: {
   const h = (<h2>{opts.title}</h2>) as HTMLHeadingElement
 
   let folderFilter: string | null = null
-  let files: { path: string; name: string }[] = []
+  let files: MdFile[] = []
 
-  const ALL = ' all'
   const filterBar = (<div class="md-filters" />) as HTMLDivElement
   const chips: HTMLButtonElement[] = []
   const makeChip = (label: string, value: string): void => {
     const c = (
       <button
         class="md-chip"
-        title={value === ALL ? 'All configured folders' : value}
+        title={value === ALL_FOLDERS ? 'All configured folders' : value}
         onClick={() => void load(value, c)}
       >
         {label}
@@ -172,7 +167,7 @@ export async function showFileFinder(opts: {
     chips.push(c)
   }
   if (folders.length) {
-    makeChip('All', ALL)
+    makeChip('All', ALL_FOLDERS)
     folders.forEach((f) => makeChip(baseName(f), f))
   }
 
@@ -184,7 +179,6 @@ export async function showFileFinder(opts: {
   })
   modal.append(h, input, filterBar, countEl, list)
 
-  const pretty = (p: string): string => p.replace(/^\/Users\/[^/]+/, '~')
   let sel = 0
 
   const load = async (value: string, chip: HTMLButtonElement): Promise<void> => {
@@ -192,13 +186,11 @@ export async function showFileFinder(opts: {
     chips.forEach((x) => x.classList.toggle('active', x === chip))
     list.replaceChildren()
     countEl.textContent = UITexts.Pickers.finders.loading
-    if (value === ALL) {
+    if (value === ALL_FOLDERS) {
       const results = await Promise.all(
         folders.map((f) => fsService.findFiles(f, settings.explorerExclude))
       )
-      const byPath = new Map<string, { path: string; name: string }>()
-      results.forEach((r) => r.files.forEach((f) => byPath.set(f.path, f)))
-      files = [...byPath.values()]
+      files = dedupeByPath(results.map((r) => r.files))
     } else {
       const res = await fsService.findFiles(value, settings.explorerExclude)
       files = res.files
@@ -207,12 +199,8 @@ export async function showFileFinder(opts: {
     render()
   }
 
-  const filtered = (): typeof files => {
-    if (folderFilter === null) return []
-    const q = input.value.trim().toLowerCase()
-    return q ? files.filter((f) => f.name.toLowerCase().includes(q)) : files
-  }
-  const pick = (f: { path: string; name: string }): void => {
+  const filtered = (): MdFile[] => (folderFilter === null ? [] : filterByName(files, input.value))
+  const pick = (f: MdFile): void => {
     opts.onPick(f.path, f.name)
     close()
   }
@@ -220,7 +208,7 @@ export async function showFileFinder(opts: {
     const items = filtered()
     if (sel >= items.length) sel = Math.max(0, items.length - 1)
     const idle = folderFilter === null
-    countEl.textContent = idle ? '' : `${items.length} file${items.length === 1 ? '' : 's'}`
+    countEl.textContent = idle ? '' : fileCountLabel(items.length)
     list.replaceChildren()
     if (!items.length) {
       const hint = (
@@ -240,7 +228,7 @@ export async function showFileFinder(opts: {
         <div class={'pick-row mdfile-row' + (i === sel ? ' active' : '')}>
           <div class="claude-main">
             <span class="picker-name">{f.name}</span>
-            <span class="project-sub">{pretty(f.path.slice(0, f.path.length - f.name.length))}</span>
+            <span class="project-sub">{prettyPath(f.path.slice(0, f.path.length - f.name.length))}</span>
           </div>
         </div>
       ) as HTMLDivElement
@@ -275,7 +263,7 @@ export async function showFileFinder(opts: {
     }
   })
   // auto-load the "All" set so the search box is usable immediately
-  if (chips.length) void load(ALL, chips[0])
+  if (chips.length) void load(ALL_FOLDERS, chips[0])
   else render()
   input.focus()
 }
