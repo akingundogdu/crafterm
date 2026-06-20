@@ -1,23 +1,27 @@
+import './field.css'
+import type { FieldOptions } from './field.types'
+import { resolveFieldProps } from './field.state'
+
+export type { FieldOptions } from './field.types'
+
 // Field primitive: a `.field` row wrapping a <label> + a control (input/select).
 // Mirrors the existing `div.field > label + control` markup exactly. An optional
 // `hint` renders a trailing `<span class="field-hint">` inside the label, matching
 // the app's "Label (comma separated)"-style hints.
-
-import './field.css'
-
 export function createField(
   labelText: string,
   control: HTMLElement,
-  opts?: { hint?: string }
+  opts?: FieldOptions
 ): HTMLDivElement {
+  const p = resolveFieldProps(opts)
   return (
     <div class="field">
       <label>
         {labelText}
-        {opts?.hint ? (
+        {p.hint ? (
           <>
             {' '}
-            <span class="field-hint">{opts.hint}</span>
+            <span class="field-hint">{p.hint}</span>
           </>
         ) : null}
       </label>
