@@ -1,7 +1,7 @@
 import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { themes } from '@ui/themes/themes'
-import { ALL_THEME_NAMES } from '../../../editor/monaco-setup'
+import { ALL_THEME_NAMES } from '../../../editor/monaco/monaco-setup'
 import { toHex6, labeledInput, labeledSelect } from '../shared'
 import {
   BG_PRESETS,

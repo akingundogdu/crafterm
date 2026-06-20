@@ -33,7 +33,7 @@ import {
 import { createSqlPane } from '../screens/db-pane/db-pane'
 import { createCodePane } from '../screens/code-pane/code-pane'
 import { setEditorOpenHandler } from '@ui/editor/code-editor/code-editor'
-import { applyTheme } from '../editor/monaco-setup'
+import { applyTheme } from '../editor/monaco/monaco-setup'
 import { renderContent, updatePaneHighlight } from '../screens/content/content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from '../screens/notifications/notifications'
 import { mountStatusBar } from '@ui/components/status-bar/status-bar'

@@ -1,4 +1,4 @@
-import { monaco, currentThemeId } from '../monaco-setup'
+import { monaco, currentThemeId } from '../monaco/monaco-setup'
 import { fsService } from '@services'
 import type {
   TsLangDefaults,

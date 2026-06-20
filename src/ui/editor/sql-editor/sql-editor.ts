@@ -1,5 +1,5 @@
-import { ensureThemes, applyTheme } from '../monaco-setup'
-import { EDITOR_THEME_NAMES, DEFAULT_EDITOR_THEME } from '../editor-themes'
+import { ensureThemes, applyTheme } from '../monaco/monaco-setup'
+import { EDITOR_THEME_NAMES, DEFAULT_EDITOR_THEME } from '../monaco/editor-themes'
 import type { SqlEditor, CreateSqlEditorOptions } from './sql-editor.types'
 import {
   schemas,

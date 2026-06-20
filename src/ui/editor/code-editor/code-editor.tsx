@@ -1,5 +1,5 @@
 import './code-editor.css'
-import { ensureThemes, applyTheme } from '../monaco-setup'
+import { ensureThemes, applyTheme } from '../monaco/monaco-setup'
 import type { CodeEditor, CreateCodeEditorOptions } from './code-editor.types'
 import {
   configureTsOnce,

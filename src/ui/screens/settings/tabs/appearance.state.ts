@@ -1,7 +1,7 @@
 import { settings, applyBgColor, resolveTheme } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
 import { applyAppearance } from '@ui/pane/pane'
-import { applyTheme } from '../../../editor/monaco-setup'
+import { applyTheme } from '../../../editor/monaco/monaco-setup'
 
 export const BG_PRESETS = ['#000000', '#0d1117', '#0d0e12', '#11151c', '#161821', '#1a1b26', '#1e1e2e']
 

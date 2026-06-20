@@ -5,7 +5,7 @@ import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import { PALETTES, DEFAULT_EDITOR_THEME, type EditorThemePalette } from './editor-themes'
-import themelist from '../../../node_modules/monaco-themes/themes/themelist.json'
+import themelist from '../../../../node_modules/monaco-themes/themes/themelist.json'
 import { appService , monacoService } from '@services'
 
 // Shared Monaco bootstrap for the code editor + SQL editor: wires language-

@@ -1,7 +1,7 @@
 import { panes, state, paneActions, settings } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
 import { findTabByPane, panesInLayout } from '@ui/tree/tree'
-import { applyTheme } from '../../editor/monaco-setup'
+import { applyTheme } from '../../editor/monaco/monaco-setup'
 import { terminalService, shellService } from '@services'
 import { refPath } from './path-ref'
 import type { CodeEditor } from '@ui/editor/code-editor/code-editor'
