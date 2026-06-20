@@ -39,8 +39,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/ui/index.html'),
-          popout: resolve(__dirname, 'src/ui/popout.html'),
-          improveWindow: resolve(__dirname, 'src/ui/improve-window.html')
+          popout: resolve(__dirname, 'src/ui/popout/popout.html'),
+          improveWindow: resolve(__dirname, 'src/ui/improveWindow/improve-window.html')
         }
       }
     }

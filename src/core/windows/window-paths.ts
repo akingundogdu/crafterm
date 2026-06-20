@@ -8,8 +8,8 @@ import { join } from 'path'
 
 export const RENDERER_HTML = {
   index: 'index.html',
-  popout: 'popout.html',
-  improveWindow: 'improve-window.html'
+  popout: 'popout/popout.html',
+  improveWindow: 'improveWindow/improve-window.html'
 } as const
 
 export const preloadPath = (): string => join(__dirname, '../preload/index.js')
