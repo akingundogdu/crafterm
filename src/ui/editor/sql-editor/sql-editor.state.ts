@@ -1,4 +1,4 @@
-import { monaco, currentThemeId } from './monaco-setup'
+import { monaco, currentThemeId } from '../monaco-setup'
 import type { DbEngine } from '@ui/types/types'
 import type { ModelSchema, CreateSqlEditorOptions } from './sql-editor.types'
 

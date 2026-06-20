@@ -1,7 +1,7 @@
 import { sqlPanes } from '@ui/state/state'
 import type { DbEngine, DbConnection, DbConnNode } from '@ui/types/types'
 import type { DbObjects, DbColumn } from '@services/db/db.types'
-import type { SqlEditor } from '../../editor/sql-editor'
+import type { SqlEditor } from '../../editor/sql-editor/sql-editor'
 import type { SortState } from './components/result-grid'
 import type { ParsedSelect } from './db-pane.types'
 import { dbConnectionRepo } from '@repositories'
