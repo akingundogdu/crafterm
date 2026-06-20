@@ -1,74 +1,39 @@
-import { settings, applyBgColor, resolveTheme } from '@ui/state/state'
+import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
-import { applyAppearance } from '@ui/pane/pane'
 import { themes } from '@ui/themes/themes'
-import { ALL_THEME_NAMES, applyTheme } from '../../../editor/monaco-setup'
+import { ALL_THEME_NAMES } from '../../../editor/monaco-setup'
 import { toHex6, labeledInput, labeledSelect } from '../shared'
-
-const BG_PRESETS = ['#000000', '#0d1117', '#0d0e12', '#11151c', '#161821', '#1a1b26', '#1e1e2e']
-
-const COLOR_KEYS = [
-  'background',
-  'foreground',
-  'cursor',
-  'cursorAccent',
-  'selectionBackground',
-  'selectionForeground',
-  'black',
-  'red',
-  'green',
-  'yellow',
-  'blue',
-  'magenta',
-  'cyan',
-  'white',
-  'brightBlack',
-  'brightRed',
-  'brightGreen',
-  'brightYellow',
-  'brightBlue',
-  'brightMagenta',
-  'brightCyan',
-  'brightWhite'
-] as const
+import {
+  BG_PRESETS,
+  COLOR_KEYS,
+  setFontFamily,
+  setFontSize,
+  setEditorTheme,
+  applyBackground,
+  setThemeName,
+  copyCurrentToCustom,
+  setCustomColor,
+  themeColorSource
+} from './appearance.state'
 
 export function buildAppearancePanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.appearance.heading}</h3>`)
-  const fam = labeledInput(panel, UITexts.Settings.appearance.fontFamily, 'text', settings.font.family, (v) => {
-    settings.font.family = v
-    applyAppearance()
-    persistence.save()
-  })
+  const fam = labeledInput(panel, UITexts.Settings.appearance.fontFamily, 'text', settings.font.family, setFontFamily)
   fam.style.maxWidth = '280px'
-  labeledInput(panel, UITexts.Settings.appearance.terminalFontSize, 'number', String(settings.font.size), (v) => {
-    const n = parseInt(v, 10)
-    if (!Number.isNaN(n) && n >= 6 && n <= 40) {
-      settings.font.size = n
-      applyAppearance()
-      persistence.save()
-    }
-  })
+  labeledInput(panel, UITexts.Settings.appearance.terminalFontSize, 'number', String(settings.font.size), setFontSize)
   buildBackgroundControl(panel)
   labeledSelect(
     panel,
     UITexts.Settings.appearance.codeEditorTheme,
     ALL_THEME_NAMES.map((n) => [n, n] as [string, string]),
     settings.editorTheme,
-    (v) => {
-      settings.editorTheme = v
-      void applyTheme(v)
-      persistence.save()
-    }
+    setEditorTheme
   )
 }
 
 function buildBackgroundControl(panel: HTMLElement): void {
   const apply = (color: string): void => {
-    settings.bgColor = color
-    applyBgColor()
-    applyAppearance()
-    persistence.save()
+    applyBackground(color)
     mark()
   }
 
@@ -143,10 +108,7 @@ export function buildThemePanel(panel: HTMLElement): void {
     const editable = settings.themeName === 'Custom'
     colorWrap.style.opacity = editable ? '1' : '0.4'
     colorWrap.style.pointerEvents = editable ? 'auto' : 'none'
-    const src =
-      settings.themeName === 'Custom'
-        ? settings.customTheme
-        : (resolveTheme() as unknown as Record<string, string>)
+    const src = themeColorSource()
     COLOR_KEYS.forEach((key) => {
       const val = src[key] || '#000000'
       const color = (
@@ -168,13 +130,9 @@ export function buildThemePanel(panel: HTMLElement): void {
         />
       ) as HTMLInputElement
       const apply = (v: string): void => {
-        settings.customTheme[key] = v
         color.value = toHex6(v)
         hex.value = v
-        if (settings.themeName === 'Custom') {
-          applyAppearance()
-          persistence.save()
-        }
+        setCustomColor(key, v)
       }
       const rowEl = (
         <div class="color-row">
@@ -188,17 +146,12 @@ export function buildThemePanel(panel: HTMLElement): void {
   }
 
   sel.addEventListener('change', () => {
-    settings.themeName = sel.value
-    applyAppearance()
-    persistence.save()
+    setThemeName(sel.value)
     renderColors()
   })
   copyBtn.addEventListener('click', () => {
-    settings.customTheme = { ...(resolveTheme() as unknown as Record<string, string>) }
-    settings.themeName = 'Custom'
+    copyCurrentToCustom()
     sel.value = 'Custom'
-    applyAppearance()
-    persistence.save()
     renderColors()
   })
   renderColors()
