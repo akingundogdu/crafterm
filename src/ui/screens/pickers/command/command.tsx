@@ -1,63 +1,44 @@
-import { commandHistory, panes, state } from '@ui/state/state'
+import { commandHistory, state } from '@ui/state/state'
 import { selectPane } from '@ui/commands/commands'
-import { allTabs, panesInLayout, ancestorFolders } from '@ui/tree/tree'
-import { paneStatus } from '@ui/pane/pane'
-import { terminalService, appService , zshService } from '@services'
-import { paletteCommandRepo } from '@repositories'
+import { terminalService } from '@services'
 import { overlayModal } from '../shared'
 import { UITexts } from '@texts'
+import type { PaletteCommand, OpenTerminal } from './command.types'
+import {
+  loadZshCommands,
+  buildPaletteCommands,
+  filterPaletteCommands,
+  buildOpenTerminals,
+  filterTerminals,
+  filterHistory,
+  makeHistoryBtnCopy,
+  makeHistoryRowCopy
+} from './command.state'
+
+export type { PaletteCommand, OpenTerminal, ZshCommand } from './command.types'
+export { loadZshCommands } from './command.state'
 
 // ---- Command palette: zsh + user categories (predefined / cheatsheets) ----
-
-// zsh alias/function lookup spawns an interactive shell (~seconds), so cache it
-// for the session — the first open pays the cost, the rest are instant.
-let zshCmdCache: { name: string; value: string }[] | null = null
-export async function loadZshCommands(): Promise<{ name: string; value: string }[]> {
-  if (!zshCmdCache) zshCmdCache = await zshService.commands()
-  return zshCmdCache
-}
 
 export async function showCommandPalette(): Promise<void> {
   const { modal, close } = overlayModal('picker-modal picker-modal-wide')
 
   const h = (<h2>{UITexts.Pickers.command.heading}</h2>) as HTMLHeadingElement
   const input = (
-    <input
-      class="search-box-input"
-      type="text"
-      placeholder={UITexts.Pickers.command.placeholder}
-    />
+    <input class="search-box-input" type="text" placeholder={UITexts.Pickers.command.placeholder} />
   ) as HTMLInputElement
   input.spellcheck = false
   const chips = (<div class="md-filters palette-chips" />) as HTMLDivElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, input, chips, list)
 
-  interface Cmd {
-    category: string
-    name: string
-    value: string
-  }
-  const zsh = await loadZshCommands()
-  const all: Cmd[] = [
-    ...zsh.map((c) => ({ category: 'zsh', name: c.name, value: c.value })),
-    ...paletteCommandRepo.getAll().map((c) => ({ category: c.category, name: c.name, value: c.command }))
-  ]
-  // Categories in first-seen order, with zsh guaranteed first.
-  const categories: string[] = ['zsh']
-  for (const c of all) if (!categories.includes(c.category)) categories.push(c.category)
-
+  const { all, categories } = buildPaletteCommands(await loadZshCommands())
   const active = new Set<string>(['zsh']) // multi-select chips; zsh is the default
 
   let sel = 0
-  const filtered = (): Cmd[] => {
-    const q = input.value.trim().toLowerCase()
-    return all.filter(
-      (c) => active.has(c.category) && (!q || (c.name + ' ' + c.value).toLowerCase().includes(q))
-    )
-  }
+  const filtered = (): PaletteCommand[] => filterPaletteCommands(all, active, input.value)
   // Insert (don't run) the command into the active terminal so the user can edit it.
-  const insert = (c: Cmd): void => {
+  const insert = (c: PaletteCommand): void => {
     const id = state.activePaneId
     if (id) {
       selectPane(id)
@@ -84,9 +65,7 @@ export async function showCommandPalette(): Promise<void> {
       const row = (
         <div class={'pick-row palette-row' + (i === sel ? ' active' : '')}>
           {name}
-          {c.value && c.value !== c.name && (
-            <span class="palette-val">{c.value}</span>
-          )}
+          {c.value && c.value !== c.name && <span class="palette-val">{c.value}</span>}
           {tag}
         </div>
       ) as HTMLDivElement
@@ -143,8 +122,6 @@ export async function showCommandPalette(): Promise<void> {
   input.focus()
 }
 
-
-
 // ---- Terminal switcher: list every open terminal/pane, search, jump to one ----
 
 export function showTerminalSwitcher(): void {
@@ -158,43 +135,11 @@ export function showTerminalSwitcher(): void {
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, input, list)
 
-  interface Term {
-    paneId: string
-    title: string
-    group: string
-    status: string
-    cwd: string | null
-    branch: string | null
-    claude: boolean
-  }
-  const all: Term[] = []
-  for (const tab of allTabs(state.tree)) {
-    const trail = ancestorFolders(state.tree, tab.id)
-    const group = trail && trail.length ? trail.map((f) => f.name).join(' / ') : ''
-    for (const pid of panesInLayout(tab.root)) {
-      const p = panes.get(pid)
-      if (!p) continue
-      all.push({
-        paneId: pid,
-        title: tab.title,
-        group,
-        status: paneStatus(p),
-        cwd: p.cwd,
-        branch: p.branch,
-        claude: p.claude
-      })
-    }
-  }
+  const all = buildOpenTerminals()
 
   let sel = 0
-  const filtered = (): Term[] => {
-    const q = input.value.trim().toLowerCase()
-    if (!q) return all
-    return all.filter((t) =>
-      `${t.title} ${t.group} ${t.branch ?? ''} ${t.cwd ?? ''}`.toLowerCase().includes(q)
-    )
-  }
-  const focusTerm = (t: Term): void => {
+  const filtered = (): OpenTerminal[] => filterTerminals(all, input.value)
+  const focusTerm = (t: OpenTerminal): void => {
     selectPane(t.paneId)
     close()
   }
@@ -280,16 +225,8 @@ export function showCommandHistory(): void {
 
   const all = [...commandHistory].reverse() // most recent first
 
-  const copy = (cmd: string, btn: HTMLElement): void => {
-    void navigator.clipboard.writeText(cmd)
-    const prev = btn.textContent
-    btn.textContent = 'Copied'
-    setTimeout(() => (btn.textContent = prev), 1000)
-  }
-
   const render = (): void => {
-    const q = input.value.trim().toLowerCase()
-    const items = q ? all.filter((c) => c.toLowerCase().includes(q)) : all
+    const items = filterHistory(all, input.value)
     list.replaceChildren()
     if (!items.length) {
       const hint = (
@@ -301,17 +238,14 @@ export function showCommandHistory(): void {
     items.slice(0, 500).forEach((cmd) => {
       const text = (<span class="cmd-text">{cmd}</span>) as HTMLSpanElement
       const btn = (<button class="cmd-copy">Copy</button>) as HTMLButtonElement
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        copy(cmd, btn)
-      })
+      btn.addEventListener('click', makeHistoryBtnCopy(cmd, btn))
       const row = (
         <div class="pick-row cmd-row">
           {text}
           {btn}
         </div>
       ) as HTMLDivElement
-      row.addEventListener('click', () => copy(cmd, btn))
+      row.addEventListener('click', makeHistoryRowCopy(cmd, btn))
       list.appendChild(row)
     })
   }
