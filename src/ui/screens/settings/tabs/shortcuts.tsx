@@ -1,17 +1,13 @@
 import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
 import {
   KEYBINDINGS,
   effectiveCombo,
   comboLabel,
-  comboFromEvent,
-  setBinding,
-  resetBinding,
-  setRecording,
-  isModifierKey
+  setRecording
 } from '@ui/keybindings/keybindings'
 import { settingsCleanups } from '../shared'
+import { makeResetBinding, applyRecordedKey } from './shortcuts.state'
 
 export function buildShortcutsPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.shortcuts.heading}</h3>`)
@@ -40,11 +36,7 @@ export function buildShortcutsPanel(panel: HTMLElement): void {
         <button
           class="shortcut-reset"
           title={UITexts.Settings.shortcuts.resetToDefault}
-          onClick={() => {
-            resetBinding(a.id)
-            persistence.save()
-            render()
-          }}
+          onClick={makeResetBinding(a.id, render)}
         >
           ↺
         </button>
@@ -72,18 +64,7 @@ export function buildShortcutsPanel(panel: HTMLElement): void {
     setRecording(true)
     render()
     handler = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        stop()
-        render()
-        return
-      }
-      e.preventDefault()
-      e.stopPropagation()
-      if (isModifierKey(e.key)) return // wait for a real key
-      const combo = comboFromEvent(e)
-      if (!combo) return // Cmd required
-      setBinding(id, combo)
-      persistence.save()
+      if (applyRecordedKey(id, e) === 'ignore') return
       stop()
       render()
     }
