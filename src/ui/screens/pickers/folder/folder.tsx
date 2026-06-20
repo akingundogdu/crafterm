@@ -1,12 +1,11 @@
 import type { DirEntry } from '@services/fs/fs.types'
 import { settings } from '@ui/state/state'
-import { openTerminalInDir } from '@ui/commands/commands'
-import { fsService , dirService } from '@services'
+import { dirService } from '@services'
 import { overlayModal } from '../shared'
 import { UITexts } from '@texts'
+import { filterDirs, makeOpenHere } from './folder.state'
 
 // ---- Pick a folder (returns its path) — used by Settings to choose md folders ----
-
 export function pickFolderPath(startDir?: string): Promise<string | null> {
   return new Promise((resolve) => {
     const { overlay, modal, close } = overlayModal('picker-modal')
@@ -39,10 +38,7 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
     let current = ''
     let sel = 0
 
-    const filtered = (): DirEntry[] => {
-      const q = input.value.trim().toLowerCase()
-      return q ? dirs.filter((d) => d.name.toLowerCase().includes(q)) : dirs
-    }
+    const filtered = (): DirEntry[] => filterDirs(dirs, input.value)
     const highlight = (): void => {
       list.querySelectorAll<HTMLElement>('.picker-row').forEach((el, i) => {
         el.classList.toggle('active', i === sel)
@@ -129,7 +125,6 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
 }
 
 // ---- Cmd+P: browse folders from the code root, open one in a new terminal ----
-
 export async function showFolderPicker(): Promise<void> {
   const { modal, close } = overlayModal('picker-modal')
 
@@ -151,10 +146,7 @@ export async function showFolderPicker(): Promise<void> {
   let parent: string | null = null
   let sel = 0
 
-  const filtered = (): DirEntry[] => {
-    const q = input.value.trim().toLowerCase()
-    return q ? dirs.filter((d) => d.name.toLowerCase().includes(q)) : dirs
-  }
+  const filtered = (): DirEntry[] => filterDirs(dirs, input.value)
 
   const renderList = (): void => {
     const items = filtered()
@@ -196,10 +188,7 @@ export async function showFolderPicker(): Promise<void> {
     })
   }
 
-  const openHere = (dir: string): void => {
-    void openTerminalInDir(dir)
-    close()
-  }
+  const openHere = makeOpenHere(close)
 
   const load = async (p?: string): Promise<void> => {
     const listing = await dirService.list(p)
