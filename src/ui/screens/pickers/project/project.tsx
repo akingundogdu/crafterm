@@ -1,17 +1,20 @@
 import type { ProjectNode, Application } from '@ui/types/types'
 import { settings, state } from '@ui/state/state'
 import { UITexts } from '@texts'
-import {
-  openProject,
-  newTab,
-  splitProjectRight,
-  splitActivePane,
-  runApplications,
-  createFeature,
-  resolveAppPath
-} from '@ui/commands/commands'
+import { runApplications, createFeature, resolveAppPath } from '@ui/commands/commands'
 import { flattenProjects } from '@ui/catalog/catalog'
 import { overlayModal, makeSearchInput } from '../shared'
+import {
+  sanitizeBranch,
+  disableSpellcheck,
+  buildProjectEntries,
+  filterEntries,
+  filterAppProjects,
+  stepSelection,
+  makeChoose,
+  makeRunSplit,
+  makeRunTab
+} from './project.state'
 
 // ---- Project picker: open a saved project (or a blank terminal) ----
 
@@ -31,59 +34,17 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
           ? UITexts.Pickers.project.splitPlaceholder
           : UITexts.Pickers.project.openPlaceholder
       }
-      ref={(el: HTMLInputElement) => {
-        el.spellcheck = false
-      }}
+      ref={disableSpellcheck}
     />
   ) as HTMLInputElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, input, list)
 
-  interface Entry {
-    label: string
-    sub?: string
-    openTab: () => void
-    openSplit: () => void
-  }
-  const entries: Entry[] = [
-    {
-      label: 'Blank terminal',
-      openTab: () => void newTab(parentFolderId),
-      openSplit: () => void splitActivePane('row')
-    },
-    ...flattenProjects(state.tree).map((p) => ({
-      label: p.name,
-      sub: p.command ? `${p.path} · ${p.command}` : p.path,
-      // Always nest the new terminal under the picked project's node (not the
-      // cmd+O context), so it's grouped with that project in the sidebar.
-      openTab: () => void openProject(p),
-      openSplit: () => void splitProjectRight(p)
-    })),
-    // run-apps entries for projects that define applications
-    ...flattenProjects(state.tree)
-      .filter((p) => p.apps?.length)
-      .map((p) => ({
-        label: `▷ ${p.name} — run apps`,
-        sub: `${p.apps?.length} app${p.apps?.length === 1 ? '' : 's'}`,
-        openTab: () => showRunApps(p),
-        openSplit: () => showRunApps(p)
-      }))
-  ]
+  const entries = buildProjectEntries(parentFolderId, showRunApps)
   let sel = 0
 
-  const filtered = (): Entry[] => {
-    const q = input.value.trim().toLowerCase()
-    if (!q) return entries
-    // match name, path and command (contains)
-    return entries.filter((e) => (e.label + ' ' + (e.sub ?? '')).toLowerCase().includes(q))
-  }
-
-  // Enter (or click) opens a new tab; ⌘Enter (or split mode) splits the active pane.
-  const choose = (e: Entry, split: boolean): void => {
-    if (split || splitMode) e.openSplit()
-    else e.openTab()
-    close()
-  }
+  const filtered = (): typeof entries => filterEntries(entries, input.value)
+  const choose = makeChoose(close, splitMode)
 
   const render = (): void => {
     const items = filtered()
@@ -118,13 +79,9 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
     e.stopPropagation()
     const items = filtered()
     if (e.key === 'Escape') close()
-    else if (e.key === 'ArrowDown') {
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
-      sel = Math.min(items.length - 1, sel + 1)
-      highlight()
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      sel = Math.max(0, sel - 1)
+      sel = stepSelection(e.key, sel, items.length)
       highlight()
     } else if (e.key === 'Enter') {
       e.preventDefault()
@@ -134,7 +91,6 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
   render()
   input.focus()
 }
-
 
 // ---- Run applications: pick environment + apps, open a tiled tab ----
 
@@ -239,10 +195,7 @@ function pickProjectWithApps(title: string, onPick: (p: ProjectNode) => void): v
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, input, list)
   let sel = 0
-  const filtered = (): ProjectNode[] => {
-    const q = input.value.trim().toLowerCase()
-    return q ? projects.filter((p) => `${p.name} ${p.path}`.toLowerCase().includes(q)) : projects
-  }
+  const filtered = (): ProjectNode[] => filterAppProjects(projects, input.value)
   const choose = (p: ProjectNode): void => {
     close()
     onPick(p)
@@ -276,13 +229,9 @@ function pickProjectWithApps(title: string, onPick: (p: ProjectNode) => void): v
     e.stopPropagation()
     const items = filtered()
     if (e.key === 'Escape') close()
-    else if (e.key === 'ArrowDown') {
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
-      sel = Math.min(items.length - 1, sel + 1)
-      highlight()
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      sel = Math.max(0, sel - 1)
+      sel = stepSelection(e.key, sel, items.length)
       highlight()
     } else if (e.key === 'Enter') {
       e.preventDefault()
@@ -319,6 +268,13 @@ export function showRunCommand(project: ProjectNode): void {
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(list)
   for (const rc of cmds) {
+    const target = {
+      name: rc.name,
+      path: project.path,
+      command: rc.command,
+      env: project.env,
+      shell: project.shell
+    }
     const main = (
       <div class="claude-main">
         <span class="picker-name">{rc.name}</span>
@@ -330,36 +286,13 @@ export function showRunCommand(project: ProjectNode): void {
         Split
       </button>
     ) as HTMLButtonElement
-    splitBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void splitProjectRight({
-        name: rc.name,
-        path: project.path,
-        command: rc.command,
-        env: project.env,
-        shell: project.shell
-      })
-      close()
-    })
+    splitBtn.addEventListener('click', makeRunSplit(target, close))
     const tabBtn = (
       <button class="wt-act" title={UITexts.Pickers.project.runTabTitle}>
         New tab
       </button>
     ) as HTMLButtonElement
-    tabBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void openProject(
-        {
-          name: rc.name,
-          path: project.path,
-          command: rc.command,
-          env: project.env,
-          shell: project.shell
-        },
-        project.id
-      )
-      close()
-    })
+    tabBtn.addEventListener('click', makeRunTab(target, project.id, close))
     const row = (
       <div class="pick-row project-row">
         {main}
@@ -406,21 +339,13 @@ export function showRunApp(project: ProjectNode, app: Application): void {
         Split
       </button>
     ) as HTMLButtonElement
-    splitBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void splitProjectRight(target)
-      close()
-    })
+    splitBtn.addEventListener('click', makeRunSplit(target, close))
     const tabBtn = (
       <button class="wt-act" title={UITexts.Pickers.project.runTabTitle}>
         New tab
       </button>
     ) as HTMLButtonElement
-    tabBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void openProject(target, project.id)
-      close()
-    })
+    tabBtn.addEventListener('click', makeRunTab(target, project.id, close))
     const row = (
       <div class="pick-row project-row">
         {main}
@@ -433,8 +358,6 @@ export function showRunApp(project: ProjectNode, app: Application): void {
 }
 
 // ---- Feature setup: feature name + branch + env + apps (+ per-app worktree) ----
-
-const sanitizeBranch = (s: string): string => s.trim().replace(/\s+/g, '-')
 
 export function showFeatureSetup(project: ProjectNode): void {
   const apps = project.apps ?? []
