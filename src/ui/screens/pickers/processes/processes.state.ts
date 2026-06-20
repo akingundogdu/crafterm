@@ -1,6 +1,7 @@
 import { collectBackgroundProcesses, killProcess, openProcessView } from '@services/bgproc'
 import type { CollectedProcess } from '@services/bgproc'
 import { iosService } from '@services'
+import type { DeviceGroup } from './processes.types'
 
 export const PROC_STATUS_LABEL: Record<string, string> = {
   running: 'running',
@@ -28,12 +29,6 @@ export function filterProcesses(all: CollectedProcess[], query: string): Collect
         .toLowerCase()
         .includes(q)
   )
-}
-
-export interface DeviceGroup {
-  name: string
-  kind: string
-  items: CollectedProcess[]
 }
 
 // Crafterm iOS runs grouped by target (kind + name), first-seen order preserved.

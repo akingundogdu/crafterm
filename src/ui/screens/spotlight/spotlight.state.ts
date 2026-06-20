@@ -21,7 +21,7 @@ import { paneStatus } from '@ui/pane/pane'
 import { terminalService, fsService, plansService, backlogService } from '@services'
 import { TABS } from './components/spot-tabs'
 import type { SpotEntry, SpotSource } from './components/result-list'
-import type { ResultListHandle } from './components/result-list.types'
+import type { SpotlightKeyContext } from './spotlight.types'
 
 export const BADGE_LABEL: Record<SpotSource, string> = {
   ...SOURCE_LABEL,
@@ -237,16 +237,6 @@ export async function loadBacklog(): Promise<SpotEntry[]> {
 }
 
 // ---- Handler factories ----
-
-// Context the spotlight keydown handler operates on (closure-owned by the view).
-export interface SpotlightKeyContext {
-  close: () => void
-  switchTab: (tab: string) => void
-  choose: (e: SpotEntry) => void
-  resultList: ResultListHandle
-  getActiveTab: () => string
-  comboToTab: Map<string, string>
-}
 
 // Keydown handler: Escape closes; Tab/Shift+Tab cycles tabs; a bound ⌘ combo
 // jumps to its tab; arrows move the selection; Enter chooses (⌘Enter → altRun).

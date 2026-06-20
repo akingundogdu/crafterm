@@ -1,6 +1,6 @@
 import type { Bookmark } from '@ui/types/types'
 import { bookmarkRepo } from '@repositories'
-import type { TypeFilter } from './bookmark-meta'
+import type { TypeFilter } from './bookmarks.types'
 import { showBookmarkForm } from './components/bookmark-form'
 
 // The filter chips, in display order.
