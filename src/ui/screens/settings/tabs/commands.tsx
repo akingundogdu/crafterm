@@ -1,11 +1,18 @@
-import { settings, uid } from '@ui/state/state'
+import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
-import { promptForm } from '@ui/dialog/dialog'
-import { paletteCommandRepo } from '@repositories'
-import type { PaletteCommand } from '@ui/types/types'
 import { pickFolderPath } from '../../pickers/folder/folder'
 import { buildSubTabs, labeledInput } from '../shared'
+import {
+  saveIdeCommand,
+  saveOpenMyZsh,
+  paletteCategories,
+  allPaletteCommands,
+  removePaletteCommand,
+  editPaletteCommand,
+  prettyMdPath,
+  removeMdFolder,
+  addMdFolder
+} from './commands.state'
 
 export function buildCommandsPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.commands.heading}</h3>`)
@@ -13,15 +20,9 @@ export function buildCommandsPanel(panel: HTMLElement): void {
     {
       label: UITexts.Settings.commands.general,
       build: (el) => {
-        const ide = labeledInput(el, UITexts.Settings.commands.openCodeFile, 'text', settings.commands.ide, (v) => {
-          settings.commands.ide = v.trim() || 'ide'
-          persistence.save()
-        })
+        const ide = labeledInput(el, UITexts.Settings.commands.openCodeFile, 'text', settings.commands.ide, saveIdeCommand)
         ide.style.maxWidth = '280px'
-        const zsh = labeledInput(el, UITexts.Settings.commands.updateZshConfig, 'text', settings.commands.openMyZsh, (v) => {
-          settings.commands.openMyZsh = v.trim() || 'openmyzsh'
-          persistence.save()
-        })
+        const zsh = labeledInput(el, UITexts.Settings.commands.updateZshConfig, 'text', settings.commands.openMyZsh, saveOpenMyZsh)
         zsh.style.maxWidth = '280px'
         el.insertAdjacentHTML(
           'beforeend',
@@ -52,15 +53,12 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
 
   const render = (): void => {
     list.replaceChildren()
-    const cmds = paletteCommandRepo.getAll()
+    const cmds = allPaletteCommands()
     if (!cmds.length) {
       list.insertAdjacentHTML('beforeend', `<div class="field-hint">${UITexts.Settings.commands.noCommands}</div>`)
       return
     }
-    const cats: string[] = []
-    for (const c of cmds) if (!cats.includes(c.category)) cats.push(c.category)
-    cats.sort((a, b) => a.localeCompare(b))
-    cats.forEach((cat) => {
+    paletteCategories(cmds).forEach((cat) => {
       const head = (<div class="palette-admin-cat">{cat}</div>) as HTMLDivElement
       list.appendChild(head)
       cmds
@@ -70,7 +68,7 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
           edit.addEventListener('click', () => void editPaletteCommand(c).then(render))
           const del = (<button class="wt-act wt-remove">{UITexts.Settings.commands.delete}</button>) as HTMLButtonElement
           del.addEventListener('click', () => {
-            paletteCommandRepo.remove(c.id)
+            removePaletteCommand(c.id)
             render()
           })
           const row = (
@@ -91,29 +89,6 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
   render()
 }
 
-// Add or edit one palette command via the shared form modal.
-async function editPaletteCommand(existing?: PaletteCommand): Promise<void> {
-  const values = await promptForm({
-    title: existing ? UITexts.Settings.commands.editCommand : UITexts.Settings.commands.newCommand,
-    fields: [
-      { key: 'category', label: UITexts.Settings.commands.category, value: existing?.category, placeholder: 'predefined, git, linux…' },
-      { key: 'name', label: UITexts.Settings.commands.name, value: existing?.name, placeholder: 'short label' },
-      { key: 'command', label: UITexts.Settings.commands.command, value: existing?.command, placeholder: 'git status' }
-    ],
-    confirmText: existing ? UITexts.Settings.commands.save : UITexts.Settings.commands.add
-  })
-  if (!values) return // cancelled, or category (required first field) left empty
-  const command = (values.command || '').trim()
-  if (!command) return
-  const cmd: PaletteCommand = {
-    id: existing?.id ?? uid('pc'),
-    category: (values.category || '').trim().toLowerCase() || 'predefined',
-    name: (values.name || '').trim() || command,
-    command
-  }
-  paletteCommandRepo.upsert(cmd)
-}
-
 // Folders shown as filter chips in the Cmd+O markdown finder. Picked via the
 // folder browser; only these folders are listed (and searched) there.
 function buildMarkdownFoldersControl(panel: HTMLElement): void {
@@ -129,15 +104,13 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
   const addBtn = (<button class="settings-inline-btn">{UITexts.Settings.commands.addFolder}</button>) as HTMLButtonElement
   panel.appendChild(addBtn)
 
-  const pretty = (p: string): string => p.replace(/^\/Users\/[^/]+/, '~')
-
   const render = (): void => {
     list.replaceChildren()
     if (!settings.commands.mdFolders.length) {
       list.insertAdjacentHTML('beforeend', `<div class="field-hint">${UITexts.Settings.commands.noFolders}</div>`)
     }
     settings.commands.mdFolders.forEach((path, idx) => {
-      const label = (<span class="mdfolder-path">{pretty(path)}</span>) as HTMLSpanElement
+      const label = (<span class="mdfolder-path">{prettyMdPath(path)}</span>) as HTMLSpanElement
       label.title = path
       const del = (
         <button class="project-del" title={UITexts.Settings.commands.remove}>
@@ -145,8 +118,7 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
         </button>
       ) as HTMLButtonElement
       del.addEventListener('click', () => {
-        settings.commands.mdFolders.splice(idx, 1)
-        persistence.save()
+        removeMdFolder(idx)
         render()
       })
       const row = (
@@ -161,12 +133,7 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
 
   addBtn.addEventListener('click', async () => {
     const picked = await pickFolderPath()
-    if (!picked) return
-    if (!settings.commands.mdFolders.includes(picked)) {
-      settings.commands.mdFolders.push(picked)
-      persistence.save()
-      render()
-    }
+    if (picked && addMdFolder(picked)) render()
   })
   render()
 }
