@@ -1,10 +1,18 @@
-import { state, panes } from '@ui/state/state'
-import { allTabs, panesInLayout, ancestorFolders } from '@ui/tree/tree'
-import { paneStatus } from '@ui/pane/pane'
-import { selectPane, openTerminalRunning, resumeClaudeSession } from '@ui/commands/commands'
-import { appService, claudeService , zshService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
 import { UITexts } from '@texts'
+import {
+  collectSessions,
+  filterSessions,
+  makeSessionRowClick,
+  loadAccounts,
+  filterAccounts,
+  makeAccountRowClick,
+  loadResumeSessions,
+  filterResumeSessions,
+  resumeSession,
+  relTime,
+  shortCwd
+} from './claude.state'
 
 // ---- Claude sessions dashboard: list all Claude panes, jump to one ----
 
@@ -18,43 +26,19 @@ export function showClaudeDashboard(): void {
 
   const render = (): void => {
     list.replaceChildren()
-    interface Sess {
-      paneId: string
-      title: string
-      group: string
-      status: string
-      cwd: string | null
-      branch: string | null
-    }
-    const sessions: Sess[] = []
-    for (const tab of allTabs(state.tree)) {
-      const trail = ancestorFolders(state.tree, tab.id)
-      const group = trail && trail.length ? trail.map((f) => f.name).join(' / ') : ''
-      for (const pid of panesInLayout(tab.root)) {
-        const p = panes.get(pid)
-        if (p?.claude) {
-          sessions.push({ paneId: pid, title: tab.title, group, status: paneStatus(p), cwd: p.cwd, branch: p.branch })
-        }
-      }
-    }
+    const sessions = collectSessions()
     if (!sessions.length) {
-      const hint = (<div class="empty-hint">No Claude sessions</div>) as HTMLDivElement
-      list.appendChild(hint)
+      list.appendChild((<div class="empty-hint">No Claude sessions</div>) as HTMLDivElement)
       return
     }
-    const q = search.value.trim().toLowerCase()
-    const shown = q
-      ? sessions.filter((s) =>
-          `${s.title} ${s.group} ${s.branch ?? ''} ${s.cwd ?? ''}`.toLowerCase().includes(q)
-        )
-      : sessions
+    const shown = filterSessions(sessions, search.value)
     if (!shown.length) {
       list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
       return
     }
     shown.forEach((s) => {
       const row = (
-        <div class="pick-row claude-row">
+        <div class="pick-row claude-row" onClick={makeSessionRowClick(s.paneId, done)}>
           <span class={'status-dot ' + s.status} />
           <div class="claude-main">
             <span class="claude-title">{s.group ? `${s.title}  ·  ${s.group}` : s.title}</span>
@@ -62,10 +46,6 @@ export function showClaudeDashboard(): void {
           </div>
         </div>
       ) as HTMLDivElement
-      row.addEventListener('click', () => {
-        selectPane(s.paneId)
-        done()
-      })
       list.appendChild(row)
     })
   }
@@ -90,10 +70,7 @@ export function showClaudeDashboard(): void {
 // Discovers any `claude-switch-<name>` alias/function (e.g. `cswap --switch-to N`)
 // and runs the chosen one in a new terminal. New Claude terminals then use it.
 export async function showClaudeAccountSwitcher(): Promise<void> {
-  const cmds = await zshService.commands()
-  const accounts = cmds
-    .filter((c) => /^claude-switch-/.test(c.name))
-    .map((c) => ({ name: c.name, label: c.name.replace(/^claude-switch-/, ''), value: c.value }))
+  const accounts = await loadAccounts()
   const { modal, close } = overlayModal('list-modal')
 
   const h = (<h2>{UITexts.Pickers.claude.switchAccountHeading}</h2>) as HTMLHeadingElement
@@ -112,8 +89,7 @@ export async function showClaudeAccountSwitcher(): Promise<void> {
   modal.append(search, list)
 
   const renderAcc = (): void => {
-    const q = search.value.trim().toLowerCase()
-    const items = accounts.filter((a) => !q || `${a.label} ${a.value ?? ''}`.toLowerCase().includes(q))
+    const items = filterAccounts(accounts, search.value)
     list.replaceChildren()
     if (!items.length) {
       list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
@@ -121,15 +97,11 @@ export async function showClaudeAccountSwitcher(): Promise<void> {
     }
     items.forEach((a) => {
       const row = (
-        <button class="pick-row project-row">
+        <button class="pick-row project-row" onClick={makeAccountRowClick(a.name, a.label, close)}>
           <span class="picker-name">{a.label}</span>
           {a.value && <span class="project-sub">{a.value}</span>}
         </button>
       ) as HTMLButtonElement
-      row.addEventListener('click', () => {
-        void openTerminalRunning(a.name, `Claude: ${a.label}`)
-        close()
-      })
       list.appendChild(row)
     })
   }
@@ -138,18 +110,9 @@ export async function showClaudeAccountSwitcher(): Promise<void> {
 }
 
 // ---- Resume Claude session: list ~/.claude history, search, open with --resume ----
-function relTime(ms: number): string {
-  const s = Math.max(0, (Date.now() - ms) / 1000)
-  if (s < 60) return 'just now'
-  const m = s / 60
-  if (m < 60) return `${Math.floor(m)}m ago`
-  const h = m / 60
-  if (h < 24) return `${Math.floor(h)}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
 
 export async function showClaudeSessionResume(): Promise<void> {
-  const sessions = await claudeService.sessions()
+  const sessions = await loadResumeSessions()
   const { modal, close } = overlayModal('picker-modal picker-modal-wide')
 
   const h = (<h2>{UITexts.Pickers.claude.resumeHeading}</h2>) as HTMLHeadingElement
@@ -164,23 +127,9 @@ export async function showClaudeSessionResume(): Promise<void> {
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, input, list)
 
-  const shortCwd = (c: string | null): string =>
-    c ? c.replace(/^\/(Users|home)\/[^/]+/, '~') : '(unknown dir)'
-  const titleFor = (s: (typeof sessions)[number]): string => {
-    const base = s.cwd ? s.cwd.replace(/\/+$/, '').split('/').pop() || 'claude' : 'claude'
-    return `↺ ${base}`
-  }
-
   let sel = 0
-  const filtered = (): typeof sessions => {
-    const q = input.value.trim().toLowerCase()
-    if (!q) return sessions
-    return sessions.filter((s) => (s.summary + ' ' + (s.cwd ?? '')).toLowerCase().includes(q))
-  }
-  const resume = (s: (typeof sessions)[number]): void => {
-    void resumeClaudeSession(s.id, s.cwd, titleFor(s))
-    close()
-  }
+  const filtered = (): typeof sessions => filterResumeSessions(sessions, input.value)
+  const resume = (s: (typeof sessions)[number]): void => resumeSession(s, close)
   const highlight = (): void => {
     list.querySelectorAll<HTMLElement>('.pick-row').forEach((el, i) => {
       el.classList.toggle('active', i === sel)
