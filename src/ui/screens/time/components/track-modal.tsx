@@ -2,8 +2,8 @@ import { createOverlay, createSelect, createButton } from '@ui/components'
 import { makeCloseButton } from '@ui/dialog/dialog'
 import { state, panes } from '@ui/state/state'
 import { flattenProjects, findProjectByPath } from '@ui/catalog/catalog'
-import { updatePaneStatus } from '@ui/pane/pane'
 import { UITexts } from '@texts'
+import { makeStopTracking, makeTrack } from './track-modal.state'
 
 // Bind a terminal to a project/feature for automatic time tracking.
 export function openTrackModal(paneId: string): void {
@@ -46,12 +46,7 @@ export function openTrackModal(paneId: string): void {
     actions.appendChild(
       createButton({
         text: UITexts.Time.trackModal.stopTracking,
-        onClick: () => {
-          pane.trackProjectPath = null
-          pane.trackFeatureId = null
-          updatePaneStatus(pane)
-          ov.close()
-        }
+        onClick: makeStopTracking(pane, ov.close)
       })
     )
   }
@@ -59,13 +54,12 @@ export function openTrackModal(paneId: string): void {
     createButton({
       text: UITexts.Time.trackModal.track,
       variant: 'primary',
-      onClick: () => {
-        if (!proj.value) return
-        pane.trackProjectPath = proj.value
-        pane.trackFeatureId = feat.value || null
-        updatePaneStatus(pane)
-        ov.close()
-      }
+      onClick: makeTrack(
+        pane,
+        () => proj.value,
+        () => feat.value,
+        ov.close
+      )
     })
   )
 

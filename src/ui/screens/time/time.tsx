@@ -14,31 +14,18 @@ import {
 } from '@services/domain/time'
 import { showReport } from './components/time-report'
 import { openTrackModal } from './components/track-modal'
+import type { ActiveTimer, AutoSession } from './time.types'
+import { logInterval, shouldTrackPane } from './time.state'
 
 // Re-exported for main.ts, which still imports openTrackModal from the time module.
 export { openTrackModal } from './components/track-modal'
 
-const IDLE_MS = 5 * 60_000 // no activity this long ⇒ stop auto-counting
-
 // The running timer (null when stopped). Survives tab switches.
-// `pomodoroMs` set ⇒ it's a countdown that auto-finishes (alarm + log).
-let active: {
-  projectPath: string
-  featureId: string | null
-  start: number
-  pomodoroMs?: number
-  repeat?: boolean // when a pomodoro finishes, auto-start another of the same length
-} | null = null
+let active: ActiveTimer | null = null
 let ticker: number | null = null
 
-// Automatic (terminal-bound) tracking: counts while a tracked terminal is the
-// active pane, the window is focused, and there's recent activity.
-let autoSession: {
-  paneId: string
-  projectPath: string
-  featureId: string | null
-  start: number
-} | null = null
+// Automatic (terminal-bound) tracking session (null when idle).
+let autoSession: AutoSession | null = null
 let lastUserActivity = Date.now()
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -147,17 +134,7 @@ function updateToggle(): void {
 // Log the active interval (if long enough) and clear the timer.
 function stopActive(): void {
   if (active) {
-    const dur = Date.now() - active.start
-    if (dur >= 1000) {
-      timeEntryRepo.upsert({
-        id: uid('te'),
-        projectPath: active.projectPath,
-        featureId: active.featureId || undefined,
-        start: active.start,
-        end: Date.now(),
-        source: active.pomodoroMs ? 'pomodoro' : 'manual'
-      })
-    }
+    logInterval(active, active.pomodoroMs ? 'pomodoro' : 'manual')
   }
   active = null
   if (ticker) {
@@ -243,28 +220,14 @@ async function addFeature(): Promise<void> {
 
 function closeAutoSession(): void {
   if (!autoSession) return
-  const dur = Date.now() - autoSession.start
-  if (dur >= 1000) {
-    timeEntryRepo.upsert({
-      id: uid('te'),
-      projectPath: autoSession.projectPath,
-      featureId: autoSession.featureId || undefined,
-      start: autoSession.start,
-      end: Date.now(),
-      source: 'auto'
-    })
-  }
+  logInterval(autoSession, 'auto')
   autoSession = null
 }
 
 function autoTick(): void {
   const id = state.activePaneId
   const pane = id ? panes.get(id) : null
-  const tracked = pane?.trackProjectPath
-  const userActive = Date.now() - lastUserActivity < IDLE_MS
-  const termActive = pane ? Date.now() - pane.lastActivity < IDLE_MS : false
-  const shouldTrack = !!tracked && document.hasFocus() && (userActive || termActive)
-  if (shouldTrack && pane && id) {
+  if (shouldTrackPane(pane, lastUserActivity) && pane && id) {
     if (!autoSession || autoSession.paneId !== id) {
       closeAutoSession()
       autoSession = {

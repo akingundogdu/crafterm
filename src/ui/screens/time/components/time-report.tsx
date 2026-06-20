@@ -5,6 +5,7 @@ import { findProjectByPath, findFeature } from '@ui/catalog/catalog'
 import { timeEntryRepo } from '@repositories'
 import { fmtHM, rangeStart, reportByProject, type Range } from '@services/domain/time'
 import { UITexts } from '@texts'
+import { rangeLabel, rangeTab, makeCopyClick } from './time-report.state'
 
 // Report modal: total per project (and per feature) over a date range.
 export function showReport(): void {
@@ -17,15 +18,13 @@ export function showReport(): void {
   // Plain-text version of the current report, rebuilt on every render so the
   // "Copy" button can hand the user a paste-ready summary for clients.
   let reportText = ''
-  const rangeLabel = (): string =>
-    range === 'today' ? UITexts.Time.report.today : range === 'week' ? UITexts.Time.report.week : range === 'month' ? UITexts.Time.report.month : UITexts.Time.report.all
 
   const render = (): void => {
     chipsRow.replaceChildren()
     ;(['today', 'week', 'month', 'all'] as Range[]).forEach((r) => {
       chipsRow.appendChild(
         createButton({
-          text: r === 'today' ? UITexts.Time.report.tabToday : r === 'week' ? UITexts.Time.report.tabWeek : r === 'month' ? UITexts.Time.report.tabMonth : UITexts.Time.report.tabAll,
+          text: rangeTab(r),
           className: 'time-report-chip' + (r === range ? ' active' : ''),
           onClick: () => {
             range = r
@@ -40,10 +39,10 @@ export function showReport(): void {
     body.replaceChildren()
     if (!byProj.size) {
       body.insertAdjacentHTML('beforeend', `<div class="notif-empty"></div>`)
-      reportText = `Time report — ${rangeLabel()}\nNo time logged in this range`
+      reportText = `Time report — ${rangeLabel(range)}\nNo time logged in this range`
       return
     }
-    const lines: string[] = [`Time report — ${rangeLabel()}`, '']
+    const lines: string[] = [`Time report — ${rangeLabel(range)}`, '']
     let grand = 0
     for (const [path, info] of [...byProj].sort((a, b) => b[1].total - a[1].total)) {
       grand += info.total
@@ -84,11 +83,7 @@ export function showReport(): void {
   render()
 
   const copyBtn = createButton({ text: UITexts.Time.report.copy, className: 'settings-inline-btn' })
-  copyBtn.addEventListener('click', () => {
-    void navigator.clipboard.writeText(reportText)
-    copyBtn.textContent = UITexts.Time.report.copied
-    setTimeout(() => (copyBtn.textContent = UITexts.Time.report.copy), 1200)
-  })
+  copyBtn.addEventListener('click', makeCopyClick(copyBtn, () => reportText))
   const foot = (<div class="time-report-foot">{copyBtn}</div>) as HTMLDivElement
 
   const modal = (
