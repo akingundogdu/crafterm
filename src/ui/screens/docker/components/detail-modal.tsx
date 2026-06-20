@@ -1,80 +1,20 @@
-import { Terminal } from '@xterm/xterm'
 import { UITexts } from '@texts'
-import { FitAddon } from '@xterm/addon-fit'
 import type { DockerKind } from '@services/docker/docker.types'
-import { settings, resolveTheme } from '@ui/state/state'
-import { terminalService, dockerService } from '@services'
+import { dockerService } from '@services'
 import { makeCloseButton } from '@ui/dialog/dialog'
 import { createButton, createOverlay } from '@ui/components'
 import { inspectFields } from '../inspect'
+import type { EmbeddedTerm, DetailTab, DetailModalOptions } from './detail-modal.types'
+import { makeEmbeddedTerm, parseInspect, tabsFor, makeRawToggle, bindEscapeClose } from './detail-modal.state'
 
 // The Docker resource detail modal: a tabbed Inspect / Logs / Terminal view.
 // Containers get all three (Terminal only when running); other kinds get Inspect
 // only. Logs/Terminal embed a real pty-backed xterm, disposed on close.
 
-interface EmbeddedTerm {
-  dispose: () => void
-}
-
-// Spawn a pty, mount an xterm into `hostEl`, and inject `command` once the login
-// shell has settled. Output is routed to this xterm by a pty-id-filtered
-// onData/onExit listener so it never collides with the main `panes` stream.
-async function makeEmbeddedTerm(hostEl: HTMLElement, command: string): Promise<EmbeddedTerm> {
-  const id = await terminalService.createPty({})
-  const term = new Terminal({
-    fontFamily: settings.font.family,
-    fontSize: settings.font.size,
-    cursorBlink: true,
-    allowProposedApi: true,
-    theme: resolveTheme()
-  })
-  const fit = new FitAddon()
-  term.loadAddon(fit)
-  term.open(hostEl)
-  const sync = (): void => {
-    try {
-      fit.fit()
-      terminalService.resize(id, term.cols, term.rows)
-    } catch {
-      /* fit can throw before the host is laid out — safe to ignore */
-    }
-  }
-  sync()
-  term.onData((d) => terminalService.input(id, d))
-  let exited = false
-  const onData = (pid: string, data: string): void => {
-    if (pid === id) term.write(data)
-  }
-  const onExit = (pid: string): void => {
-    if (pid === id) {
-      exited = true
-      term.write('\r\n\x1b[2m[process exited]\x1b[0m')
-    }
-  }
-  terminalService.onData(onData)
-  terminalService.onExit(onExit)
-  const ro = new ResizeObserver(() => sync())
-  ro.observe(hostEl)
-  setTimeout(() => terminalService.input(id, command + '\r'), 350)
-  return {
-    dispose: () => {
-      ro.disconnect()
-      if (!exited) terminalService.kill(id)
-      term.dispose()
-    }
-  }
-}
-
 // Render the parsed inspect into a structured table, with a Raw JSON toggle.
 function renderInspectInto(panel: HTMLElement, kind: DockerKind, raw: string): void {
   panel.replaceChildren()
-  let parsed: Record<string, unknown> | null = null
-  try {
-    const j = JSON.parse(raw)
-    parsed = Array.isArray(j) ? j[0] : j
-  } catch {
-    parsed = null
-  }
+  const parsed = parseInspect(raw)
   if (!parsed) {
     panel.appendChild(
       <pre class="docker-pre" ref={(el: HTMLPreElement) => (el.textContent = raw || '(empty)')} />
@@ -102,34 +42,17 @@ function renderInspectInto(panel: HTMLElement, kind: DockerKind, raw: string): v
   const toggle = createButton({
     className: 'settings-inline-btn docker-raw-toggle',
     text: UITexts.Docker.detail.rawJson,
-    onClick: () => {
-      const showRaw = pre.style.display === 'none'
-      pre.style.display = showRaw ? '' : 'none'
-      table.style.display = showRaw ? 'none' : ''
-      toggle.textContent = showRaw ? UITexts.Docker.detail.structured : UITexts.Docker.detail.rawJson
-    }
+    onClick: makeRawToggle(table, pre)
   })
 
   panel.append(toggle, table, pre)
 }
 
-type DetailTab = 'inspect' | 'logs' | 'terminal'
-
 // Open the rich detail modal. Containers get Inspect/Logs/Terminal (Terminal
 // only when running); images/volumes/networks get Inspect only.
-export function showDetailModal(opts: {
-  kind: DockerKind
-  id: string
-  name: string
-  running?: boolean
-  initial?: DetailTab
-}): void {
+export function showDetailModal(opts: DetailModalOptions): void {
   const { kind, id, name, running } = opts
-  const tabs: { key: DetailTab; label: string }[] = [{ key: 'inspect', label: UITexts.Docker.detail.inspect }]
-  if (kind === 'container') {
-    tabs.push({ key: 'logs', label: UITexts.Docker.detail.logs })
-    if (running) tabs.push({ key: 'terminal', label: UITexts.Docker.detail.terminal })
-  }
+  const tabs = tabsFor(kind, running)
 
   const { overlay, mount, close, onClose } = createOverlay()
 
@@ -147,14 +70,8 @@ export function showDetailModal(opts: {
   overlay.appendChild(modal)
 
   const embedded: EmbeddedTerm[] = []
-  const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') close()
-  }
-  onClose(() => {
-    document.removeEventListener('keydown', onKey, true)
-    embedded.forEach((t) => t.dispose())
-  })
-  document.addEventListener('keydown', onKey, true)
+  onClose(() => embedded.forEach((t) => t.dispose()))
+  bindEscapeClose(close, onClose)
 
   // Lazily build each panel on first activation (so an unopened Terminal tab
   // never spawns a pty).

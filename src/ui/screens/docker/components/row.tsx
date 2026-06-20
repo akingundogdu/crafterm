@@ -1,22 +1,12 @@
 import { createButton } from '@ui/components'
+import type { RowOptions } from './row.types'
+import { makeRowActionClick } from './row.state'
+
+export type { RowAction } from './row.types'
 
 // DOM builders for the Docker list rows. Action handlers are injected via
 // RowAction.run, so this module carries no IPC/state imports.
-
-export interface RowAction {
-  label: string
-  cls?: string
-  run: () => void
-}
-
-export function makeRow(opts: {
-  title: string
-  sub: string
-  meta?: string
-  badge?: { text: string; cls: string }
-  search: string
-  actions: RowAction[]
-}): HTMLElement {
+export function makeRow(opts: RowOptions): HTMLElement {
   const badge = opts.badge ? (
     <span class={'docker-badge ' + opts.badge.cls}>{opts.badge.text}</span>
   ) : null
@@ -43,10 +33,7 @@ export function makeRow(opts: {
           className: 'docker-act' + (a.cls ? ' ' + a.cls : ''),
           text: a.label,
           title: a.label,
-          onClick: (e) => {
-            e.stopPropagation()
-            a.run()
-          }
+          onClick: makeRowActionClick(a.run)
         })
       )}
     </div>
