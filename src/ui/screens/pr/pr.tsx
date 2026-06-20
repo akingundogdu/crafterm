@@ -10,7 +10,14 @@ import { buildPrCard, buildRunCard, buildDeployCard } from './components/cards'
 import { showTextModal } from './components/text-modal'
 import { showProjectPicker } from './components/project-picker'
 import { createAlertTracker } from './alerts'
-import { stepMark } from './pr-status'
+import {
+  formatRunJobs,
+  hasPendingChecks,
+  hasActiveDeploy,
+  hasActiveRun,
+  POLL_BUSY_MS,
+  POLL_IDLE_MS
+} from './pr.state'
 
 // The right-panel "Pull Requests / Deployments" tab. Polls GitHub (via gh) while
 // visible and surfaces CI/deploy completion as notifications. Cards, badges, the
@@ -170,7 +177,7 @@ async function renderPrList(listEl: HTMLElement, cwd: string, repo: string): Pro
   }
   const branch = (state.activePaneId ? panes.get(state.activePaneId)?.branch : null) ?? ''
   for (const pr of res.prs) listEl.appendChild(card(pr, cwd, !!branch && pr.headRefName === branch))
-  busy ||= res.prs.some((p) => p.checks.state === 'pending')
+  busy ||= hasPendingChecks(res.prs)
   alerts.noteChecks(
     res.prs.map((p) => ({ key: `${repo}#${p.number}`, number: p.number, title: p.title, state: p.checks.state }))
   )
@@ -276,37 +283,14 @@ async function renderAllDeployments(listEl: HTMLElement): Promise<void> {
   }
   const allDeploys = res.projects.flatMap((proj) => proj.deployments)
   const allRuns = res.projects.flatMap((proj) => proj.runs)
-  busy ||=
-    allDeploys.some((d) => ['pending', 'in_progress', 'queued'].includes(d.state)) ||
-    allRuns.some((r) => r.status !== 'completed')
+  busy ||= hasActiveDeploy(allDeploys) || hasActiveRun(allRuns)
   alerts.noteDeploys(allDeploys)
   alerts.noteRuns(allRuns)
 }
 
-interface RunJob {
-  name?: string
-  status?: string
-  conclusion?: string
-  steps?: { name?: string; status?: string; conclusion?: string }[]
-}
-
 async function showRunJobs(cwd: string, run: WorkflowRun): Promise<void> {
   const raw = await prService.runJobs(cwd, run.id)
-  let text = raw
-  try {
-    const data = JSON.parse(raw) as { jobs?: RunJob[] }
-    const lines: string[] = []
-    for (const j of data.jobs ?? []) {
-      const jc = `${j.status ?? ''}${j.conclusion ? '/' + j.conclusion : ''}`
-      lines.push(`${stepMark(j.status ?? '', j.conclusion ?? '')} ${j.name ?? ''}  [${jc}]`)
-      for (const s of j.steps ?? [])
-        lines.push(`    ${stepMark(s.status ?? '', s.conclusion ?? '')} ${s.name ?? ''}`)
-    }
-    if (lines.length) text = lines.join('\n')
-  } catch {
-    /* fall back to raw */
-  }
-  showTextModal(`Run · ${run.name}`, text)
+  showTextModal(`Run · ${run.name}`, formatRunJobs(raw) ?? raw)
 }
 
 async function renderDeployments(listEl: HTMLElement, cwd: string, repo: string): Promise<void> {
@@ -328,7 +312,7 @@ async function renderDeployments(listEl: HTMLElement, cwd: string, repo: string)
   } else {
     for (const d of dep.deployments) listEl.appendChild(buildDeployCard(d, { onOpen: () => void openLink(d.url) }))
     alerts.noteDeploys(dep.deployments)
-    busy ||= dep.deployments.some((d) => ['pending', 'in_progress', 'queued'].includes(d.state))
+    busy ||= hasActiveDeploy(dep.deployments)
   }
 
   // Workflow runs section
@@ -342,7 +326,7 @@ async function renderDeployments(listEl: HTMLElement, cwd: string, repo: string)
   } else {
     for (const r of runs.runs) listEl.appendChild(runCard(r, cwd))
     alerts.noteRuns(runs.runs)
-    busy ||= runs.runs.some((r) => r.status !== 'completed')
+    busy ||= hasActiveRun(runs.runs)
   }
 }
 
@@ -362,7 +346,7 @@ export function prTabVisible(visible: boolean): void {
 function scheduleNextPoll(): void {
   if (!tabVisible) return
   if (pollTimer !== null) window.clearTimeout(pollTimer)
-  pollTimer = window.setTimeout(() => void poll(), busy ? 20_000 : 300_000)
+  pollTimer = window.setTimeout(() => void poll(), busy ? POLL_BUSY_MS : POLL_IDLE_MS)
 }
 
 async function poll(): Promise<void> {

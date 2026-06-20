@@ -1,11 +1,25 @@
 import type { PullRequest, WorkflowRun, DeploymentStatus } from '@services/pr/pr.types'
 import { UITexts } from '@texts'
 import { createButton } from '@ui/components'
-import { overallState, runState, deployState, ago } from '../pr-status'
+import { overallState, runState, deployState } from '../pr-status'
+import type { PrCardActions } from './cards.types'
+import {
+  checksSpec,
+  reviewSpec,
+  runSpec,
+  deploySpec,
+  mergeableSpec,
+  isMergeDisabled,
+  commentTitle,
+  runMetaLine,
+  deployMetaLine
+} from './cards.state'
+
+export type { PrCardActions } from './cards.types'
 
 // DOM builders for the PR tab cards and their status badges. Card action handlers
 // are injected so this module stays free of commands/IPC imports and renders in
-// isolation; the status colors come from the pure pr-status helpers.
+// isolation; the status colors + derivations come from the pure helpers in state.
 
 const COMMENT_SVG =
   '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 2.75A.75.75 0 0 1 2.25 2h11.5a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-.75.75H7.06l-2.78 2.62A.5.5 0 0 1 3.5 14.2V12H2.25a.75.75 0 0 1-.75-.75v-8.5Z"/></svg>'
@@ -27,55 +41,23 @@ export function statusTag(
 }
 
 export function checksBadge(pr: PullRequest): HTMLElement {
-  const c = pr.checks
-  const cls =
-    c.state === 'success' ? 'ok' : c.state === 'failure' ? 'bad' : c.state === 'pending' ? 'wait' : 'none'
-  let text = 'no checks'
-  if (c.state === 'success') text = `${c.pass}/${c.total} checks`
-  else if (c.state === 'failure') text = `${c.fail} failed`
-  else if (c.state === 'pending') text = `${c.pending} running`
-  return statusTag(cls, text, {
-    pulse: c.state === 'pending',
-    title: `${c.pass} passed · ${c.fail} failed · ${c.pending} pending`
-  })
+  const s = checksSpec(pr)
+  return statusTag(s.cls, s.text, { pulse: s.pulse, title: s.title })
 }
 
 export function reviewBadge(pr: PullRequest): HTMLElement | null {
-  if (!pr.reviewDecision) return null
-  const map: Record<string, { cls: string; text: string }> = {
-    APPROVED: { cls: 'ok', text: UITexts.Pr.review.approved },
-    CHANGES_REQUESTED: { cls: 'bad', text: UITexts.Pr.review.changes },
-    REVIEW_REQUIRED: { cls: 'wait', text: UITexts.Pr.review.reviewNeeded }
-  }
-  const m = map[pr.reviewDecision] ?? { cls: 'none', text: pr.reviewDecision.toLowerCase() }
-  return statusTag(m.cls, m.text)
+  const s = reviewSpec(pr)
+  return s ? statusTag(s.cls, s.text) : null
 }
 
 export function runBadge(run: WorkflowRun): HTMLElement {
-  if (run.status !== 'completed') {
-    const text = run.status === 'queued' ? 'queued' : 'running'
-    return statusTag('wait', text, { pulse: true })
-  }
-  const c = run.conclusion
-  if (c === 'success') return statusTag('ok', 'success')
-  if (['failure', 'timed_out', 'startup_failure', 'action_required'].includes(c))
-    return statusTag('bad', c.replace(/_/g, ' '))
-  return statusTag('none', c || 'done')
+  const s = runSpec(run)
+  return statusTag(s.cls, s.text, { pulse: s.pulse })
 }
 
 export function deployBadge(d: DeploymentStatus): HTMLElement {
-  const s = d.state
-  if (s === 'success') return statusTag('ok', 'success')
-  if (s === 'failure' || s === 'error') return statusTag('bad', s)
-  if (s === 'inactive') return statusTag('none', 'inactive')
-  return statusTag('wait', s.replace(/_/g, ' ') || 'pending', { pulse: true })
-}
-
-export interface PrCardActions {
-  isCurrent: boolean
-  onReview: () => void
-  onDiff: () => void
-  onMerge: () => void
+  const s = deploySpec(d)
+  return statusTag(s.cls, s.text, { pulse: s.pulse })
 }
 
 export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
@@ -108,8 +90,8 @@ export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
 
   const tags = (<div class="pr-tags" />) as HTMLDivElement
   tags.appendChild(checksBadge(pr))
-  if (pr.mergeable === 'CONFLICTING') tags.appendChild(statusTag('bad', 'conflicts'))
-  else if (pr.mergeable === 'MERGEABLE') tags.appendChild(statusTag('ok', 'mergeable'))
+  const merge = mergeableSpec(pr)
+  if (merge) tags.appendChild(statusTag(merge.cls, merge.text))
   const rev = reviewBadge(pr)
   if (rev) tags.appendChild(rev)
   if (pr.comments > 0) {
@@ -117,7 +99,7 @@ export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
     cm.className = 'pr-tag none comment'
     cm.innerHTML = COMMENT_SVG
     cm.appendChild(document.createTextNode(String(pr.comments)))
-    cm.title = `${pr.comments} comment${pr.comments === 1 ? '' : 's'}`
+    cm.title = commentTitle(pr.comments)
     tags.appendChild(cm)
   }
 
@@ -133,14 +115,14 @@ export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
     title: UITexts.Pr.card.diffTitle,
     onClick: a.onDiff
   })
-  const merge = createButton({
+  const mergeBtn = createButton({
     className: 'pr-act merge',
     text: UITexts.Pr.card.merge,
     onClick: a.onMerge
   })
-  merge.disabled = pr.mergeable === 'CONFLICTING' || pr.isDraft
+  mergeBtn.disabled = isMergeDisabled(pr)
 
-  const el = (
+  return (
     <div class={'pr-card state-' + overallState(pr) + (a.isCurrent ? ' current' : '')}>
       {top}
       {branch}
@@ -148,11 +130,10 @@ export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
       <div class="pr-actions">
         {open}
         {diff}
-        {merge}
+        {mergeBtn}
       </div>
     </div>
   ) as HTMLDivElement
-  return el
 }
 
 export function buildRunCard(
@@ -163,8 +144,7 @@ export function buildRunCard(
   name.title = run.name
 
   const meta = (<div class="pr-branch" />) as HTMLDivElement
-  const parts = [run.headBranch, run.headSha ? run.headSha.slice(0, 7) : '', run.event, ago(run.createdAt)]
-  meta.textContent = parts.filter(Boolean).join(' · ')
+  meta.textContent = runMetaLine(run)
 
   const open = createButton({
     className: 'pr-act primary',
@@ -186,7 +166,7 @@ export function buildRunCard(
     sub.title = run.title
   }
 
-  const el = (
+  return (
     <div class={'pr-card state-' + runState(run)}>
       <div class="pr-card-top">{name}</div>
       {sub}
@@ -198,7 +178,6 @@ export function buildRunCard(
       </div>
     </div>
   ) as HTMLDivElement
-  return el
 }
 
 export function buildDeployCard(d: DeploymentStatus, a: { onOpen: () => void }): HTMLElement {
@@ -206,7 +185,7 @@ export function buildDeployCard(d: DeploymentStatus, a: { onOpen: () => void }):
   env.title = d.environment
 
   const meta = (<div class="pr-branch" />) as HTMLDivElement
-  meta.textContent = [d.ref, ago(d.createdAt)].filter(Boolean).join(' · ')
+  meta.textContent = deployMetaLine(d)
 
   let desc: HTMLDivElement | null = null
   if (d.description) {
@@ -225,7 +204,7 @@ export function buildDeployCard(d: DeploymentStatus, a: { onOpen: () => void }):
     acts = (<div class="pr-actions">{open}</div>) as HTMLDivElement
   }
 
-  const el = (
+  return (
     <div class={'pr-card state-' + deployState(d)}>
       <div class="pr-card-top">{env}</div>
       {meta}
@@ -234,5 +213,4 @@ export function buildDeployCard(d: DeploymentStatus, a: { onOpen: () => void }):
       {acts}
     </div>
   ) as HTMLDivElement
-  return el
 }

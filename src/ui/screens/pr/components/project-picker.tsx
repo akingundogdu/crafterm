@@ -1,21 +1,16 @@
 import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
 import { prService } from '@services'
 import { createOverlay, createSearchBox, createButton } from '@ui/components'
 import { makeCloseButton } from '@ui/dialog/dialog'
+import { bindEscapeClose, filterRepos, projectCountLabel, saveProjects } from './project-picker.state'
 
 // Searchable, multi-select repo picker for the "All projects" PR/Deployments
 // view. Pre-checks the current selection; on save, persists settings.prProjects
 // and runs the injected onSaved (re-render) — injected to avoid a cycle with pr.ts.
 export async function showProjectPicker(onSaved: () => void): Promise<void> {
   const { overlay, mount, close, onClose } = createOverlay()
-
-  const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') close()
-  }
-  document.addEventListener('keydown', onKey, true)
-  onClose(() => document.removeEventListener('keydown', onKey, true))
+  bindEscapeClose(close, onClose)
 
   const input = createSearchBox(UITexts.Pr.picker.search, () => render())
   const countEl = (<div class="md-count" />) as HTMLDivElement
@@ -27,8 +22,7 @@ export async function showProjectPicker(onSaved: () => void): Promise<void> {
     variant: 'primary',
     text: UITexts.Pr.picker.save,
     onClick: () => {
-      settings.prProjects = repos.filter((r) => selected.has(r.path)).map((r) => r.path)
-      persistence.save()
+      saveProjects(repos.filter((r) => selected.has(r.path)).map((r) => r.path))
       close()
       onSaved()
     }
@@ -61,13 +55,9 @@ export async function showProjectPicker(onSaved: () => void): Promise<void> {
   }
   const repos = res.repos
 
-  const countLabel = (items: number): string =>
-    `${selected.size} selected · ${items} repo${items === 1 ? '' : 's'}`
-
   const render = (): void => {
-    const q = input.value.trim().toLowerCase()
-    const items = q ? repos.filter((r) => r.name.toLowerCase().includes(q)) : repos
-    countEl.textContent = countLabel(items.length)
+    const items = filterRepos(repos, input.value)
+    countEl.textContent = projectCountLabel(selected.size, items.length)
     list.replaceChildren()
     if (!items.length) {
       list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
@@ -79,7 +69,7 @@ export async function showProjectPicker(onSaved: () => void): Promise<void> {
       cb.addEventListener('change', () => {
         if (cb.checked) selected.add(r.path)
         else selected.delete(r.path)
-        countEl.textContent = countLabel(items.length)
+        countEl.textContent = projectCountLabel(selected.size, items.length)
       })
       const row = (
         <label class="pick-row pr-pick-row">
