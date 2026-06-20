@@ -1,5 +1,5 @@
 /* ---- Code editor: floating selection actions (Cursor-style) ---- */
-.code-sel-actions {
+.code-editor-selection-actions {
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -10,7 +10,7 @@
   transform: translateY(-6px);
   z-index: 30;
 }
-.code-sel-btn {
+.code-editor-button {
   border: none;
   background: transparent;
   color: var(--text);
@@ -21,6 +21,6 @@
   border-radius: 5px;
   cursor: pointer;
 }
-.code-sel-btn:hover {
+.code-editor-button:hover {
   background: var(--accent-soft, rgba(88, 166, 255, 0.18));
 }

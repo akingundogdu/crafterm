@@ -304,16 +304,16 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
   if (absolute) {
     const mention = makeDocMention(preview, source, id)
     const menu = (
-      <div class="code-sel-actions doc-sel-menu" style={{ display: 'none' }}>
+      <div class="code-editor-selection-actions doc-sel-menu" style={{ display: 'none' }}>
         <button
-          class="code-sel-btn"
+          class="code-editor-button"
           onMousedown={preventStopMousedown}
           onClick={makeDocCopyMention(mention)}
         >
           Copy
         </button>
         <button
-          class="code-sel-btn"
+          class="code-editor-button"
           onMousedown={preventStopMousedown}
           onClick={(e: MouseEvent) => makeDocAddToChat(mention, id, menu)(e)}
         >
