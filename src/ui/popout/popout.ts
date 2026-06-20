@@ -6,16 +6,13 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { settings, resolveTheme, applyBgColor } from '@ui/state/state'
 import { loadSettings } from '@repositories/settings.service'
-import { promptConfirm } from '@ui/dialog/dialog'
 import { terminalService, storeService } from '@services'
+import { makeCustomKeyHandler, makeConfirmClose } from './popout.state'
 
 // A pop-out window hosts a single terminal pane. The PTY already exists in the
 // main process (created by the main window); we adopt it so its output streams
 // here, and render a fresh xterm bound to the same id.
 const id = new URLSearchParams(location.search).get('id') || ''
-
-// Mirror the main app's "running" heuristic (busy = output within ~700ms).
-const BUSY_MS = 700
 
 async function main(): Promise<void> {
   const saved = await storeService.load()
@@ -33,22 +30,7 @@ async function main(): Promise<void> {
   const fit = new FitAddon()
   term.loadAddon(fit)
 
-  // Shift+Enter inserts a newline in TUI line editors (parity with docked panes,
-  // see pane.ts): send ESC+CR instead of the bare CR xterm would emit as "submit".
-  term.attachCustomKeyEventHandler((e) => {
-    if (
-      e.type === 'keydown' &&
-      e.key === 'Enter' &&
-      e.shiftKey &&
-      !e.metaKey &&
-      !e.ctrlKey &&
-      !e.altKey
-    ) {
-      terminalService.input(id, '\x1b\r')
-      return false
-    }
-    return true
-  })
+  term.attachCustomKeyEventHandler(makeCustomKeyHandler(id))
 
   term.open(host)
 
@@ -81,21 +63,7 @@ async function main(): Promise<void> {
   doFit()
   term.focus()
 
-  // Native close button: the main process asks us to confirm first (kill the
-  // pane). Only prompt if a process appears to be running.
-  terminalService.onPopoutConfirmClose(async (closeId) => {
-    if (closeId !== id) return
-    const running = Date.now() - lastData < BUSY_MS
-    if (running) {
-      const ok = await promptConfirm({
-        title: 'Close terminal?',
-        message: 'A process is still running in this terminal. Close anyway?',
-        confirmText: 'Close'
-      })
-      if (!ok) return
-    }
-    terminalService.popoutConfirmClose(id)
-  })
+  terminalService.onPopoutConfirmClose(makeConfirmClose(id, () => lastData))
 }
 
 void main()
