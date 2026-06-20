@@ -1,13 +1,10 @@
+import type { InputOptions } from './input.types'
+import { resolveInputProps } from './input.state'
+
+export type { InputOptions } from './input.types'
+
 // Text input primitive. Plain <input> with value/placeholder/type.
-
-export interface InputOptions {
-  value?: string
-  placeholder?: string
-  type?: string // default 'text'
-}
-
 export function createInput(opts: InputOptions = {}): HTMLInputElement {
-  return (
-    <input type={opts.type ?? 'text'} value={opts.value ?? ''} placeholder={opts.placeholder} />
-  ) as HTMLInputElement
+  const p = resolveInputProps(opts)
+  return (<input type={p.type} value={p.value} placeholder={p.placeholder} />) as HTMLInputElement
 }
