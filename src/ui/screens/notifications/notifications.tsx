@@ -1,47 +1,41 @@
 import './notifications.css'
-import { notifState, panes, poppedOut, settings, pushNotification } from '@ui/state/state'
+import { notifState, panes, poppedOut, settings } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
-import { selectPane, openLink, openNote, openMarkdownFile } from '@ui/commands/commands'
-import {
-  renderReminders,
-  openReminderForm,
-  startReminderTimer,
-  snoozeReminder,
-  snoozeOptions
-} from '../reminders/reminders'
+import { selectPane } from '@ui/commands/commands'
+import { renderReminders, openReminderForm, startReminderTimer, snoozeOptions } from '../reminders/reminders'
 import { renderExplorer, initExplorer } from '../explorer/explorer'
 import { prTabVisible } from '../pr/pr'
 import { renderBookmarks } from '../bookmarks/bookmarks'
-import { showDailyPlanModal } from '../daily-plan/daily-plan'
-import { openMeetingNote } from '../meeting-notes/meeting-notes'
 import { renderTime, initTime, startAutoTracker } from '../time/time'
 import { runUpdate } from '../pickers/update/update'
-import { terminalService, claudeService, secretsService, appService } from '@services'
+import { terminalService, appService } from '@services'
 import { fmtResetTime, usageErrorShort, usageErrorLong } from '@services/domain/usage'
-import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from '@repositories'
-import { relTime, pathTail, shortModel } from './notif-format'
+import { notificationRepo } from '@repositories'
+import { relTime, shortModel } from './notif-format'
 import { UITexts } from '@texts'
+import type { RealUsage, UsageWindow, RightTab } from './notifications.types'
+import {
+  CHEVRON_SVG,
+  isNotifExpanded,
+  removeNotif,
+  toneOf,
+  statusIconFor,
+  buildNotifChips,
+  fetchRealUsage,
+  evaluateUsageThresholds,
+  resolvePayloadOpener,
+  makeDismissClick,
+  makeChevronClick,
+  makeSnoozeChipClick,
+  makeOpenerClick,
+  makeReminderCardClick,
+  makePaneCardClick,
+  makePaneRemindChipClick
+} from './notifications.state'
 
 const appEl = document.getElementById('app')!
 const listEl = document.getElementById('notif-list')!
 const panelEl = document.getElementById('notif-panel')!
-
-// Down-chevron toggle on each card; rotates 180° via CSS when the card expands.
-const CHEVRON_SVG =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
-
-// Status icons shown left of the title. The icon (not a colour) communicates the
-// notification state, since card colours now carry the project identity instead.
-const QUESTION_SVG =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
-const CLOCK_SVG =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>'
-const CHECK_SVG =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-
-// Cards start collapsed (terminal name only); expanding reveals the message,
-// source chips and remind button. Tracked per notification id for this session.
-const expandedNotifs = new Set<string>()
 
 export function applyNotifSize(): void {
   panelEl.style.width = settings.notifPanelSize + 'px'
@@ -89,32 +83,9 @@ export function toggleNotifPanel(): void {
   if (notifState.open) renderNotifications()
 }
 
-// Status bar Claude usage chip: polls every 30s. Compact display shows the
-// active model + this-week percentage; clicking opens a popover with full
-// today / week / month progress bars (mirrors Claude's /usage TUI).
-type RealUsage = Awaited<ReturnType<typeof claudeService.realUsage>>
-type UsageWindow = NonNullable<RealUsage['fiveHour']>
-
-// Resolve the OAuth token source from settings, then pull the real server-side
-// utilization. The keychain (read in main) is the primary source; the fallback
-// is a Crafterm secret whose value we decrypt here and pass along.
-async function fetchRealUsage(force: boolean): Promise<RealUsage> {
-  const auth = settings.claudeUsageAuth
-  let fallbackToken: string | null = null
-  if (auth.fallbackSecretId && auth.fallbackSecretKey) {
-    try {
-      fallbackToken = await secretsService.get(auth.fallbackSecretId, auth.fallbackSecretKey)
-    } catch {
-      fallbackToken = null
-    }
-  }
-  return claudeService.realUsage({
-    keychainService: auth.keychainService,
-    fallbackToken,
-    force
-  })
-}
-
+// Status bar Claude usage chip: polls hourly. Compact display shows the active
+// model + this-week percentage; clicking opens a popover with full today / week /
+// month progress bars (mirrors Claude's /usage TUI).
 function initStatusbarUsage(): void {
   const chip = document.getElementById('statusbar-claude-usage')
   if (!chip) return
@@ -174,38 +145,6 @@ function initStatusbarUsage(): void {
     }
     setTimeout(() => document.addEventListener('mousedown', onDown, true))
   })
-}
-
-// Fire a notification card the first time session/week usage crosses each of
-// 50/70/80/90/100% within a reset period. State persists so a crossing alerts
-// once; it re-arms when the window's `resetsAt` advances.
-const USAGE_THRESHOLDS = [50, 70, 80, 90, 100]
-function evaluateUsageThresholds(u: RealUsage): void {
-  const check = (
-    win: UsageWindow | null,
-    state: { resetsAt: number; level: number },
-    label: string
-  ): void => {
-    if (!win) return
-    if (win.resetsAt !== state.resetsAt) {
-      state.resetsAt = win.resetsAt
-      state.level = 0
-    }
-    const pct = win.utilization
-    const crossed = USAGE_THRESHOLDS.filter((t) => pct >= t && t > state.level)
-    if (!crossed.length) return
-    const top = crossed[crossed.length - 1]
-    state.level = top
-    pushNotification(
-      '',
-      `Claude ${label} usage ${top}%`,
-      UITexts.Notifications.claudeUsageHeading,
-      `${label} usage is at ${Math.round(pct)}% — resets ${fmtResetTime(win.resetsAt)}.`
-    )
-  }
-  check(u.fiveHour, settings.claudeUsageNotify.session, 'session')
-  check(u.sevenDay, settings.claudeUsageNotify.week, 'weekly')
-  persistence.save()
 }
 
 // Status bar version chip: shows the installed app version (base + git commit
@@ -322,9 +261,7 @@ function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
         innerHTML={
           `<div class="usage-bar-head"><b>${label}</b><span class="usage-pct">${pct}% used</span></div>` +
           `<div class="usage-bar"><div class="usage-bar-fill" style="width:${pct}%"></div></div>` +
-          (win.resetsAt > 0
-            ? `<div class="usage-bar-foot">resets ${fmtResetTime(win.resetsAt)}</div>`
-            : '')
+          (win.resetsAt > 0 ? `<div class="usage-bar-foot">resets ${fmtResetTime(win.resetsAt)}</div>` : '')
         }
       />
     ) as HTMLDivElement
@@ -353,8 +290,7 @@ function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
 }
 
 function dismiss(id: string): void {
-  notificationRepo.remove(id)
-  expandedNotifs.delete(id)
+  removeNotif(id)
   renderNotifications()
 }
 
@@ -371,20 +307,11 @@ export function renderNotifications(): void {
     return
   }
   notificationRepo.getAll().forEach((n) => {
-    // State-based accent: reminder (blue), question/attention (amber), done (green).
-    const tone =
-      n.kind === 'reminder' ? 'reminder' : n.event === 'question' ? 'question' : n.event === 'done' ? 'done' : ''
-    const expanded = expandedNotifs.has(n.id)
+    const tone = toneOf(n)
+    const expanded = isNotifExpanded(n.id)
 
     const close = (
-      <button
-        class="notif-card-close"
-        title={UITexts.Notifications.dismiss}
-        onClick={(e: MouseEvent) => {
-          e.stopPropagation()
-          dismiss(n.id)
-        }}
-      >
+      <button class="notif-card-close" title={UITexts.Notifications.dismiss} onClick={makeDismissClick(n.id, dismiss)}>
         ×
       </button>
     ) as HTMLButtonElement
@@ -396,20 +323,15 @@ export function renderNotifications(): void {
         class="notif-card-chevron"
         innerHTML={CHEVRON_SVG}
         title={expanded ? UITexts.Notifications.hideDetails : UITexts.Notifications.showDetails}
-        onClick={(e: MouseEvent) => {
-          e.stopPropagation()
-          if (expandedNotifs.has(n.id)) expandedNotifs.delete(n.id)
-          else expandedNotifs.add(n.id)
-          renderNotifications()
-        }}
+        onClick={makeChevronClick(n.id, renderNotifications)}
       />
     ) as HTMLButtonElement
 
-    const statusIcon = tone === 'question' ? QUESTION_SVG : tone === 'reminder' ? CLOCK_SVG : tone === 'done' ? CHECK_SVG : ''
+    const statusIcon = statusIconFor(tone)
     const titleText = (<span>{n.title}</span>) as HTMLSpanElement
     const title = (
       <span class="notif-card-title">
-        {statusIcon && (<span class={'notif-card-status notif-status-' + tone} innerHTML={statusIcon} />)}
+        {statusIcon && <span class={'notif-card-status notif-status-' + tone} innerHTML={statusIcon} />}
         {titleText}
       </span>
     ) as HTMLSpanElement
@@ -433,9 +355,7 @@ export function renderNotifications(): void {
     ) as HTMLDivElement
 
     const card = (
-      <div
-        class={'notif-card' + (tone ? ' notif-' + tone : '') + (expanded ? ' expanded' : '')}
-      >
+      <div class={'notif-card' + (tone ? ' notif-' + tone : '') + (expanded ? ' expanded' : '')}>
         {close}
         {head}
         {body}
@@ -448,15 +368,8 @@ export function renderNotifications(): void {
     }
 
     // Detail line: rendered as small categorical chips so the source info
-    // (project · branch · worktree · cwd) reads at a glance instead of a
-    // long bullet-separated string.
-    const chips: { cls: string; text: string; title?: string }[] = []
-    if (n.group) chips.push({ cls: 'project', text: n.group, title: n.group })
-    if (n.branch) chips.push({ cls: 'branch', text: n.branch, title: 'branch: ' + n.branch })
-    if (n.worktree && n.worktree !== n.branch) {
-      chips.push({ cls: 'worktree', text: n.worktree, title: 'worktree: ' + n.worktree })
-    }
-    if (n.cwd) chips.push({ cls: 'cwd', text: pathTail(n.cwd), title: n.cwd })
+    // (project · branch · worktree · cwd) reads at a glance.
+    const chips = buildNotifChips(n)
     if (chips.length) {
       const detail = (
         <div class="notif-card-detail">
@@ -479,34 +392,17 @@ export function renderNotifications(): void {
       if (opener) {
         const openRow = (
           <div class="notif-card-snooze notif-open-row">
-            <button
-              class="notif-snooze-chip notif-open-chip"
-              onClick={(e: MouseEvent) => {
-                e.stopPropagation()
-                opener.open()
-                dismiss(n.id)
-              }}
-            >
+            <button class="notif-snooze-chip notif-open-chip" onClick={makeOpenerClick(opener, n.id, dismiss)}>
               {opener.label}
             </button>
           </div>
         ) as HTMLDivElement
         body.append(openRow)
-        card.addEventListener('click', () => {
-          opener.open()
-          dismiss(n.id)
-        })
+        card.addEventListener('click', makeReminderCardClick(opener, n.id, dismiss))
       }
       body.append(buildSnoozeRow(n.reminderText ?? n.message, n.id, n.payload))
     } else {
-      // Click a pane card: jump to its pane, then dismiss it. If the pane is
-      // currently popped out into a separate window, focus that window instead
-      // of the (placeholder) docked pane — otherwise the click is a no-op.
-      card.addEventListener('click', () => {
-        if (poppedOut.has(n.paneId)) terminalService.popoutFocus(n.paneId)
-        else if (panes.has(n.paneId)) selectPane(n.paneId)
-        dismiss(n.id)
-      })
+      card.addEventListener('click', makePaneCardClick(n, dismiss))
     }
     listEl.appendChild(card)
   })
@@ -525,14 +421,7 @@ function buildSnoozeRow(
         {snoozeOptions().map(
           (opt) =>
             (
-              <button
-                class="notif-snooze-chip"
-                onClick={(e: MouseEvent) => {
-                  e.stopPropagation()
-                  snoozeReminder(text, opt.at, payload)
-                  dismiss(notifId)
-                }}
-              >
+              <button class="notif-snooze-chip" onClick={makeSnoozeChipClick(text, opt.at, payload, notifId, dismiss)}>
                 {opt.label}
               </button>
             ) as HTMLButtonElement
@@ -567,15 +456,7 @@ function showPaneRemindPicker(anchor: HTMLElement, n: import('@ui/types/types').
       {snoozeOptions().map(
         (opt) =>
           (
-            <button
-              class="notif-snooze-chip"
-              onClick={(e: MouseEvent) => {
-                e.stopPropagation()
-                snoozeReminder(n.title || n.message, opt.at, { kind: 'pane', paneId: n.paneId })
-                pop.remove()
-                dismiss(n.id)
-              }}
-            >
+            <button class="notif-snooze-chip" onClick={makePaneRemindChipClick(n, opt.at, () => pop.remove(), dismiss)}>
               {opt.label}
             </button>
           ) as HTMLButtonElement
@@ -595,63 +476,7 @@ function showPaneRemindPicker(anchor: HTMLElement, n: import('@ui/types/types').
   setTimeout(() => document.addEventListener('mousedown', onDown, true))
 }
 
-// Resolve a reminder payload to a click action ("open this bookmark / pane /
-// note"). Returns null when the target can no longer be found.
-function resolvePayloadOpener(
-  payload: import('@ui/types/types').ReminderPayload | undefined
-): { label: string; open: () => void } | null {
-  if (!payload) return null
-  if (payload.kind === 'bookmark') {
-    const bm = bookmarkRepo.get(payload.bookmarkId)
-    if (!bm) return null
-    return {
-      label: bm.type === 'link' ? UITexts.Notifications.cardActions.open : UITexts.Notifications.cardActions.show,
-      open: () => void openLink(bm.content)
-    }
-  }
-  if (payload.kind === 'pane') {
-    if (!panes.has(payload.paneId) && !poppedOut.has(payload.paneId)) return null
-    return {
-      label: UITexts.Notifications.cardActions.goToPane,
-      open: () => {
-        if (poppedOut.has(payload.paneId)) terminalService.popoutFocus(payload.paneId)
-        else selectPane(payload.paneId)
-      }
-    }
-  }
-  if (payload.kind === 'notebook') {
-    return {
-      label: UITexts.Notifications.cardActions.openNote,
-      open: () => void openNote(payload.path)
-    }
-  }
-  if (payload.kind === 'dailyTask') {
-    const t = dailyTaskRepo.get(payload.taskId)
-    if (!t) return null
-    return {
-      label: UITexts.Notifications.cardActions.openTask,
-      open: () => showDailyPlanModal(t.date, t.id)
-    }
-  }
-  if (payload.kind === 'plan') {
-    return {
-      label: UITexts.Notifications.cardActions.openPlan,
-      open: () => openMarkdownFile(payload.path)
-    }
-  }
-  if (payload.kind === 'meetingNote') {
-    const n = meetingNoteRepo.get(payload.noteId)
-    if (!n) return null
-    return {
-      label: UITexts.Notifications.cardActions.openMeeting,
-      open: () => openMeetingNote(n.id)
-    }
-  }
-  return null
-}
-
-// Switch the right panel between Alerts / Reminders / Files / Time / PR / Bookmarks / Daily views.
-type RightTab = 'notifs' | 'reminders' | 'files' | 'time' | 'pr' | 'bm'
+// Switch the right panel between Alerts / Reminders / Files / Time / PR / Bookmarks views.
 function switchTab(tab: RightTab): void {
   const views: Record<RightTab, string> = {
     notifs: 'notif-notifs-view',
@@ -681,16 +506,12 @@ function switchTab(tab: RightTab): void {
 
 export function initNotifications(): void {
   document.getElementById('notif-clear')!.addEventListener('click', clearNotifications)
-  document
-    .getElementById('statusbar-notif-toggle')!
-    .addEventListener('click', toggleNotifPanel)
+  document.getElementById('statusbar-notif-toggle')!.addEventListener('click', toggleNotifPanel)
   initStatusbarUsage()
   initStatusbarVersion()
   document.getElementById('notif-add-reminder')!.addEventListener('click', () => openReminderForm())
   document.getElementById('notif-tab-notifs')!.addEventListener('click', () => switchTab('notifs'))
-  document
-    .getElementById('notif-tab-reminders')!
-    .addEventListener('click', () => switchTab('reminders'))
+  document.getElementById('notif-tab-reminders')!.addEventListener('click', () => switchTab('reminders'))
   document.getElementById('notif-tab-files')!.addEventListener('click', () => switchTab('files'))
   document.getElementById('notif-tab-time')!.addEventListener('click', () => switchTab('time'))
   document.getElementById('notif-tab-pr')!.addEventListener('click', () => switchTab('pr'))
