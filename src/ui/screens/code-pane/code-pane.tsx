@@ -1,47 +1,46 @@
 import './code-pane.css'
-import { codePanes, panes, state, paneActions, uid, settings } from '@ui/state/state'
+import { codePanes, uid } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
-import { findTabByPane, panesInLayout } from '@ui/tree/tree'
 import { setupPaneDnd } from '@ui/pane/pane'
 import { createButton, createSelect } from '@ui/components'
 import { createCodeEditor, type CodeEditor } from '@ui/editor/code-editor/code-editor'
-import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
+import { ALL_THEME_NAMES, currentThemeName } from '../../editor/monaco-setup'
 import { DEFAULT_EDITOR_THEME } from '../../editor/editor-themes'
-import { terminalService, fsService , shellService } from '@services'
-import { breadcrumb, refPath } from './path-ref'
+import { fsService } from '@services'
+import { breadcrumb } from './path-ref'
+import type { CreateCodePaneOptions } from './code-pane.types'
+import {
+  DEFAULT_FONT,
+  registerCodePaneCleanup,
+  runCodePaneCleanup,
+  clampFont,
+  stopMousedown,
+  makeThemeChange,
+  makeCopyRef,
+  makeAddToChat,
+  makeCopyPathClick,
+  makeRevealClick,
+  makeReloadClick,
+  makeCloseClick,
+  makeSaveClick,
+  makeSelectPane
+} from './code-pane.state'
+
+export type { CreateCodePaneOptions } from './code-pane.types'
 
 // An editable code editor pane (Monaco) opened from the Files panel.
 // Syntax-highlights by file extension, supports Cmd +/- zoom, and saves the
 // buffer back to disk on Cmd+S / the Save button. A single pane is reused for
 // successive file clicks (openFile). Transient — not persisted.
-
-const DEFAULT_FONT = 13
-const MIN_FONT = 8
-const MAX_FONT = 28
-
-// Per-pane teardown (destroys the Monaco view on close).
-const cleanups = new Map<string, () => void>()
-
-// The terminal to target for "Add to chat": prefer a Claude session in the same
-// tab as this code pane, else the tab's first terminal, else the active terminal.
-function targetTerminalFor(codePaneId: string): { id: string; cwd: string | null } | null {
-  const tab = findTabByPane(state.tree, codePaneId)
-  if (tab) {
-    const ids = panesInLayout(tab.root).filter((pid) => panes.has(pid))
-    const pick = ids.find((pid) => panes.get(pid)?.claude) ?? ids[0]
-    if (pick) return { id: pick, cwd: panes.get(pick)?.cwd ?? null }
-  }
-  if (state.activePaneId && panes.has(state.activePaneId)) {
-    return { id: state.activePaneId, cwd: panes.get(state.activePaneId)?.cwd ?? null }
-  }
-  return null
-}
-
-export function createCodePane(opts: { path: string; themeName?: string; line?: number }): string {
+export function createCodePane(opts: CreateCodePaneOptions): string {
   const id = uid('cp')
   const themeName = opts.themeName ?? DEFAULT_EDITOR_THEME
   let path = opts.path
+
+  // ---- mutable view state ----
+  let fontSize = DEFAULT_FONT
+  let dirty = false
+  let editor: CodeEditor | null = null
 
   // ---- header: breadcrumb · dirty · save · copy · reveal · reload · close ----
   const dirtyDot = (<span class="code-dirty-dot" title={UITexts.CodePane.unsavedChanges} style="display: none" />) as HTMLSpanElement
@@ -57,81 +56,17 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
   const themeSel = createSelect({ options: [...ALL_THEME_NAMES], value: currentThemeName() })
   themeSel.className = 'code-theme-sel'
   themeSel.title = 'Editor theme'
-  themeSel.addEventListener('mousedown', (e) => e.stopPropagation())
-  themeSel.addEventListener('change', () => {
-    settings.editorTheme = themeSel.value
-    void applyTheme(themeSel.value)
-    persistence.save()
-  })
+  themeSel.addEventListener('mousedown', stopMousedown)
+  themeSel.addEventListener('change', makeThemeChange(themeSel))
 
-  // Build the `@<relpath>:<start>:<end>` mention for the current selection
-  // (resolved against the target terminal's cwd). Drives the floating selection
-  // actions (Copy / Add to Chat) rendered inside the editor.
-  const buildMention = (): string | null => {
-    if (!editor) return null
-    const sel = editor.getSelection()
-    if (!sel) return null
-    const tgt = targetTerminalFor(id)
-    const rel = refPath(path, tgt?.cwd ?? null)
-    // Single line → `@path:14`; range → `@path:14-15`.
-    const lines = sel.startLine === sel.endLine ? `${sel.startLine}` : `${sel.startLine}-${sel.endLine}`
-    return `@${rel}:${lines}`
-  }
-
-  const copyRef = (): void => {
-    const m = buildMention()
-    if (m) void navigator.clipboard.writeText(m)
-  }
-
-  const addToChat = (): void => {
-    const m = buildMention()
-    const tgt = targetTerminalFor(id)
-    if (!m || !tgt) return
-    terminalService.input(tgt.id, m + ' ')
-    paneActions.select(tgt.id)
-    panes.get(tgt.id)?.term.focus()
-  }
+  const copyRef = makeCopyRef(() => editor, () => path, id)
+  const addToChat = makeAddToChat(() => editor, () => path, id)
 
   const saveBtn = createButton({ className: 'diff-hbtn', text: '💾', title: 'Save (⌘S)' })
-  const copyBtn = createButton({
-    className: 'diff-hbtn',
-    text: '⧉',
-    title: 'Copy full path',
-    onClick: (e) => {
-      e.stopPropagation()
-      void navigator.clipboard.writeText(path)
-      const prev = copyBtn.textContent
-      copyBtn.textContent = '✓'
-      setTimeout(() => (copyBtn.textContent = prev), 1000)
-    }
-  })
-  const revealBtn = createButton({
-    className: 'diff-hbtn',
-    text: '⌕',
-    title: 'Show in Finder',
-    onClick: (e) => {
-      e.stopPropagation()
-      shellService.revealPath(path)
-    }
-  })
-  const reload = createButton({
-    className: 'diff-hbtn',
-    text: '⟳',
-    title: 'Reload from disk (discards unsaved edits)',
-    onClick: (e) => {
-      e.stopPropagation()
-      void load()
-    }
-  })
-  const close = createButton({
-    className: 'diff-hbtn diff-hclose',
-    text: '×',
-    title: 'Close',
-    onClick: (e) => {
-      e.stopPropagation()
-      paneActions.close(id)
-    }
-  })
+  const copyBtn = createButton({ className: 'diff-hbtn', text: '⧉', title: 'Copy full path', onClick: makeCopyPathClick(() => path) })
+  const revealBtn = createButton({ className: 'diff-hbtn', text: '⌕', title: 'Show in Finder', onClick: makeRevealClick(() => path) })
+  const reloadBtn = createButton({ className: 'diff-hbtn', text: '⟳', title: 'Reload from disk (discards unsaved edits)', onClick: makeReloadClick(() => void load()) })
+  const closeBtn = createButton({ className: 'diff-hbtn diff-hclose', text: '×', title: 'Close', onClick: makeCloseClick(id) })
 
   const header = (
     <div class="pane-header diff-header">
@@ -140,8 +75,8 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
       {saveBtn}
       {copyBtn}
       {revealBtn}
-      {reload}
-      {close}
+      {reloadBtn}
+      {closeBtn}
     </div>
   ) as HTMLDivElement
 
@@ -154,13 +89,9 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     </div>
   ) as HTMLDivElement
   setupPaneDnd(el, header, id)
-  el.addEventListener('mousedown', () => paneActions.select(id))
+  el.addEventListener('mousedown', makeSelectPane(id))
 
-  // ---- state ----
-  let fontSize = DEFAULT_FONT
-  let dirty = false
-  let editor: CodeEditor | null = null
-
+  // ---- orchestration ----
   const applyFont = (): void => {
     editor?.setFontSize(fontSize)
   }
@@ -187,10 +118,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
       }, 1500)
     }
   }
-  saveBtn.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void save()
-  })
+  saveBtn.addEventListener('click', makeSaveClick(() => void save()))
 
   const load = async (line?: number): Promise<void> => {
     editor?.destroy()
@@ -242,7 +170,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     isDirty: () => dirty,
     openFile,
     setFont: (delta: number) => {
-      fontSize = Math.max(MIN_FONT, Math.min(MAX_FONT, fontSize + delta))
+      fontSize = clampFont(fontSize, delta)
       applyFont()
     },
     resetFont: () => {
@@ -251,7 +179,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     },
     focus: () => editor?.focus()
   })
-  cleanups.set(id, () => {
+  registerCodePaneCleanup(id, () => {
     editor?.destroy()
     editor = null
   })
@@ -261,7 +189,6 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
 }
 
 export function destroyCodePane(id: string): void {
-  cleanups.get(id)?.()
-  cleanups.delete(id)
+  runCodePaneCleanup(id)
   codePanes.delete(id)
 }
