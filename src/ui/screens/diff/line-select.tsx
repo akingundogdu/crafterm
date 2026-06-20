@@ -1,4 +1,9 @@
 import { UITexts } from '@texts'
+import type { LineRow, LineSelectOptions, LineSelectHandle } from './line-select.types'
+import { DEFAULT_FONT, clampFont, buildRef, preventAndStop } from './line-select.state'
+
+export type { LineRow, LineSelectOptions, LineSelectHandle } from './line-select.types'
+
 // Shared line-selection engine for the read-only file/diff viewer panes. Owns the
 // `.diff-body` element, the rendered rows, contiguous range selection
 // (click / click-drag / shift-click), font scaling, and the floating action
@@ -7,43 +12,8 @@ import { UITexts } from '@texts'
 // Pure: it imports no state/IPC — the app touchpoints (which file the ref names,
 // how to paste it, pane selection) arrive via opts, so the engine renders and
 // selects under happy-dom without the renderer graph. Callers (file-pane,
-// diff-pane) supply the row list and wire the injected callbacks.
-
-const DEFAULT_FONT = 12
-const MIN_FONT = 8
-const MAX_FONT = 28
-
-export interface LineRow {
-  className: string // full row class, e.g. 'diff-row ctx' or 'diff-row add'
-  gutter: string // gutter text (line number or empty)
-  text: string // line content
-  line: number | null // selectable when non-null; also set as dataset.line
-}
-
-export interface LineSelectOptions {
-  // File path used to build the `path:line` ref (null suppresses the send).
-  refFile: () => string | null
-  // Paste the ref into a terminal; returns false when none is available.
-  sendRef: (ref: string) => boolean
-  // Called on row mousedown so the caller can mark its pane active.
-  onRowSelect: () => void
-  // Extra buttons appended into the floating cluster after the "+" (e.g. comment).
-  extraActions?: HTMLElement[]
-  // Fired when the selection becomes empty (e.g. to dismiss a popover).
-  onSelectionCleared?: () => void
-}
-
-export interface LineSelectHandle {
-  body: HTMLDivElement
-  setRows: (rows: LineRow[]) => void
-  setMessage: (msg: string) => void
-  clearSelection: () => void
-  currentRange: () => { a: number; b: number } | null
-  setFont: (delta: number) => void
-  resetFont: () => void
-  destroy: () => void
-}
-
+// diff-pane) supply the row list and wire the injected callbacks. The selection
+// state machine is intentionally closure-bound; pure helpers live in state.
 export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
   const body = (<div class="diff-body" />) as HTMLDivElement
 
@@ -78,7 +48,7 @@ export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
     if (!file) return null
     const a = Number(rows[selStart].dataset.line)
     const b = Number(rows[selEnd].dataset.line)
-    return a === b ? `${file}:${a}` : `${file}:${a}-${b}`
+    return buildRef(file, a, b)
   }
 
   const currentRange = (): { a: number; b: number } | null => {
@@ -94,10 +64,7 @@ export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
       plus.title = 'Open a terminal first'
     }
   }
-  plus.addEventListener('mousedown', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-  })
+  plus.addEventListener('mousedown', preventAndStop)
   plus.addEventListener('click', (e) => {
     e.stopPropagation()
     send()
@@ -189,7 +156,7 @@ export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
     clearSelection,
     currentRange,
     setFont: (delta: number) => {
-      fontSize = Math.max(MIN_FONT, Math.min(MAX_FONT, fontSize + delta))
+      fontSize = clampFont(fontSize, delta)
       applyFont()
     },
     resetFont: () => {
