@@ -1,6 +1,6 @@
 import './improve-crafterm.css'
 import { settings } from '@ui/state/state'
-import { makeCloseButton, promptConfirm } from '@ui/dialog/dialog'
+import { makeCloseButton, promptConfirm } from '@ui/components/dialog/dialog'
 import { todoService } from '@services'
 import { createOverlay } from '@ui/components'
 import {

@@ -1,7 +1,7 @@
 import { createModal, createField, createInput, createTextarea, createSelect } from '@ui/components'
 import { UITexts } from '@texts'
 import type { Bookmark } from '@ui/types/types'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { TYPE_LABEL } from '../bookmark-meta'
 import {
   type BookmarkFormControls,

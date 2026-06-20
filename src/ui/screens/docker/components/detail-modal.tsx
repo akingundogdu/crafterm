@@ -1,7 +1,7 @@
 import { UITexts } from '@texts'
 import type { DockerKind } from '@services/docker/docker.types'
 import { dockerService } from '@services'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { createButton, createOverlay } from '@ui/components'
 import { inspectFields } from '../inspect'
 import type { EmbeddedTerm, DetailTab, DetailModalOptions } from './detail-modal.types'

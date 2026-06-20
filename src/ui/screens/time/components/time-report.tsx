@@ -1,5 +1,5 @@
 import { createOverlay, createButton } from '@ui/components'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { state } from '@ui/state/state'
 import { findProjectByPath, findFeature } from '@ui/catalog/catalog'
 import { timeEntryRepo } from '@repositories'

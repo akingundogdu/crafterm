@@ -1,6 +1,6 @@
 import type { DbColumn } from '@services/db/db.types'
 import type { EditableContext, FieldValue, GridContext } from './result-grid.types'
-import { promptConfirm } from '@ui/dialog/dialog'
+import { promptConfirm } from '@ui/components/dialog/dialog'
 import { dbService } from '@services'
 import { quoteIdent, literalOf } from '../sql-literal'
 

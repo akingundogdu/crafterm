@@ -23,7 +23,7 @@ import {
   setNodeGroup
 } from '@ui/commands/commands'
 import { showRunApps, showFeatureSetup, showRunCommand } from '../pickers/project/project'
-import { promptText, promptSelect } from '@ui/dialog/dialog'
+import { promptText, promptSelect } from '@ui/components/dialog/dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from '../database/database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from '../docker/docker'
 import { renderAccounts, accountsApplyQuery, initAccounts } from '../accounts/accounts'

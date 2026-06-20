@@ -1,5 +1,5 @@
 import { createOverlay } from '@ui/components'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { bindEscapeClose } from './text-modal.state'
 
 // Read-only text modal for Docker action/prune errors. Title + monospace <pre>,

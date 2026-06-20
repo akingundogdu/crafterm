@@ -1,6 +1,6 @@
 import type { NbNode } from '@services/notebook/notebook.types'
 import { openNote, openMarkdownFile } from '@ui/commands/commands'
-import { promptText } from '@ui/dialog/dialog'
+import { promptText } from '@ui/components/dialog/dialog'
 import { showFileFinder } from '../screens/pickers/finders/finders'
 import { settings, state } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'

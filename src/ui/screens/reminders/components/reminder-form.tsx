@@ -1,6 +1,6 @@
 import { createOverlay, createButton, createSelect, createTextarea, createDateField } from '@ui/components'
 import { UITexts } from '@texts'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import type { Reminder } from '@ui/types/types'
 import {
   toLocalInput,

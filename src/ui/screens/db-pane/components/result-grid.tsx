@@ -1,7 +1,7 @@
 import type { DbColumn } from '@services/db/db.types'
 import { createOverlay } from '@ui/components'
 import { UITexts } from '@texts'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { dbService } from '@services'
 import type { EditableContext, GridContext, FieldValue } from './result-grid.types'
 import {

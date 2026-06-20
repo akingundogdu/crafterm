@@ -2,7 +2,7 @@ import { createModal, createField, createInput, createTextarea, createSelect, cr
 import { UITexts } from '@texts'
 import type { MeetingNote } from '@ui/types/types'
 import { state } from '@ui/state/state'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { flattenProjects } from '@ui/catalog/catalog'
 import {
   type MeetingFormControls,

@@ -1,5 +1,5 @@
 import { selectPane } from '@ui/commands/commands'
-import { promptConfirm } from '@ui/dialog/dialog'
+import { promptConfirm } from '@ui/components/dialog/dialog'
 import { terminalService, gitService } from '@services'
 import { UITexts } from '@texts'
 import type { Stash } from './git.types'

@@ -1,6 +1,6 @@
 import './pickers.css'
 import { createOverlay } from '@ui/components'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import type { OverlayModalHandle } from './shared.types'
 
 export type { OverlayModalHandle } from './shared.types'

@@ -1,7 +1,7 @@
 import { settings, state, requestSidebar, uid } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { persistence } from '@repositories/persistence.service'
-import { promptForm, promptText } from '@ui/dialog/dialog'
+import { promptForm, promptText } from '@ui/components/dialog/dialog'
 import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
 import { flattenProjects, removeProject } from '@ui/catalog/catalog'
 import { makeProject } from '@ui/tree/tree'

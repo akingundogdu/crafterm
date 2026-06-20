@@ -1,6 +1,6 @@
 import { createOverlay, createButton } from '@ui/components'
 import { UITexts } from '@texts'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import type { ReminderPayload } from '@ui/types/types'
 import { snoozeOptions } from '../reminders'
 import { makeSnoozeChipClick } from './remind-modal.state'

@@ -19,7 +19,7 @@ import { makeFolder, allTabs, projectOf } from '@ui/tree/tree'
 import { flattenProjects } from '@ui/catalog/catalog'
 import { archiveTab } from '@ui/commands/commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
-import { promptForm, promptConfirm } from '@ui/dialog/dialog'
+import { promptForm, promptConfirm } from '@ui/components/dialog/dialog'
 import { gitService, appService , soundService } from '@services'
 import { norm, baseName, shq } from './domain/worktree-path'
 

@@ -2,7 +2,7 @@ import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { prService } from '@services'
 import { createOverlay, createSearchBox, createButton } from '@ui/components'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { bindEscapeClose, filterRepos, projectCountLabel, saveProjects } from './project-picker.state'
 
 // Searchable, multi-select repo picker for the "All projects" PR/Deployments

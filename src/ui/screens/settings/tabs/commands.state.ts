@@ -1,7 +1,7 @@
 import { settings, uid } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { persistence } from '@repositories/persistence.service'
-import { promptForm } from '@ui/dialog/dialog'
+import { promptForm } from '@ui/components/dialog/dialog'
 import { paletteCommandRepo } from '@repositories'
 import type { PaletteCommand } from '@ui/types/types'
 

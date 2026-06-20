@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from 'vitest'
-import { promptText, promptConfirm, promptForm } from '@ui/dialog/dialog'
+import { promptText, promptConfirm, promptForm } from '@ui/components/dialog/dialog'
 
 afterEach(() => {
   document.body.innerHTML = ''

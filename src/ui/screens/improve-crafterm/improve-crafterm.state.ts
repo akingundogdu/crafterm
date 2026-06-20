@@ -1,5 +1,5 @@
 import { settings, uid } from '@ui/state/state'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { appService } from '@services'
 import { createOverlay } from '@ui/components'
 import { type TodoDoc, type TodoItemJson, type TodoFileJson } from './todo-doc'

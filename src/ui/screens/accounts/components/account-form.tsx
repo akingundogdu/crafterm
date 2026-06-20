@@ -1,7 +1,7 @@
 import { createOverlay, createButton, createInput, createTextarea, createField } from '@ui/components'
 import { UITexts } from '@texts'
 import type { AccountEntry } from '@ui/types/types'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { renderAccounts } from '../accounts'
 import { createAccountDraft, initialPending, makeSaveAccount } from './account-form.state'
 

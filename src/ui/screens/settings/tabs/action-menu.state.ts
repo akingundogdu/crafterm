@@ -1,7 +1,7 @@
 import { settings, uid } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { persistence } from '@repositories/persistence.service'
-import { promptForm } from '@ui/dialog/dialog'
+import { promptForm } from '@ui/components/dialog/dialog'
 import { BUILTIN_ACTIONS } from '@ui/types/types'
 import type { ActionMenuItem } from '@ui/types/types'
 import { actionMenuRepo } from '@repositories'

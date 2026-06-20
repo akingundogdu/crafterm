@@ -1,7 +1,7 @@
 import './time.css'
 import { settings, uid, state, panes } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
-import { promptText } from '@ui/dialog/dialog'
+import { promptText } from '@ui/components/dialog/dialog'
 import { flattenProjects, findProjectByPath } from '@ui/catalog/catalog'
 import { appService , soundService } from '@services'
 import { timeEntryRepo } from '@repositories'

@@ -1,7 +1,7 @@
 import { UITexts } from '@texts'
 import type { DockerRow, DockerKind } from '@services/docker/docker.types'
 import { openTerminalRunning } from '@ui/commands/commands'
-import { promptConfirm } from '@ui/dialog/dialog'
+import { promptConfirm } from '@ui/components/dialog/dialog'
 import { dockerService } from '@services'
 import { field as f } from './inspect'
 import { showDetailModal } from './components/detail-modal'

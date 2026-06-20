@@ -1,5 +1,5 @@
 import { terminalService } from '@services'
-import { promptConfirm } from '@ui/dialog/dialog'
+import { promptConfirm } from '@ui/components/dialog/dialog'
 
 // Mirror the main app's "running" heuristic (busy = output within ~700ms).
 export const BUSY_MS = 700

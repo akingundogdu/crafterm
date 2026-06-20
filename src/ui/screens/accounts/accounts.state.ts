@@ -1,7 +1,7 @@
 import { UITexts } from '@texts'
 import type { AccountEntry, AccountField } from '@ui/types/types'
 import { accountRepo } from '@repositories'
-import { promptConfirm } from '@ui/dialog/dialog'
+import { promptConfirm } from '@ui/components/dialog/dialog'
 import { secretsService } from '@services'
 import { showAccountForm } from './components/account-form'
 

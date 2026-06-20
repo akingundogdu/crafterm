@@ -1,7 +1,7 @@
 import type { SshConnection } from '@ui/types/types'
 import { uid } from '@ui/state/state'
 import { openTerminalRunning } from '@ui/commands/commands'
-import { promptForm, promptConfirm } from '@ui/dialog/dialog'
+import { promptForm, promptConfirm } from '@ui/components/dialog/dialog'
 import { sshConnectionRepo } from '@repositories'
 import { UITexts } from '@texts'
 

@@ -1,5 +1,5 @@
 import { createOverlay, createSelect, createButton } from '@ui/components'
-import { makeCloseButton } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { state, panes } from '@ui/state/state'
 import { flattenProjects, findProjectByPath } from '@ui/catalog/catalog'
 import { UITexts } from '@texts'
