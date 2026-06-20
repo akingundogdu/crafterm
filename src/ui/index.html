@@ -40,50 +40,9 @@
           <button id="sidebar-actions" title="More actions" aria-label="More actions">⋮</button>
         </div>
         <div id="tab-list"></div>
-        <div id="sidebar-footer">
-          <button id="new-tab" title="New terminal (⌘T)">
-            <span class="btn-label">Terminal</span><span class="kbd">⌘T</span>
-          </button>
-          <button id="new-claude" title="New Claude terminal (⇧⌘T)">
-            <span class="btn-label">Claude</span><span class="kbd">⇧⌘T</span>
-          </button>
-          <button id="new-folder" title="New folder (⇧⌘N)">+ Folder</button>
-          <button id="new-project" title="New project">+ Project</button>
-          <button id="settings-btn" title="Settings (⌘,)">&#9881;</button>
-        </div>
-        <div id="notebook-footer">
-          <button id="nb-new-note" title="New note (⌘N)">
-            <span class="btn-label">Note</span><span class="kbd">⌘N</span>
-          </button>
-          <button id="nb-new-folder" title="New folder (⇧⌘N)">
-            <span class="btn-label">Folder</span><span class="kbd">⇧⌘N</span>
-          </button>
-          <button id="nb-link-file" title="Link an external file to the notebook">
-            <span class="btn-label">Link</span>
-          </button>
-          <button id="nb-settings-btn" title="Settings (⌘,)">&#9881;</button>
-        </div>
-        <div id="database-footer">
-          <button id="db-new-project" title="New database project">
-            <span class="btn-label">+ Project</span>
-          </button>
-          <button id="db-settings-btn" title="Settings (⌘,)">&#9881;</button>
-        </div>
-        <div id="docker-footer">
-          <button id="docker-refresh" title="Refresh docker view">
-            <span class="btn-label">⟳ Refresh</span>
-          </button>
-          <button id="docker-settings-btn" title="Settings (⌘,)">&#9881;</button>
-        </div>
-        <div id="accounts-footer">
-          <button id="accounts-new-entry" title="New account">
-            <span class="btn-label">+ Account</span>
-          </button>
-          <button id="accounts-new-secret" title="New secret (env var)">
-            <span class="btn-label">+ Secret</span>
-          </button>
-          <button id="accounts-settings-btn" title="Settings (⌘,)">&#9881;</button>
-        </div>
+        <!-- The per-mode footer button bars (#sidebar-footer, #notebook-footer,
+             #database-footer, #docker-footer, #accounts-footer) are rendered by
+             screens/sidebar/components/sidebar-footers (mountSidebarFooters). -->
       </aside>
       <div id="sidebar-resizer"></div>
       <div id="content-col">

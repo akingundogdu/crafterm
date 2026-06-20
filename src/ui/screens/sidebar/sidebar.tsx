@@ -26,7 +26,7 @@ import { showRunApps, showFeatureSetup, showRunCommand } from '../pickers/projec
 import { promptText, promptSelect } from '@ui/components/dialog/dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from '../database/database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from '../docker/docker'
-import { renderAccounts, accountsApplyQuery, initAccounts } from '../accounts/accounts'
+import { renderAccounts, accountsApplyQuery } from '../accounts/accounts'
 import { type ContextMenuItem } from '@ui/components'
 import { iosWorktreeTrailing, iosWorktreeMenuItems } from '../ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '@services/worktrees'
@@ -258,7 +258,6 @@ tabNotebookEl.addEventListener('click', () => setSidebarMode('notebook'))
 tabDatabaseEl.addEventListener('click', () => setSidebarMode('database'))
 tabDockerEl.addEventListener('click', () => setSidebarMode('docker'))
 tabAccountsEl.addEventListener('click', () => setSidebarMode('accounts'))
-initAccounts()
 
 export function setSidebarMode(m: SidebarMode): void {
   sidebarMode = m

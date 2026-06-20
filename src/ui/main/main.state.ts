@@ -37,6 +37,8 @@ import { applyTheme } from '../editor/monaco/monaco-setup'
 import { renderContent, updatePaneHighlight } from '../screens/content/content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from '../screens/notifications/notifications'
 import { mountStatusBar } from '@ui/components/status-bar/status-bar'
+import { mountSidebarFooters } from '../screens/sidebar/components/sidebar-footers'
+import { initAccounts } from '../screens/accounts/accounts'
 import { openTrackModal } from '../screens/time/time'
 import {
   renderSidebar,
@@ -247,21 +249,25 @@ export function wirePtyStream(): void {
 }
 
 // ---- Footer buttons ----
+// The per-mode sidebar footer bars are built by mountSidebarFooters (their action
+// handlers injected here); equalize-btn lives in the content area, not a footer,
+// so it stays wired directly. The accounts footer's buttons are wired by the
+// accounts module (initAccounts), called once the footer markup exists.
 export function wireFooterButtons(): void {
-  document.getElementById('new-tab')!.addEventListener('click', () => newTerminal(null))
-  document.getElementById('new-claude')!.addEventListener('click', () => void newClaudeTab())
-  document.getElementById('new-folder')!.addEventListener('click', () => void newFolder())
-  document.getElementById('new-project')!.addEventListener('click', () => void createProject())
-  document.getElementById('settings-btn')!.addEventListener('click', () => openSettings())
+  mountSidebarFooters(document.getElementById('sidebar')!, {
+    onNewTerminal: () => newTerminal(null),
+    onNewClaude: () => void newClaudeTab(),
+    onNewFolder: () => void newFolder(),
+    onNewProject: () => void createProject(),
+    onSettings: () => openSettings(),
+    onNotebookNewNote: () => notebookNewNote(),
+    onNotebookNewFolder: () => notebookNewFolder(),
+    onNotebookLinkFile: () => notebookLinkFile(),
+    onDatabaseNewProject: () => databaseNewProject(),
+    onDockerRefresh: () => void renderDocker(document.getElementById('tab-list')!)
+  })
+  initAccounts()
   document.getElementById('equalize-btn')!.addEventListener('click', () => equalizePanes())
-  document.getElementById('nb-new-note')!.addEventListener('click', () => notebookNewNote())
-  document.getElementById('nb-new-folder')!.addEventListener('click', () => notebookNewFolder())
-  document.getElementById('nb-link-file')!.addEventListener('click', () => notebookLinkFile())
-  document.getElementById('nb-settings-btn')!.addEventListener('click', () => openSettings())
-  document.getElementById('db-new-project')!.addEventListener('click', () => databaseNewProject())
-  document.getElementById('db-settings-btn')!.addEventListener('click', () => openSettings())
-  document.getElementById('docker-refresh')!.addEventListener('click', () => void renderDocker(document.getElementById('tab-list')!))
-  document.getElementById('docker-settings-btn')!.addEventListener('click', () => openSettings())
 }
 
 // Cmd +/- zoom: markdown doc when one is active, else sidebar (if focused),
