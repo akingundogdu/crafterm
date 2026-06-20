@@ -2,6 +2,25 @@
 // signatures, same DOM/classes, same behavior — callers are unchanged.
 import '@ui/close-panes/close-panes.css'
 import { createButton, createField, createInput, createModal, createSelect, CREATE_OPTION } from '@ui/components'
+import type {
+  PromptTextOptions,
+  PromptConfirmOptions,
+  PromptCloseActionsOptions,
+  CloseActionsResult,
+  PromptSelectOptions,
+  PromptFormOptions
+} from './dialog.types'
+import { makeKeyHandler, collectFormValues } from './dialog.state'
+
+export type {
+  PromptTextOptions,
+  PromptConfirmOptions,
+  PromptCloseActionsOptions,
+  CloseActionsResult,
+  PromptSelectOptions,
+  PromptFormOptions,
+  FormField
+} from './dialog.types'
 
 // A reusable "×" close button pinned to a modal's top-right corner.
 // Pass the modal's close handler; the caller appends it to the `.modal` element.
@@ -18,13 +37,7 @@ export function makeCloseButton(onClose: () => void): HTMLButtonElement {
 
 // Small modal text prompt. Resolves the trimmed value, or null when cancelled /
 // left empty.
-export function promptText(opts: {
-  title: string
-  label: string
-  value?: string
-  placeholder?: string
-  confirmText?: string
-}): Promise<string | null> {
+export function promptText(opts: PromptTextOptions): Promise<string | null> {
   return new Promise((resolve) => {
     const input = createInput({ value: opts.value, placeholder: opts.placeholder })
     const m = createModal({ title: opts.title, confirmText: opts.confirmText })
@@ -45,26 +58,16 @@ export function promptText(opts: {
     m.onClose(() => close(null))
     m.confirmBtn.addEventListener('click', submit)
     m.cancelBtn.addEventListener('click', () => close(null))
-    input.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      if (e.key === 'Enter') submit()
-      else if (e.key === 'Escape') close(null)
-    })
+    input.addEventListener('keydown', makeKeyHandler(submit, () => close(null)))
     input.focus()
     input.select()
   })
 }
 
 // Yes/no confirmation modal. Resolves true if confirmed.
-export function promptConfirm(opts: {
-  title: string
-  message: string
-  confirmText?: string
-}): Promise<boolean> {
+export function promptConfirm(opts: PromptConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
-    const msg = (
-      <div class="modal-confirm-message">{opts.message}</div>
-    ) as HTMLDivElement
+    const msg = (<div class="modal-confirm-message">{opts.message}</div>) as HTMLDivElement
     const m = createModal({ title: opts.title, confirmText: opts.confirmText })
     m.append(msg)
     m.mount()
@@ -80,11 +83,7 @@ export function promptConfirm(opts: {
     m.confirmBtn.addEventListener('click', () => close(true))
     m.cancelBtn.addEventListener('click', () => close(false))
     m.modal.tabIndex = -1
-    m.modal.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      if (e.key === 'Enter') close(true)
-      else if (e.key === 'Escape') close(false)
-    })
+    m.modal.addEventListener('keydown', makeKeyHandler(() => close(true), () => close(false)))
     m.confirmBtn.focus()
   })
 }
@@ -93,12 +92,7 @@ export function promptConfirm(opts: {
 // worktree this terminal lives in, each with a switch toggled ON by default so
 // closing also marks the task done / removes the worktree unless the user flips
 // it off. Resolves the chosen toggles, or null when cancelled (terminal stays).
-export function promptCloseActions(opts: {
-  title: string
-  confirmText?: string
-  task?: { issueKey?: string | null; title: string }
-  worktree?: { branch: string; path: string }
-}): Promise<{ markDone: boolean; deleteWorktree: boolean } | null> {
+export function promptCloseActions(opts: PromptCloseActionsOptions): Promise<CloseActionsResult | null> {
   return new Promise((resolve) => {
     const m = createModal({
       title: opts.title,
@@ -163,7 +157,7 @@ export function promptCloseActions(opts: {
     m.mount()
 
     let done = false
-    const close = (result: { markDone: boolean; deleteWorktree: boolean } | null): void => {
+    const close = (result: CloseActionsResult | null): void => {
       if (done) return
       done = true
       m.close()
@@ -175,11 +169,7 @@ export function promptCloseActions(opts: {
     )
     m.cancelBtn.addEventListener('click', () => close(null))
     m.modal.tabIndex = -1
-    m.modal.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      if (e.key === 'Enter') m.confirmBtn.click()
-      else if (e.key === 'Escape') close(null)
-    })
+    m.modal.addEventListener('keydown', makeKeyHandler(() => m.confirmBtn.click(), () => close(null)))
     m.confirmBtn.focus()
   })
 }
@@ -187,15 +177,7 @@ export function promptCloseActions(opts: {
 // Modal dropdown picker. Resolves the chosen value ('' for the empty/none
 // option), or null when cancelled. With `allowCreate`, a "+ New…" choice opens
 // a text prompt and resolves the typed value.
-export function promptSelect(opts: {
-  title: string
-  label: string
-  value?: string
-  options: string[]
-  emptyLabel?: string // label for the '' option; omit to hide the empty choice
-  allowCreate?: boolean
-  confirmText?: string
-}): Promise<string | null> {
+export function promptSelect(opts: PromptSelectOptions): Promise<string | null> {
   return new Promise((resolve) => {
     const sel = createSelect({
       options: opts.options,
@@ -229,22 +211,14 @@ export function promptSelect(opts: {
     m.onClose(() => close(null))
     m.confirmBtn.addEventListener('click', submit)
     m.cancelBtn.addEventListener('click', () => close(null))
-    sel.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      if (e.key === 'Enter') submit()
-      else if (e.key === 'Escape') close(null)
-    })
+    sel.addEventListener('keydown', makeKeyHandler(submit, () => close(null)))
     sel.focus()
   })
 }
 
 // Multi-field modal form. Resolves a map of trimmed values, or null if cancelled.
 // The first listed field must be non-empty to confirm.
-export function promptForm(opts: {
-  title: string
-  fields: { key: string; label: string; value?: string; placeholder?: string }[]
-  confirmText?: string
-}): Promise<Record<string, string> | null> {
+export function promptForm(opts: PromptFormOptions): Promise<Record<string, string> | null> {
   return new Promise((resolve) => {
     const m = createModal({ title: opts.title, confirmText: opts.confirmText })
     const inputs: Record<string, HTMLInputElement> = {}
@@ -263,20 +237,15 @@ export function promptForm(opts: {
       resolve(result)
     }
     const submit = (): void => {
-      const out: Record<string, string> = {}
-      for (const f of opts.fields) out[f.key] = inputs[f.key].value.trim()
-      if (!out[opts.fields[0].key]) return // first field is required
+      const out = collectFormValues(opts.fields, inputs)
+      if (!out) return // first field is required
       close(out)
     }
     m.onClose(() => close(null))
     m.confirmBtn.addEventListener('click', submit)
     m.cancelBtn.addEventListener('click', () => close(null))
     for (const f of opts.fields) {
-      inputs[f.key].addEventListener('keydown', (e) => {
-        e.stopPropagation()
-        if (e.key === 'Enter') submit()
-        else if (e.key === 'Escape') close(null)
-      })
+      inputs[f.key].addEventListener('keydown', makeKeyHandler(submit, () => close(null)))
     }
     inputs[opts.fields[0].key].focus()
     inputs[opts.fields[0].key].select()
