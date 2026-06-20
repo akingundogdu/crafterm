@@ -1,7 +1,7 @@
 import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
 import { labeledInput } from '../shared'
+import { makeSaveRepoPath, makeSaveUpdateCommand } from './system-update.state'
 
 export function buildSystemUpdatePanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.systemUpdate.heading}</h3>`)
@@ -10,10 +10,7 @@ export function buildSystemUpdatePanel(panel: HTMLElement): void {
     '<div class="field-hint">The sidebar “Update Crafterm” action runs this command in your Crafterm source checkout, then swaps the built app into /Applications and relaunches.</div>'
   )
 
-  const repo = labeledInput(panel, UITexts.Settings.systemUpdate.codebasePath, 'text', settings.repoPath, (v) => {
-    settings.repoPath = v.trim()
-    persistence.save()
-  })
+  const repo = labeledInput(panel, UITexts.Settings.systemUpdate.codebasePath, 'text', settings.repoPath, makeSaveRepoPath())
   repo.style.maxWidth = '320px'
   repo.placeholder = '~/path/to/crafterm'
   panel.insertAdjacentHTML(
@@ -21,10 +18,7 @@ export function buildSystemUpdatePanel(panel: HTMLElement): void {
     '<div class="field-hint">Local clone of the Crafterm source repo (must contain package.json).</div>'
   )
 
-  const cmd = labeledInput(panel, UITexts.Settings.systemUpdate.updateCommand, 'text', settings.updateCommand, (v) => {
-    settings.updateCommand = v.trim() || 'run-crafterm-deploy'
-    persistence.save()
-  })
+  const cmd = labeledInput(panel, UITexts.Settings.systemUpdate.updateCommand, 'text', settings.updateCommand, makeSaveUpdateCommand())
   cmd.style.maxWidth = '320px'
   cmd.placeholder = 'run-crafterm-deploy'
   panel.insertAdjacentHTML(
