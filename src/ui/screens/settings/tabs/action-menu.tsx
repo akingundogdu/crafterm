@@ -1,10 +1,14 @@
-import { settings, uid } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
-import { promptForm } from '@ui/dialog/dialog'
-import { BUILTIN_ACTIONS } from '@ui/types/types'
-import type { ActionMenuItem } from '@ui/types/types'
 import { actionMenuRepo } from '@repositories'
+import {
+  builtinLabel,
+  moveActionItem,
+  toggleActionHidden,
+  removeActionItem,
+  addActionItem,
+  resetActionMenu,
+  editActionItem
+} from './action-menu.state'
 
 export function buildActionMenuPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.actionMenu.heading}</h3>`)
@@ -15,20 +19,6 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
 
   const list = (<div class="action-menu-admin" />) as HTMLDivElement
   panel.appendChild(list)
-
-  const builtinLabel = (id?: string): string =>
-    BUILTIN_ACTIONS.find((a) => a.id === id)?.label ?? '(unknown builtin)'
-
-  const move = (i: number, delta: number): void => {
-    const arr = actionMenuRepo.getAll()
-    const j = i + delta
-    if (j < 0 || j >= arr.length) return
-    // Positional swap — ordering isn't expressible through the CRUD repo, so the
-    // physical array is reordered in place and persisted directly.
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    persistence.save()
-    render()
-  }
 
   const render = (): void => {
     list.replaceChildren()
@@ -42,7 +32,9 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
           ref={(el: HTMLButtonElement) => {
             el.disabled = i === 0
           }}
-          onClick={() => move(i, -1)}
+          onClick={() => {
+            if (moveActionItem(i, -1)) render()
+          }}
         >
           ↑
         </button>
@@ -53,7 +45,9 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
           ref={(el: HTMLButtonElement) => {
             el.disabled = i === actionMenuRepo.getAll().length - 1
           }}
-          onClick={() => move(i, 1)}
+          onClick={() => {
+            if (moveActionItem(i, 1)) render()
+          }}
         >
           ↓
         </button>
@@ -74,8 +68,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
         <button
           class="wt-act"
           onClick={() => {
-            item.hidden = !item.hidden
-            actionMenuRepo.upsert(item)
+            toggleActionHidden(item)
             render()
           }}
         >
@@ -91,7 +84,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
         <button
           class="wt-act wt-remove"
           onClick={() => {
-            actionMenuRepo.remove(item.id)
+            removeActionItem(item.id)
             render()
           }}
         >
@@ -119,7 +112,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
       onClick={() => {
         void editActionItem().then((added) => {
           if (added) {
-            actionMenuRepo.upsert(added)
+            addActionItem(added)
             render()
           }
         })
@@ -132,13 +125,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
     <button
       class="settings-inline-btn"
       onClick={() => {
-        settings.actionMenu = BUILTIN_ACTIONS.map((a) => ({
-          id: uid('am'),
-          title: a.label,
-          kind: 'builtin' as const,
-          builtinId: a.id
-        }))
-        persistence.save()
+        resetActionMenu()
         render()
       }}
     >
@@ -154,43 +141,4 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
   panel.appendChild(actions)
 
   render()
-}
-
-// Edit an existing action item in place (returns null), or create a new command
-// item (returns it). Builtin items only allow renaming; command items get a
-// command + placement.
-async function editActionItem(existing?: ActionMenuItem): Promise<ActionMenuItem | null> {
-  const isBuiltin = existing?.kind === 'builtin'
-  const values = await promptForm({
-    title: existing ? UITexts.Settings.actionMenu.editAction : UITexts.Settings.actionMenu.newAction,
-    fields: isBuiltin
-      ? [{ key: 'title', label: UITexts.Settings.actionMenu.title, value: existing?.title, placeholder: 'menu label' }]
-      : [
-          { key: 'title', label: UITexts.Settings.actionMenu.title, value: existing?.title, placeholder: UITexts.Settings.actionMenu.titlePlaceholder },
-          { key: 'command', label: UITexts.Settings.actionMenu.command, value: existing?.command, placeholder: 'npm run deploy' },
-          { key: 'opensAs', label: UITexts.Settings.actionMenu.opensAs, value: existing?.opensAs ?? 'tab', placeholder: 'tab' }
-        ],
-    confirmText: existing ? UITexts.Settings.actionMenu.save : UITexts.Settings.actionMenu.add
-  })
-  if (!values) return null
-  const title = (values.title || '').trim()
-  if (!title) return null
-  if (existing) {
-    existing.title = title
-    if (!isBuiltin) {
-      existing.command = (values.command || '').trim()
-      existing.opensAs = (values.opensAs || '').trim() === 'split' ? 'split' : 'tab'
-    }
-    persistence.save()
-    return null
-  }
-  const command = (values.command || '').trim()
-  if (!command) return null
-  return {
-    id: uid('am'),
-    title,
-    kind: 'command',
-    command,
-    opensAs: (values.opensAs || '').trim() === 'split' ? 'split' : 'tab'
-  }
 }
