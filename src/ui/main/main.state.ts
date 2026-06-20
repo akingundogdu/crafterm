@@ -36,6 +36,7 @@ import { setEditorOpenHandler } from '@ui/editor/code-editor/code-editor'
 import { applyTheme } from '../editor/monaco-setup'
 import { renderContent, updatePaneHighlight } from '../screens/content/content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from '../screens/notifications/notifications'
+import { mountStatusBar } from '@ui/components/status-bar/status-bar'
 import { openTrackModal } from '../screens/time/time'
 import {
   renderSidebar,
@@ -674,6 +675,12 @@ export async function init(): Promise<void> {
   applyOrientation()
   applySidebarFont()
   applySidebarCollapsed()
+  // Build the top status bar into the content column before notifications init
+  // (which pushes the initial unread count to the badge the status bar owns).
+  mountStatusBar(document.getElementById('content-col')!, {
+    onToggleSidebar: toggleSidebar,
+    onToggleNotif: toggleNotifPanel
+  })
   initNotifications()
   applyTabDisplay()
   wireSidebarResizer(() => persistence.save())

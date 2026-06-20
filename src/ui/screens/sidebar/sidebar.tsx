@@ -128,7 +128,7 @@ export function toggleSidebar(): void {
 }
 
 document.getElementById('sidebar-show')!.addEventListener('click', toggleSidebar)
-document.getElementById('statusbar-sidebar-toggle')!.addEventListener('click', toggleSidebar)
+// #statusbar-sidebar-toggle is wired by the status bar component (mountStatusBar)
 
 // One button toggles every folder: if any is open, collapse all; else expand all.
 document.getElementById('toggle-all-folders')!.addEventListener('click', () => {

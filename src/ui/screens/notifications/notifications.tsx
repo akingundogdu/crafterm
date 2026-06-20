@@ -7,13 +7,12 @@ import { renderExplorer, initExplorer } from '../explorer/explorer'
 import { prTabVisible } from '../pr/pr'
 import { renderBookmarks } from '../bookmarks/bookmarks'
 import { renderTime, initTime, startAutoTracker } from '../time/time'
-import { runUpdate } from '../pickers/update/update'
-import { terminalService, appService } from '@services'
-import { fmtResetTime, usageErrorShort, usageErrorLong } from '@services/domain/usage'
+import { terminalService } from '@services'
 import { notificationRepo } from '@repositories'
-import { relTime, shortModel } from './notif-format'
+import { relTime } from './notif-format'
 import { UITexts } from '@texts'
-import type { RealUsage, UsageWindow, RightTab } from './notifications.types'
+import { updateNotifBadge } from '@ui/components/status-bar/status-bar'
+import type { RightTab } from './notifications.types'
 import {
   CHEVRON_SVG,
   isNotifExpanded,
@@ -21,8 +20,6 @@ import {
   toneOf,
   statusIconFor,
   buildNotifChips,
-  fetchRealUsage,
-  evaluateUsageThresholds,
   resolvePayloadOpener,
   makeDismissClick,
   makeChevronClick,
@@ -68,225 +65,16 @@ export function applyNotifPanel(): void {
   updateBadge()
 }
 
-// Unread count on the bell icon (shown while the panel is closed).
+// Unread count on the bell icon (shown while the panel is closed). The badge DOM
+// lives in the status bar component; this owns the data and pushes it there (S1).
 function updateBadge(): void {
-  const badge = document.getElementById('notif-badge')
-  if (!badge) return
-  const n = notificationRepo.getAll().length
-  badge.textContent = n > 99 ? '99+' : String(n)
-  badge.style.display = n > 0 ? 'flex' : 'none'
+  updateNotifBadge(notificationRepo.getAll().length)
 }
 
 export function toggleNotifPanel(): void {
   notifState.open = !notifState.open
   applyNotifPanel()
   if (notifState.open) renderNotifications()
-}
-
-// Status bar Claude usage chip: polls hourly. Compact display shows the active
-// model + this-week percentage; clicking opens a popover with full today / week /
-// month progress bars (mirrors Claude's /usage TUI).
-function initStatusbarUsage(): void {
-  const chip = document.getElementById('statusbar-claude-usage')
-  if (!chip) return
-  const textEl = chip.querySelector('.usage-text') as HTMLElement | null
-  const refreshBtn = document.getElementById('statusbar-usage-refresh')
-
-  let lastUsage: RealUsage | null = null
-
-  const refresh = async (force = false): Promise<void> => {
-    refreshBtn?.classList.add('spinning')
-    try {
-      const u = await fetchRealUsage(force)
-      lastUsage = u
-      const week = u.sevenDay ? Math.round(u.sevenDay.utilization) : null
-      const model = shortModel(u.modelName) || settings.claudePlanCaps.effort
-      const parts: string[] = [model]
-      if (u.error) parts.push(usageErrorShort(u.error))
-      else if (week !== null) parts.push(`${week}% wk`)
-      if (textEl) textEl.textContent = parts.join(' · ')
-      chip.title = u.error ? usageErrorLong(u.error) : 'Click for session / week usage'
-      evaluateUsageThresholds(u)
-      const open = document.querySelector('.usage-popover')
-      if (open) renderUsagePopover(open as HTMLElement, u)
-    } catch {
-      // ignore — chip keeps its last value
-    } finally {
-      refreshBtn?.classList.remove('spinning')
-    }
-  }
-  void refresh()
-  // Anthropic's limits move on the order of minutes/hours; poll hourly. Users
-  // can force an immediate refresh with the button next to the chip.
-  window.setInterval(refresh, 3_600_000)
-  refreshBtn?.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void refresh(true)
-  })
-
-  chip.addEventListener('click', (e) => {
-    e.stopPropagation()
-    const existing = document.querySelector('.usage-popover')
-    if (existing) {
-      existing.remove()
-      return
-    }
-    const pop = (<div class="usage-popover" />) as HTMLDivElement
-    document.body.append(pop)
-    renderUsagePopover(pop, lastUsage)
-    const rect = chip.getBoundingClientRect()
-    pop.style.top = rect.bottom + 6 + 'px'
-    pop.style.right = window.innerWidth - rect.right + 'px'
-    const onDown = (ev: MouseEvent): void => {
-      if (!pop.contains(ev.target as Node) && ev.target !== chip && !chip.contains(ev.target as Node)) {
-        pop.remove()
-        document.removeEventListener('mousedown', onDown, true)
-      }
-    }
-    setTimeout(() => document.addEventListener('mousedown', onDown, true))
-  })
-}
-
-// Status bar version chip: shows the installed app version (base + git commit
-// count it was built from) and flags "redeploy needed" when the source repo has
-// moved ahead of the running build — either new commits or uncommitted edits.
-// Clicking runs the self-update (deploy) flow, or briefly confirms it's current.
-function initStatusbarVersion(): void {
-  const chip = document.getElementById('statusbar-version')
-  if (!chip) return
-  const textEl = chip.querySelector('.version-text') as HTMLElement | null
-  let base = '' // base semver from package.json (e.g. "0.1.0")
-  let built: { commit: string | null; commitCount: number | null } | null = null
-  let counter: number | null = null // monotonic save count for the source repo
-  let needsRedeploy = false
-
-  // The running build is stale when the repo's HEAD differs from what this build
-  // was packaged from, or the repo has uncommitted changes (code changed but not
-  // yet deployed). Skipped when there's no build info (dev) or no source repo.
-  const evaluate = async (): Promise<void> => {
-    const repo = settings.repoPath.trim()
-    if (!repo || !built || !built.commit) {
-      needsRedeploy = false
-      chip.classList.remove('has-update')
-      chip.title = base ? UITexts.Notifications.deployHint(base) : UITexts.Notifications.appName
-      return
-    }
-    const repoGit = await appService.repoGit(repo)
-    needsRedeploy = !!repoGit && (repoGit.commit !== built.commit || repoGit.dirty)
-    chip.classList.toggle('has-update', needsRedeploy)
-    if (needsRedeploy && repoGit) {
-      const reason = repoGit.dirty ? 'uncommitted changes' : 'new commits'
-      chip.title =
-        `Redeploy needed — repo is ahead (${reason}).\n` +
-        `Running build +${built.commitCount ?? '?'} → repo +${repoGit.commitCount}.\n` +
-        `Click to rebuild & restart.`
-    } else {
-      chip.title = `Crafterm v${base}+${counter ?? built.commitCount ?? '?'} (up to date) · click to check`
-    }
-  }
-
-  const refresh = async (): Promise<void> => {
-    try {
-      base = (await appService.version()) || ''
-      built = await appService.buildInfo()
-      const repo = settings.repoPath.trim()
-      // The displayed "+N" is the live save counter (ticks up as code changes);
-      // fall back to the built-from commit count when no source repo is set.
-      counter = repo ? await appService.buildCounter(repo) : null
-      if (textEl) {
-        const n = counter ?? built?.commitCount ?? null
-        const suffix = n != null ? `+${n}` : ''
-        textEl.textContent = base ? `v${base}${suffix}` : 'v—'
-      }
-      await evaluate()
-    } catch {
-      // ignore — chip keeps its last value
-    }
-  }
-
-  chip.addEventListener('click', async () => {
-    await evaluate()
-    // Source repo behind the running build (or none set yet): run the deploy flow.
-    if (needsRedeploy || !settings.repoPath.trim()) {
-      void runUpdate()
-      return
-    }
-    // Up to date: flash a brief confirmation, then restore the version label.
-    if (textEl) {
-      const prev = textEl.textContent
-      textEl.textContent = UITexts.Notifications.upToDate
-      window.setTimeout(() => {
-        if (textEl.textContent === UITexts.Notifications.upToDate) textEl.textContent = prev
-      }, 1600)
-    }
-  })
-
-  void refresh()
-  // Re-read the counter and redeploy state periodically and on focus so saves
-  // surface in the label without a manual click.
-  window.setInterval(() => void refresh(), 20_000)
-  window.addEventListener('focus', () => void refresh())
-}
-
-function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
-  pop.replaceChildren()
-  if (!u) {
-    pop.insertAdjacentHTML('beforeend', '<div class="usage-empty">Loading…</div>')
-    return
-  }
-
-  const model = shortModel(u.modelName) || UITexts.Notifications.claudeUsageFallback
-  const head = (
-    <div
-      class="usage-head"
-      innerHTML={
-        `<div class="usage-title">${model}</div>` +
-        `<div class="usage-sub">Official limits · ${fmtResetTime(u.fetchedAt).replace(/^Today /, 'updated ')}</div>`
-      }
-    />
-  ) as HTMLDivElement
-  pop.appendChild(head)
-
-  if (u.error) {
-    const err = (<div class="usage-empty">{usageErrorLong(u.error)}</div>) as HTMLDivElement
-    pop.appendChild(err)
-  }
-
-  const bar = (label: string, win: UsageWindow | null): HTMLElement | null => {
-    if (!win) return null
-    const pct = Math.min(100, Math.round(win.utilization))
-    return (
-      <div
-        class="usage-bar-wrap"
-        innerHTML={
-          `<div class="usage-bar-head"><b>${label}</b><span class="usage-pct">${pct}% used</span></div>` +
-          `<div class="usage-bar"><div class="usage-bar-fill" style="width:${pct}%"></div></div>` +
-          (win.resetsAt > 0 ? `<div class="usage-bar-foot">resets ${fmtResetTime(win.resetsAt)}</div>` : '')
-        }
-      />
-    ) as HTMLDivElement
-  }
-  const session = bar(UITexts.Notifications.bars.session, u.fiveHour)
-  const week = bar(UITexts.Notifications.bars.week, u.sevenDay)
-  const sonnet = bar(UITexts.Notifications.bars.weekSonnet, u.sevenDaySonnet)
-  if (session) pop.appendChild(session)
-  if (week) pop.appendChild(week)
-  if (sonnet) pop.appendChild(sonnet)
-
-  const foot = (
-    <div class="usage-foot">
-      <button
-        class="usage-edit"
-        onClick={() => {
-          pop.remove()
-          document.getElementById('settings-btn')?.dispatchEvent(new MouseEvent('click'))
-        }}
-      >
-        Token source in Settings
-      </button>
-    </div>
-  ) as HTMLDivElement
-  pop.appendChild(foot)
 }
 
 function dismiss(id: string): void {
@@ -506,9 +294,6 @@ function switchTab(tab: RightTab): void {
 
 export function initNotifications(): void {
   document.getElementById('notif-clear')!.addEventListener('click', clearNotifications)
-  document.getElementById('statusbar-notif-toggle')!.addEventListener('click', toggleNotifPanel)
-  initStatusbarUsage()
-  initStatusbarVersion()
   document.getElementById('notif-add-reminder')!.addEventListener('click', () => openReminderForm())
   document.getElementById('notif-tab-notifs')!.addEventListener('click', () => switchTab('notifs'))
   document.getElementById('notif-tab-reminders')!.addEventListener('click', () => switchTab('reminders'))
