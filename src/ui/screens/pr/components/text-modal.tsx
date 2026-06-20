@@ -1,16 +1,12 @@
 import { createOverlay } from '@ui/components'
 import { makeCloseButton } from '@ui/dialog/dialog'
+import { bindEscapeClose } from './text-modal.state'
 
 // Read-only text viewer modal (run job/step logs, merge errors). Title + a
 // monospace <pre>, closable via the × button, backdrop click, or Escape.
 export function showTextModal(title: string, text: string): void {
   const { overlay, mount, close, onClose } = createOverlay()
-
-  const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') close()
-  }
-  document.addEventListener('keydown', onKey, true)
-  onClose(() => document.removeEventListener('keydown', onKey, true))
+  bindEscapeClose(close, onClose)
 
   const modal = (
     <div class="modal docker-text-modal">
