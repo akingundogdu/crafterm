@@ -2,35 +2,11 @@
 // selection index, and row rendering. The badge label resolver is injected so
 // the component pulls no business/IPC modules and renders in isolation.
 
-import type { GsEntry } from '../../pickers/global-search/global-search'
 import { UITexts } from '@texts'
+import type { SpotEntry, SpotSource, ResultListHandle } from './result-list.types'
+import { makeRowChoose, clampSelection } from './result-list.state'
 
-export type SpotSource =
-  | GsEntry['source']
-  | 'file'
-  | 'command'
-  | 'claude'
-  | 'shortcut'
-  | 'app'
-  | 'task'
-  | 'reminder'
-  | 'backlog'
-
-export interface SpotEntry {
-  source: SpotSource
-  label: string
-  detail?: string
-  run: () => void
-  altRun?: () => void // ⌘⏎ alternate action (e.g. split instead of open)
-}
-
-export interface ResultListHandle {
-  el: HTMLDivElement
-  setItems: (items: SpotEntry[], showBadge: boolean) => void
-  setLoading: () => void
-  move: (delta: number) => void
-  selected: () => SpotEntry | undefined
-}
+export type { SpotSource, SpotEntry, ResultListHandle } from './result-list.types'
 
 export function createResultList(opts: {
   onChoose: (e: SpotEntry) => void
@@ -49,7 +25,7 @@ export function createResultList(opts: {
   }
 
   const render = (): void => {
-    if (sel >= items.length) sel = Math.max(0, items.length - 1)
+    sel = clampSelection(sel, items.length)
     el.replaceChildren()
     if (!items.length) {
       el.insertAdjacentHTML('beforeend', `<div class="empty-hint">${UITexts.Spotlight.noMatches}</div>`)
@@ -58,14 +34,12 @@ export function createResultList(opts: {
     items.forEach((e, i) => {
       const row = (
         <button class={'pick-row spot-row' + (i === sel ? ' active' : '')}>
-          {showBadge && (
-            <span class={'gs-badge gs-' + e.source}>{opts.badgeFor(e.source)}</span>
-          )}
+          {showBadge && <span class={'gs-badge gs-' + e.source}>{opts.badgeFor(e.source)}</span>}
           <span class="gs-label">{e.label}</span>
           {e.detail && <span class="gs-detail">{e.detail}</span>}
         </button>
       ) as HTMLButtonElement
-      row.addEventListener('click', () => opts.onChoose(e))
+      row.addEventListener('click', makeRowChoose(opts.onChoose, e))
       row.addEventListener('mouseenter', () => {
         sel = i
         highlight()
@@ -88,7 +62,7 @@ export function createResultList(opts: {
       el.insertAdjacentHTML('beforeend', `<div class="empty-hint">${UITexts.Spotlight.loading}</div>`)
     },
     move: (delta) => {
-      sel = Math.min(items.length - 1, Math.max(0, sel + delta))
+      sel = clampSelection(sel + delta, items.length)
       highlight()
     },
     selected: () => items[sel]
