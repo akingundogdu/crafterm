@@ -1,38 +1,27 @@
 import type { DbColumn } from '@services/db/db.types'
-import type { DbConnection } from '@ui/types/types'
 import { createOverlay } from '@ui/components'
 import { UITexts } from '@texts'
-import { makeCloseButton, promptConfirm } from '@ui/dialog/dialog'
+import { makeCloseButton } from '@ui/dialog/dialog'
 import { dbService } from '@services'
-import { quoteIdent, literalOf } from '../sql-literal'
+import type { EditableContext, GridContext, FieldValue } from './result-grid.types'
+import {
+  PEN_SVG,
+  TRASH_SVG,
+  cycleSort,
+  deleteRow,
+  editInitialValues,
+  insertInitialValues,
+  buildUpdateSql,
+  buildInsertSql,
+  collectFieldValues
+} from './result-grid.state'
+
+export type { SortState, EditableContext, GridContext } from './result-grid.types'
 
 // Result grid renderer with optional row-level actions (edit/delete/insert)
 // and column-header sort. The host pane parses the user's SQL and supplies
 // `editable` context only for simple `SELECT * FROM <table>` queries — anything
 // else falls back to a read-only grid.
-
-export interface SortState {
-  column: string
-  dir: 'asc' | 'desc'
-}
-
-export interface EditableContext {
-  conn: DbConnection
-  table: string // table identifier as it appears in the SELECT (may be "schema.name")
-  columns: DbColumn[] // metadata for the table (PK detection, types)
-  // Re-run the current SQL (e.g. after edit/insert/delete) with the latest sort.
-  rerun: () => void
-}
-
-export interface GridContext {
-  columns: string[]
-  rows: unknown[][]
-  ms: number
-  sort: SortState | null
-  onSort?: (col: string | null, dir: 'asc' | 'desc' | null) => void
-  editable?: EditableContext // when present, show row actions + "+ New row"
-}
-
 export function renderResultGrid(host: HTMLElement, ctx: GridContext): void {
   host.replaceChildren()
   host.appendChild(buildStatusBar(ctx))
@@ -41,11 +30,7 @@ export function renderResultGrid(host: HTMLElement, ctx: GridContext): void {
     host.appendChild(buildActionsBar(ctx))
   }
 
-  host.appendChild(
-    (
-      <div class="db-grid-wrap">{buildTable(ctx)}</div>
-    ) as HTMLDivElement
-  )
+  host.appendChild((<div class="db-grid-wrap">{buildTable(ctx)}</div>) as HTMLDivElement)
 }
 
 // ---- status bar -----------------------------------------------------------
@@ -123,14 +108,6 @@ function buildHead(ctx: GridContext): HTMLTableSectionElement {
   ) as HTMLTableSectionElement
 }
 
-function cycleSort(ctx: GridContext, col: string): void {
-  if (!ctx.onSort) return
-  const cur = ctx.sort
-  if (!cur || cur.column !== col) ctx.onSort(col, 'asc')
-  else if (cur.dir === 'asc') ctx.onSort(col, 'desc')
-  else ctx.onSort(null, null) // 3rd click clears sort
-}
-
 function buildBody(ctx: GridContext): HTMLTableSectionElement {
   const slice = ctx.rows.slice(0, 1000)
   return (<tbody>{slice.map((row, i) => buildRow(ctx, row, i))}</tbody>) as HTMLTableSectionElement
@@ -196,60 +173,14 @@ function buildRowActions(ctx: GridContext, row: unknown[]): HTMLTableCellElement
   return td
 }
 
-const PEN_SVG =
-  '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M11.5 1.7l2.8 2.8L5.6 13.2 2 14l.8-3.6z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
-const TRASH_SVG =
-  '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M3 4h10M6 4V2.6h4V4M4.4 4l.7 9.4h5.8L11.6 4M6.8 6.8v4.4M9.2 6.8v4.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-
-// ---- edit / insert / delete -----------------------------------------------
-
-async function deleteRow(
-  ctx: EditableContext,
-  gridColumns: string[],
-  row: unknown[]
-): Promise<void> {
-  const engine = ctx.conn.engine
-  const pkParts: string[] = []
-  for (const c of ctx.columns) {
-    if (!c.isPrimary) continue
-    const idx = gridColumns.indexOf(c.name)
-    if (idx < 0) {
-      alert('Cannot delete: primary-key column "' + c.name + '" is not in the result.')
-      return
-    }
-    pkParts.push(`${quoteIdent(c.name, engine)} = ${literalOf(row[idx], c.type)}`)
-  }
-  if (!pkParts.length) return
-  const ok = await promptConfirm({
-    title: 'Delete row?',
-    message: 'This will run: DELETE FROM ' + ctx.table + ' WHERE ' + pkParts.join(' AND '),
-    confirmText: 'Delete'
-  })
-  if (!ok) return
-  const sql = `DELETE FROM ${quoteIdent(ctx.table, engine)} WHERE ${pkParts.join(' AND ')}`
-  const res = await dbService.query(ctx.conn, sql)
-  if (res.error) {
-    alert('Delete failed: ' + res.error)
-    return
-  }
-  ctx.rerun()
-}
+// ---- edit / insert --------------------------------------------------------
 
 async function openEditModal(
   ctx: EditableContext,
   gridColumns: string[],
   row: unknown[]
 ): Promise<void> {
-  const engine = ctx.conn.engine
-  const initial: Record<string, { value: string; isNull: boolean }> = {}
-  for (const c of ctx.columns) {
-    const idx = gridColumns.indexOf(c.name)
-    const raw = idx >= 0 ? row[idx] : null
-    initial[c.name] = {
-      value: raw === null || raw === undefined ? '' : String(raw),
-      isNull: raw === null || raw === undefined
-    }
-  }
+  const initial = editInitialValues(ctx, gridColumns, row)
   const updated = await openRowFormModal({
     title: 'Edit row · ' + ctx.table,
     submitText: 'Save',
@@ -258,33 +189,8 @@ async function openEditModal(
     pkLocked: true
   })
   if (!updated) return
-
-  // Build UPDATE: SET each non-PK column the user actually changed; WHERE = old PK values.
-  const setParts: string[] = []
-  for (const c of ctx.columns) {
-    if (c.isPrimary) continue // PK is the row identifier, not edited here
-    const cur = updated[c.name]
-    if (!cur) continue
-    const prev = initial[c.name]
-    if (cur.isNull === prev.isNull && cur.value === prev.value) continue // unchanged
-    const lit = cur.isNull ? 'NULL' : literalOf(cur.value, c.type)
-    setParts.push(`${quoteIdent(c.name, engine)} = ${lit}`)
-  }
-  if (!setParts.length) return // nothing changed
-
-  const pkParts: string[] = []
-  for (const c of ctx.columns) {
-    if (!c.isPrimary) continue
-    const idx = gridColumns.indexOf(c.name)
-    if (idx < 0) {
-      alert('Cannot update: primary-key column "' + c.name + '" is not in the result.')
-      return
-    }
-    pkParts.push(`${quoteIdent(c.name, engine)} = ${literalOf(row[idx], c.type)}`)
-  }
-  if (!pkParts.length) return
-
-  const sql = `UPDATE ${quoteIdent(ctx.table, engine)} SET ${setParts.join(', ')} WHERE ${pkParts.join(' AND ')}`
+  const sql = buildUpdateSql(ctx, gridColumns, row, updated, initial)
+  if (!sql) return
   const res = await dbService.query(ctx.conn, sql)
   if (res.error) {
     alert('Update failed: ' + res.error)
@@ -294,15 +200,7 @@ async function openEditModal(
 }
 
 async function openInsertModal(ctx: EditableContext): Promise<void> {
-  const engine = ctx.conn.engine
-  const initial: Record<string, { value: string; isNull: boolean }> = {}
-  for (const c of ctx.columns) {
-    // Auto-increment / default columns start as "NULL" (let the engine fill them).
-    initial[c.name] = {
-      value: '',
-      isNull: c.nullable || c.isAutoIncrement || c.hasDefault
-    }
-  }
+  const initial = insertInitialValues(ctx)
   const values = await openRowFormModal({
     title: 'New row · ' + ctx.table,
     submitText: 'Insert',
@@ -311,23 +209,8 @@ async function openInsertModal(ctx: EditableContext): Promise<void> {
     pkLocked: false
   })
   if (!values) return
-
-  const cols: string[] = []
-  const lits: string[] = []
-  for (const c of ctx.columns) {
-    const v = values[c.name]
-    if (!v) continue
-    // Skip auto-increment / default columns the user left as NULL — let the
-    // engine apply its own value.
-    if (v.isNull && (c.isAutoIncrement || c.hasDefault || c.nullable)) continue
-    cols.push(quoteIdent(c.name, engine))
-    lits.push(v.isNull ? 'NULL' : literalOf(v.value, c.type))
-  }
-  if (!cols.length) {
-    alert('Nothing to insert — fill in at least one column.')
-    return
-  }
-  const sql = `INSERT INTO ${quoteIdent(ctx.table, engine)} (${cols.join(', ')}) VALUES (${lits.join(', ')})`
+  const sql = buildInsertSql(ctx, values)
+  if (!sql) return
   const res = await dbService.query(ctx.conn, sql)
   if (res.error) {
     alert('Insert failed: ' + res.error)
@@ -337,11 +220,6 @@ async function openInsertModal(ctx: EditableContext): Promise<void> {
 }
 
 // ---- shared row form modal ------------------------------------------------
-
-interface FieldValue {
-  value: string
-  isNull: boolean
-}
 
 function openRowFormModal(opts: {
   title: string
@@ -436,29 +314,11 @@ function openRowFormModal(opts: {
     overlay.addEventListener('mousedown', (e) => {
       if (e.target === overlay) close(null)
     })
-    ok.addEventListener('click', () => {
-      const out: Record<string, FieldValue> = {}
-      for (const c of opts.columns) {
-        out[c.name] = {
-          value: inputs[c.name].input.value,
-          isNull: inputs[c.name].nullCb.checked
-        }
-      }
-      close(out)
-    })
+    ok.addEventListener('click', () => close(collectFieldValues(opts.columns, inputs)))
     const onKey = (e: KeyboardEvent): void => {
       e.stopPropagation()
       if (e.key === 'Escape') close(null)
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        const out: Record<string, FieldValue> = {}
-        for (const c of opts.columns) {
-          out[c.name] = {
-            value: inputs[c.name].input.value,
-            isNull: inputs[c.name].nullCb.checked
-          }
-        }
-        close(out)
-      }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) close(collectFieldValues(opts.columns, inputs))
     }
     modal.tabIndex = -1
     modal.addEventListener('keydown', onKey)

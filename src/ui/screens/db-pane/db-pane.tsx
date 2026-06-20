@@ -1,88 +1,35 @@
 import { sqlPanes, paneActions, settings, uid } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { persistence } from '@repositories/persistence.service'
-import type { DbConnection, DbEngine, DbConnNode, DbNode } from '@ui/types/types'
+import type { DbConnection } from '@ui/types/types'
+import type { DbColumn } from '@services/db/db.types'
 import { createSqlEditor, type SqlEditor } from '../../editor/sql-editor'
 import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
 import { setupPaneDnd } from '@ui/pane/pane'
 import { promptText } from '@ui/dialog/dialog'
-import type { DbObjects, DbColumn } from '@services/db/db.types'
-import { renderResultGrid, type SortState } from './components/result-grid'
-import { quoteIdent } from './sql-literal'
+import { renderResultGrid, type SortState, type EditableContext } from './components/result-grid'
 import './db-pane.css'
-import { dbService , dbqService } from '@services'
-import { dbConnectionRepo } from '@repositories'
+import { dbService, dbqService } from '@services'
+import type { ParsedSelect } from './db-pane.types'
+import {
+  PLAY_SVG,
+  engineClass,
+  engineLabel,
+  flattenConns,
+  sqlEditors,
+  paneObjCache,
+  paneColCache,
+  schemaFor,
+  parseSimpleSelect,
+  emitOrderedSql,
+  destroySqlPane
+} from './db-pane.state'
+
+export type { ParsedSelect } from './db-pane.types'
+export { destroySqlPane } from './db-pane.state'
 
 // SQL query pane: the workbench (toolbar + editor + result grid) shown as a
 // first-class pane (split next to the active pane), replacing the old modal.
-
-const PLAY_SVG =
-  '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M5 3.5l7 4.5-7 4.5z" fill="currentColor"/></svg>'
-
-function engineClass(e: DbEngine): string {
-  return 'db-eng-' + e
-}
-function engineLabel(e: DbEngine): string {
-  return e === 'postgres' ? 'PostgreSQL' : e === 'mysql' ? 'MySQL' : 'SQLite'
-}
-
-function flattenConns(): DbConnNode[] {
-  return dbConnectionRepo.nodes()
-}
-
-// Per-pane Monaco editor teardown (dispose on close).
-const sqlEditors = new Map<string, SqlEditor>()
-
-// Per-pane caches.
-const paneObjCache = new Map<string, Map<string, DbObjects>>()
-// per-pane, per-(conn:table) column metadata cache; cleared when conn changes.
-const paneColCache = new Map<string, Map<string, DbColumn[]>>()
-
-function schemaFor(paneId: string, conn: DbConnection): Record<string, string[]> {
-  const o = paneObjCache.get(paneId)?.get(conn.id)
-  const s: Record<string, string[]> = {}
-  if (o) for (const t of [...o.tables, ...o.views]) s[t] = []
-  return s
-}
-
-// ---- SQL parsing ----------------------------------------------------------
-
-// Detect a simple `SELECT * FROM <table> [ORDER BY ...] [LIMIT N]` query.
-// Captures the table identifier (may be quoted / schema-qualified) and the
-// optional LIMIT tail so we can splice ORDER BY between FROM and LIMIT.
-interface ParsedSelect {
-  table: string // raw identifier as written (we re-quote when emitting SQL)
-  baseSelect: string // `SELECT * FROM <table>` (canonical)
-  limitTail: string // ` LIMIT 100` (with leading space) or '' if none
-  // The full SQL might have its own ORDER BY clause — when present we drop it
-  // because the grid drives sorting from this point on.
-}
-
-const SIMPLE_SELECT_RE =
-  /^\s*select\s+\*\s+from\s+([`"\[]?[\w.]+[`"\]]?(?:\.[`"\[]?[\w]+[`"\]]?)?)\s*(.*?)\s*;?\s*$/i
-
-function parseSimpleSelect(sqlText: string): ParsedSelect | null {
-  const m = sqlText.match(SIMPLE_SELECT_RE)
-  if (!m) return null
-  const table = m[1]
-  const tail = m[2] ?? ''
-  // strip a trailing ORDER BY (we'll add our own) but keep LIMIT
-  let cleanTail = tail
-  cleanTail = cleanTail.replace(/order\s+by[\s\S]*?(?=(\blimit\b|$))/i, '').trim()
-  const limitMatch = cleanTail.match(/^limit\s+\d+(\s+offset\s+\d+)?$/i)
-  const limitTail = limitMatch ? ' ' + limitMatch[0] : ''
-  return { table, baseSelect: `SELECT * FROM ${table}`, limitTail }
-}
-
-function emitOrderedSql(parsed: ParsedSelect, engine: DbEngine, sort: SortState | null): string {
-  let s = parsed.baseSelect
-  if (sort) s += ` ORDER BY ${quoteIdent(sort.column, engine)} ${sort.dir.toUpperCase()}`
-  s += parsed.limitTail
-  return s
-}
-
-// ---- pane -----------------------------------------------------------------
-
 export function createSqlPane(opts: {
   connId?: string | null
   sql?: string
@@ -122,9 +69,7 @@ export function createSqlPane(opts: {
   // theme picker (right-aligned via CSS)
   const themeSel = (
     <select class="settings-select db-theme-select" title={UITexts.DbPane.editorTheme}>
-      {ALL_THEME_NAMES.map(
-        (t) => (<option value={t}>{t}</option>) as HTMLOptionElement
-      )}
+      {ALL_THEME_NAMES.map((t) => (<option value={t}>{t}</option>) as HTMLOptionElement)}
     </select>
   ) as HTMLSelectElement
   const connWrap = (
@@ -300,7 +245,7 @@ export function createSqlPane(opts: {
 
     // Build editable context only if the user's original SQL was a simple
     // SELECT * (otherwise edits would be ambiguous about which table to mutate).
-    let editable: import('./components/result-grid').EditableContext | null = null
+    let editable: EditableContext | null = null
     if (lastParsed && conn) {
       const cols = await loadColumns(conn, lastParsed.table)
       if (cols.length) {
@@ -418,12 +363,4 @@ export function createSqlPane(opts: {
   if (opts.autoRun) void run()
 
   return id
-}
-
-export function destroySqlPane(id: string): void {
-  sqlEditors.get(id)?.dispose()
-  sqlEditors.delete(id)
-  sqlPanes.delete(id)
-  paneObjCache.delete(id)
-  paneColCache.delete(id)
 }
