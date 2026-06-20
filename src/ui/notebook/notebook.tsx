@@ -11,19 +11,26 @@ import { showRemindModal } from '../screens/reminders/reminders'
 import { renderDailyCompact } from '../screens/daily-plan/daily-plan'
 import { renderMeetingNotes } from '../screens/meeting-notes/meeting-notes'
 import './notebook.css'
-import { fsService, notebookService, plansService , shellService } from '@services'
+import { fsService, notebookService, plansService, shellService } from '@services'
+import type { NbSubTab, PlanItem } from './notebook.types'
+import {
+  FOLDER_SVG,
+  NOTE_SVG,
+  LINK_SVG,
+  MD_RE,
+  basename,
+  parentOf,
+  joinPath,
+  moveColor,
+  filterPlans,
+  groupPlansByProject,
+  stopAnd
+} from './notebook.state'
 
-const FOLDER_SVG =
-  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1.6 4.4c0-.6.4-1 1-1h3.1l1.2 1.4H13.4c.6 0 1 .4 1 1V11.6c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1z" fill="currentColor"/></svg>'
-const NOTE_SVG =
-  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 1.5v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>'
-const LINK_SVG =
-  '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6.5 9.5l3-3M5.5 7.5L4 9a2.1 2.1 0 0 0 3 3l1.5-1.5M10.5 8.5L12 7a2.1 2.1 0 0 0-3-3L7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
-
-const MD_RE = /\.(md|mdx|mdc)$/i
+export type { NbSubTab } from './notebook.types'
 
 let container: HTMLElement | null = null
-let planItems: { project: string; name: string; path: string; mtime: number }[] = []
+let planItems: PlanItem[] = []
 let linkedHost: HTMLElement | null = null
 let treeHost: HTMLElement | null = null
 let treeview: TreeView<NbNode> | null = null
@@ -32,16 +39,6 @@ let selectedPath: string | null = null
 // The currently open note — gets the `.active` highlight, like the open terminal.
 let openPath: string | null = null
 let nbQuery = ''
-
-function basename(p: string): string {
-  return p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p
-}
-function parentOf(p: string): string {
-  return p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
-}
-function joinPath(parent: string, name: string): string {
-  return parent ? `${parent}/${name}` : name
-}
 
 // ---- TreeView adapter -------------------------------------------------------
 
@@ -100,36 +97,21 @@ function buildActions(n: NbNode): HTMLElement {
   const actions = (<span class="nb-actions" />) as HTMLSpanElement
   if (n.kind === 'dir') {
     actions.append(
-      actBtn('＋', 'New note', (e) => {
-        e.stopPropagation()
-        void addNote(n.path)
-      }),
-      actBtn('🗀', 'New folder', (e) => {
-        e.stopPropagation()
-        void addFolder(n.path)
-      })
+      actBtn('＋', 'New note', stopAnd(() => void addNote(n.path))),
+      actBtn('🗀', 'New folder', stopAnd(() => void addFolder(n.path)))
     )
   }
   actions.append(
-    actBtn('⤴', 'Show in Finder', (e) => {
-      e.stopPropagation()
-      notebookService.reveal(n.path)
-    }),
-    actBtn('✎', 'Rename', (e) => {
-      e.stopPropagation()
-      void renamePath(n.path, n.name)
-    }),
-    actBtn('✕', 'Delete', (e) => {
-      e.stopPropagation()
-      void deleteNode(n)
-    })
+    actBtn('⤴', 'Show in Finder', stopAnd(() => notebookService.reveal(n.path))),
+    actBtn('✎', 'Rename', stopAnd(() => void renamePath(n.path, n.name))),
+    actBtn('✕', 'Delete', stopAnd(() => void deleteNode(n)))
   )
   return actions
 }
 
-function actBtn(text: string, title: string, fn: (e: MouseEvent) => void): HTMLButtonElement {
+function actBtn(text: string, title: string, fn: (e: Event) => void): HTMLButtonElement {
   return (
-    <button class="nb-act" title={title} onClick={fn as (e: Event) => void}>
+    <button class="nb-act" title={title} onClick={fn}>
       {text}
     </button>
   ) as HTMLButtonElement
@@ -137,7 +119,6 @@ function actBtn(text: string, title: string, fn: (e: MouseEvent) => void): HTMLB
 
 // ---- rendering --------------------------------------------------------------
 
-export type NbSubTab = 'notes' | 'plans' | 'daily' | 'meeting'
 let nbSubTab: NbSubTab = 'notes'
 export function notebookSubTab(): NbSubTab {
   return nbSubTab
@@ -279,30 +260,17 @@ async function renderPlansTab(host: HTMLElement): Promise<void> {
 // Render the plans grouped by project (newest-first within each group).
 function renderPlansGroups(host: HTMLElement): void {
   host.replaceChildren()
-  const q = plansQuery.trim().toLowerCase()
-  const items = q
-    ? planItems.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.project.toLowerCase().includes(q)
-      )
-    : planItems
+  const items = filterPlans(planItems, plansQuery)
 
   if (!items.length) {
     const empty = (
-      <div class="nb-plans-empty">{q ? 'No matching plans' : 'No plans yet'}</div>
+      <div class="nb-plans-empty">{plansQuery.trim() ? 'No matching plans' : 'No plans yet'}</div>
     ) as HTMLDivElement
     host.appendChild(empty)
     return
   }
 
-  // Group by project, preserving first-seen (newest-first) order.
-  const groups = new Map<string, typeof planItems>()
-  for (const p of items) {
-    const g = groups.get(p.project) ?? []
-    g.push(p)
-    groups.set(p.project, g)
-  }
-
-  for (const [project, plans] of groups) {
+  for (const [project, plans] of groupPlansByProject(items)) {
     const section = (
       <div class="nb-plans-group">
         <div class="nb-linked-head">{`${project} · ${plans.length}`}</div>
@@ -313,17 +281,15 @@ function renderPlansGroups(host: HTMLElement): void {
   }
 }
 
-function renderPlanRow(p: { project: string; name: string; path: string; mtime: number }): HTMLElement {
+function renderPlanRow(p: PlanItem): HTMLElement {
   const actions = (<span class="nb-actions" />) as HTMLSpanElement
   actions.append(
-    actBtn('⏰', 'Remind me', (e) => {
-      e.stopPropagation()
-      showRemindModal(p.name.replace(MD_RE, ''), `Plan: ${p.name}`, { kind: 'plan', path: p.path })
-    }),
-    actBtn('⤴', 'Show in Finder', (e) => {
-      e.stopPropagation()
-      shellService.revealPath(p.path)
-    })
+    actBtn(
+      '⏰',
+      'Remind me',
+      stopAnd(() => showRemindModal(p.name.replace(MD_RE, ''), `Plan: ${p.name}`, { kind: 'plan', path: p.path }))
+    ),
+    actBtn('⤴', 'Show in Finder', stopAnd(() => shellService.revealPath(p.path)))
   )
   const row = (
     <div class="tab-item nb-linked-row" title={p.path} onClick={() => openMarkdownFile(p.path)}>
@@ -380,14 +346,12 @@ function renderLinked(host: HTMLElement): void {
   for (const f of items) {
     const actions = (<span class="nb-actions" />) as HTMLSpanElement
     actions.append(
-      actBtn('⤴', 'Show in Finder', (e) => {
-        e.stopPropagation()
-        shellService.openPath(f.path.slice(0, f.path.lastIndexOf('/')) || f.path)
-      }),
-      actBtn('✕', 'Unlink', (e) => {
-        e.stopPropagation()
-        unlink(f.path)
-      })
+      actBtn(
+        '⤴',
+        'Show in Finder',
+        stopAnd(() => shellService.openPath(f.path.slice(0, f.path.lastIndexOf('/')) || f.path))
+      ),
+      actBtn('✕', 'Unlink', stopAnd(() => unlink(f.path)))
     )
     const row = (
       <div class="tab-item nb-linked-row" title={f.path} onClick={() => openLinked(f.path)}>
@@ -438,14 +402,6 @@ function highlightActive(): void {
   treeHost?.querySelectorAll<HTMLElement>('.tab-item[data-tree-id]').forEach((el) => {
     el.classList.toggle('active', el.dataset.treeId === openPath)
   })
-}
-
-// Move the persisted color tag when a node's path changes (rename / move).
-function moveColor(from: string, to: string): void {
-  const col = settings.notebookColors[from]
-  if (!col) return
-  delete settings.notebookColors[from]
-  settings.notebookColors[to] = col
 }
 
 async function doMove(src: string, targetId: string, pos: DropPos): Promise<void> {
