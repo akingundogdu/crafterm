@@ -34,9 +34,9 @@ export function createResultList(opts: {
     items.forEach((e, i) => {
       const row = (
         <button class={'pick-row spot-row' + (i === sel ? ' active' : '')}>
-          {showBadge && <span class={'gs-badge gs-' + e.source}>{opts.badgeFor(e.source)}</span>}
-          <span class="gs-label">{e.label}</span>
-          {e.detail && <span class="gs-detail">{e.detail}</span>}
+          {showBadge && <span class={'spotlight-source-badge gs-' + e.source}>{opts.badgeFor(e.source)}</span>}
+          <span class="spotlight-label">{e.label}</span>
+          {e.detail && <span class="spotlight-detail">{e.detail}</span>}
         </button>
       ) as HTMLButtonElement
       row.addEventListener('click', makeRowChoose(opts.onChoose, e))

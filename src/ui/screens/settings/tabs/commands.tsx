@@ -64,9 +64,9 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
       cmds
         .filter((c) => c.category === cat)
         .forEach((c) => {
-          const edit = (<button class="wt-act">{UITexts.Settings.commands.edit}</button>) as HTMLButtonElement
+          const edit = (<button class="worktree-action">{UITexts.Settings.commands.edit}</button>) as HTMLButtonElement
           edit.addEventListener('click', () => void editPaletteCommand(c).then(render))
-          const del = (<button class="wt-act wt-remove">{UITexts.Settings.commands.delete}</button>) as HTMLButtonElement
+          const del = (<button class="worktree-action worktree-remove">{UITexts.Settings.commands.delete}</button>) as HTMLButtonElement
           del.addEventListener('click', () => {
             removePaletteCommand(c.id)
             render()

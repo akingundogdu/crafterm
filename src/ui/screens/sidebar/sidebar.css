@@ -425,7 +425,7 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   background-clip: padding-box;
 }
 
-/* Tree row visuals (.section-label, .tab-item, guides, .tri, .folder-icon,
+/* Tree row visuals (.section-label, .tab-item, guides, .treeview-chevron, .folder-icon,
    .tab-title, drag indicators, .rename-input) live in treeview.css — the shared
    TreeView component stylesheet. Terminal-specific slot styles stay here. */
 

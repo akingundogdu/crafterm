@@ -152,7 +152,7 @@
 }
 
 /* Disclosure chevron (crisp SVG, rotates on expand) */
-.tri {
+.treeview-chevron {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -163,14 +163,14 @@
   color: var(--text-dim);
   transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease;
 }
-.tri svg {
+.treeview-chevron svg {
   display: block;
 }
-.tri.expanded {
+.treeview-chevron.expanded {
   transform: rotate(90deg);
 }
-.tab-item:hover .tri,
-.tab-item.active .tri {
+.tab-item:hover .treeview-chevron,
+.tab-item.active .treeview-chevron {
   color: var(--text);
 }
 

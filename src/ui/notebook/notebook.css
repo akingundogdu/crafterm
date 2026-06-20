@@ -8,7 +8,7 @@
   padding: 4px 8px 6px;
   border-bottom: 1px solid var(--border);
 }
-.nb-subtab {
+.notebook-mode-tab {
   flex: 1;
   min-width: 0;
   padding: 5px 4px;
@@ -23,11 +23,11 @@
   border-radius: 6px;
   cursor: pointer;
 }
-.nb-subtab:hover {
+.notebook-mode-tab:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
-.nb-subtab.active {
+.notebook-mode-tab.active {
   background: var(--bg-term);
   color: var(--accent);
 }
@@ -127,7 +127,7 @@
   gap: 6px;
   padding: 4px 8px 8px;
 }
-.nb-tool {
+.notebook-tool {
   flex: 1;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
@@ -137,7 +137,7 @@
   padding: 4px;
   cursor: pointer;
 }
-.nb-tool:hover {
+.notebook-tool:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.08);
 }
@@ -162,7 +162,7 @@
   opacity: 1;
   pointer-events: auto;
 }
-.nb-act {
+.notebook-action {
   background: transparent;
   border: none;
   color: var(--text-mute);
@@ -171,7 +171,7 @@
   padding: 1px 4px;
   border-radius: 4px;
 }
-.nb-act:hover {
+.notebook-action:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.1);
 }

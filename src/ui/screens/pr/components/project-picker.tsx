@@ -13,7 +13,7 @@ export async function showProjectPicker(onSaved: () => void): Promise<void> {
   bindEscapeClose(close, onClose)
 
   const input = createSearchBox(UITexts.Pr.picker.search, () => render())
-  const countEl = (<div class="md-count" />) as HTMLDivElement
+  const countEl = (<div class="picker-markdown-count" />) as HTMLDivElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   list.textContent = UITexts.Pr.picker.loading
 

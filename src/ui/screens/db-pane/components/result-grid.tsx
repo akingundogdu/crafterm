@@ -157,7 +157,7 @@ function buildRowActions(ctx: GridContext, row: unknown[]): HTMLTableCellElement
 
   const del = (
     <button
-      class="db-row-action db-row-action-del"
+      class="db-row-action db-row-action-delete"
       title={hasPk ? 'Delete row' : 'No primary key — delete disabled'}
       innerHTML={TRASH_SVG}
     />

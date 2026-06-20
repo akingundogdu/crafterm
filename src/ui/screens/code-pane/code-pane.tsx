@@ -43,7 +43,7 @@ export function createCodePane(opts: CreateCodePaneOptions): string {
   let editor: CodeEditor | null = null
 
   // ---- header: breadcrumb · dirty · save · copy · reveal · reload · close ----
-  const dirtyDot = (<span class="code-dirty-dot" title={UITexts.CodePane.unsavedChanges} style="display: none" />) as HTMLSpanElement
+  const dirtyDot = (<span class="code-editor-unsaved-dot" title={UITexts.CodePane.unsavedChanges} style="display: none" />) as HTMLSpanElement
   const htitle = (<span class="diff-path" title={path}>{breadcrumb(path)}</span>) as HTMLSpanElement
   const center = (
     <div class="diff-hcenter">
@@ -54,7 +54,7 @@ export function createCodePane(opts: CreateCodePaneOptions): string {
 
   // Global Monaco theme picker (changes every editor — themes are global).
   const themeSel = createSelect({ options: [...ALL_THEME_NAMES], value: currentThemeName() })
-  themeSel.className = 'code-theme-sel'
+  themeSel.className = 'code-editor-theme-select'
   themeSel.title = 'Editor theme'
   themeSel.addEventListener('mousedown', stopMousedown)
   themeSel.addEventListener('change', makeThemeChange(themeSel))

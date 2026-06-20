@@ -66,7 +66,7 @@ export function showAccountForm(
       secretChk.append(cb, document.createTextNode(' secret'))
       const del = createButton({
         text: '✕',
-        className: 'accounts-act small danger',
+        className: 'accounts-action small danger',
         type: 'button',
         onClick: () => {
           pending.splice(idx, 1)

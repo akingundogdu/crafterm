@@ -68,7 +68,7 @@ test('settings/projects: add an application and enable iOS; restore on relaunch'
       await panel.locator('.settings-subtab', { hasText: 'Apps' }).click()
       await panel.getByRole('button', { name: '+ Add application' }).click()
       // the new app card has a Name field prefilled "app"; rename it to assert uniquely
-      const nameInput = panel.locator('.app-card input[type="text"]').first()
+      const nameInput = panel.locator('.settings-app-card input[type="text"]').first()
       await nameInput.fill(APP)
       await nameInput.blur()
       await waitForState(dir, (st) => (findProject(st.tree, PROJECT)?.apps ?? []).some((a: any) => a.name === APP))

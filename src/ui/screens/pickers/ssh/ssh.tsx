@@ -36,20 +36,20 @@ export function showSshConnections(): void {
     }
     conns.forEach((c) => {
       const row = (
-        <div class="pick-row wt-row">
+        <div class="pick-row worktree-row">
           <div class="claude-main">
             <span class="claude-title">{c.label || sshTarget(c)}</span>
             <span class="claude-sub">{sshTarget(c) + (c.port ? `:${c.port}` : '')}</span>
           </div>
           {c.password && (
-            <button class="wt-act" onClick={makeCopyPwdClick(c.password)}>
+            <button class="worktree-action" onClick={makeCopyPwdClick(c.password)}>
               Copy pwd
             </button>
           )}
-          <button class="wt-act" onClick={makeEditClick(c, render)}>
+          <button class="worktree-action" onClick={makeEditClick(c, render)}>
             Edit
           </button>
-          <button class="wt-act wt-remove" onClick={makeDeleteClick(c, render)}>
+          <button class="worktree-action worktree-remove" onClick={makeDeleteClick(c, render)}>
             Delete
           </button>
         </div>

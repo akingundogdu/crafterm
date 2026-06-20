@@ -30,7 +30,7 @@ async function waitForState(dir: string, pred: (st: Record<string, any>) => bool
 }
 async function openMeetingNotes(win: Page): Promise<void> {
   await win.locator('#tab-notebook').click()
-  await win.locator('.nb-subtab', { hasText: 'Meeting Notes' }).click()
+  await win.locator('.notebook-mode-tab', { hasText: 'Meeting Notes' }).click()
   await expect(win.locator('.nb-subtab-body')).toBeVisible()
 }
 

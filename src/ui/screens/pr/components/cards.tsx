@@ -31,8 +31,8 @@ export function statusTag(
   opts?: { pulse?: boolean; title?: string }
 ): HTMLElement {
   const b = (
-    <span class={'pr-tag ' + cls + (opts?.pulse ? ' pulse' : '')}>
-      <span class="pr-dot" />
+    <span class={'pr-status-tag ' + cls + (opts?.pulse ? ' pulse' : '')}>
+      <span class="pr-status-dot" />
       {text}
     </span>
   ) as HTMLSpanElement
@@ -61,7 +61,7 @@ export function deployBadge(d: DeploymentStatus): HTMLElement {
 }
 
 export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
-  const num = (<span class="pr-num">{'#' + pr.number}</span>) as HTMLSpanElement
+  const num = (<span class="pr-number">{'#' + pr.number}</span>) as HTMLSpanElement
   const title = (<span class="pr-title">{pr.title}</span>) as HTMLSpanElement
   title.title = pr.title
 
@@ -72,13 +72,13 @@ export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
     </div>
   ) as HTMLDivElement
   if (pr.isDraft) {
-    const d = (<span class="pr-tag none">draft</span>) as HTMLSpanElement
+    const d = (<span class="pr-status-tag none">draft</span>) as HTMLSpanElement
     top.appendChild(d)
   }
 
-  const head = (<span class="pr-ref head">{pr.headRefName}</span>) as HTMLSpanElement
+  const head = (<span class="pr-branch-ref head">{pr.headRefName}</span>) as HTMLSpanElement
   const arrow = (<span class="pr-arrow">→</span>) as HTMLSpanElement
-  const base = (<span class="pr-ref base">{pr.baseRefName}</span>) as HTMLSpanElement
+  const base = (<span class="pr-branch-ref base">{pr.baseRefName}</span>) as HTMLSpanElement
   const branch = (
     <div class="pr-branch">
       {head}
@@ -96,7 +96,7 @@ export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
   if (rev) tags.appendChild(rev)
   if (pr.comments > 0) {
     const cm = document.createElement('span')
-    cm.className = 'pr-tag none comment'
+    cm.className = 'pr-status-tag none comment'
     cm.innerHTML = COMMENT_SVG
     cm.appendChild(document.createTextNode(String(pr.comments)))
     cm.title = commentTitle(pr.comments)

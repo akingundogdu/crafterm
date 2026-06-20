@@ -48,9 +48,9 @@ export async function showGlobalSearch(): Promise<void> {
     items.forEach((e, i) => {
       const row = (
         <button class={'pick-row gs-row' + (i === sel ? ' active' : '')}>
-          <span class={'gs-badge gs-' + e.source}>{SOURCE_LABEL[e.source]}</span>
-          <span class="gs-label">{e.label}</span>
-          {e.detail && <span class="gs-detail">{e.detail}</span>}
+          <span class={'spotlight-source-badge gs-' + e.source}>{SOURCE_LABEL[e.source]}</span>
+          <span class="spotlight-label">{e.label}</span>
+          {e.detail && <span class="spotlight-detail">{e.detail}</span>}
         </button>
       ) as HTMLButtonElement
       row.addEventListener('click', () => choose(e))

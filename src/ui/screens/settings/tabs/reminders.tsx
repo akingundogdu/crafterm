@@ -103,7 +103,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
       snap.addEventListener('change', applyValue)
 
       const del = (
-        <button class="app-del" title={UITexts.Settings.reminders.removePreset}>
+        <button class="settings-app-delete" title={UITexts.Settings.reminders.removePreset}>
           ✕
         </button>
       ) as HTMLButtonElement
@@ -113,7 +113,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
       })
 
       const card = (
-        <div class="app-card">
+        <div class="settings-app-card">
           {labelI}
           {kindSel}
           {valueI}

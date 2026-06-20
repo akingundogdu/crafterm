@@ -1,12 +1,12 @@
 /* Spotlight (unified tabbed search) */
-.gs-badge.gs-file { background: rgba(88, 166, 255, 0.18); color: #79c0ff; }
-.gs-badge.gs-command { background: rgba(57, 197, 187, 0.18); color: #56d4cb; }
-.gs-badge.gs-claude { background: rgba(199, 116, 230, 0.18); color: #d2a8ff; }
-.gs-badge.gs-shortcut { background: rgba(110, 118, 129, 0.22); color: #adbac7; }
-.gs-badge.gs-app { background: rgba(63, 185, 80, 0.18); color: #56d364; }
-.gs-badge.gs-task { background: rgba(240, 198, 118, 0.18); color: #f0c674; }
-.gs-badge.gs-reminder { background: rgba(248, 178, 73, 0.18); color: #f0c674; }
-.gs-badge.gs-backlog { background: rgba(248, 81, 73, 0.18); color: #ff7b72; }
+.spotlight-source-badge.gs-file { background: rgba(88, 166, 255, 0.18); color: #79c0ff; }
+.spotlight-source-badge.gs-command { background: rgba(57, 197, 187, 0.18); color: #56d4cb; }
+.spotlight-source-badge.gs-claude { background: rgba(199, 116, 230, 0.18); color: #d2a8ff; }
+.spotlight-source-badge.gs-shortcut { background: rgba(110, 118, 129, 0.22); color: #adbac7; }
+.spotlight-source-badge.gs-app { background: rgba(63, 185, 80, 0.18); color: #56d364; }
+.spotlight-source-badge.gs-task { background: rgba(240, 198, 118, 0.18); color: #f0c674; }
+.spotlight-source-badge.gs-reminder { background: rgba(248, 178, 73, 0.18); color: #f0c674; }
+.spotlight-source-badge.gs-backlog { background: rgba(248, 81, 73, 0.18); color: #ff7b72; }
 
 .spot-tabs {
   display: flex;
@@ -53,10 +53,10 @@
   width: 100%;
   text-align: left;
 }
-.spot-row .gs-badge {
+.spot-row .spotlight-source-badge {
   flex: 0 0 70px;
 }
-.spot-row .gs-detail {
+.spot-row .spotlight-detail {
   margin-left: auto;
 }
 /* ---- Spotlight: compact, translucent near-black, blurred modern theme ---- */
@@ -131,10 +131,10 @@
   background: rgba(88, 166, 255, 0.16);
   color: var(--text);
 }
-.spotlight-modal .gs-label {
+.spotlight-modal .spotlight-label {
   font-size: 12.5px;
 }
-.spotlight-modal .gs-detail {
+.spotlight-modal .spotlight-detail {
   font-size: 10.5px;
   max-width: 440px;
 }

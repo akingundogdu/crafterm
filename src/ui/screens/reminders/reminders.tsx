@@ -41,10 +41,10 @@ function reminderCard(r: Reminder, past: boolean): HTMLElement {
       </div>
       <div class="reminder-text">{r.text}</div>
       <div class="reminder-actions">
-        <button class="wt-act" onClick={makeFormOpenClick(r)}>
+        <button class="worktree-action" onClick={makeFormOpenClick(r)}>
           {past ? UITexts.Reminders.card.remindAgain : UITexts.Reminders.card.edit}
         </button>
-        <button class="wt-act wt-remove" onClick={makeDeleteClick(r, renderReminders)}>
+        <button class="worktree-action worktree-remove" onClick={makeDeleteClick(r, renderReminders)}>
           {UITexts.Reminders.card.delete}
         </button>
       </div>

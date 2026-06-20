@@ -193,7 +193,7 @@
   border-color: var(--accent);
   color: var(--accent);
 }
-.sql-pane .db-row-action.db-row-action-del:hover:not(:disabled) {
+.sql-pane .db-row-action.db-row-action-delete:hover:not(:disabled) {
   background: rgba(255, 123, 114, 0.14);
   border-color: #ff7b72;
   color: #ff7b72;

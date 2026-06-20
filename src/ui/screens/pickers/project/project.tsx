@@ -282,13 +282,13 @@ export function showRunCommand(project: ProjectNode): void {
       </div>
     ) as HTMLDivElement
     const splitBtn = (
-      <button class="wt-act" title={UITexts.Pickers.project.runSplitTitle}>
+      <button class="worktree-action" title={UITexts.Pickers.project.runSplitTitle}>
         Split
       </button>
     ) as HTMLButtonElement
     splitBtn.addEventListener('click', makeRunSplit(target, close))
     const tabBtn = (
-      <button class="wt-act" title={UITexts.Pickers.project.runTabTitle}>
+      <button class="worktree-action" title={UITexts.Pickers.project.runTabTitle}>
         New tab
       </button>
     ) as HTMLButtonElement
@@ -335,13 +335,13 @@ export function showRunApp(project: ProjectNode, app: Application): void {
     ) as HTMLDivElement
     const target = { name: `${app.name} · ${env}`, path: appPath, command, env: project.env, shell: project.shell }
     const splitBtn = (
-      <button class="wt-act" title={UITexts.Pickers.project.runSplitTitle}>
+      <button class="worktree-action" title={UITexts.Pickers.project.runSplitTitle}>
         Split
       </button>
     ) as HTMLButtonElement
     splitBtn.addEventListener('click', makeRunSplit(target, close))
     const tabBtn = (
-      <button class="wt-act" title={UITexts.Pickers.project.runTabTitle}>
+      <button class="worktree-action" title={UITexts.Pickers.project.runTabTitle}>
         New tab
       </button>
     ) as HTMLButtonElement

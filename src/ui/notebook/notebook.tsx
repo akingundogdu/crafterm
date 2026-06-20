@@ -111,7 +111,7 @@ function buildActions(n: NbNode): HTMLElement {
 
 function actBtn(text: string, title: string, fn: (e: Event) => void): HTMLButtonElement {
   return (
-    <button class="nb-act" title={title} onClick={fn}>
+    <button class="notebook-action" title={title} onClick={fn}>
       {text}
     </button>
   ) as HTMLButtonElement
@@ -141,7 +141,7 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
   const mk = (key: NbSubTab, label: string): void => {
     const b = (
       <button
-        class={'nb-subtab' + (nbSubTab === key ? ' active' : '')}
+        class={'notebook-mode-tab' + (nbSubTab === key ? ' active' : '')}
         onClick={() => {
           if (nbSubTab === key) return
           nbSubTab = key

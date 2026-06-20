@@ -34,7 +34,7 @@
 }
 
 /* engine pill on a connection row */
-.db-eng-pill {
+.database-engine-badge {
   flex: 0 0 auto;
   font-size: 8.5px;
   font-weight: 700;
@@ -46,7 +46,7 @@
   margin-left: 2px;
 }
 /* object count pill in a section row */
-.db-count-pill {
+.database-count-badge {
   flex: 0 0 auto;
   font-size: 9.5px;
   font-weight: 600;
@@ -93,12 +93,12 @@
 }
 
 /* segmented engine selector (connection form) */
-.db-seg {
+.database-engine-selector {
   display: flex;
   gap: 6px;
   margin-top: 2px;
 }
-.db-seg-btn {
+.database-engine-button {
   flex: 1;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-strong);
@@ -110,10 +110,10 @@
   cursor: pointer;
   transition: all 0.12s ease;
 }
-.db-seg-btn:hover {
+.database-engine-button:hover {
   color: var(--text);
 }
-.db-seg-btn.active {
+.database-engine-button.active {
   color: var(--text);
   border-color: var(--db-accent, var(--accent));
   background: color-mix(in srgb, var(--db-accent, var(--accent)) 14%, transparent);

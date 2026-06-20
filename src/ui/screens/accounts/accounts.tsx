@@ -36,7 +36,7 @@ function metaRow(label: string, value: string, copyable: boolean): HTMLElement {
       <span class="accounts-meta-key">{label}</span>
       <span class="accounts-meta-val">{value}</span>
       {copyable && (
-        <button class="accounts-act small" onClick={makeMetaCopyClick(value)}>
+        <button class="accounts-action small" onClick={makeMetaCopyClick(value)}>
           Copy
         </button>
       )}
@@ -54,11 +54,11 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
     <div class="accounts-meta-row">
       <span class="accounts-meta-key">{f.key}</span>
       {val}
-      <button class="accounts-act small" onClick={makeFieldCopyClick(a, f)}>
+      <button class="accounts-action small" onClick={makeFieldCopyClick(a, f)}>
         Copy
       </button>
       {f.secret && (
-        <button class="accounts-act small" onClick={makeRevealClick(a, f, val)}>
+        <button class="accounts-action small" onClick={makeRevealClick(a, f, val)}>
           Show
         </button>
       )}
@@ -69,7 +69,7 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
 function accountCard(a: AccountEntry): HTMLElement {
   const hasMeta = !!(a.login || a.url || a.notes)
   const meta = (
-    <div class="accounts-meta">
+    <div class="accounts-metadata">
       {a.login && metaRow('login', a.login, true)}
       {a.url && metaRow('url', a.url, true)}
       {a.notes && metaRow('notes', a.notes, false)}
@@ -96,10 +96,10 @@ function accountCard(a: AccountEntry): HTMLElement {
       {fields}
       {tags}
       <div class="accounts-actions">
-        <button class="accounts-act" onClick={makeEditClick(a)}>
+        <button class="accounts-action" onClick={makeEditClick(a)}>
           Edit
         </button>
-        <button class="accounts-act button-danger" onClick={makeDeleteClick(a, renderAccounts)}>
+        <button class="accounts-action button-danger" onClick={makeDeleteClick(a, renderAccounts)}>
           Delete
         </button>
       </div>

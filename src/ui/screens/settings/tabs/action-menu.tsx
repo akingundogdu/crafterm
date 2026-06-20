@@ -28,7 +28,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
     actionMenuRepo.getAll().forEach((item, i) => {
       const up = (
         <button
-          class="wt-act"
+          class="worktree-action"
           ref={(el: HTMLButtonElement) => {
             el.disabled = i === 0
           }}
@@ -41,7 +41,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
       ) as HTMLButtonElement
       const down = (
         <button
-          class="wt-act"
+          class="worktree-action"
           ref={(el: HTMLButtonElement) => {
             el.disabled = i === actionMenuRepo.getAll().length - 1
           }}
@@ -66,7 +66,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
 
       const hideBtn = (
         <button
-          class="wt-act"
+          class="worktree-action"
           onClick={() => {
             toggleActionHidden(item)
             render()
@@ -76,13 +76,13 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
         </button>
       ) as HTMLButtonElement
       const edit = (
-        <button class="wt-act" onClick={() => void editActionItem(item).then(render)}>
+        <button class="worktree-action" onClick={() => void editActionItem(item).then(render)}>
           {UITexts.Settings.actionMenu.edit}
         </button>
       ) as HTMLButtonElement
       const del = (
         <button
-          class="wt-act wt-remove"
+          class="worktree-action worktree-remove"
           onClick={() => {
             removeActionItem(item.id)
             render()

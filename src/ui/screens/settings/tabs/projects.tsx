@@ -136,7 +136,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
         renderDetail()
       })
       const chip = (
-        <span class="env-chip">
+        <span class="settings-env-chip">
           <span>{name}</span>
           {x}
         </span>
@@ -183,7 +183,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
         renderDetail()
       })
       const chip = (
-        <span class="env-chip">
+        <span class="settings-env-chip">
           <span>{name}</span>
           {x}
         </span>
@@ -267,7 +267,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     applicationRepo.listForProject(p.id).forEach((app) => {
       const title = (<span class="app-card-title">{app.name || '(unnamed app)'}</span>) as HTMLSpanElement
       const delApp = (
-        <button class="app-del" title="Remove application">
+        <button class="settings-app-delete" title="Remove application">
           ✕
         </button>
       ) as HTMLButtonElement
@@ -277,7 +277,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
         renderDetail()
       })
       const card = (
-        <div class="app-card">
+        <div class="settings-app-card">
           <div class="app-card-head">
             {title}
             {delApp}
@@ -352,7 +352,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
         })
         cmdI.addEventListener('keydown', (e) => e.stopPropagation())
         const delRc = (
-          <button class="app-del" title="Remove command">
+          <button class="settings-app-delete" title="Remove command">
             ✕
           </button>
         ) as HTMLButtonElement
@@ -362,7 +362,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
           renderDetail()
         })
         const row = (
-          <div class="app-rc-row">
+          <div class="settings-app-rc-row">
             {nameI}
             {cmdI}
             {delRc}
@@ -457,7 +457,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     p.runCommands.forEach((rc) => {
       const title = (<span class="app-card-title">{rc.name || '(unnamed command)'}</span>) as HTMLSpanElement
       const del = (
-        <button class="app-del" title="Remove command">
+        <button class="settings-app-delete" title="Remove command">
           ✕
         </button>
       ) as HTMLButtonElement
@@ -467,7 +467,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
         renderDetail()
       })
       const card = (
-        <div class="app-card">
+        <div class="settings-app-card">
           <div class="app-card-head">
             {title}
             {del}
@@ -737,7 +737,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
         return
       }
       cfg.copyFiles.forEach((rel, i) => {
-        const del = (<button class="wt-act wt-remove">Delete</button>) as HTMLButtonElement
+        const del = (<button class="worktree-action worktree-remove">Delete</button>) as HTMLButtonElement
         del.addEventListener('click', () => {
           cfg.copyFiles.splice(i, 1)
           iosConfigRepo.set(p.id, cfg)

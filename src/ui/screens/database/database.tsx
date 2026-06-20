@@ -155,8 +155,8 @@ const adapter: TreeAdapter<DbTreeNode> = {
         ? 'db-section-icon'
         : '',
   trailing: (n) => {
-    if (n.t === 'conn') return pill('db-eng-pill ' + engineClass(n.c.conn.engine), enginePillText(n.c.conn.engine))
-    if (n.t === 'section') return pill('db-count-pill', String(sectionCount(n.conn, n.kind)))
+    if (n.t === 'conn') return pill('database-engine-badge ' + engineClass(n.c.conn.engine), enginePillText(n.c.conn.engine))
+    if (n.t === 'section') return pill('database-count-badge', String(sectionCount(n.conn, n.kind)))
     return null
   },
   rowClass: (n) => (n.t === 'section' ? 'db-section-row' : n.t === 'object' || n.t === 'query' ? 'db-obj-row' : ''),
@@ -348,7 +348,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
     applyEngine()
   }
   const seg = (
-    <div class="db-seg">
+    <div class="database-engine-selector">
       {(
         [
           ['postgres', UITexts.Database.engines.postgres],
@@ -360,7 +360,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
           <button
             type="button"
             dataset={{ engine: v }}
-            class={'db-seg-btn ' + engineClass(v) + (v === engineVal ? ' active' : '')}
+            class={'database-engine-button ' + engineClass(v) + (v === engineVal ? ' active' : '')}
             onClick={pickEngine(v)}
           >
             {lbl}

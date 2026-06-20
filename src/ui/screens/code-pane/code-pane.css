@@ -9,7 +9,7 @@
   width: 100% !important;
   height: 100% !important;
 }
-.code-dirty-dot {
+.code-editor-unsaved-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -20,7 +20,7 @@
 .diff-hbtn.code-save-dirty {
   color: var(--accent);
 }
-.code-theme-sel {
+.code-editor-theme-select {
   height: 22px;
   max-width: 130px;
   border: 1px solid var(--border);
@@ -32,6 +32,6 @@
   cursor: pointer;
   outline: none;
 }
-.code-theme-sel:hover {
+.code-editor-theme-select:hover {
   border-color: var(--border-strong);
 }

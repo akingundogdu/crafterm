@@ -22,19 +22,19 @@ describe('createResultList', () => {
     list.setItems([entry('alpha', { detail: 'one' }), entry('beta')], false)
     const rows = list.el.querySelectorAll('.spot-row')
     expect(rows).toHaveLength(2)
-    expect(rows[0].querySelector('.gs-label')?.textContent).toBe('alpha')
-    expect(rows[0].querySelector('.gs-detail')?.textContent).toBe('one')
-    expect(rows[1].querySelector('.gs-detail')).toBeNull()
+    expect(rows[0].querySelector('.spotlight-label')?.textContent).toBe('alpha')
+    expect(rows[0].querySelector('.spotlight-detail')?.textContent).toBe('one')
+    expect(rows[1].querySelector('.spotlight-detail')).toBeNull()
   })
 
   it('shows a source badge only when showBadge is true', () => {
     const list = make()
     list.setItems([entry('x', { source: 'command' })], true)
-    const badge = list.el.querySelector('.gs-badge')
+    const badge = list.el.querySelector('.spotlight-source-badge')
     expect(badge?.textContent).toBe('COMMAND')
     expect(badge?.classList.contains('gs-command')).toBe(true)
     list.setItems([entry('x', { source: 'command' })], false)
-    expect(list.el.querySelector('.gs-badge')).toBeNull()
+    expect(list.el.querySelector('.spotlight-source-badge')).toBeNull()
   })
 
   it('renders an empty hint when there are no items', () => {

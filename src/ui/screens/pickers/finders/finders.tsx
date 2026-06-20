@@ -26,7 +26,7 @@ export async function showAllMarkdown(): Promise<void> {
   const makeChip = (label: string, value: string): void => {
     const c = (
       <button
-        class="md-chip"
+        class="picker-markdown-chip"
         title={value === ALL_FOLDERS ? 'All configured folders' : value}
         onClick={() => void load(value, c)}
       >
@@ -41,7 +41,7 @@ export async function showAllMarkdown(): Promise<void> {
     folders.forEach((f) => makeChip(baseName(f), f))
   }
 
-  const countEl = (<div class="md-count" />) as HTMLDivElement
+  const countEl = (<div class="picker-markdown-count" />) as HTMLDivElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, input, filterBar, countEl, list)
 
@@ -156,7 +156,7 @@ export async function showFileFinder(opts: {
   const makeChip = (label: string, value: string): void => {
     const c = (
       <button
-        class="md-chip"
+        class="picker-markdown-chip"
         title={value === ALL_FOLDERS ? 'All configured folders' : value}
         onClick={() => void load(value, c)}
       >
@@ -171,7 +171,7 @@ export async function showFileFinder(opts: {
     folders.forEach((f) => makeChip(baseName(f), f))
   }
 
-  const countEl = (<div class="md-count" />) as HTMLDivElement
+  const countEl = (<div class="picker-markdown-count" />) as HTMLDivElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   const input = makeSearchInput('Search file by name', () => {
     sel = 0

@@ -166,7 +166,7 @@
   gap: 5px;
   margin-top: 8px;
 }
-.bookmarks-act {
+.bookmarks-action {
   flex: 1;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -178,16 +178,16 @@
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-.bookmarks-act:hover {
+.bookmarks-action:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
   border-color: var(--border-strong);
 }
-.bookmarks-act.button-primary {
+.bookmarks-action.button-primary {
   border-color: var(--accent, #58a6ff);
   color: var(--accent, #58a6ff);
 }
-.bookmarks-act.button-danger:hover {
+.bookmarks-action.button-danger:hover {
   border-color: #f85149;
   color: #f85149;
 }

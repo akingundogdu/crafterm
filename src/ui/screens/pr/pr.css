@@ -149,7 +149,7 @@
   align-items: baseline;
   gap: 7px;
 }
-.pr-num {
+.pr-number {
   font-size: 10.5px;
   font-weight: 700;
   color: var(--text-mute);
@@ -175,16 +175,16 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   margin-top: 6px;
 }
-.pr-ref {
+.pr-branch-ref {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pr-ref.head {
+.pr-branch-ref.head {
   color: var(--text-dim);
   min-width: 0;
 }
-.pr-ref.base {
+.pr-branch-ref.base {
   flex: 0 0 auto;
   color: var(--text-dim);
   background: rgba(255, 255, 255, 0.05);
@@ -202,7 +202,7 @@
   gap: 5px;
   margin-top: 10px;
 }
-.pr-tag {
+.pr-status-tag {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -214,42 +214,42 @@
   letter-spacing: 0.01em;
   border: 1px solid transparent;
 }
-.pr-dot {
+.pr-status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
   flex: 0 0 auto;
 }
-.pr-tag.ok {
+.pr-status-tag.ok {
   background: rgba(63, 185, 80, 0.13);
   color: #3fb950;
   border-color: rgba(63, 185, 80, 0.22);
 }
-.pr-tag.bad {
+.pr-status-tag.bad {
   background: rgba(248, 81, 73, 0.13);
   color: #f85149;
   border-color: rgba(248, 81, 73, 0.22);
 }
-.pr-tag.wait {
+.pr-status-tag.wait {
   background: rgba(210, 153, 34, 0.13);
   color: #d29922;
   border-color: rgba(210, 153, 34, 0.22);
 }
-.pr-tag.none {
+.pr-status-tag.none {
   background: rgba(139, 148, 158, 0.12);
   color: var(--text-mute);
   border-color: rgba(139, 148, 158, 0.2);
 }
-.pr-tag.comment {
+.pr-status-tag.comment {
   gap: 4px;
 }
-.pr-tag.comment svg {
+.pr-status-tag.comment svg {
   width: 11px;
   height: 11px;
   opacity: 0.85;
 }
-.pr-tag.pulse .pr-dot {
+.pr-status-tag.pulse .pr-status-dot {
   animation: pr-pulse 1.5s ease-in-out infinite;
 }
 @keyframes pr-pulse {

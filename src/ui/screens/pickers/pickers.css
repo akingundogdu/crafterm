@@ -49,7 +49,7 @@
   max-height: 88px;
   overflow-y: auto;
 }
-.md-chip {
+.picker-markdown-chip {
   flex: 0 0 auto;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-strong);
@@ -60,16 +60,16 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.md-chip:hover {
+.picker-markdown-chip:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.1);
 }
-.md-chip.active {
+.picker-markdown-chip.active {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--text);
 }
-.md-count {
+.picker-markdown-count {
   font-size: 11px;
   color: var(--text-mute);
   margin: 0 0 6px 2px;
@@ -125,13 +125,13 @@
   color: var(--text);
   background: rgba(255, 255, 255, 0.1);
 }
-.wt-row {
+.worktree-row {
   gap: 8px;
 }
-.wt-row .claude-main {
+.worktree-row .claude-main {
   flex: 1;
 }
-.wt-act {
+.worktree-action {
   flex: 0 0 auto;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border-strong);
@@ -141,11 +141,11 @@
   padding: 3px 9px;
   cursor: pointer;
 }
-.wt-act:hover {
+.worktree-action:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.12);
 }
-.wt-remove:hover {
+.worktree-remove:hover {
   color: #ff7b72;
   background: rgba(248, 81, 73, 0.12);
   border-color: rgba(248, 81, 73, 0.4);

@@ -100,7 +100,7 @@ export function createTreeView<T>(host: HTMLElement, a: TreeAdapter<T>): TreeVie
 
     let tri: HTMLElement | null = null
     if (container) {
-      tri = (<span class={'tri' + (open ? ' expanded' : '')} innerHTML={CHEVRON} />) as HTMLSpanElement
+      tri = (<span class={'treeview-chevron' + (open ? ' expanded' : '')} innerHTML={CHEVRON} />) as HTMLSpanElement
       tri.addEventListener('click', (e) => {
         e.stopPropagation()
         a.onToggle(node)

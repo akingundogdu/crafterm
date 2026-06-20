@@ -389,7 +389,7 @@ function buildLeading(node: SidebarNode): HTMLElement | null {
   if (!tabExpandable(node)) return null
   const tri = (
     <span
-      class={'tri' + (node.detailsOpen ? ' expanded' : '')}
+      class={'treeview-chevron' + (node.detailsOpen ? ' expanded' : '')}
       innerHTML={CHEVRON_SVG}
       title={node.detailsOpen ? UITexts.Sidebar.hideDetails : UITexts.Sidebar.showDetails}
       onClick={makeToggleDetails(node)}

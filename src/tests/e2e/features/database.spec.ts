@@ -76,7 +76,7 @@ test('database: create group + connection via UI and restore on relaunch', async
     await s2.win.locator('#tab-database').click()
     await expect(s2.win.locator('#tab-list')).toContainText(GROUP)
     // group restores collapsed; expand it to reveal the persisted child connection
-    await s2.win.locator('#tab-list .tab-item', { hasText: GROUP }).locator('.tri').click()
+    await s2.win.locator('#tab-list .tab-item', { hasText: GROUP }).locator('.treeview-chevron').click()
     await expect(s2.win.locator('#tab-list')).toContainText(CONN)
     // and the connection is in the persisted dbTree
     expect(flattenConns(readState(dir)!.dbTree).some((c) => c.name === CONN)).toBe(true)

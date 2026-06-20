@@ -31,7 +31,7 @@ export function showRunningProcessesDashboard(): void {
     }
     items.forEach((c) => {
       const row = (
-        <div class="pick-row wt-row">
+        <div class="pick-row worktree-row">
           <div class="claude-main">
             <span class="claude-title">{c.proc.title}</span>
             <span class="claude-sub">{[c.proc.target?.name, c.proc.cwd].filter(Boolean).join(' · ')}</span>
@@ -39,10 +39,10 @@ export function showRunningProcessesDashboard(): void {
           <span class={'proc-status proc-status-' + c.proc.status}>
             {PROC_STATUS_LABEL[c.proc.status] ?? c.proc.status}
           </span>
-          <button class="wt-act" onClick={makeViewClick(c.proc.stableId, close)}>
+          <button class="worktree-action" onClick={makeViewClick(c.proc.stableId, close)}>
             View
           </button>
-          <button class="wt-act wt-remove" onClick={makeKillClick(c.proc.stableId, render)}>
+          <button class="worktree-action worktree-remove" onClick={makeKillClick(c.proc.stableId, render)}>
             Kill
           </button>
         </div>
@@ -82,12 +82,12 @@ export function showRunningDevicesDashboard(): void {
 
       items.forEach((c) => {
         const row = (
-          <div class="pick-row wt-row">
+          <div class="pick-row worktree-row">
             <div class="claude-main">
               <span class="claude-title">{c.proc.title}</span>
               <span class="claude-sub">{c.proc.cwd}</span>
             </div>
-            <button class="wt-act wt-remove" onClick={makeStopAppClick(c, render)}>
+            <button class="worktree-action worktree-remove" onClick={makeStopAppClick(c, render)}>
               Stop app
             </button>
           </div>

@@ -81,7 +81,7 @@ export async function showCommandPalette(): Promise<void> {
     chips.replaceChildren()
     categories.forEach((cat) => {
       const chip = (
-        <button class={'md-chip' + (active.has(cat) ? ' active' : '')}>{cat}</button>
+        <button class={'picker-markdown-chip' + (active.has(cat) ? ' active' : '')}>{cat}</button>
       ) as HTMLButtonElement
       chip.addEventListener('click', () => {
         if (active.has(cat)) {

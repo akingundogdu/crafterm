@@ -45,15 +45,15 @@ export async function showWorktreeDashboard(): Promise<void> {
     }
     items.forEach((w) => {
       const row = (
-        <div class="pick-row wt-row">
+        <div class="pick-row worktree-row">
           <div class="claude-main">
             <span class="claude-title">{baseName(w.path)}</span>
             <span class="claude-sub">{[w.branch, w.path].filter(Boolean).join(' · ')}</span>
           </div>
-          <button class="wt-act" onClick={makeOpenClaude(w.path, close)}>
+          <button class="worktree-action" onClick={makeOpenClaude(w.path, close)}>
             Claude
           </button>
-          <button class="wt-act wt-remove" onClick={makeRemoveWorktree(root, w.path, close)}>
+          <button class="worktree-action worktree-remove" onClick={makeRemoveWorktree(root, w.path, close)}>
             Remove
           </button>
         </div>
