@@ -6,8 +6,10 @@ import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
 import { flattenProjects, removeProject } from '@ui/catalog/catalog'
 import { makeProject } from '@ui/tree/tree'
 import { applicationRepo, iosConfigRepo } from '@repositories'
-import type { ProjectNode, Application, IosDevConfig } from '@ui/types/types'
+import type { ProjectNode, Application } from '@ui/types/types'
 import { buildSubTabs, labeledInput } from '../shared'
+import type { IosConfigKey } from './projects.types'
+import { computeGroupOptions, defaultIosConfig } from './projects.state'
 
 export function buildProjectsPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.projects.heading}</h3>`)
@@ -53,22 +55,6 @@ export function buildProjectsPanel(panel: HTMLElement): void {
   // Persist the active sub-tab index per project so re-renders (e.g. after
   // "Add command") don't kick the user back to the first sub-tab.
   const activeSubTabIdx = new Map<string, number>()
-
-  // Union of saved group labels and the ones already in use anywhere in the
-  // tree — drives the Group field's datalist so the dropdown stays accurate
-  // even before the user touches Settings → Workspace.
-  const groupOptions = (): string[] => {
-    const used = new Set<string>()
-    const walk = (nodes: typeof state.tree): void => {
-      for (const n of nodes) {
-        if ((n.kind === 'project' || n.kind === 'folder') && n.group) used.add(n.group)
-        if (n.kind === 'project' || n.kind === 'folder') walk(n.children)
-      }
-    }
-    walk(state.tree)
-    for (const g of settings.groups) used.add(g)
-    return [...used].sort((a, b) => a.localeCompare(b))
-  }
 
   // A labeled field (input or textarea) appended to a given parent.
   // Pass `opts.options` to render the input as a datalist-backed combobox
@@ -180,7 +166,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
 
   const renderGroups = (): void => {
     groupBar.replaceChildren()
-    const known = groupOptions()
+    const known = computeGroupOptions()
     known.forEach((name) => {
       const x = (
         <button
@@ -540,7 +526,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
             'Group (workspace)',
             p.group ?? '',
             '(Ungrouped)',
-            groupOptions(),
+            computeGroupOptions(),
             (v) => {
               const g = v.trim()
               p.group = g || undefined
@@ -663,21 +649,6 @@ export function buildProjectsPanel(panel: HTMLElement): void {
   renderDetail()
 }
 
-// Per-project iOS worktree config (Settings → Projects → [project] → iOS). The
-// repo root is the project's own path. Every field is optional: empty values are
-// auto-detected by the bundled ios-worktree.sh, so each iOS project is independent.
-function defaultIosConfig(): IosDevConfig {
-  return {
-    project: '',
-    scheme: '',
-    baseBundleId: '',
-    displayPrefix: '',
-    defaultSimulator: '',
-    copyFiles: [],
-    worktreesDir: ''
-  }
-}
-
 function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
   panel.replaceChildren()
 
@@ -730,11 +701,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
       'beforeend',
       '<div class="field-hint">The fields below auto-detect from the Xcode project when left empty.</div>'
     )
-    const field = (
-      label: string,
-      key: 'project' | 'scheme' | 'baseBundleId' | 'displayPrefix' | 'defaultSimulator' | 'worktreesDir',
-      placeholder: string
-    ): void => {
+    const field = (label: string, key: IosConfigKey, placeholder: string): void => {
       const input = labeledInput(body, label, 'text', cfg[key], (v) => {
         cfg[key] = v.trim()
         iosConfigRepo.set(p.id, cfg)
