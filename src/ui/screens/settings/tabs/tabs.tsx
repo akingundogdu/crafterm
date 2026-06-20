@@ -1,8 +1,8 @@
 import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { persistence } from '@repositories/persistence.service'
-import { applyTabDisplay, tabMeta } from '../../sidebar/sidebar'
+import { tabMeta } from '../../sidebar/sidebar'
 import { labeledSelect } from '../shared'
+import { makeTabDisplayChange, makeHideToggle } from './tabs.state'
 
 export function buildTabsPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.tabsTab.heading}</h3>`)
@@ -20,11 +20,7 @@ export function buildTabsPanel(panel: HTMLElement): void {
       ['both', UITexts.Settings.tabsTab.iconText]
     ],
     settings.tabDisplay.mode,
-    (v) => {
-      settings.tabDisplay.mode = v as 'icon' | 'text' | 'both'
-      applyTabDisplay()
-      persistence.save()
-    }
+    makeTabDisplayChange()
   )
 
   const renderHideGroup = (strip: 'left' | 'right', title: string): void => {
@@ -32,17 +28,7 @@ export function buildTabsPanel(panel: HTMLElement): void {
     for (const t of tabMeta().filter((m) => m.strip === strip)) {
       const cb = (<input type="checkbox" />) as HTMLInputElement
       cb.checked = !settings.tabDisplay.hidden[strip].includes(t.id)
-      cb.addEventListener('change', () => {
-        const list = settings.tabDisplay.hidden[strip]
-        const idx = list.indexOf(t.id)
-        if (cb.checked) {
-          if (idx >= 0) list.splice(idx, 1)
-        } else if (idx < 0) {
-          list.push(t.id)
-        }
-        applyTabDisplay()
-        persistence.save()
-      })
+      cb.addEventListener('change', makeHideToggle(strip, t.id, cb))
       const row = (
         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '2px 0' }}>
           {cb}
