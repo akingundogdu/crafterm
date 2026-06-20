@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import * as notebook from '@core/services/notebook.service'
+import * as notebook from '@core/services/notebook/notebook.service'
 
 let base: string
 

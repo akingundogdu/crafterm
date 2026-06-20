@@ -1,10 +1,11 @@
-import { state, panes } from '../../../state'
+import { state, panes } from '@ui/state/state'
+import { UITexts } from '@texts'
 import {
   openProject,
   openTerminalRunning,
   openTerminalInDir,
   createWorktreeFromPane
-} from '../../../commands'
+} from '@ui/commands/commands'
 import { gitService } from '@services'
 import { overlayModal, makeSearchInput, baseName } from '../shared'
 
@@ -19,7 +20,7 @@ export async function showWorktreeDashboard(): Promise<void> {
   const listing = await gitService.listWorktrees(cwd)
   const { modal, close } = overlayModal('picker-modal')
 
-  const h = (<h2>Worktrees</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.worktree.heading}</h2>) as HTMLHeadingElement
   modal.appendChild(h)
 
   if (!listing.root) {

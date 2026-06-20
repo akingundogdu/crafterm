@@ -1,10 +1,11 @@
 import './time.css'
-import { settings, uid, state, panes } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { promptText } from '../../dialog'
-import { flattenProjects, findProjectByPath } from '../../catalog'
-import { appService } from '@services'
-import { timeEntryRepo } from '@services/storage/repositories'
+import { settings, uid, state, panes } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { promptText } from '@ui/dialog/dialog'
+import { flattenProjects, findProjectByPath } from '@ui/catalog/catalog'
+import { appService , soundService } from '@services'
+import { timeEntryRepo } from '@repositories'
+import { UITexts } from '@texts'
 import {
   fmtClock,
   fmtHM,
@@ -56,7 +57,7 @@ function renderProjects(): void {
   sel.replaceChildren()
   const projects = flattenProjects(state.tree)
   if (!projects.length) {
-    sel.insertAdjacentHTML('beforeend', '<option value="">(no projects)</option>')
+    sel.insertAdjacentHTML('beforeend', `<option value=""></option>`)
   }
   for (const p of projects) {
     const o = (
@@ -73,7 +74,7 @@ function renderFeatures(): void {
   const projPath = projectSel().value
   const prev = sel.value
   sel.replaceChildren()
-  sel.insertAdjacentHTML('beforeend', '<option value="">(no feature)</option>')
+  sel.insertAdjacentHTML('beforeend', `<option value=""></option>`)
   const owner = projPath ? findProjectByPath(state.tree, projPath) : null
   for (const f of owner?.features ?? []) {
     const o = (
@@ -87,7 +88,7 @@ function renderFeatures(): void {
 function renderSummary(): void {
   const sum = el('time-summary')
   sum.replaceChildren()
-  sum.insertAdjacentHTML('beforeend', '<div class="time-summary-head">Today</div>')
+  sum.insertAdjacentHTML('beforeend', `<div class="time-summary-head"></div>`)
   const now = Date.now()
   const ongoing = [
     active && { projectPath: active.projectPath, ms: now - active.start },
@@ -95,7 +96,7 @@ function renderSummary(): void {
   ].filter((o): o is { projectPath: string; ms: number } => !!o)
   const byProj = sumByProject(timeEntryRepo.getAll(), startOfToday(now), ongoing)
   if (!byProj.size) {
-    sum.insertAdjacentHTML('beforeend', '<div class="notif-empty">No time logged today</div>')
+    sum.insertAdjacentHTML('beforeend', `<div class="notif-empty"></div>`)
     return
   }
   for (const [path, ms] of byProj) {
@@ -134,7 +135,7 @@ function onTick(): void {
 
 function updateToggle(): void {
   const btn = el<HTMLButtonElement>('time-toggle')
-  btn.textContent = active ? 'Stop' : 'Start'
+  btn.textContent = active ? UITexts.Time.stop : UITexts.Time.start
   btn.classList.toggle('running', !!active)
   projectSel().disabled = !!active
   featureSel().disabled = !!active
@@ -206,8 +207,8 @@ function finishPomodoro(): void {
   const projectPath = active?.projectPath
   const featureId = active?.featureId ?? null
   stopActive()
-  appService.notify('Pomodoro done', `${proj?.name ?? 'Session'} · time logged`)
-  if (settings.notifSound) appService.playSound(settings.notifSound)
+  appService.notify(UITexts.Time.pomodoroDoneTitle, UITexts.Time.pomodoroBody(proj?.name ?? UITexts.Time.sessionFallback))
+  if (settings.notifSound) soundService.play(settings.notifSound)
   // Re-arm the same countdown for repeating pomodoros (no project select needed).
   if (repeat && ms && projectPath) {
     active = { projectPath, featureId, start: Date.now(), pomodoroMs: ms, repeat: true }
@@ -224,10 +225,10 @@ async function addFeature(): Promise<void> {
   const owner = findProjectByPath(state.tree, projPath)
   if (!owner) return
   const name = await promptText({
-    title: 'New feature',
-    label: 'Feature name',
-    placeholder: 'e.g. auth setup',
-    confirmText: 'Add'
+    title: UITexts.Time.newFeature.title,
+    label: UITexts.Time.newFeature.label,
+    placeholder: UITexts.Time.newFeature.placeholder,
+    confirmText: UITexts.Time.newFeature.confirm
   })
   if (!name || !name.trim()) return
   const f = { id: uid('ft'), name: name.trim() }

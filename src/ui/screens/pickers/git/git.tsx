@@ -1,14 +1,15 @@
-import { selectPane } from '../../../commands'
-import { promptConfirm } from '../../../dialog'
+import { selectPane } from '@ui/commands/commands'
+import { promptConfirm } from '@ui/dialog/dialog'
 import { terminalService, gitService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- Git stash manager: list stashes, apply or drop, for a pane's repo ----
 
 export async function showStashManager(paneId: string): Promise<void> {
   const { modal, close } = overlayModal('picker-modal')
 
-  const h = (<h2>Git stashes</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.git.stashesHeading}</h2>) as HTMLHeadingElement
   const search = makeSearchInput('Search stashes…', () => renderList())
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, search, list)
@@ -31,13 +32,13 @@ export async function showStashManager(paneId: string): Promise<void> {
     if (!stashes.length) {
       list.insertAdjacentHTML(
         'beforeend',
-        `<div class="empty-hint">${allStashes.length ? 'No matches' : 'No stashes'}</div>`
+        `<div class="empty-hint">${allStashes.length ? UITexts.Pickers.common.noMatches : UITexts.Pickers.git.noStashes}</div>`
       )
       return
     }
     stashes.forEach((s) => {
       const applyBtn = (
-        <button class="settings-inline-btn" title="Restore this stash (keeps it in the list)">
+        <button class="settings-inline-btn" title={UITexts.Pickers.git.restoreTitle}>
           Apply
         </button>
       ) as HTMLButtonElement
@@ -47,7 +48,7 @@ export async function showStashManager(paneId: string): Promise<void> {
         close()
       })
       const dropBtn = (
-        <button class="improve-cancel" title="Delete this stash">
+        <button class="improve-cancel" title={UITexts.Pickers.git.deleteStashTitle}>
           Drop
         </button>
       ) as HTMLButtonElement
@@ -56,7 +57,7 @@ export async function showStashManager(paneId: string): Promise<void> {
         const ok = await promptConfirm({
           title: 'Drop stash',
           message: `Drop ${s.ref}? This cannot be undone.`,
-          confirmText: 'Drop'
+          confirmText: UITexts.Pickers.git.dropConfirm
         })
         if (!ok) return
         runInPane(`git stash drop '${s.ref}'`)
@@ -87,7 +88,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   const branches = await gitService.branches(paneId)
   const { modal, close } = overlayModal('picker-modal')
 
-  const h = (<h2>Branch</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.git.branchHeading}</h2>) as HTMLHeadingElement
   modal.append(h)
 
   // Quick chips: fire common git commands into the pane without leaving the modal.
@@ -118,7 +119,7 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
     <input
       class="search-box-input"
       type="text"
-      placeholder="Search branches…  (↑↓ move · ⏎ checkout)"
+      placeholder={UITexts.Pickers.git.branchPlaceholder}
       ref={(el: HTMLInputElement) => {
         el.spellcheck = false
       }}

@@ -1,9 +1,9 @@
-import type { Pane, PaneStatus, NodeStatus } from '../types'
-import { state, requestStatuses, pushNotification } from '../state'
-import { persistence } from '@services/storage/persistence.service'
-import { findTabByPane, ancestorFolders } from '../tree'
-import { findProjectById } from '../catalog'
-import { appService } from '@services'
+import type { Pane, PaneStatus, NodeStatus } from '@ui/types/types'
+import { state, requestStatuses, pushNotification } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { findTabByPane, ancestorFolders } from '@ui/tree/tree'
+import { findProjectById } from '@ui/catalog/catalog'
+import { appService , soundService } from '@services'
 
 // Does a typed command launch Claude? Matches the first word of each pipeline
 // segment so `claude`, `claude-movve`, `code-foo && claude`, `run-…-claude` count,
@@ -103,7 +103,7 @@ function notifyPane(pane: Pane, body: string, event: 'question' | 'done'): boole
   if (!unattended || now - pane.lastNotify < 2000) return false
   pane.lastNotify = now
   appService.notify('Crafterm', body, pane.id) // paneId lets a click focus this pane
-  appService.playEventSound(event)
+  soundService.playEvent(event)
   // Also drop a card in the right notification panel, tagged with its folder path
   // and the same git/cwd detail the sidebar shows when the terminal is pinned.
   const tab = findTabByPane(state.tree, pane.id)

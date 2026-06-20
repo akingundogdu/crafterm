@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { persistence, serializeLayout, recordCommand } from '@services/storage/persistence.service'
-import { settings, state, notifications, commandHistory } from '@ui/state'
-import type { LayoutNode } from '@ui/types'
+import { persistence, serializeLayout, recordCommand } from '@repositories/persistence.service'
+import { settings, state, notifications, commandHistory } from '@ui/state/state'
+import type { LayoutNode } from '@ui/types/types'
 
 // persistence.service owns the renderer's serialize pipeline + debounced save.
 // We capture writes by mocking the generic bridge `send` that storeService.save

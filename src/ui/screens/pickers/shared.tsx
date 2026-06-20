@@ -1,6 +1,6 @@
 import './pickers.css'
 import { createOverlay } from '@ui/components'
-import { makeCloseButton } from '../../dialog'
+import { makeCloseButton } from '@ui/dialog/dialog'
 
 // Shared primitive for the picker family: a bare overlay+modal box with a close
 // button. Built on @crafterm/ui's createOverlay (which owns the `.modal-overlay`

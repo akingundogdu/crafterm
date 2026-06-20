@@ -1,6 +1,6 @@
 // iOS worktree domain data models (moved out of the former bridge api.d.ts).
 // `SavedIosConfig` is part of the persistence model and lives in storage.
-import type { SavedIosConfig } from '@services/storage/state.types'
+import type { SavedIosConfig } from '@repositories/state.types'
 
 export type { SavedIosConfig }
 

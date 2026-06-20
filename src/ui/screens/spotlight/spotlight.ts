@@ -1,6 +1,6 @@
 import './spotlight.css'
-import { settings, panes, state, hooks } from '../../state'
-import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '@services/storage/repositories'
+import { settings, panes, state, hooks } from '@ui/state/state'
+import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '@repositories'
 import { overlayModal } from '../pickers/shared'
 import { showRunApp } from '../pickers/project/project'
 import { loadZshCommands } from '../pickers/command/command'
@@ -10,6 +10,7 @@ import {
   type GsEntry
 } from '../pickers/global-search/global-search'
 import { createSearchBox } from '@ui/components'
+import { UITexts } from '@texts'
 import {
   openMarkdownFile,
   selectPane,
@@ -18,14 +19,14 @@ import {
   splitProjectRight,
   newTab,
   newClaudeTab
-} from '../../commands'
-import { flattenProjects } from '../../catalog'
-import { allTabs, panesInLayout, ancestorFolders } from '../../tree'
-import { KEYBINDINGS, effectiveCombo, comboFromEvent, comboLabel } from '../../keybindings'
+} from '@ui/commands/commands'
+import { flattenProjects } from '@ui/catalog/catalog'
+import { allTabs, panesInLayout, ancestorFolders } from '@ui/tree/tree'
+import { KEYBINDINGS, effectiveCombo, comboFromEvent, comboLabel } from '@ui/keybindings/keybindings'
 import { showDailyPlanModal } from '../daily-plan/daily-plan'
 import { openReminderForm } from '../reminders/reminders'
-import { paneStatus } from '../../pane'
-import { terminalService, fsService, plansService, appService } from '@services'
+import { paneStatus } from '@ui/pane/pane'
+import { terminalService, fsService, plansService, appService , backlogService } from '@services'
 import { createSpotTabs, TABS, TAB_ACTION } from './components/spot-tabs'
 import { createResultList, type SpotEntry, type SpotSource } from './components/result-list'
 
@@ -57,7 +58,7 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
   const { overlay, modal, close } = overlayModal('picker-modal picker-modal-wide spotlight-modal')
 
   const input = createSearchBox(
-    'Search everything…  (Tab switch · ↑↓ move · ⏎ open · ⌘⏎ split)',
+    UITexts.Spotlight.searchPlaceholder,
     () => resultList.setItems(filtered(), activeTab === 'all')
   )
 
@@ -417,7 +418,7 @@ async function loadPlans(): Promise<SpotEntry[]> {
 }
 
 async function loadBacklog(): Promise<SpotEntry[]> {
-  const res = await appService.backlogRead()
+  const res = await backlogService.read()
   if (!res) return []
   return res.items.map((it) => ({
     source: 'backlog' as const,

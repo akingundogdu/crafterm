@@ -33,7 +33,7 @@ vi.mock('node-pty', () => ({
   })
 }))
 
-import * as terminal from '@core/services/terminal.manager'
+import * as terminal from '@core/services/terminal.manager/terminal.manager.service'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyWc = any

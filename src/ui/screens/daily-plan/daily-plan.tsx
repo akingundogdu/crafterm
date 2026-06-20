@@ -1,4 +1,5 @@
 import './daily-plan.css'
+import { UITexts } from '@texts'
 import type {
   DailyPlanTask,
   DailyPlanTag,
@@ -6,43 +7,43 @@ import type {
   DailyPlanPriority,
   ProjectNode,
   SidebarNode
-} from '../../types'
-import { state, panes, uid } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { dailyTaskRepo, dailyTagRepo } from '@services/storage/repositories'
-import { makeCloseButton, promptConfirm } from '../../dialog'
+} from '@ui/types/types'
+import { state, panes, uid } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { dailyTaskRepo, dailyTagRepo } from '@repositories'
+import { makeCloseButton, promptConfirm } from '@ui/dialog/dialog'
 import { showRemindModal } from '../reminders/reminders'
-import { findProjectById } from '../../catalog'
-import { openClaudeWithPrompt } from '../../commands'
+import { findProjectById } from '@ui/catalog/catalog'
+import { openClaudeWithPrompt } from '@ui/commands/commands'
 import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from '@services/worktrees'
-import { refreshPaneDailyTask } from '../../pane'
+import { refreshPaneDailyTask } from '@ui/pane/pane'
 import { createDateField, createOverlay } from '@ui/components'
 import { boardColumnOf, ymd, parseYmd, shiftDays } from './task-helpers'
 
 // Board columns. 'review' is intentionally absent — it's an intermediate status
 // whose tasks render under the In Progress (wip) column (see boardColumnOf).
 const STATUSES: { id: DailyPlanStatus; label: string }[] = [
-  { id: 'backlog', label: 'Backlog' },
-  { id: 'todo', label: 'Todo' },
-  { id: 'wip', label: 'In Progress' },
-  { id: 'done', label: 'Done' }
+  { id: 'backlog', label: UITexts.DailyPlan.status.backlog },
+  { id: 'todo', label: UITexts.DailyPlan.status.todo },
+  { id: 'wip', label: UITexts.DailyPlan.status.wip },
+  { id: 'done', label: UITexts.DailyPlan.status.done }
 ]
 
 // Full status list for the task form's Status dropdown — includes Code Review
 // and Test, which the board omits as columns.
 const FORM_STATUSES: { id: DailyPlanStatus; label: string }[] = [
-  { id: 'backlog', label: 'Backlog' },
-  { id: 'todo', label: 'Todo' },
-  { id: 'wip', label: 'In Progress' },
-  { id: 'review', label: 'Code Review' },
-  { id: 'test', label: 'Test' },
-  { id: 'done', label: 'Done' }
+  { id: 'backlog', label: UITexts.DailyPlan.status.backlog },
+  { id: 'todo', label: UITexts.DailyPlan.status.todo },
+  { id: 'wip', label: UITexts.DailyPlan.status.wip },
+  { id: 'review', label: UITexts.DailyPlan.status.review },
+  { id: 'test', label: UITexts.DailyPlan.status.test },
+  { id: 'done', label: UITexts.DailyPlan.status.done }
 ]
 
 const PRIORITIES: { id: DailyPlanPriority; label: string }[] = [
-  { id: 'low', label: 'Low' },
-  { id: 'medium', label: 'Medium' },
-  { id: 'high', label: 'High' }
+  { id: 'low', label: UITexts.DailyPlan.priority.low },
+  { id: 'medium', label: UITexts.DailyPlan.priority.medium },
+  { id: 'high', label: UITexts.DailyPlan.priority.high }
 ]
 
 const TAG_PALETTE = [
@@ -76,12 +77,12 @@ function dueInfo(dateStr: string): { label: string; cls: 'overdue' | 'soon' | 'n
   const d = daysUntil(dateStr)
   if (d < 0) {
     const n = -d
-    return { label: n === 1 ? 'Overdue by 1 day' : `Overdue by ${n} days`, cls: 'overdue' }
+    return { label: n === 1 ? UITexts.DailyPlan.due.overdueOne : UITexts.DailyPlan.due.overdueMany(n), cls: 'overdue' }
   }
-  if (d === 0) return { label: 'Due today', cls: 'soon' }
-  if (d === 1) return { label: 'Due tomorrow', cls: 'soon' }
-  if (d <= 3) return { label: `${d} days left`, cls: 'soon' }
-  return { label: `${d} days left`, cls: 'normal' }
+  if (d === 0) return { label: UITexts.DailyPlan.due.today, cls: 'soon' }
+  if (d === 1) return { label: UITexts.DailyPlan.due.tomorrow, cls: 'soon' }
+  if (d <= 3) return { label: UITexts.DailyPlan.due.daysLeft(d), cls: 'soon' }
+  return { label: UITexts.DailyPlan.due.daysLeft(d), cls: 'normal' }
 }
 
 function formatHeader(date: string): string {
@@ -89,7 +90,7 @@ function formatHeader(date: string): string {
   const weekday = d.toLocaleDateString(undefined, { weekday: 'long' })
   const month = d.toLocaleDateString(undefined, { month: 'long' })
   const today = todayKey()
-  const prefix = date === today ? 'Today · ' : date === shiftDays(today, -1) ? 'Yesterday · ' : date === shiftDays(today, 1) ? 'Tomorrow · ' : ''
+  const prefix = date === today ? UITexts.DailyPlan.headerPrefix.today : date === shiftDays(today, -1) ? UITexts.DailyPlan.headerPrefix.yesterday : date === shiftDays(today, 1) ? UITexts.DailyPlan.headerPrefix.tomorrow : ''
   return `${prefix}${weekday}, ${month} ${d.getDate()}, ${d.getFullYear()}`
 }
 
@@ -202,18 +203,18 @@ async function openTaskInTerminal(
   const project = task.projectId ? findProjectById(state.tree, task.projectId) : null
   if (!project) {
     await promptConfirm({
-      title: 'No project',
-      message: 'Assign a project to this task first (Edit → Project).',
-      confirmText: 'OK'
+      title: UITexts.DailyPlan.noProject.title,
+      message: UITexts.DailyPlan.noProject.message,
+      confirmText: UITexts.DailyPlan.ok
     })
     return
   }
   const key = assignIssueKey(task)
   if (!key) {
     await promptConfirm({
-      title: 'No issue key prefix',
-      message: `Set an issue key prefix for "${project.name}" in Settings → Projects first.`,
-      confirmText: 'OK'
+      title: UITexts.DailyPlan.noIssueKey.title,
+      message: UITexts.DailyPlan.noIssueKey.message(project.name),
+      confirmText: UITexts.DailyPlan.ok
     })
     return
   }
@@ -237,9 +238,9 @@ async function openTaskInTerminal(
     const wt = await ensureWorktreeForBranch(project, branch)
     if (!wt) {
       await promptConfirm({
-        title: 'Worktree failed',
-        message: `Could not create a worktree for ${branch}.`,
-        confirmText: 'OK'
+        title: UITexts.DailyPlan.worktreeFailed.title,
+        message: UITexts.DailyPlan.worktreeFailed.message(branch),
+        confirmText: UITexts.DailyPlan.ok
       })
       return
     }
@@ -259,11 +260,11 @@ function taskById(id: string): DailyPlanTask | undefined {
 }
 
 const STATUS_LABEL: Record<DailyPlanStatus, string> = {
-  backlog: 'Backlog',
-  todo: 'Todo',
-  wip: 'In Progress',
-  review: 'Code Review',
-  test: 'Test',
+  backlog: UITexts.DailyPlan.status.backlog,
+  todo: UITexts.DailyPlan.status.todo,
+  wip: UITexts.DailyPlan.status.wip,
+  review: UITexts.DailyPlan.status.review,
+  test: UITexts.DailyPlan.status.test,
   done: 'Done'
 }
 
@@ -392,7 +393,7 @@ export function assignPaneToTask(paneId: string): void {
     <input
       type="text"
       class="daily-assign-search"
-      placeholder="Search tasks…"
+      placeholder={UITexts.DailyPlan.searchTasks}
       onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
     />
   ) as HTMLInputElement
@@ -402,7 +403,7 @@ export function assignPaneToTask(paneId: string): void {
   const modal = (
     <div class="modal modal-prompt daily-assign-modal">
       {makeCloseButton(close)}
-      <h2>Assign daily task</h2>
+      <h2>{UITexts.DailyPlan.assignTitle}</h2>
       {currentRow}
       {search}
       {list}
@@ -519,9 +520,9 @@ export function renderDailyCompact(host: HTMLElement): void {
     <select class="settings-select daily-compact-range" />
   ) as HTMLSelectElement
   ;[
-    ['day', 'Today'],
-    ['3d', 'Last 3 days'],
-    ['7d', 'Last 7 days']
+    ['day', UITexts.DailyPlan.range.today],
+    ['3d', UITexts.DailyPlan.range.last3],
+    ['7d', UITexts.DailyPlan.range.last7]
   ].forEach(([val, label]) => {
     const o = document.createElement('option')
     o.value = val
@@ -539,7 +540,7 @@ export function renderDailyCompact(host: HTMLElement): void {
       <div class="daily-compact-title">Daily Plan</div>
       <button
         class="daily-compact-full"
-        title="Open full board"
+        title={UITexts.DailyPlan.openBoardTitle}
         onClick={() => showDailyPlanModal(selectedDate)}
       >
         ⛶
@@ -580,7 +581,7 @@ export function renderDailyCompact(host: HTMLElement): void {
     <input
       type="text"
       class="nb-subtab-search"
-      placeholder="Search tasks…"
+      placeholder={UITexts.DailyPlan.searchTasks}
       onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
     />
   ) as HTMLInputElement
@@ -641,7 +642,7 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
     <div class="daily-plan-nav">
       <button
         class="daily-plan-nav-btn"
-        title="Previous day"
+        title={UITexts.DailyPlan.prevDay}
         onClick={() => {
           selectedDate = shiftDays(selectedDate, -1)
           rerender()
@@ -652,7 +653,7 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
       {dateInput}
       <button
         class="daily-plan-nav-btn"
-        title="Next day"
+        title={UITexts.DailyPlan.nextDay}
         onClick={() => {
           selectedDate = shiftDays(selectedDate, 1)
           rerender()
@@ -681,9 +682,9 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
 
   const rangeSel = (<select class="settings-select daily-plan-range" />) as HTMLSelectElement
   ;[
-    ['day', 'Today'],
-    ['3d', 'Last 3 days'],
-    ['7d', 'Last 7 days']
+    ['day', UITexts.DailyPlan.range.today],
+    ['3d', UITexts.DailyPlan.range.last3],
+    ['7d', UITexts.DailyPlan.range.last7]
   ].forEach(([val, label]) => {
     const o = document.createElement('option')
     o.value = val
@@ -701,7 +702,7 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
   const projFilter = (<select class="settings-select daily-plan-range" />) as HTMLSelectElement
   const allOpt = document.createElement('option')
   allOpt.value = ''
-  allOpt.textContent = 'All projects'
+  allOpt.textContent = UITexts.DailyPlan.allProjects
   projFilter.appendChild(allOpt)
   for (const { p, depth } of projectTree()) {
     const o = document.createElement('option')
@@ -731,7 +732,7 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
   const changelogBtn = (
     <button
       class="daily-plan-secondary-btn"
-      title="Generate a customer-facing changelog from completed tasks"
+      title={UITexts.DailyPlan.changelogTitle}
       onClick={() => showChangelogModal()}
     >
       Changelog
@@ -744,7 +745,7 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
       <button
         class={'daily-plan-secondary-btn daily-tagfilter-btn' + (tagFilter.size ? ' active' : '')}
       >
-        {tagFilter.size ? `Filter tags (${tagFilter.size})` : 'Filter tags'}
+        {tagFilter.size ? UITexts.DailyPlan.filterTagsCount(tagFilter.size) : UITexts.DailyPlan.filterTags}
       </button>
     ) as HTMLButtonElement
     filterBtn.addEventListener('click', (e) => {
@@ -1679,14 +1680,14 @@ function showManageTagsModal(rerender: () => void): void {
 
 // Day-range options for the changelog window (filtered by task.updatedAt).
 const CHANGELOG_RANGES: { id: string; label: string }[] = [
-  { id: 'today', label: 'Today' },
+  { id: 'today', label: UITexts.DailyPlan.range.today },
   { id: 'yesterday', label: 'Yesterday' },
-  { id: '2d', label: 'Last 2 days' },
-  { id: '3d', label: 'Last 3 days' },
-  { id: '4d', label: 'Last 4 days' },
-  { id: '5d', label: 'Last 5 days' },
-  { id: '7d', label: 'Last 7 days' },
-  { id: '10d', label: 'Last 10 days' }
+  { id: '2d', label: UITexts.DailyPlan.range.last2 },
+  { id: '3d', label: UITexts.DailyPlan.range.last3 },
+  { id: '4d', label: UITexts.DailyPlan.range.last4 },
+  { id: '5d', label: UITexts.DailyPlan.range.last5 },
+  { id: '7d', label: UITexts.DailyPlan.range.last7 },
+  { id: '10d', label: UITexts.DailyPlan.range.last10 }
 ]
 
 // Midnight (local) of today as a ms epoch — the anchor for changelog windows.

@@ -1,4 +1,4 @@
-import type { DbEngine } from '../../types'
+import type { DbEngine } from '@ui/types/types'
 
 // Pure SQL identifier/literal formatting for the result grid's edit/insert/delete
 // statements. No DOM/IPC — unit-testable in isolation.

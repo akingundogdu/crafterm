@@ -10,7 +10,7 @@ vi.mock('child_process', () => ({
 const fetchMock = vi.fn()
 vi.stubGlobal('fetch', fetchMock)
 
-import * as account from '@core/services/claude-account.service'
+import * as account from '@core/services/claude-account/claude-account.service'
 
 function res(body: unknown, ok = true, status = 200): { ok: boolean; status: number; json: () => Promise<unknown> } {
   return { ok, status, json: async () => body }

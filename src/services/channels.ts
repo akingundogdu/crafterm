@@ -12,14 +12,14 @@
 import type {
   PtyCreateOptions,
   ProcStartOptions,
-  PaneInfo,
   PtyDataEvent,
   ProcExitEvent
 } from './pty/pty.types'
+import type { PaneInfo } from './pane/pane.types'
+import type { DirListing } from './dir/dir.types'
 import type { GitStash, GitFileStatus, WorktreeListing } from './git/git.types'
 import type {
   DirEntry,
-  DirListing,
   FsEntryListing,
   MarkdownFiles,
   ReadTextResult,
@@ -34,7 +34,8 @@ import type {
 } from './claude/claude.types'
 import type { NbNode } from './notebook/notebook.types'
 import type { PlanForBranch, PlanScanEntry } from './plans/plans.types'
-import type { DbConfig, DbObjects, DbColumns, DbResult, SavedQueryRef } from './db/db.types'
+import type { DbConfig, DbObjects, DbColumns, DbResult } from './db/db.types'
+import type { SavedQueryRef } from './dbq/dbq.types'
 import type {
   DockerKind,
   DockerRow,
@@ -51,8 +52,11 @@ import type {
 } from './pr/pr.types'
 import type { SecretsResult } from './secrets/secrets.types'
 import type { IosWorktreeReport, IosTargets, SavedIosConfig } from './ios/ios.types'
-import type { BuildInfo, RepoGit, DeployResult, ZshCommand, BacklogFile } from './app/app.types'
-import type { SavedState } from './storage/state.types'
+import type { BuildInfo, RepoGit } from './app/app.types'
+import type { DeployResult } from './deploy/deploy.types'
+import type { ZshCommand } from './zsh/zsh.types'
+import type { BacklogFile } from './backlog/backlog.types'
+import type { SavedState } from '@repositories/state.types'
 
 // ---- The channel names, grouped by domain ----
 // The ONLY place a wire string ('<domain>:<verb>') is written. Call sites use

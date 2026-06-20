@@ -1,5 +1,6 @@
-import { settings } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
+import { settings } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
 import {
   KEYBINDINGS,
   effectiveCombo,
@@ -9,11 +10,11 @@ import {
   resetBinding,
   setRecording,
   isModifierKey
-} from '../../../keybindings'
+} from '@ui/keybindings/keybindings'
 import { settingsCleanups } from '../shared'
 
 export function buildShortcutsPanel(panel: HTMLElement): void {
-  panel.insertAdjacentHTML('beforeend', '<h3>Shortcuts</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.shortcuts.heading}</h3>`)
   panel.insertAdjacentHTML(
     'beforeend',
     '<div class="field-hint">Click a shortcut, then press the new key combo (Cmd required). Esc cancels.</div>'
@@ -38,7 +39,7 @@ export function buildShortcutsPanel(panel: HTMLElement): void {
       const reset = (
         <button
           class="shortcut-reset"
-          title="Reset to default"
+          title={UITexts.Settings.shortcuts.resetToDefault}
           onClick={() => {
             resetBinding(a.id)
             persistence.save()
@@ -56,7 +57,7 @@ export function buildShortcutsPanel(panel: HTMLElement): void {
             class={'shortcut-combo' + (recordingId === a.id ? ' recording' : '')}
             onClick={() => startRecording(a.id)}
           >
-            {recordingId === a.id ? 'Press keys…' : comboLabel(effectiveCombo(a.id))}
+            {recordingId === a.id ? UITexts.Settings.shortcuts.pressKeys : comboLabel(effectiveCombo(a.id))}
           </button>
           {reset}
         </div>

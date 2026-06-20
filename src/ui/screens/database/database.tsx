@@ -1,13 +1,14 @@
-import { settings, uid } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from '../../types'
+import { settings, uid } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import type { DbNode, DbGroup, DbConnNode, DbConnection, DbEngine } from '@ui/types/types'
 import type { DbObjects } from '@services/db/db.types'
-import { makeCloseButton, promptText } from '../../dialog'
-import { openSqlInSplit } from '../../commands'
+import { makeCloseButton, promptText } from '@ui/dialog/dialog'
+import { openSqlInSplit } from '@ui/commands/commands'
 import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@ui/components'
 import './database.css'
-import { dbService } from '@services'
-import { dbConnectionRepo } from '@services/storage/repositories'
+import { dbService , dbqService } from '@services'
+import { dbConnectionRepo } from '@repositories'
+import { UITexts } from '@texts'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object
 // introspection under each connection, a Queries section of saved .sql files,
@@ -113,7 +114,7 @@ function ensureConnLoaded(conn: DbConnection): void {
   void (async () => {
     const [objs, queries] = await Promise.all([
       dbService.objects(conn),
-      dbService.savedList(conn.id)
+      dbqService.list(conn.id)
     ])
     objCache.set(conn.id, objs)
     queriesCache.set(conn.id, queries)
@@ -122,7 +123,7 @@ function ensureConnLoaded(conn: DbConnection): void {
 }
 
 async function renameConn(c: DbConnNode): Promise<void> {
-  const name = await promptText({ title: 'Rename', label: 'Name', value: c.conn.name, confirmText: 'Rename' })
+  const name = await promptText({ title: UITexts.Database.renameTitle, label: UITexts.Database.fieldName, value: c.conn.name, confirmText: UITexts.Database.renameConfirm })
   if (!name) return
   c.conn.name = name
   dbConnectionRepo.update(c.conn)
@@ -131,13 +132,13 @@ async function renameConn(c: DbConnNode): Promise<void> {
 
 function deleteQuery(conn: DbConnection, fileName: string): void {
   void (async () => {
-    await dbService.savedDelete(conn.id, fileName)
+    await dbqService.delete(conn.id, fileName)
     await reloadQueries(conn.id)
   })()
 }
 function openQueryFile(conn: DbConnection, fileName: string): void {
   void (async () => {
-    const sql = await dbService.savedRead(conn.id, fileName)
+    const sql = await dbqService.read(conn.id, fileName)
     openSqlInSplit({ connId: conn.id, sql, fileName })
   })()
 }
@@ -291,11 +292,11 @@ const adapter: TreeAdapter<DbTreeNode> = {
   menu: (n) => {
     if (n.t === 'group') {
       return [
-        { label: 'New connection…', run: () => openConnForm(n.g.id) },
-        { label: 'New folder…', run: () => void addGroup(n.g.id) },
-        { label: 'Rename…', run: () => void renameGroup(n.g) },
+        { label: UITexts.Database.menu.newConnection, run: () => openConnForm(n.g.id) },
+        { label: UITexts.Database.menu.newFolder, run: () => void addGroup(n.g.id) },
+        { label: UITexts.Database.menu.rename, run: () => void renameGroup(n.g) },
         {
-          label: 'Delete',
+          label: UITexts.Database.menu.delete,
           danger: true,
           run: () => {
             removeNode(n.g.id)
@@ -307,11 +308,11 @@ const adapter: TreeAdapter<DbTreeNode> = {
     }
     if (n.t === 'conn') {
       return [
-        { label: 'New query', run: () => openSqlInSplit({ connId: n.c.conn.id }) },
-        { label: 'Edit connection…', run: () => openConnForm(null, n.c) },
-        { label: 'Rename…', run: () => void renameConn(n.c) },
+        { label: UITexts.Database.menu.newQuery, run: () => openSqlInSplit({ connId: n.c.conn.id }) },
+        { label: UITexts.Database.menu.editConnection, run: () => openConnForm(null, n.c) },
+        { label: UITexts.Database.menu.rename, run: () => void renameConn(n.c) },
         {
-          label: 'Delete',
+          label: UITexts.Database.menu.delete,
           danger: true,
           run: () => {
             removeNode(n.c.id)
@@ -323,12 +324,12 @@ const adapter: TreeAdapter<DbTreeNode> = {
       ]
     }
     if (n.t === 'section' && n.kind === 'Queries') {
-      return [{ label: 'New query', run: () => openSqlInSplit({ connId: n.conn.id }) }]
+      return [{ label: UITexts.Database.menu.newQuery, run: () => openSqlInSplit({ connId: n.conn.id }) }]
     }
     if (n.t === 'object') {
       return [
         {
-          label: 'Preview (SELECT *)',
+          label: UITexts.Database.menu.preview,
           run: () =>
             openSqlInSplit({ connId: n.conn.id, sql: `SELECT * FROM ${n.name} LIMIT 100;`, autoRun: true })
         }
@@ -336,8 +337,8 @@ const adapter: TreeAdapter<DbTreeNode> = {
     }
     if (n.t === 'query') {
       return [
-        { label: 'Open', run: () => openQueryFile(n.conn, n.file.name) },
-        { label: 'Delete', danger: true, run: () => deleteQuery(n.conn, n.file.name) }
+        { label: UITexts.Database.menu.open, run: () => openQueryFile(n.conn, n.file.name) },
+        { label: UITexts.Database.menu.delete, danger: true, run: () => deleteQuery(n.conn, n.file.name) }
       ]
     }
     return []
@@ -365,7 +366,7 @@ async function refresh(): Promise<void> {
 
 // Reload a connection's saved-query list and re-render (after save/delete).
 async function reloadQueries(connId: string): Promise<void> {
-  queriesCache.set(connId, await dbService.savedList(connId))
+  queriesCache.set(connId, await dbqService.list(connId))
   await refresh()
 }
 
@@ -373,9 +374,9 @@ async function reloadQueries(connId: string): Promise<void> {
 
 async function addGroup(parentId: string | null): Promise<void> {
   const name = await promptText({
-    title: parentId ? 'New folder' : 'New project',
-    label: 'Name',
-    confirmText: 'Create'
+    title: parentId ? UITexts.Database.newFolderTitle : UITexts.Database.newProjectTitle,
+    label: UITexts.Database.fieldName,
+    confirmText: UITexts.Database.createConfirm
   })
   if (!name) return
   const group: DbGroup = { kind: 'group', id: uid('dbg'), name, collapsed: false, children: [] }
@@ -394,7 +395,7 @@ export function databaseNewProject(): void {
 }
 
 async function renameGroup(node: DbGroup): Promise<void> {
-  const name = await promptText({ title: 'Rename', label: 'Name', value: node.name, confirmText: 'Rename' })
+  const name = await promptText({ title: UITexts.Database.renameTitle, label: UITexts.Database.fieldName, value: node.name, confirmText: UITexts.Database.renameConfirm })
   if (!name) return
   node.name = name
   persistence.save()
@@ -415,8 +416,8 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
     <div class="db-seg">
       {(
         [
-          ['postgres', 'PostgreSQL'],
-          ['mysql', 'MySQL'],
+          ['postgres', UITexts.Database.engines.postgres],
+          ['mysql', UITexts.Database.engines.mysql],
           ['sqlite', 'SQLite']
         ] as [DbEngine, string][]
       ).map(([v, lbl]) => {
@@ -440,7 +441,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
     </div>
   ) as HTMLDivElement
 
-  const name = (<input class="reminder-input" type="text" placeholder="movve-db-production" />) as HTMLInputElement
+  const name = (<input class="reminder-input" type="text" placeholder={UITexts.Database.ph.name} />) as HTMLInputElement
   name.value = c?.name ?? ''
 
   // network fields (postgres/mysql)
@@ -459,11 +460,11 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
     input.placeholder = ph
     netWrap.append((<div class="reminder-label">{label}</div>) as HTMLDivElement, input)
   }
-  mkNet('Host', host, c?.host ?? '', 'localhost')
-  mkNet('Port', port, c?.port ? String(c.port) : '', '5432 / 3306', 'number')
-  mkNet('User', user, c?.user ?? '', 'postgres')
-  mkNet('Password', pass, c?.password ?? '', '••••••••', 'password')
-  mkNet('Database', database, c?.database ?? '', 'mydb')
+  mkNet(UITexts.Database.fields.host, host, c?.host ?? '', UITexts.Database.ph.host)
+  mkNet(UITexts.Database.fields.port, port, c?.port ? String(c.port) : '', UITexts.Database.ph.port, 'number')
+  mkNet(UITexts.Database.fields.user, user, c?.user ?? '', UITexts.Database.ph.user)
+  mkNet(UITexts.Database.fields.password, pass, c?.password ?? '', UITexts.Database.ph.password, 'password')
+  mkNet(UITexts.Database.fields.database, database, c?.database ?? '', UITexts.Database.ph.database)
   netWrap.appendChild(
     (
       <label class="checkbox-row">
@@ -474,7 +475,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
   )
 
   // sqlite field
-  const file = (<input class="reminder-input" placeholder="~/path/to/db.sqlite" />) as HTMLInputElement
+  const file = (<input class="reminder-input" placeholder={UITexts.Database.ph.file} />) as HTMLInputElement
   file.value = c?.file ?? ''
   const fileWrap = (
     <div>
@@ -510,10 +511,10 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
       <button
         onClick={() => {
           void (async () => {
-            status.textContent = 'Testing…'
+            status.textContent = UITexts.Database.testing
             status.className = 'db-conn-status'
             const r = await dbService.connect(build())
-            status.textContent = r.ok ? 'Connected ✓' : `Failed: ${r.error}`
+            status.textContent = r.ok ? UITexts.Database.connected : UITexts.Database.failed(r.error)
             status.className = 'db-conn-status ' + (r.ok ? 'ok' : 'err')
           })()
         }}
@@ -541,7 +542,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
           close()
         }}
       >
-        {existing ? 'Save' : 'Add'}
+        {existing ? UITexts.Database.save : UITexts.Database.add}
       </button>
     </div>
   ) as HTMLDivElement
@@ -549,7 +550,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
   const modal = (
     <div class="modal db-conn-modal">
       {makeCloseButton(close)}
-      <h2>{existing ? 'Edit connection' : 'New connection'}</h2>
+      <h2>{existing ? UITexts.Database.editHeading : UITexts.Database.newHeading}</h2>
       <div class="reminder-label">Engine</div>
       {seg}
     </div>

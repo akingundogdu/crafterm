@@ -2,11 +2,11 @@
 // one-shot command (e.g. an iOS build/run) without occupying a visible pane. It
 // is surfaced as a small sub-row under its worktree and viewable on demand — the
 // view is a transient pane attached to the still-running PTY (close ≠ kill).
-import { panes, state, requestSidebar, uid } from '@ui/state'
-import { persistence } from './storage/persistence.service'
-import { createPane } from '@ui/pane'
+import { panes, state, requestSidebar, uid } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { createPane } from '@ui/pane/pane'
 import { renderContent } from '@ui/screens/content/content'
-import { allTabs, layoutContains, splitInLayout } from '@ui/tree'
+import { allTabs, layoutContains, splitInLayout } from '@ui/tree/tree'
 import type {
   WorktreeNode,
   ProjectNode,
@@ -14,7 +14,7 @@ import type {
   TabNode,
   SidebarNode,
   PaneRole
-} from '@ui/types'
+} from '@ui/types/types'
 import { terminalService } from '@services'
 
 // A node that can own hidden background shells: a worktree (iOS build/run) or a

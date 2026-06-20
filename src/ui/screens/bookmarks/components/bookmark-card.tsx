@@ -1,8 +1,9 @@
 import { createButton } from '@ui/components'
-import type { Bookmark } from '../../../types'
-import { bookmarkRepo, reminderRepo } from '@services/storage/repositories'
-import { openLink } from '../../../commands'
-import { promptConfirm } from '../../../dialog'
+import { UITexts } from '@texts'
+import type { Bookmark } from '@ui/types/types'
+import { bookmarkRepo, reminderRepo } from '@repositories'
+import { openLink } from '@ui/commands/commands'
+import { promptConfirm } from '@ui/dialog/dialog'
 import { TYPE_LABEL } from '../bookmark-meta'
 import { showBookmarkForm } from './bookmark-form'
 import { showRemindPicker } from './remind-picker'
@@ -28,7 +29,7 @@ function formatReminderTime(t: number): string {
 function copyContent(bm: Bookmark, btn: HTMLButtonElement): void {
   void navigator.clipboard.writeText(bm.content)
   const prev = btn.textContent
-  btn.textContent = 'Copied'
+  btn.textContent = UITexts.Bookmarks.card.copied
   setTimeout(() => (btn.textContent = prev), 1100)
 }
 
@@ -76,7 +77,7 @@ export function createBookmarkCard(bm: Bookmark, handlers: BookmarkCardHandlers)
         createButton({
           text: t,
           className: 'bookmarks-tag',
-          title: 'Filter by tag',
+          title: UITexts.Bookmarks.card.filterByTag,
           onClick: () => handlers.onTagFilter(t)
         })
       )
@@ -88,7 +89,7 @@ export function createBookmarkCard(bm: Bookmark, handlers: BookmarkCardHandlers)
   if (bm.type === 'link') {
     acts.appendChild(
       createButton({
-        text: 'Open',
+        text: UITexts.Bookmarks.card.open,
         className: 'bookmarks-act primary',
         onClick: () => void openLink(bm.content)
       })
@@ -101,15 +102,15 @@ export function createBookmarkCard(bm: Bookmark, handlers: BookmarkCardHandlers)
   acts.append(
     createButton({ text: 'Remind', className: 'bookmarks-act', onClick: () => showRemindPicker(bm) }),
     createButton({
-      text: 'Edit',
+      text: UITexts.Bookmarks.card.edit,
       className: 'bookmarks-act',
       onClick: () => showBookmarkForm(bm, handlers.onChanged)
     }),
     createButton({
-      text: 'Delete',
+      text: UITexts.Bookmarks.card.delete,
       className: 'bookmarks-act danger',
       onClick: async () => {
-        const ok = await promptConfirm({ title: 'Delete bookmark', message: bm.title, confirmText: 'Delete' })
+        const ok = await promptConfirm({ title: UITexts.Bookmarks.card.deleteTitle, message: bm.title, confirmText: UITexts.Bookmarks.card.deleteConfirm })
         if (!ok) return
         bookmarkRepo.remove(bm.id)
         handlers.onChanged()

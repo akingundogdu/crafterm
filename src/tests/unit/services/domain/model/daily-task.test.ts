@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { dailyTaskSchema, makeDailyTask, type DailyTask } from '@services/domain/model/daily-task'
-import { makeDailyTag, dailyTagSchema } from '@services/domain/model/daily-tag'
-import { createArrayRepository } from '@services/storage/repositories/repository'
+import { dailyTaskSchema, makeDailyTask, type DailyTask } from '@models/daily-task'
+import { makeDailyTag, dailyTagSchema } from '@models/daily-tag'
+import { createArrayRepository } from '@repositories/repository'
 
 describe('daily-task model', () => {
   it('makeDailyTask fills defaults and validates', () => {

@@ -1,12 +1,5 @@
 // Terminal / pty domain data models (moved out of the former bridge api.d.ts).
-export interface PaneInfo {
-  cwd: string | null
-  branch: string | null
-  worktree: string | null // basename of the git toplevel (worktree/repo folder), or null
-  // Literal last command captured by the zsh preexec hook (keyed by stableId),
-  // or null when none recorded yet. Only read when a stableId is passed.
-  lastCommand?: string | null
-}
+// (PaneInfo moved to pane.types.ts — it's the pane:* surface.)
 
 // Options for spawning an interactive pty (the visible terminal panes).
 export interface PtyCreateOptions {

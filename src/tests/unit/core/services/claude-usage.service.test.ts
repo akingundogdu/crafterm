@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { newSummary, applyJsonlLine } from '@core/services/claude-usage.service'
+import { newSummary, applyJsonlLine } from '@core/services/claude-usage/claude-usage.service'
 
 // now = mid-month so monthStart << weekStart << dayStart and the three buckets
 // are distinguishable.

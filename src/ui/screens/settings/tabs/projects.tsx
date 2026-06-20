@@ -1,15 +1,16 @@
-import { settings, state, requestSidebar, uid } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { promptForm, promptText } from '../../../dialog'
+import { settings, state, requestSidebar, uid } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
+import { promptForm, promptText } from '@ui/dialog/dialog'
 import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
-import { flattenProjects, removeProject } from '../../../catalog'
-import { makeProject } from '../../../tree'
-import { applicationRepo, iosConfigRepo } from '@services/storage/repositories'
-import type { ProjectNode, Application, IosDevConfig } from '../../../types'
+import { flattenProjects, removeProject } from '@ui/catalog/catalog'
+import { makeProject } from '@ui/tree/tree'
+import { applicationRepo, iosConfigRepo } from '@repositories'
+import type { ProjectNode, Application, IosDevConfig } from '@ui/types/types'
 import { buildSubTabs, labeledInput } from '../shared'
 
 export function buildProjectsPanel(panel: HTMLElement): void {
-  panel.insertAdjacentHTML('beforeend', '<h3>Projects</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.projects.heading}</h3>`)
 
   const cb = (<input type="text" />) as HTMLInputElement
   cb.type = 'checkbox'
@@ -21,18 +22,18 @@ export function buildProjectsPanel(panel: HTMLElement): void {
   const ask = (
     <label class="checkbox-row">
       {cb}
-      Ask which project to open on a new terminal
+      {UITexts.Settings.projects.askProject}
     </label>
   ) as HTMLLabelElement
   panel.appendChild(ask)
 
   // ---- Global environments (dev/local/production) ----
-  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Environments</div>')
+  panel.insertAdjacentHTML('beforeend', `<div class="settings-subhead">${UITexts.Settings.projects.environments}</div>`)
   const envBar = (<div class="env-bar" />) as HTMLDivElement
   panel.appendChild(envBar)
 
   // ---- Global workspace groups (used as the Group dropdown) ----
-  panel.insertAdjacentHTML('beforeend', '<div class="settings-subhead">Groups (workspaces)</div>')
+  panel.insertAdjacentHTML('beforeend', `<div class="settings-subhead">${UITexts.Settings.projects.groups}</div>`)
   const groupBar = (<div class="env-bar" />) as HTMLDivElement
   panel.appendChild(groupBar)
 
@@ -162,10 +163,10 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     add.addEventListener('click', () => {
       void (async () => {
         const name = await promptText({
-          title: 'New environment',
-          label: 'Name',
+          title: UITexts.Settings.projects.newEnvironment,
+          label: UITexts.Settings.projects.name,
           placeholder: 'staging',
-          confirmText: 'Add'
+          confirmText: UITexts.Settings.projects.add
         })
         if (!name || settings.environments.includes(name)) return
         settings.environments.push(name)
@@ -207,10 +208,10 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     add.addEventListener('click', () => {
       void (async () => {
         const name = await promptText({
-          title: 'New group',
-          label: 'Name',
+          title: UITexts.Settings.projects.newGroup,
+          label: UITexts.Settings.projects.name,
           placeholder: 'work',
-          confirmText: 'Add'
+          confirmText: UITexts.Settings.projects.add
         })
         const g = (name ?? '').trim()
         if (!g || settings.groups.includes(g)) return
@@ -788,7 +789,7 @@ function renderIosConfig(p: ProjectNode, panel: HTMLElement): void {
       void promptForm({
         title: 'Add file to copy',
         fields: [{ key: 'path', label: 'Path (relative to repo root)', placeholder: 'Secrets.xcconfig' }],
-        confirmText: 'Add'
+        confirmText: UITexts.Settings.projects.add
       }).then((values) => {
         const rel = (values?.path || '').trim()
         if (!rel || cfg.copyFiles.includes(rel)) return

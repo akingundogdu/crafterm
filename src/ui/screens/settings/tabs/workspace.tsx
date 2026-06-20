@@ -1,21 +1,29 @@
-import { settings } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { appService } from '@services'
-import { accountRepo } from '@services/storage/repositories'
+import { settings } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
+import { appService , soundService } from '@services'
+import { accountRepo } from '@repositories'
 import { labeledInput, labeledSelect } from '../shared'
 
 export function buildWorkspacePanel(panel: HTMLElement): void {
-  panel.insertAdjacentHTML('beforeend', '<h3>Workspace</h3>')
-  const root = labeledInput(panel, 'Code root', 'text', settings.codeRoot, (v) => {
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.workspace.heading}</h3>`)
+  const root = labeledInput(panel, UITexts.Settings.workspace.codeRoot, 'text', settings.codeRoot, (v) => {
     settings.codeRoot = v.trim()
     persistence.save()
   })
   root.placeholder = '(home)'
   root.style.maxWidth = '280px'
 
+  const shell = labeledInput(panel, UITexts.Settings.workspace.defaultShell, 'text', settings.defaultShell, (v) => {
+    settings.defaultShell = v.trim()
+    persistence.save()
+  })
+  shell.placeholder = '($SHELL, then /bin/zsh)'
+  shell.style.maxWidth = '280px'
+
   const ext = labeledInput(
     panel,
-    'Code file extensions',
+    UITexts.Settings.workspace.codeExtensions,
     'text',
     settings.codeExtensions.join(', '),
     (v) => {
@@ -32,7 +40,7 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
     '<div class="field-hint">Clicking these files in a terminal opens them with <code>ide</code>.</div>'
   )
 
-  const todo = labeledInput(panel, 'Todo list file', 'text', settings.todoFile, (v) => {
+  const todo = labeledInput(panel, UITexts.Settings.workspace.todoFile, 'text', settings.todoFile, (v) => {
     settings.todoFile = v.trim()
     persistence.save()
   })
@@ -44,8 +52,8 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
   )
 
   // File explorer (right panel → Files)
-  panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">File explorer</h3>')
-  const exRoot = labeledInput(panel, 'Explorer root', 'text', settings.explorerRoot, (v) => {
+  panel.insertAdjacentHTML('beforeend', `<h3 style="margin-top:18px">${UITexts.Settings.workspace.fileExplorer}</h3>`)
+  const exRoot = labeledInput(panel, UITexts.Settings.workspace.explorerRoot, 'text', settings.explorerRoot, (v) => {
     settings.explorerRoot = v.trim()
     persistence.save()
   })
@@ -53,7 +61,7 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
   exRoot.placeholder = '(active terminal cwd)'
   const exExclude = labeledInput(
     panel,
-    'Exclude',
+    UITexts.Settings.workspace.exclude,
     'text',
     settings.explorerExclude.join(', '),
     (v) => {
@@ -71,12 +79,12 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
   )
 
   // Notification sound (macOS system sounds; '' = off)
-  panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">Notifications</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3 style="margin-top:18px">${UITexts.Settings.workspace.notifications}</h3>`)
   const SOUNDS = ['', 'Basso', 'Blow', 'Bottle', 'Frog', 'Funk', 'Glass', 'Hero', 'Morse', 'Ping', 'Pop', 'Purr', 'Sosumi', 'Submarine', 'Tink']
   const sel = (
     <select class="settings-select">
       {SOUNDS.map((s) => {
-        const o = (<option>{s || 'Off'}</option>) as HTMLOptionElement
+        const o = (<option>{s || UITexts.Settings.workspace.soundOff}</option>) as HTMLOptionElement
         o.value = s
         if (s === settings.notifSound) o.selected = true
         return o
@@ -86,10 +94,10 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
   sel.addEventListener('change', () => {
     settings.notifSound = sel.value
     persistence.save()
-    if (sel.value) appService.playSound(sel.value) // preview
+    if (sel.value) soundService.play(sel.value) // preview
   })
   const soundRow = (<div class="settings-row" />) as HTMLDivElement
-  soundRow.insertAdjacentHTML('beforeend', '<span class="settings-row-label">Sound</span>')
+  soundRow.insertAdjacentHTML('beforeend', `<span class="settings-row-label">${UITexts.Settings.workspace.soundLabel}</span>`)
   soundRow.appendChild(sel)
   panel.appendChild(soundRow)
   panel.insertAdjacentHTML(
@@ -98,14 +106,14 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
   )
 
   // Claude usage — token source for the real `/api/oauth/usage` percentages.
-  panel.insertAdjacentHTML('beforeend', '<h3 style="margin-top:18px">Claude usage</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3 style="margin-top:18px">${UITexts.Settings.workspace.claudeUsage}</h3>`)
   panel.insertAdjacentHTML(
     'beforeend',
     '<div class="field-hint">The status-bar chip shows Anthropic\'s real session/week limits, read with the OAuth token Claude Code stores in the macOS keychain. Override the keychain service or point at a saved secret as a fallback.</div>'
   )
   const svc = labeledInput(
     panel,
-    'Keychain service',
+    UITexts.Settings.workspace.keychainService,
     'text',
     settings.claudeUsageAuth.keychainService,
     (v) => {
@@ -128,7 +136,7 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
     settings.claudeUsageAuth.fallbackSecretId && settings.claudeUsageAuth.fallbackSecretKey
       ? `${settings.claudeUsageAuth.fallbackSecretId}::${settings.claudeUsageAuth.fallbackSecretKey}`
       : ''
-  labeledSelect(panel, 'Fallback secret', secretOptions, current, (v) => {
+  labeledSelect(panel, UITexts.Settings.workspace.fallbackSecret, secretOptions, current, (v) => {
     if (!v) {
       settings.claudeUsageAuth.fallbackSecretId = ''
       settings.claudeUsageAuth.fallbackSecretKey = ''

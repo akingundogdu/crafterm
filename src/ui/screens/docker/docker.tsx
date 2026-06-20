@@ -1,7 +1,8 @@
 import './docker.css'
+import { UITexts } from '@texts'
 import type { DockerRow, DockerKind } from '@services/docker/docker.types'
-import { openTerminalRunning } from '../../commands'
-import { promptConfirm } from '../../dialog'
+import { openTerminalRunning } from '@ui/commands/commands'
+import { promptConfirm } from '@ui/dialog/dialog'
 import { dockerService } from '@services'
 import { createButton } from '@ui/components'
 import { field as f } from './inspect'
@@ -16,11 +17,11 @@ import { makeRow, fillEmpty, type RowAction } from './components/row'
 type SubTab = 'containers' | 'images' | 'volumes' | 'networks' | 'compose'
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
-  { key: 'containers', label: 'Containers' },
-  { key: 'images', label: 'Images' },
-  { key: 'volumes', label: 'Volumes' },
-  { key: 'networks', label: 'Networks' },
-  { key: 'compose', label: 'Compose' }
+  { key: 'containers', label: UITexts.Docker.tabs.containers },
+  { key: 'images', label: UITexts.Docker.tabs.images },
+  { key: 'volumes', label: UITexts.Docker.tabs.volumes },
+  { key: 'networks', label: UITexts.Docker.tabs.networks },
+  { key: 'compose', label: UITexts.Docker.tabs.compose }
 ]
 
 let host: HTMLElement | null = null
@@ -52,7 +53,7 @@ export async function renderDocker(el: HTMLElement): Promise<void> {
         <div class="docker-empty-sub">{avail.error || 'Start Docker Desktop and try again.'}</div>
         {createButton({
           className: 'settings-inline-btn',
-          text: 'Retry',
+          text: UITexts.Docker.retry,
           onClick: () => void renderDocker(el)
         })}
       </div>
@@ -78,7 +79,7 @@ export async function renderDocker(el: HTMLElement): Promise<void> {
 
   const list = (<div class="docker-list" />) as HTMLDivElement
   el.appendChild(list)
-  list.textContent = 'Loading…'
+  list.textContent = UITexts.Docker.loading
 
   if (subTab === 'containers') await renderContainers(list)
   else if (subTab === 'images') await renderImages(list)
@@ -103,14 +104,14 @@ async function act(
 ): Promise<void> {
   if (action === 'remove' || action === 'down') {
     const ok = await promptConfirm({
-      title: `${action === 'down' ? 'Compose down' : 'Remove'} ${kind}`,
-      message: `${action === 'down' ? 'Stop and remove' : 'Remove'} "${label}"?`,
-      confirmText: action === 'down' ? 'Down' : 'Remove'
+      title: `${action === 'down' ? UITexts.Docker.confirm.composeDown : UITexts.Docker.confirm.remove} ${kind}`,
+      message: `${action === 'down' ? UITexts.Docker.confirm.stopAndRemove : UITexts.Docker.confirm.remove} "${label}"?`,
+      confirmText: action === 'down' ? UITexts.Docker.confirm.down : UITexts.Docker.confirm.remove
     })
     if (!ok) return
   }
   const r = await dockerService.action(kind, action, id, configFile)
-  if (!r.ok) showTextModal('Action failed', r.error || 'unknown error')
+  if (!r.ok) showTextModal(UITexts.Docker.actionFailed, r.error || UITexts.Docker.unknownError)
   reload()
 }
 
@@ -119,7 +120,7 @@ async function act(
 async function renderContainers(list: HTMLElement): Promise<void> {
   const [rows] = await Promise.all([dockerService.containers()])
   list.replaceChildren()
-  if (!rows.length) return fillEmpty(list, 'No containers')
+  if (!rows.length) return fillEmpty(list, UITexts.Docker.empty.containers)
   // Stats load in the background and merge in without blocking the list.
   void loadStats()
   for (const c of rows) {
@@ -130,29 +131,29 @@ async function renderContainers(list: HTMLElement): Promise<void> {
     const badgeCls = running ? 'ok' : state === 'paused' ? 'warn' : 'off'
     const actions: RowAction[] = []
     if (running) {
-      actions.push({ label: 'Stop', run: () => void act('container', 'stop', id, name) })
-      actions.push({ label: 'Restart', run: () => void act('container', 'restart', id, name) })
+      actions.push({ label: UITexts.Docker.actions.stop, run: () => void act('container', 'stop', id, name) })
+      actions.push({ label: UITexts.Docker.actions.restart, run: () => void act('container', 'restart', id, name) })
       actions.push({
-        label: 'Exec',
+        label: UITexts.Docker.actions.exec,
         cls: 'primary',
         run: () => void openTerminalRunning(`docker exec -it ${id} sh`, `exec ${name}`)
       })
     } else {
       actions.push({
-        label: 'Start',
+        label: UITexts.Docker.actions.start,
         cls: 'primary',
         run: () => void act('container', 'start', id, name)
       })
     }
     actions.push({
-      label: 'Logs',
+      label: UITexts.Docker.actions.logs,
       run: () => showDetailModal({ kind: 'container', id, name, running, initial: 'logs' })
     })
     actions.push({
-      label: 'Inspect',
+      label: UITexts.Docker.actions.inspect,
       run: () => showDetailModal({ kind: 'container', id, name, running, initial: 'inspect' })
     })
-    actions.push({ label: 'Remove', cls: 'danger', run: () => void act('container', 'remove', id, name) })
+    actions.push({ label: UITexts.Docker.actions.remove, cls: 'danger', run: () => void act('container', 'remove', id, name) })
 
     const row = makeRow({
       title: name,
@@ -197,7 +198,7 @@ function mergeStats(): void {
 async function renderImages(list: HTMLElement): Promise<void> {
   const rows = await dockerService.images()
   list.replaceChildren()
-  if (!rows.length) return fillEmpty(list, 'No images')
+  if (!rows.length) return fillEmpty(list, UITexts.Docker.empty.images)
   for (const im of rows) {
     const id = f(im, 'ID')
     const repo = f(im, 'Repository')
@@ -211,10 +212,10 @@ async function renderImages(list: HTMLElement): Promise<void> {
         search: `${name} ${id}`,
         actions: [
           {
-            label: 'Inspect',
+            label: UITexts.Docker.actions.inspect,
             run: () => showDetailModal({ kind: 'image', id, name })
           },
-          { label: 'Remove', cls: 'danger', run: () => void act('image', 'remove', id, name) }
+          { label: UITexts.Docker.actions.remove, cls: 'danger', run: () => void act('image', 'remove', id, name) }
         ]
       })
     )
@@ -225,7 +226,7 @@ async function renderImages(list: HTMLElement): Promise<void> {
 async function renderVolumes(list: HTMLElement): Promise<void> {
   const rows = await dockerService.volumes()
   list.replaceChildren()
-  if (!rows.length) return fillEmpty(list, 'No volumes')
+  if (!rows.length) return fillEmpty(list, UITexts.Docker.empty.volumes)
   for (const v of rows) {
     const name = f(v, 'Name')
     list.appendChild(
@@ -235,10 +236,10 @@ async function renderVolumes(list: HTMLElement): Promise<void> {
         search: name,
         actions: [
           {
-            label: 'Inspect',
+            label: UITexts.Docker.actions.inspect,
             run: () => showDetailModal({ kind: 'volume', id: name, name })
           },
-          { label: 'Remove', cls: 'danger', run: () => void act('volume', 'remove', name, name) }
+          { label: UITexts.Docker.actions.remove, cls: 'danger', run: () => void act('volume', 'remove', name, name) }
         ]
       })
     )
@@ -249,7 +250,7 @@ async function renderVolumes(list: HTMLElement): Promise<void> {
 async function renderNetworks(list: HTMLElement): Promise<void> {
   const rows = await dockerService.networks()
   list.replaceChildren()
-  if (!rows.length) return fillEmpty(list, 'No networks')
+  if (!rows.length) return fillEmpty(list, UITexts.Docker.empty.networks)
   for (const n of rows) {
     const name = f(n, 'Name')
     const id = f(n, 'ID') || name
@@ -261,12 +262,12 @@ async function renderNetworks(list: HTMLElement): Promise<void> {
         search: name,
         actions: [
           {
-            label: 'Inspect',
+            label: UITexts.Docker.actions.inspect,
             run: () => showDetailModal({ kind: 'network', id, name })
           },
           ...(builtin
             ? []
-            : [{ label: 'Remove', cls: 'danger', run: () => void act('network', 'remove', id, name) }])
+            : [{ label: UITexts.Docker.actions.remove, cls: 'danger', run: () => void act('network', 'remove', id, name) }])
         ]
       })
     )
@@ -277,7 +278,7 @@ async function renderNetworks(list: HTMLElement): Promise<void> {
 async function renderCompose(list: HTMLElement): Promise<void> {
   const rows = await dockerService.compose()
   list.replaceChildren()
-  if (!rows.length) return fillEmpty(list, 'No compose projects')
+  if (!rows.length) return fillEmpty(list, UITexts.Docker.empty.compose)
   for (const p of rows) {
     const name = f(p, 'Name')
     const status = f(p, 'Status')
@@ -291,11 +292,11 @@ async function renderCompose(list: HTMLElement): Promise<void> {
         badge: { text: running ? 'up' : 'down', cls: running ? 'ok' : 'off' },
         search: `${name} ${cfg}`,
         actions: [
-          { label: 'Restart', run: () => void act('compose', 'restart', name, name, cfg) },
+          { label: UITexts.Docker.actions.restart, run: () => void act('compose', 'restart', name, name, cfg) },
           running
-            ? { label: 'Stop', run: () => void act('compose', 'stop', name, name, cfg) }
-            : { label: 'Start', cls: 'primary', run: () => void act('compose', 'start', name, name, cfg) },
-          { label: 'Down', cls: 'danger', run: () => void act('compose', 'down', name, name, cfg) }
+            ? { label: UITexts.Docker.actions.stop, run: () => void act('compose', 'stop', name, name, cfg) }
+            : { label: UITexts.Docker.actions.start, cls: 'primary', run: () => void act('compose', 'start', name, name, cfg) },
+          { label: UITexts.Docker.actions.down, cls: 'danger', run: () => void act('compose', 'down', name, name, cfg) }
         ]
       })
     )

@@ -1,8 +1,9 @@
 import './reminders.css'
-import { settings, pushNotification, uid } from '../../state'
-import { reminderRepo } from '@services/storage/repositories'
-import type { Reminder, ReminderPayload } from '../../types'
-import { appService } from '@services'
+import { UITexts } from '@texts'
+import { settings, pushNotification, uid } from '@ui/state/state'
+import { reminderRepo } from '@repositories'
+import type { Reminder, ReminderPayload } from '@ui/types/types'
+import { appService , soundService } from '@services'
 import { openReminderForm } from './components/reminder-form'
 
 // Re-exported for the many callers that import these from the reminders module
@@ -102,8 +103,8 @@ function fire(r: Reminder): void {
     reminderText: r.text,
     payload: r.payload
   })
-  appService.notify('Reminder', r.text)
-  if (settings.notifSound) appService.playSound(settings.notifSound)
+  appService.notify(UITexts.Reminders.notifyTitle, r.text)
+  if (settings.notifSound) soundService.play(settings.notifSound)
 }
 
 // Re-arm a reminder (or create one) from a snooze action on its notification card.
@@ -158,15 +159,15 @@ function reminderCard(r: Reminder, past: boolean): HTMLElement {
 
   const actions = (<div class="reminder-actions" />) as HTMLDivElement
   if (past) {
-    const again = (<button class="wt-act">Remind again</button>) as HTMLButtonElement
+    const again = (<button class="wt-act">{UITexts.Reminders.card.remindAgain}</button>) as HTMLButtonElement
     again.addEventListener('click', () => openReminderForm(r))
     actions.append(again)
   } else {
-    const edit = (<button class="wt-act">Edit</button>) as HTMLButtonElement
+    const edit = (<button class="wt-act">{UITexts.Reminders.card.edit}</button>) as HTMLButtonElement
     edit.addEventListener('click', () => openReminderForm(r))
     actions.append(edit)
   }
-  const del = (<button class="wt-act wt-remove">Delete</button>) as HTMLButtonElement
+  const del = (<button class="wt-act wt-remove">{UITexts.Reminders.card.delete}</button>) as HTMLButtonElement
   del.addEventListener('click', () => {
     reminderRepo.remove(r.id)
     renderReminders()
@@ -195,12 +196,12 @@ export function renderReminders(): void {
     .sort((a, b) => (b.firedAt ?? 0) - (a.firedAt ?? 0))
 
   if (!upcoming.length && !past.length) {
-    el.insertAdjacentHTML('beforeend', '<div class="notif-empty">No reminders</div>')
+    el.insertAdjacentHTML('beforeend', `<div class="notif-empty">${UITexts.Reminders.empty}</div>`)
     return
   }
   for (const r of upcoming) el.appendChild(reminderCard(r, false))
   if (past.length) {
-    const head = (<div class="notif-section">Past reminders</div>) as HTMLDivElement
+    const head = (<div class="notif-section">{UITexts.Reminders.pastSection}</div>) as HTMLDivElement
     el.appendChild(head)
     for (const r of past) el.appendChild(reminderCard(r, true))
   }

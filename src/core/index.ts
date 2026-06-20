@@ -1,37 +1,38 @@
 import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'path'
-import { loadScript } from './services/scripts'
-import { lastCmdDir, zdotDir, runtimeDir } from './services/paths'
-import * as terminal from './services/terminal.manager'
-import * as plansWatcher from './services/plans.watcher'
+import { loadScript } from './services/scripts/scripts.service'
+import { lastCmdDir, zdotDir, runtimeDir } from './services/paths/paths.service'
+import * as terminal from './services/terminal.manager/terminal.manager.service'
+import * as plansWatcher from './services/plans.watcher/plans.watcher.service'
 import { writeFileSync, existsSync, mkdirSync } from 'fs'
-import { APP_NAME } from './constants'
-import { Events } from './events'
-import { registerDbIpc } from '@services/db/db.main'
-import { registerDockerIpc } from '@services/docker/docker.main'
-import { registerPrIpc } from '@services/pr/pr.main'
-import { registerFsIpc } from '@services/fs/fs.main'
-import { registerNotebookIpc } from '@services/notebook/notebook.main'
-import { registerShellIpc } from '@services/shell/shell.main'
-import { registerSoundIpc } from '@services/sound/sound.main'
-import { registerStoreIpc } from '@services/store/store.main'
-import { registerSecretsIpc } from '@services/secrets/secrets.main'
-import { registerGitIpc } from '@services/git/git.main'
-import { registerPaneIpc } from '@services/pane/pane.main'
-import { registerClaudeIpc } from '@services/claude/claude.main'
-import { registerDirIpc } from '@services/dir/dir.main'
-import { registerIdeIpc } from '@services/ide/ide.main'
-import { registerPlansIpc } from '@services/plans/plans.main'
-import { registerDbqIpc } from '@services/dbq/dbq.main'
-import { registerDeployIpc } from '@services/deploy/deploy.main'
-import { registerAppIpc } from '@services/app/app.main'
-import { registerMarkdownIpc } from '@services/markdown/markdown.main'
-import { registerMonacoIpc } from '@services/monaco/monaco.main'
-import { registerTodoIpc } from '@services/todo/todo.main'
-import { registerBacklogIpc } from '@services/backlog/backlog.main'
-import { registerZshIpc } from '@services/zsh/zsh.main'
-import { registerIosIpc } from '@services/ios/ios.main'
-import { registerTerminalIpc } from '@services/terminal/terminal.main'
+import { APP_NAME } from './constants/constants'
+import { Events } from './events/events'
+import type { BaseService } from '@services/base.service'
+import { DbController } from '@services/db/db.main'
+import { DockerController } from '@services/docker/docker.main'
+import { PrController } from '@services/pr/pr.main'
+import { FsController } from '@services/fs/fs.main'
+import { NotebookController } from '@services/notebook/notebook.main'
+import { ShellController } from '@services/shell/shell.main'
+import { SoundController } from '@services/sound/sound.main'
+import { StoreController } from '@services/store/store.main'
+import { SecretsController } from '@services/secrets/secrets.main'
+import { GitController } from '@services/git/git.main'
+import { PaneController } from '@services/pane/pane.main'
+import { ClaudeController } from '@services/claude/claude.main'
+import { DirController } from '@services/dir/dir.main'
+import { IdeController } from '@services/ide/ide.main'
+import { PlansController } from '@services/plans/plans.main'
+import { DbqController } from '@services/dbq/dbq.main'
+import { DeployController } from '@services/deploy/deploy.main'
+import { AppController } from '@services/app/app.main'
+import { MarkdownController } from '@services/markdown/markdown.main'
+import { MonacoController } from '@services/monaco/monaco.main'
+import { TodoController } from '@services/todo/todo.main'
+import { BacklogController } from '@services/backlog/backlog.main'
+import { ZshController } from '@services/zsh/zsh.main'
+import { IosController } from '@services/ios/ios.main'
+import { TerminalController } from '@services/terminal/terminal.main'
 import { emit, Channel } from '@services/channels.main'
 import {
   createMainWindow,
@@ -44,59 +45,40 @@ import {
 // macOS uses this for the app menu / notification name; set it before whenReady.
 app.setName(APP_NAME)
 
-// Database tool: Postgres/MySQL/SQLite connect + query IPC (db:*).
-registerDbIpc()
-
-// Docker tool: containers/images/volumes/networks/compose + actions (docker:*).
-registerDockerIpc()
-
-// PR panel: GitHub PR list + CI checks + merge via the gh CLI (pr:*).
-registerPrIpc()
-
-// Filesystem bridge: file explorer + code editor + link finders (fs:*).
-registerFsIpc()
-
-// Notebook tree (notebook:*), OS path open/reveal (shell:*, open-external),
-// sounds (sound:*).
-registerNotebookIpc()
-registerShellIpc()
-registerSoundIpc()
-
-// JSON store (store:*) + safeStorage secrets (secrets:*).
-registerStoreIpc()
-registerSecretsIpc()
-
-// Git pickers/decorations/worktrees (git:*) + pane info (pane:*).
-registerGitIpc()
-registerPaneIpc()
-
-// Claude usage + session history (claude:*).
-registerClaudeIpc()
-
-// Folder picker (dir:*), IDE open (ide:*), plan files (plans:*).
-registerDirIpc()
-registerIdeIpc()
-registerPlansIpc()
-
-// Saved SQL queries (dbq:*), self-update (deploy:*), app info (app:*).
-registerDbqIpc()
-registerDeployIpc()
-registerAppIpc()
-
-// Markdown open + .md finder (markdown:*), monaco themes (monaco:*).
-registerMarkdownIpc()
-registerMonacoIpc()
-
-// todo-list.md (todo:*), backlog (backlog:*), zsh commands (zsh:*).
-registerTodoIpc()
-registerBacklogIpc()
-registerZshIpc()
-
-// iOS worktree build/run + targets/schemes (ios:* / iosWorktree:*).
-registerIosIpc()
-
-// Terminal/PTY + background processes (pty:* / proc:*).
-registerTerminalIpc()
+// Every domain IPC service (#11): each is a BaseService whose register() binds its
+// channel handlers. Instantiated once here; setup?() runs before register() and
+// dispose?() on before-quit. Adding a service = one entry in this array.
+const services: BaseService[] = [
+  new DbController(), // db:* — Postgres/MySQL/SQLite connect + query
+  new DockerController(), // docker:* — containers/images/volumes/networks/compose
+  new PrController(), // pr:* / gh:* — GitHub PRs + CI checks + merge
+  new FsController(), // fs:* — file explorer + code editor + link finders
+  new NotebookController(), // notebook:* — notebook tree
+  new ShellController(), // shell:* — OS path open/reveal + open-external
+  new SoundController(), // sound:* — notification sounds
+  new StoreController(), // store:* — JSON state store
+  new SecretsController(), // secrets:* — safeStorage secrets
+  new GitController(), // git:* — pickers/decorations/worktrees
+  new PaneController(), // pane:* — pane info
+  new ClaudeController(), // claude:* — usage + session history
+  new DirController(), // dir:* — folder picker
+  new IdeController(), // ide:* — open in IDE
+  new PlansController(), // plans:* — plan files
+  new DbqController(), // dbq:* — saved SQL queries
+  new DeployController(), // deploy:* — self-update
+  new AppController(), // app:* — app info + lifecycle
+  new MarkdownController(), // markdown:* — open + .md finder
+  new MonacoController(), // monaco:* — editor themes
+  new TodoController(), // todo:* — todo-list.md
+  new BacklogController(), // backlog:* — backlog file
+  new ZshController(), // zsh:* — zsh aliases/functions
+  new IosController(), // ios:* / iosWorktree:* — build/run + targets/schemes
+  new TerminalController() // pty:* / proc:* — terminal + background processes
+]
+for (const service of services) {
+  service.setup?.()
+  service.register()
+}
 
 // Window management: pop-out windows, the Improve panel, native notifications.
 registerWindowIpc()
@@ -181,6 +163,7 @@ let didFlushState = false
 app.on(Events.App.BeforeQuit, (e) => {
   setQuitting()
   plansWatcher.closeAll()
+  for (const service of services) service.dispose?.()
   const mainWindow = getMainWindow()
   // First pass: let the renderer persist its CURRENT (correct) tree before any
   // PTY is killed. Killing PTYs makes the renderer close panes, which would

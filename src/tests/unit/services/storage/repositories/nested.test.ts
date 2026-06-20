@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from 'vitest'
-import { state, settings } from '@ui/state'
-import type { ProjectNode, DbNode, AppNotification } from '@ui/types'
-import { notificationRepo } from '@services/storage/repositories/notification.repository'
-import { applicationRepo } from '@services/storage/repositories/application.repository'
-import { iosConfigRepo } from '@services/storage/repositories/ios-config.repository'
-import { dbConnectionRepo } from '@services/storage/repositories/db-connection.repository'
+import { state, settings } from '@ui/state/state'
+import type { ProjectNode, DbNode, AppNotification } from '@ui/types/types'
+import { notificationRepo } from '@repositories/notification.repository'
+import { applicationRepo } from '@repositories/application.repository'
+import { iosConfigRepo } from '@repositories/ios-config.repository'
+import { dbConnectionRepo } from '@repositories/db-connection.repository'
 
 const project = (id: string): ProjectNode => ({
   kind: 'project',

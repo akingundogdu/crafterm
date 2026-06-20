@@ -1,6 +1,7 @@
 import './bookmarks.css'
+import { UITexts } from '@texts'
 import { createButton, createInput } from '@ui/components'
-import { bookmarkRepo } from '@services/storage/repositories'
+import { bookmarkRepo } from '@repositories'
 import { TYPE_LABEL, type TypeFilter } from './bookmark-meta'
 import { showBookmarkForm } from './components/bookmark-form'
 import { createBookmarkCard } from './components/bookmark-card'
@@ -20,7 +21,7 @@ export function renderBookmarks(): void {
     className: 'settings-inline-btn',
     onClick: () => showBookmarkForm(undefined, renderBookmarks)
   })
-  const search = createInput({ value: query, placeholder: 'Search…' })
+  const search = createInput({ value: query, placeholder: UITexts.Bookmarks.searchPlaceholder })
   search.className = 'bookmarks-search'
   search.addEventListener('input', () => {
     query = search.value.trim().toLowerCase()
@@ -39,7 +40,7 @@ export function renderBookmarks(): void {
   ;(['all', 'link', 'text', 'code', 'snippet'] as TypeFilter[]).forEach((t) => {
     typeBar.appendChild(
       createButton({
-        text: t === 'all' ? 'All' : TYPE_LABEL[t],
+        text: t === 'all' ? UITexts.Bookmarks.allFilter : TYPE_LABEL[t],
         className: 'bookmarks-filter' + (t === typeFilter ? ' active' : ''),
         onClick: () => {
           typeFilter = t
@@ -56,7 +57,7 @@ export function renderBookmarks(): void {
       createButton({
         text: `tag: ${tagFilter} ✕`,
         className: 'bookmarks-tagfilter',
-        title: 'Clear tag filter',
+        title: UITexts.Bookmarks.clearTagTitle,
         onClick: () => {
           tagFilter = ''
           renderBookmarks()
@@ -81,7 +82,7 @@ export function renderBookmarks(): void {
     })
     if (!items.length) {
       list.innerHTML = `<div class="notif-empty">${
-        bookmarkRepo.getAll().length ? 'No matching bookmarks' : 'No bookmarks yet. Add a link, text, code, or snippet.'
+        bookmarkRepo.getAll().length ? UITexts.Bookmarks.emptyMatching : UITexts.Bookmarks.emptyNone
       }</div>`
       return
     }

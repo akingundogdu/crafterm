@@ -1,8 +1,8 @@
-import type { Pane } from '../types'
-import { panes, state, paneActions, requestSidebar, requestStatuses } from '../state'
-import { persistence } from '@services/storage/persistence.service'
-import { findTabByPane } from '../tree'
-import { claudeService, terminalService, plansService } from '@services'
+import type { Pane } from '@ui/types/types'
+import { panes, state, paneActions, requestSidebar, requestStatuses } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { findTabByPane } from '@ui/tree/tree'
+import { claudeService, terminalService, plansService , paneService } from '@services'
 import { mirrorPaneTitleToTab } from './osc-title'
 import { looksLikeClaudeQuestion, syncPaneStatus } from './activity-detection'
 import { updatePaneStatus } from './status-bar'
@@ -123,7 +123,7 @@ export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
 }
 
 export async function refreshPaneInfo(pane: Pane): Promise<void> {
-  const info = await terminalService.paneInfo(pane.id, pane.stableId)
+  const info = await paneService.info(pane.id, pane.stableId)
   // A null cwd means we couldn't read the pane (lsof timed out under heavy load,
   // or the pty is gone) — never overwrite a known-good cwd/branch/worktree with
   // it. Persisting an empty location is exactly what made every terminal reopen

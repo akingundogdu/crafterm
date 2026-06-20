@@ -1,23 +1,15 @@
-import { handle, Channel } from '@services/channels.main'
-import { join } from 'path'
-import { homedir } from 'os'
-import { readdirSync } from 'fs'
+import { Channel } from '@services/channels.main'
+import { BaseService } from '@services/base.service'
+import { DirService } from './dir.service'
 
-// Directory bridge (dir:*): list sub-directories for the Cmd+P folder picker.
-export function registerDirIpc(): void {
-  // List sub-directories of a path (for the Cmd+P folder picker). Empty -> home.
-  handle(Channel.Dir.List, ({ path }) => {
-    let dir = path && path.trim() ? path.trim() : homedir()
-    if (dir.startsWith('~')) dir = join(homedir(), dir.slice(1))
-    try {
-      const dirs = readdirSync(dir, { withFileTypes: true })
-        .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-        .map((d) => ({ name: d.name, path: join(dir, d.name) }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-      const parent = join(dir, '..')
-      return { path: dir, parent: parent === dir ? null : parent, dirs }
-    } catch {
-      return { path: dir, parent: null, dirs: [] }
-    }
-  })
+// Directory IPC adapter (dir:*): list sub-directories for the Cmd+P folder picker.
+export class DirController extends BaseService {
+  readonly name = 'dir'
+  private readonly service = new DirService()
+
+  register(): void {
+    this.handle(Channel.Dir.List, ({ path }) => this.service.list(path))
+  }
 }
+
+// Transitional shim so core/index.ts keeps compiling until the bootstrap is

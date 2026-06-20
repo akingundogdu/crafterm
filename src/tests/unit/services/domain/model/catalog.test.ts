@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { applicationSchema, makeApplication, makeFeature, makeProjectCommand } from '@services/domain/model/application'
-import { iosConfigSchema, makeIosConfig } from '@services/domain/model/ios-config'
-import { paletteCommandSchema, makePaletteCommand } from '@services/domain/model/palette-command'
-import { sshConnectionSchema, makeSshConnection } from '@services/domain/model/ssh-connection'
-import { dbConnectionSchema, makeDbConnection } from '@services/domain/model/db-connection'
-import { actionMenuItemSchema } from '@services/domain/model/action-menu-item'
-import { appNotificationSchema } from '@services/domain/model/notification'
+import { applicationSchema, makeApplication, makeFeature, makeProjectCommand } from '@models/application'
+import { iosConfigSchema, makeIosConfig } from '@models/ios-config'
+import { paletteCommandSchema, makePaletteCommand } from '@models/palette-command'
+import { sshConnectionSchema, makeSshConnection } from '@models/ssh-connection'
+import { dbConnectionSchema, makeDbConnection } from '@models/db-connection'
+import { actionMenuItemSchema } from '@models/action-menu-item'
+import { appNotificationSchema } from '@models/notification'
 
 describe('catalog + misc entities', () => {
   it('application + sub-entities validate', () => {

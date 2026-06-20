@@ -14,12 +14,12 @@ vi.mock('electron', () => ({
 }))
 
 const runMock = vi.fn<(cmd: string, args: string[]) => Promise<string | null>>()
-vi.mock('@core/services/exec', () => ({
+vi.mock('@core/services/exec/exec.service', () => ({
   run: (cmd: string, args: string[]) => runMock(cmd, args),
   gitBin: () => 'git'
 }))
 
-import * as appInfo from '@core/services/app-info.service'
+import * as appInfo from '@core/services/app-info/app-info.service'
 
 let dir: string
 beforeEach(() => {

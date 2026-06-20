@@ -2,17 +2,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   terminalService,
+  paneService,
   gitService,
   fsService,
+  dirService,
+  ideService,
+  shellService,
+  markdownService,
   claudeService,
   notebookService,
   plansService,
   dbService,
+  dbqService,
   dockerService,
   prService,
   secretsService,
   iosService,
   appService,
+  deployService,
+  monacoService,
+  zshService,
+  todoService,
+  backlogService,
+  soundService,
   storeService
 } from '@services/index'
 
@@ -54,9 +66,9 @@ const ENTRIES: Entry[] = [
   { ns: 'terminal', method: 'onData', kind: 'listen', channel: 'pty:data', args: [cb] },
   { ns: 'terminal', method: 'onExit', kind: 'listen', channel: 'pty:exit', args: [cb] },
   { ns: 'terminal', method: 'adoptPane', kind: 'send', channel: 'pty:adopt', args: ['id'], payload: { id: 'id' } },
-  { ns: 'terminal', method: 'paneInfo', kind: 'invoke', channel: 'pane:info', args: ['id', 's'], payload: { id: 'id', stableId: 's' } },
+  { ns: 'pane', method: 'info', kind: 'invoke', channel: 'pane:info', args: ['id', 's'], payload: { id: 'id', stableId: 's' } },
   { ns: 'terminal', method: 'onCloseActivePane', kind: 'listen', channel: 'menu:close-pane', args: [cb] },
-  { ns: 'terminal', method: 'onFocusPane', kind: 'listen', channel: 'focus-pane', args: [cb] },
+  { ns: 'pane', method: 'onFocusPane', kind: 'listen', channel: 'focus-pane', args: [cb] },
   { ns: 'terminal', method: 'popoutOpen', kind: 'invoke', channel: 'popout:open', args: ['p', 't'], payload: { paneId: 'p', title: 't' } },
   { ns: 'terminal', method: 'popoutConfirmClose', kind: 'send', channel: 'popout:close-confirmed', args: ['id'], payload: { id: 'id' } },
   { ns: 'terminal', method: 'popoutFocus', kind: 'send', channel: 'popout:focus', args: ['id'], payload: { id: 'id' } },
@@ -75,9 +87,9 @@ const ENTRIES: Entry[] = [
   { ns: 'git', method: 'worktreeAdd', kind: 'invoke', channel: 'git:worktreeAdd', args: ['r', 'p', 'b', 'base'], payload: { repo: 'r', path: 'p', branch: 'b', base: 'base' } },
 
   // ── fs ──
-  { ns: 'fs', method: 'listDir', kind: 'invoke', channel: 'dir:list', args: ['p'], payload: { path: 'p' } },
+  { ns: 'dir', method: 'list', kind: 'invoke', channel: 'dir:list', args: ['p'], payload: { path: 'p' } },
   { ns: 'fs', method: 'listEntries', kind: 'invoke', channel: 'fs:listEntries', args: ['p'], payload: { path: 'p' } },
-  { ns: 'fs', method: 'findAllMarkdown', kind: 'invoke', channel: 'markdown:findAll', args: ['r'], payload: { root: 'r' } },
+  { ns: 'markdown', method: 'findAll', kind: 'invoke', channel: 'markdown:findAll', args: ['r'], payload: { root: 'r' } },
   { ns: 'fs', method: 'findFiles', kind: 'invoke', channel: 'fs:findFiles', args: ['r', ['x']], payload: { root: 'r', exclude: ['x'] } },
   { ns: 'fs', method: 'resolveFile', kind: 'invoke', channel: 'fs:resolveFile', args: ['b', 'rel'], payload: { base: 'b', rel: 'rel' } },
   { ns: 'fs', method: 'readMd', kind: 'invoke', channel: 'fs:readMd', args: ['p'], payload: { path: 'p' } },
@@ -89,10 +101,10 @@ const ENTRIES: Entry[] = [
   { ns: 'fs', method: 'renamePath', kind: 'invoke', channel: 'fs:rename', args: ['f', 't'], payload: { from: 'f', to: 't' } },
   { ns: 'fs', method: 'trashPath', kind: 'invoke', channel: 'fs:trash', args: ['p'], payload: { path: 'p' } },
   { ns: 'fs', method: 'resolveImport', kind: 'invoke', channel: 'fs:resolveImport', args: ['ff', 'spec', 'sym'], payload: { fromFile: 'ff', spec: 'spec', symbol: 'sym' } },
-  { ns: 'fs', method: 'ideOpen', kind: 'send', channel: 'ide:open', args: ['p', 'ide'], payload: { path: 'p', ide: 'ide' } },
-  { ns: 'fs', method: 'openPath', kind: 'send', channel: 'shell:openPath', args: ['p'], payload: { path: 'p' } },
-  { ns: 'fs', method: 'revealPath', kind: 'send', channel: 'shell:revealPath', args: ['p'], payload: { path: 'p' } },
-  { ns: 'fs', method: 'openMarkdown', kind: 'send', channel: 'markdown:open', args: ['p'], payload: { path: 'p' } },
+  { ns: 'ide', method: 'open', kind: 'send', channel: 'ide:open', args: ['p', 'ide'], payload: { path: 'p', ide: 'ide' } },
+  { ns: 'shell', method: 'openPath', kind: 'send', channel: 'shell:openPath', args: ['p'], payload: { path: 'p' } },
+  { ns: 'shell', method: 'revealPath', kind: 'send', channel: 'shell:revealPath', args: ['p'], payload: { path: 'p' } },
+  { ns: 'markdown', method: 'open', kind: 'send', channel: 'markdown:open', args: ['p'], payload: { path: 'p' } },
 
   // ── claude ──
   { ns: 'claude', method: 'latestSession', kind: 'invoke', channel: 'claude:latestSession', args: ['cwd', 5], payload: { cwd: 'cwd', since: 5 } },
@@ -129,10 +141,10 @@ const ENTRIES: Entry[] = [
   { ns: 'db', method: 'columns', kind: 'invoke', channel: 'db:columns', args: [{ id: 'c' }, 't'], payload: { config: { id: 'c' }, table: 't' } },
   { ns: 'db', method: 'query', kind: 'invoke', channel: 'db:query', args: [{ id: 'c' }, 'sql'], payload: { config: { id: 'c' }, sql: 'sql' } },
   { ns: 'db', method: 'disconnect', kind: 'invoke', channel: 'db:disconnect', args: ['id'], payload: { id: 'id' } },
-  { ns: 'db', method: 'savedList', kind: 'invoke', channel: 'dbq:list', args: ['cn'], payload: { connId: 'cn' } },
-  { ns: 'db', method: 'savedRead', kind: 'invoke', channel: 'dbq:read', args: ['cn', 'n'], payload: { connId: 'cn', name: 'n' } },
-  { ns: 'db', method: 'savedWrite', kind: 'invoke', channel: 'dbq:write', args: ['cn', 'n', 'sql'], payload: { connId: 'cn', name: 'n', sql: 'sql' } },
-  { ns: 'db', method: 'savedDelete', kind: 'invoke', channel: 'dbq:delete', args: ['cn', 'n'], payload: { connId: 'cn', name: 'n' } },
+  { ns: 'dbq', method: 'list', kind: 'invoke', channel: 'dbq:list', args: ['cn'], payload: { connId: 'cn' } },
+  { ns: 'dbq', method: 'read', kind: 'invoke', channel: 'dbq:read', args: ['cn', 'n'], payload: { connId: 'cn', name: 'n' } },
+  { ns: 'dbq', method: 'write', kind: 'invoke', channel: 'dbq:write', args: ['cn', 'n', 'sql'], payload: { connId: 'cn', name: 'n', sql: 'sql' } },
+  { ns: 'dbq', method: 'delete', kind: 'invoke', channel: 'dbq:delete', args: ['cn', 'n'], payload: { connId: 'cn', name: 'n' } },
 
   // ── docker ──
   { ns: 'docker', method: 'available', kind: 'invoke', channel: 'docker:available', args: [], payload: undefined },
@@ -179,19 +191,19 @@ const ENTRIES: Entry[] = [
   { ns: 'app', method: 'buildInfo', kind: 'invoke', channel: 'app:buildInfo', args: [], payload: undefined },
   { ns: 'app', method: 'buildCounter', kind: 'invoke', channel: 'app:buildCounter', args: ['rp'], payload: { repoPath: 'rp' } },
   { ns: 'app', method: 'repoGit', kind: 'invoke', channel: 'app:repoGit', args: ['rp'], payload: { repoPath: 'rp' } },
-  { ns: 'app', method: 'deployBuild', kind: 'invoke', channel: 'deploy:build', args: ['rp', 'c'], payload: { repoPath: 'rp', command: 'c' } },
-  { ns: 'app', method: 'deployKillAllPtys', kind: 'invoke', channel: 'deploy:killAllPtys', args: [], payload: undefined },
-  { ns: 'app', method: 'deploySwap', kind: 'invoke', channel: 'deploy:swap', args: ['rp'], payload: { repoPath: 'rp' } },
-  { ns: 'app', method: 'deployWasUpdating', kind: 'invoke', channel: 'deploy:wasUpdating', args: [], payload: undefined },
+  { ns: 'deploy', method: 'build', kind: 'invoke', channel: 'deploy:build', args: ['rp', 'c'], payload: { repoPath: 'rp', command: 'c' } },
+  { ns: 'deploy', method: 'killAllPtys', kind: 'invoke', channel: 'deploy:killAllPtys', args: [], payload: undefined },
+  { ns: 'deploy', method: 'swap', kind: 'invoke', channel: 'deploy:swap', args: ['rp'], payload: { repoPath: 'rp' } },
+  { ns: 'deploy', method: 'wasUpdating', kind: 'invoke', channel: 'deploy:wasUpdating', args: [], payload: undefined },
   { ns: 'app', method: 'openExternal', kind: 'send', channel: 'open-external', args: ['u'], payload: { url: 'u' } },
   { ns: 'app', method: 'notify', kind: 'send', channel: 'notify', args: ['t', 'b', 'p'], payload: { title: 't', body: 'b', paneId: 'p' } },
-  { ns: 'app', method: 'monacoTheme', kind: 'invoke', channel: 'monaco:theme', args: ['n'], payload: { name: 'n' } },
-  { ns: 'app', method: 'zshCommands', kind: 'invoke', channel: 'zsh:commands', args: [], payload: undefined },
-  { ns: 'app', method: 'todoRead', kind: 'invoke', channel: 'todo:read', args: ['p'], payload: { path: 'p' } },
-  { ns: 'app', method: 'todoWrite', kind: 'invoke', channel: 'todo:write', args: ['p', 'c'], payload: { path: 'p', content: 'c' } },
-  { ns: 'app', method: 'backlogRead', kind: 'invoke', channel: 'backlog:read', args: [], payload: undefined },
-  { ns: 'app', method: 'playSound', kind: 'send', channel: 'sound:play', args: ['n'], payload: { name: 'n' } },
-  { ns: 'app', method: 'playEventSound', kind: 'send', channel: 'sound:event', args: ['done'], payload: { event: 'done' } },
+  { ns: 'monaco', method: 'theme', kind: 'invoke', channel: 'monaco:theme', args: ['n'], payload: { name: 'n' } },
+  { ns: 'zsh', method: 'commands', kind: 'invoke', channel: 'zsh:commands', args: [], payload: undefined },
+  { ns: 'todo', method: 'read', kind: 'invoke', channel: 'todo:read', args: ['p'], payload: { path: 'p' } },
+  { ns: 'todo', method: 'write', kind: 'invoke', channel: 'todo:write', args: ['p', 'c'], payload: { path: 'p', content: 'c' } },
+  { ns: 'backlog', method: 'read', kind: 'invoke', channel: 'backlog:read', args: [], payload: undefined },
+  { ns: 'sound', method: 'play', kind: 'send', channel: 'sound:play', args: ['n'], payload: { name: 'n' } },
+  { ns: 'sound', method: 'playEvent', kind: 'send', channel: 'sound:event', args: ['done'], payload: { event: 'done' } },
   { ns: 'app', method: 'onAppQuitting', kind: 'listen', channel: 'app:quitting', args: [cb] },
   { ns: 'app', method: 'onFullscreenChange', kind: 'listen', channel: 'window:fullscreen', args: [cb] },
   { ns: 'app', method: 'openImproveWindow', kind: 'invoke', channel: 'improve-window:open', args: [], payload: undefined },
@@ -206,17 +218,29 @@ const ENTRIES: Entry[] = [
 // own call site, which is irrelevant to the channel routing being asserted.
 const SERVICES: Record<string, Record<string, (...a: unknown[]) => unknown>> = {
   terminal: terminalService,
+  pane: paneService,
   git: gitService,
   fs: fsService,
+  dir: dirService,
+  ide: ideService,
+  shell: shellService,
+  markdown: markdownService,
   claude: claudeService,
   notebook: notebookService,
   plans: plansService,
   db: dbService,
+  dbq: dbqService,
   docker: dockerService,
   pr: prService,
   secrets: secretsService,
   ios: iosService,
   app: appService,
+  deploy: deployService,
+  monaco: monacoService,
+  zsh: zshService,
+  todo: todoService,
+  backlog: backlogService,
+  sound: soundService,
   store: storeService
 } as unknown as Record<string, Record<string, (...a: unknown[]) => unknown>>
 
@@ -240,8 +264,12 @@ for (const e of ENTRIES) {
 
 it('every service method is covered by the entry table', () => {
   const covered = new Set(ENTRIES.map((e) => `${e.ns}.${e.method}`))
+  // BaseClient (the class-based clients, e.g. claudeService) provides these as
+  // instance fields; they're framework plumbing, not service API methods.
+  const BASE_CLIENT_PLUMBING = new Set(['call', 'send', 'listen'])
   for (const [ns, svc] of Object.entries(SERVICES)) {
     for (const method of Object.keys(svc)) {
+      if (BASE_CLIENT_PLUMBING.has(method)) continue
       expect(covered.has(`${ns}.${method}`), `${ns}.${method} missing from ENTRIES`).toBe(true)
     }
   }

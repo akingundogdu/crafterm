@@ -1,10 +1,11 @@
 import './update.css'
 import { createButton, createOverlay } from '@ui/components'
-import { settings, state } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { promptConfirm } from '../../../dialog'
-import { appService } from '@services'
+import { settings, state } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { promptConfirm } from '@ui/dialog/dialog'
+import { appService , deployService } from '@services'
 import { pickFolderPath } from '../folder/folder'
+import { UITexts } from '@texts'
 
 // ---------------------------------------------------------------------------
 // Update Crafterm (self-update): save state, rebuild from the source repo, and
@@ -30,7 +31,7 @@ export async function runUpdate(): Promise<void> {
     title: 'Update Crafterm',
     message:
       'Rebuild Crafterm from source and restart? Your layout, working directories, and Claude sessions are restored automatically; running processes restart.',
-    confirmText: 'Update & Restart'
+    confirmText: UITexts.Pickers.update.confirm
   })
   if (!ok) return
 
@@ -39,7 +40,7 @@ export async function runUpdate(): Promise<void> {
   const list = (<div class="update-steps" />) as HTMLDivElement
   const modal = (
     <div class="modal update-modal">
-      <h2>Updating Crafterm</h2>
+      <h2>{UITexts.Pickers.update.heading}</h2>
       {list}
     </div>
   ) as HTMLDivElement
@@ -81,7 +82,7 @@ export async function runUpdate(): Promise<void> {
   // Build the new bundle (runs in main; can take a while).
   const s2 = step('Building new bundle…')
   const cmd = settings.updateCommand.trim() || 'run-crafterm-deploy'
-  const res = await appService.deployBuild(repo, cmd)
+  const res = await deployService.build(repo, cmd)
   if (!res.ok) {
     s2.fail(res.error || 'Build failed. See ~/.crafterm/deploy.log for details.')
     return
@@ -94,10 +95,10 @@ export async function runUpdate(): Promise<void> {
   // that. Children that ignore SIGHUP are force-killed after 5s in the main
   // process, so this resolves promptly.
   const s3 = step('Closing sessions…')
-  await appService.deployKillAllPtys()
+  await deployService.killAllPtys()
   s3.done()
 
   // Swap the installed app + relaunch (detached); the app quits right after.
   step('Restarting…')
-  await appService.deploySwap(repo)
+  await deployService.swap(repo)
 }

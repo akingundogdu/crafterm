@@ -1,5 +1,5 @@
 import { createOverlay } from '@ui/components'
-import { makeCloseButton } from '../../../dialog'
+import { makeCloseButton } from '@ui/dialog/dialog'
 
 // Read-only text viewer modal (run job/step logs, merge errors). Title + a
 // monospace <pre>, closable via the × button, backdrop click, or Escape.

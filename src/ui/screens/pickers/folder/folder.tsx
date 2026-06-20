@@ -1,8 +1,9 @@
 import type { DirEntry } from '@services/fs/fs.types'
-import { settings } from '../../../state'
-import { openTerminalInDir } from '../../../commands'
-import { fsService } from '@services'
+import { settings } from '@ui/state/state'
+import { openTerminalInDir } from '@ui/commands/commands'
+import { fsService , dirService } from '@services'
 import { overlayModal } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- Pick a folder (returns its path) — used by Settings to choose md folders ----
 
@@ -24,7 +25,7 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
       <input
         class="search-box-input"
         type="text"
-        placeholder="Filter folders…  (↑↓ move · → enter · ← up · ⏎ pick)"
+        placeholder={UITexts.Pickers.folder.pickPlaceholder}
         ref={(el: HTMLInputElement) => {
           el.spellcheck = false
         }}
@@ -57,7 +58,7 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
       }
       items.forEach((d, i) => {
         const drill = (
-          <button class="picker-drill" title="Enter folder">
+          <button class="picker-drill" title={UITexts.Pickers.folder.enterFolder}>
             ›
           </button>
         ) as HTMLButtonElement
@@ -80,7 +81,7 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
       })
     }
     const load = async (p?: string): Promise<void> => {
-      const listing = await fsService.listDir(p)
+      const listing = await dirService.list(p)
       dirs = listing.dirs
       parent = listing.parent
       current = listing.path
@@ -137,7 +138,7 @@ export async function showFolderPicker(): Promise<void> {
     <input
       class="search-box-input"
       type="text"
-      placeholder="Filter folders…  (↑↓ move · → enter · ← up · ⏎ open)"
+      placeholder={UITexts.Pickers.folder.openPlaceholder}
       ref={(el: HTMLInputElement) => {
         el.spellcheck = false
       }}
@@ -166,7 +167,7 @@ export async function showFolderPicker(): Promise<void> {
     }
     items.forEach((d, i) => {
       const drill = (
-        <button class="picker-drill" title="Enter folder">
+        <button class="picker-drill" title={UITexts.Pickers.folder.enterFolder}>
           ›
         </button>
       ) as HTMLButtonElement
@@ -201,7 +202,7 @@ export async function showFolderPicker(): Promise<void> {
   }
 
   const load = async (p?: string): Promise<void> => {
-    const listing = await fsService.listDir(p)
+    const listing = await dirService.list(p)
     dirs = listing.dirs
     parent = listing.parent
     sel = 0

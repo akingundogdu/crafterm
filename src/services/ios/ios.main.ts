@@ -1,31 +1,35 @@
-import { handle, Channel } from '@services/channels.main'
+import { Channel } from '@services/channels.main'
+import { BaseService } from '@services/base.service'
 import { join } from 'path'
-import * as ios from '@core/services/ios.service'
-import { runtimeDir } from '@core/services/paths'
+import * as ios from '@core/services/ios/ios.service'
+import { runtimeDir } from '@core/services/paths/paths.service'
 import type { IosWorktreeReport } from './ios.types'
 
-// iOS bridge (ios:* / iosWorktree:*): build/run an iOS worktree + list
-// targets/schemes. Logic lives in services/ios.service.ts; these handlers
-// resolve the bundled ios-worktree.sh path and delegate.
-const iosWorktreeScript = (): string => join(runtimeDir(), 'ios-worktree.sh')
+// iOS IPC adapter (ios:* / iosWorktree:*): build/run an iOS worktree + list
+// targets/schemes. Logic lives in @core/services/ios; this resolves the bundled
+// ios-worktree.sh path and delegates (thin enough to need no .service.ts).
+export class IosController extends BaseService {
+  readonly name = 'ios'
 
-export function registerIosIpc(): void {
   // Absolute path to the bundled iOS worktree helper script. The renderer types
   // `bash "<path>" <subcommand>` into a pane (with IOSWT_* env from settings.iosDev),
   // so a build's output streams live in the terminal.
-  handle(Channel.IosWorktree.ScriptPath, () => iosWorktreeScript())
+  private scriptPath(): string {
+    return join(runtimeDir(), 'ios-worktree.sh')
+  }
 
-  handle(
-    Channel.IosWorktree.Report,
-    ({ repoRoot, cfg }) =>
-      ios.report(iosWorktreeScript(), repoRoot, cfg) as Promise<IosWorktreeReport | null>
-  )
-
-  handle(Channel.IosWorktree.Stop, ({ worktreePath, cfg }) =>
-    ios.stop(iosWorktreeScript(), worktreePath, cfg)
-  )
-
-  handle(Channel.Ios.ListTargets, () => ios.listTargets())
-
-  handle(Channel.Ios.ListSchemes, ({ repoRoot, cfg }) => ios.listSchemes(repoRoot, cfg))
+  register(): void {
+    this.handle(Channel.IosWorktree.ScriptPath, () => this.scriptPath())
+    this.handle(
+      Channel.IosWorktree.Report,
+      ({ repoRoot, cfg }) =>
+        ios.report(this.scriptPath(), repoRoot, cfg) as Promise<IosWorktreeReport | null>
+    )
+    this.handle(Channel.IosWorktree.Stop, ({ worktreePath, cfg }) =>
+      ios.stop(this.scriptPath(), worktreePath, cfg)
+    )
+    this.handle(Channel.Ios.ListTargets, () => ios.listTargets())
+    this.handle(Channel.Ios.ListSchemes, ({ repoRoot, cfg }) => ios.listSchemes(repoRoot, cfg))
+  }
 }
+

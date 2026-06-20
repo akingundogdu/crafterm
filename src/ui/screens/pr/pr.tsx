@@ -1,8 +1,9 @@
 import './pr.css'
+import { UITexts } from '@texts'
 import type { PullRequest, WorkflowRun } from '@services/pr/pr.types'
-import { state, panes, settings, pushNotification } from '../../state'
-import { openLink, runInSplit, openPrDiff } from '../../commands'
-import { promptConfirm } from '../../dialog'
+import { state, panes, settings, pushNotification } from '@ui/state/state'
+import { openLink, runInSplit, openPrDiff } from '@ui/commands/commands'
+import { promptConfirm } from '@ui/dialog/dialog'
 import { prService } from '@services'
 import { createButton } from '@ui/components'
 import { buildPrCard, buildRunCard, buildDeployCard } from './components/cards'
@@ -37,13 +38,13 @@ let busy = false // something in-flight (pending checks / running deploys) → p
 
 async function doMerge(pr: PullRequest, cwd: string): Promise<void> {
   const ok = await promptConfirm({
-    title: `Merge PR #${pr.number}`,
-    message: `Squash-merge "${pr.title}" into ${pr.baseRefName} and delete the branch?`,
-    confirmText: 'Squash & merge'
+    title: UITexts.Pr.merge.title(pr.number),
+    message: UITexts.Pr.merge.message(pr.title, pr.baseRefName),
+    confirmText: UITexts.Pr.merge.confirm
   })
   if (!ok) return
   const r = await prService.merge(cwd, pr.number, 'squash')
-  if (!r.ok) showTextModal('Merge failed', r.error || 'unknown error')
+  if (!r.ok) showTextModal(UITexts.Pr.merge.failed, r.error || UITexts.Pr.unknownError)
   else pushNotification('', `PR #${pr.number} merged`, 'pr', pr.title)
   void renderPr()
 }
@@ -77,8 +78,8 @@ export async function renderPr(): Promise<void> {
     bar.appendChild(
       createButton({
         className: 'settings-inline-btn',
-        text: '+ Create PR',
-        title: 'Run `gh pr create --web` beside the active pane',
+        text: UITexts.Pr.createPr,
+        title: UITexts.Pr.createPrTitle,
         onClick: () => void runInSplit('gh pr create --web')
       })
     )
@@ -87,7 +88,7 @@ export async function renderPr(): Promise<void> {
     createButton({
       className: 'settings-inline-btn',
       text: '⟳',
-      title: 'Refresh',
+      title: UITexts.Pr.refreshTitle,
       onClick: () => void renderPr()
     })
   )
@@ -105,7 +106,7 @@ export async function renderPr(): Promise<void> {
         void renderPr()
       }
     })
-  subbar.append(mkSub('prs', 'Pull Requests'), mkSub('deploys', 'Deployments'))
+  subbar.append(mkSub('prs', UITexts.Pr.subPrs), mkSub('deploys', UITexts.Pr.subDeploys))
   el.appendChild(subbar)
 
   // nested scope tabs (both sub-tabs): active terminal's repo vs. the projects
@@ -123,12 +124,12 @@ export async function renderPr(): Promise<void> {
         void renderPr()
       }
     })
-  scopebar.append(mkScope('current', 'Current'), mkScope('all', 'All projects'))
+  scopebar.append(mkScope('current', UITexts.Pr.scopeCurrent), mkScope('all', UITexts.Pr.scopeAll))
   el.appendChild(scopebar)
 
   const listEl = (<div class="pr-list" />) as HTMLDivElement
   el.appendChild(listEl)
-  listEl.textContent = 'Loading…'
+  listEl.textContent = UITexts.Pr.loading
 
   // "All projects" uses the selected repo set and is independent of the active repo.
   if (scope === 'all') {
@@ -145,7 +146,7 @@ export async function renderPr(): Promise<void> {
   if (!avail.ok) {
     listEl.replaceChildren()
     const e = (<div class="notif-empty" />) as HTMLDivElement
-    e.textContent = avail.error || 'GitHub CLI unavailable.'
+    e.textContent = avail.error || UITexts.Pr.cliUnavailable
     listEl.appendChild(e)
     return
   }
@@ -181,8 +182,8 @@ function appendAddProjectsBar(listEl: HTMLElement): void {
   bar.appendChild(
     createButton({
       className: 'settings-inline-btn',
-      text: '+ Add projects',
-      title: 'Choose which repositories appear here',
+      text: UITexts.Pr.addProjects,
+      title: UITexts.Pr.addProjectsTitle,
       onClick: () => void showProjectPicker(() => void renderPr())
     })
   )
@@ -205,7 +206,7 @@ async function renderAllPrs(listEl: HTMLElement): Promise<void> {
   }
 
   const loading = (<div class="notif-empty" />) as HTMLDivElement
-  loading.textContent = 'Loading…'
+  loading.textContent = UITexts.Pr.loading
   listEl.appendChild(loading)
 
   const res = await prService.listAll(settings.codeRoot, paths)
@@ -253,7 +254,7 @@ async function renderAllDeployments(listEl: HTMLElement): Promise<void> {
   }
 
   const loading = (<div class="notif-empty" />) as HTMLDivElement
-  loading.textContent = 'Loading…'
+  loading.textContent = UITexts.Pr.loading
   listEl.appendChild(loading)
 
   const res = await prService.deploysAll(settings.codeRoot, paths)
@@ -318,7 +319,7 @@ async function renderDeployments(listEl: HTMLElement, cwd: string, repo: string)
 
   // Deployments section
   const depHead = (<div class="pr-section-head" />) as HTMLDivElement
-  depHead.textContent = 'Deployments'
+  depHead.textContent = UITexts.Pr.deployments
   listEl.appendChild(depHead)
   if (!dep.ok) {
     listEl.insertAdjacentHTML('beforeend', `<div class="notif-empty">${dep.error || 'Failed to load deployments.'}</div>`)
@@ -332,7 +333,7 @@ async function renderDeployments(listEl: HTMLElement, cwd: string, repo: string)
 
   // Workflow runs section
   const runHead = (<div class="pr-section-head" />) as HTMLDivElement
-  runHead.textContent = 'Workflow runs'
+  runHead.textContent = UITexts.Pr.workflowRuns
   listEl.appendChild(runHead)
   if (!runs.ok) {
     listEl.insertAdjacentHTML('beforeend', `<div class="notif-empty">${runs.error || 'Failed to load runs.'}</div>`)

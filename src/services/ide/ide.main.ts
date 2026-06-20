@@ -1,21 +1,15 @@
-import { on, Channel } from '@services/channels.main'
-import { join } from 'path'
-import { existsSync } from 'fs'
-import { execFile } from 'child_process'
-import { loadScript } from '@core/services/scripts'
-import { runtimeDir } from '@core/services/paths'
-import { shq } from '@core/services/exec'
+import { Channel } from '@services/channels.main'
+import { BaseService } from '@services/base.service'
+import { IdeService } from './ide.service'
 
-// IDE bridge (ide:*): open a path in the user's IDE via their `ide` command.
-export function registerIdeIpc(): void {
-  // Open a path in the user's IDE via their `ide` command (no terminal spawned).
-  on(Channel.Ide.Open, ({ path, ide }) => {
-    if (!path || !existsSync(path)) return
-    const cmd = ide && ide.trim() ? ide.trim() : 'open'
-    execFile(
-      '/bin/zsh',
-      ['-lic', loadScript(join(runtimeDir(), 'templates'), 'ide-open.sh.tmpl', { cmd, path: shq(path) })],
-      () => {}
-    )
-  })
+// IDE IPC adapter (ide:*): open a path in the user's IDE via their `ide` command.
+export class IdeController extends BaseService {
+  readonly name = 'ide'
+  private readonly service = new IdeService()
+
+  register(): void {
+    this.on(Channel.Ide.Open, ({ path, ide }) => this.service.open(path, ide))
+  }
 }
+
+// Transitional shim so core/index.ts keeps compiling until the bootstrap is

@@ -1,5 +1,6 @@
-import type { ProjectNode, Application } from '../../../types'
-import { settings, state } from '../../../state'
+import type { ProjectNode, Application } from '@ui/types/types'
+import { settings, state } from '@ui/state/state'
+import { UITexts } from '@texts'
 import {
   openProject,
   newTab,
@@ -8,8 +9,8 @@ import {
   runApplications,
   createFeature,
   resolveAppPath
-} from '../../../commands'
-import { flattenProjects } from '../../../catalog'
+} from '@ui/commands/commands'
+import { flattenProjects } from '@ui/catalog/catalog'
 import { overlayModal, makeSearchInput } from '../shared'
 
 // ---- Project picker: open a saved project (or a blank terminal) ----
@@ -19,7 +20,7 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
   const { modal, close } = overlayModal('picker-modal')
 
   const h = (
-    <h2>{splitMode ? 'Split with project' : 'Open project'}</h2>
+    <h2>{splitMode ? UITexts.Pickers.project.split : UITexts.Pickers.project.open}</h2>
   ) as HTMLHeadingElement
   const input = (
     <input
@@ -27,8 +28,8 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
       type="text"
       placeholder={
         splitMode
-          ? 'Filter projects…  (⏎ split right)'
-          : 'Filter projects…  (↑↓ move · ⏎ open · ⌘⏎ split right)'
+          ? UITexts.Pickers.project.splitPlaceholder
+          : UITexts.Pickers.project.openPlaceholder
       }
       ref={(el: HTMLInputElement) => {
         el.spellcheck = false
@@ -148,7 +149,7 @@ export function showRunApps(project: ProjectNode): void {
     modal.insertAdjacentHTML(
       'beforeend',
       `<div class="empty-hint">${
-        apps.length ? 'No environments.' : 'No applications.'
+        apps.length ? UITexts.Pickers.project.noEnvironments : UITexts.Pickers.project.noApplications
       } Add them in Settings → Projects.</div>`
     )
     return
@@ -203,7 +204,7 @@ export function showRunApps(project: ProjectNode): void {
   }
   renderApps()
 
-  const cancel = (<button>Cancel</button>) as HTMLButtonElement
+  const cancel = (<button>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
   cancel.addEventListener('click', close)
   const run = (<button class="button-primary">Run</button>) as HTMLButtonElement
   run.addEventListener('click', () => {
@@ -293,11 +294,11 @@ function pickProjectWithApps(title: string, onPick: (p: ProjectNode) => void): v
 }
 
 export function showRunAppsPicker(): void {
-  pickProjectWithApps('Run applications', showRunApps)
+  pickProjectWithApps(UITexts.Pickers.project.runApplications, showRunApps)
 }
 
 export function showFeaturePicker(): void {
-  pickProjectWithApps('New feature', showFeatureSetup)
+  pickProjectWithApps(UITexts.Pickers.project.newFeature, showFeatureSetup)
 }
 
 // Project-specific named commands: a list with two run options per row —
@@ -325,7 +326,7 @@ export function showRunCommand(project: ProjectNode): void {
       </div>
     ) as HTMLDivElement
     const splitBtn = (
-      <button class="wt-act" title="Run in a split beside the active pane">
+      <button class="wt-act" title={UITexts.Pickers.project.runSplitTitle}>
         Split
       </button>
     ) as HTMLButtonElement
@@ -341,7 +342,7 @@ export function showRunCommand(project: ProjectNode): void {
       close()
     })
     const tabBtn = (
-      <button class="wt-act" title="Run in a new terminal tab under the project">
+      <button class="wt-act" title={UITexts.Pickers.project.runTabTitle}>
         New tab
       </button>
     ) as HTMLButtonElement
@@ -401,7 +402,7 @@ export function showRunApp(project: ProjectNode, app: Application): void {
     ) as HTMLDivElement
     const target = { name: `${app.name} · ${env}`, path: appPath, command, env: project.env, shell: project.shell }
     const splitBtn = (
-      <button class="wt-act" title="Run in a split beside the active pane">
+      <button class="wt-act" title={UITexts.Pickers.project.runSplitTitle}>
         Split
       </button>
     ) as HTMLButtonElement
@@ -411,7 +412,7 @@ export function showRunApp(project: ProjectNode, app: Application): void {
       close()
     })
     const tabBtn = (
-      <button class="wt-act" title="Run in a new terminal tab under the project">
+      <button class="wt-act" title={UITexts.Pickers.project.runTabTitle}>
         New tab
       </button>
     ) as HTMLButtonElement
@@ -445,7 +446,7 @@ export function showFeatureSetup(project: ProjectNode): void {
     modal.insertAdjacentHTML(
       'beforeend',
       `<div class="empty-hint">${
-        apps.length ? 'No environments configured.' : 'No applications defined for this project.'
+        apps.length ? UITexts.Pickers.project.noEnvironmentsConfigured : UITexts.Pickers.project.noApplicationsDefined
       } The feature folder will be created without any auto-spawned terminals. Define apps in Settings → Projects to launch them automatically.</div>`
     )
   }
@@ -512,7 +513,7 @@ export function showFeatureSetup(project: ProjectNode): void {
         const cb = (
           <input
             type="checkbox"
-            title="Include"
+            title={UITexts.Pickers.project.includeTitle}
             ref={(el: HTMLInputElement) => {
               el.checked = !!cmd
               el.disabled = !cmd
@@ -549,7 +550,7 @@ export function showFeatureSetup(project: ProjectNode): void {
     renderApps()
   }
 
-  const cancel = (<button>Cancel</button>) as HTMLButtonElement
+  const cancel = (<button>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
   cancel.addEventListener('click', close)
   const create = (<button class="button-primary">Create</button>) as HTMLButtonElement
   create.addEventListener('click', () => {

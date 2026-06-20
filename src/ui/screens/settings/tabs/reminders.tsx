@@ -1,13 +1,14 @@
-import { settings } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
+import { settings } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
 import { labeledInput } from '../shared'
 
 export function buildRemindersPanel(panel: HTMLElement): void {
-  panel.insertAdjacentHTML('beforeend', '<h3>Reminders</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.reminders.heading}</h3>`)
 
   labeledInput(
     panel,
-    'Default hour (for "Tomorrow"-style presets)',
+    UITexts.Settings.reminders.defaultHour,
     'number',
     String(settings.reminderDefaults.defaultHour),
     (v) => {
@@ -29,7 +30,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
       const labelI = (
         <input
           type="text"
-          placeholder="Label"
+          placeholder={UITexts.Settings.reminders.label}
           ref={(el: HTMLInputElement) => {
             el.value = p.label
           }}
@@ -45,8 +46,8 @@ export function buildRemindersPanel(panel: HTMLElement): void {
       const kindSel = (
         <select class="settings-select">
           {[
-            ['offset', 'Offset (minutes)'],
-            ['days', 'Days ahead']
+            ['offset', UITexts.Settings.reminders.offsetMinutes],
+            ['days', UITexts.Settings.reminders.daysAhead]
           ].map(
             ([val, text]) =>
               (
@@ -114,7 +115,7 @@ export function buildRemindersPanel(panel: HTMLElement): void {
       snap.addEventListener('change', applyValue)
 
       const del = (
-        <button class="app-del" title="Remove preset">
+        <button class="app-del" title={UITexts.Settings.reminders.removePreset}>
           ✕
         </button>
       ) as HTMLButtonElement

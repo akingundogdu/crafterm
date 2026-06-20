@@ -1,16 +1,17 @@
 import './meeting-notes.css'
-import type { MeetingNote } from '../../types'
-import { state } from '../../state'
-import { meetingNoteRepo } from '@services/storage/repositories'
-import { promptConfirm } from '../../dialog'
-import { findProjectById } from '../../catalog'
+import { UITexts } from '@texts'
+import type { MeetingNote } from '@ui/types/types'
+import { state } from '@ui/state/state'
+import { meetingNoteRepo } from '@repositories'
+import { promptConfirm } from '@ui/dialog/dialog'
+import { findProjectById } from '@ui/catalog/catalog'
 import { showRemindModal } from '../reminders/reminders'
 import { showMeetingForm } from './components/meeting-form'
 
 const ARCHIVE_SVG =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/></svg>'
 
-const NO_PROJECT_GROUP = 'No project'
+const NO_PROJECT_GROUP = UITexts.MeetingNotes.noProjectGroup
 
 interface NoteGroup {
   name: string
@@ -64,9 +65,9 @@ export function renderMeetingNotes(host: HTMLElement): void {
 
   const header = (
     <div class="meeting-notes-header">
-      <div class="meeting-notes-title">Meeting Notes</div>
+      <div class="meeting-notes-title">{UITexts.MeetingNotes.title}</div>
       <button class="daily-plan-primary-btn" onClick={() => showMeetingForm(null, render)}>
-        + New meeting
+        {UITexts.MeetingNotes.newMeeting}
       </button>
     </div>
   ) as HTMLDivElement
@@ -77,7 +78,7 @@ export function renderMeetingNotes(host: HTMLElement): void {
 
   const notes = sortedNotes()
   if (!notes.length) {
-    const empty = (<div class="meeting-notes-empty">No meeting notes yet.</div>) as HTMLDivElement
+    const empty = (<div class="meeting-notes-empty">{UITexts.MeetingNotes.empty}</div>) as HTMLDivElement
     list.appendChild(empty)
     return
   }
@@ -102,7 +103,7 @@ export function renderMeetingNotes(host: HTMLElement): void {
           render()
         }}
       >
-        {`${archivedOpen ? '▾' : '▸'} Archived (${archived.length})`}
+        {`${archivedOpen ? '▾' : '▸'} ${UITexts.MeetingNotes.archived(archived.length)}`}
       </button>
     ) as HTMLButtonElement
     list.appendChild(toggle)
@@ -130,10 +131,10 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
   const remind = (
     <button
       class="daily-plan-card-icon"
-      title="Remind me"
+      title={UITexts.MeetingNotes.card.remind}
       onClick={(e: MouseEvent) => {
         e.stopPropagation()
-        const subject = note.title || 'meeting note'
+        const subject = note.title || UITexts.MeetingNotes.card.remindSubjectFallback
         showRemindModal(subject, subject, { kind: 'meetingNote', noteId: note.id })
       }}
     >
@@ -143,7 +144,7 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
   const arch = (
     <button
       class="daily-plan-card-icon"
-      title={note.archived ? 'Unarchive' : 'Archive'}
+      title={note.archived ? UITexts.MeetingNotes.card.unarchive : UITexts.MeetingNotes.card.archive}
       innerHTML={ARCHIVE_SVG}
       onClick={(e: MouseEvent) => {
         e.stopPropagation()
@@ -158,13 +159,13 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
   const del = (
     <button
       class="daily-plan-card-icon"
-      title="Delete"
+      title={UITexts.MeetingNotes.card.delete}
       onClick={async (e: MouseEvent) => {
         e.stopPropagation()
         const ok = await promptConfirm({
-          title: 'Delete meeting note',
-          message: `Delete "${note.title || 'untitled'}"?`,
-          confirmText: 'Delete'
+          title: UITexts.MeetingNotes.card.deleteTitle,
+          message: UITexts.MeetingNotes.card.deleteConfirm(note.title || UITexts.MeetingNotes.card.deleteNameFallback),
+          confirmText: UITexts.MeetingNotes.card.deleteConfirmText
         })
         if (!ok) return
         meetingNoteRepo.remove(note.id)
@@ -179,7 +180,7 @@ function renderCard(note: MeetingNote, rerender: () => void, showProject: boolea
     <div class="meeting-note-card">
       <div class="meeting-note-top">
         <span class="meeting-note-date">{formatDate(note.date)}</span>
-        <div class="meeting-note-title">{note.title || '(untitled)'}</div>
+        <div class="meeting-note-title">{note.title || UITexts.MeetingNotes.untitled}</div>
         <div class="meeting-note-actions">
           {remind}
           {arch}

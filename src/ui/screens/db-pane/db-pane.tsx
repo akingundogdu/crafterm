@@ -1,16 +1,17 @@
-import { sqlPanes, paneActions, settings, uid } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import type { DbConnection, DbEngine, DbConnNode, DbNode } from '../../types'
+import { sqlPanes, paneActions, settings, uid } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
+import type { DbConnection, DbEngine, DbConnNode, DbNode } from '@ui/types/types'
 import { createSqlEditor, type SqlEditor } from '../../editor/sql-editor'
 import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
-import { setupPaneDnd } from '../../pane'
-import { promptText } from '../../dialog'
+import { setupPaneDnd } from '@ui/pane/pane'
+import { promptText } from '@ui/dialog/dialog'
 import type { DbObjects, DbColumn } from '@services/db/db.types'
 import { renderResultGrid, type SortState } from './components/result-grid'
 import { quoteIdent } from './sql-literal'
 import './db-pane.css'
-import { dbService } from '@services'
-import { dbConnectionRepo } from '@services/storage/repositories'
+import { dbService , dbqService } from '@services'
+import { dbConnectionRepo } from '@repositories'
 
 // SQL query pane: the workbench (toolbar + editor + result grid) shown as a
 // first-class pane (split next to the active pane), replacing the old modal.
@@ -92,7 +93,7 @@ export function createSqlPane(opts: {
   const id = uid('sq')
 
   // header
-  const htitle = (<span class="pane-title">SQL</span>) as HTMLSpanElement
+  const htitle = (<span class="pane-title">{UITexts.DbPane.sql}</span>) as HTMLSpanElement
   const close = (
     <button
       class="pane-close"
@@ -115,12 +116,12 @@ export function createSqlPane(opts: {
   const dot = (<span class="db-conn-dot" />) as HTMLSpanElement
   const connSel = (<select class="settings-select" />) as HTMLSelectElement
   const runBtn = (
-    <button class="button-primary db-run-btn" innerHTML={PLAY_SVG + '<span>Run</span><kbd>⌘↵</kbd>'} />
+    <button class="button-primary db-run-btn" innerHTML={PLAY_SVG + '<span>' + UITexts.DbPane.run + '</span><kbd>⌘↵</kbd>'} />
   ) as HTMLButtonElement
-  const saveBtn = (<button class="db-save-btn">Save .sql</button>) as HTMLButtonElement
+  const saveBtn = (<button class="db-save-btn">{UITexts.DbPane.saveSql}</button>) as HTMLButtonElement
   // theme picker (right-aligned via CSS)
   const themeSel = (
-    <select class="settings-select db-theme-select" title="Editor theme">
+    <select class="settings-select db-theme-select" title={UITexts.DbPane.editorTheme}>
       {ALL_THEME_NAMES.map(
         (t) => (<option value={t}>{t}</option>) as HTMLOptionElement
       )}
@@ -146,7 +147,7 @@ export function createSqlPane(opts: {
 
   // result
   const result = (
-    <div class="db-result" innerHTML='<div class="db-result-empty">Run a query to see results.</div>' />
+    <div class="db-result" innerHTML={`<div class="db-result-empty">${UITexts.DbPane.runToSeeResults}</div>`} />
   ) as HTMLDivElement
 
   // body
@@ -187,7 +188,7 @@ export function createSqlPane(opts: {
     if (!conns.length) {
       const o = document.createElement('option')
       o.value = ''
-      o.textContent = '(no connections)'
+      o.textContent = UITexts.DbPane.noConnections
       connSel.appendChild(o)
       currentConnId = null
     } else {
@@ -256,12 +257,12 @@ export function createSqlPane(opts: {
   const run = async (sqlOverride?: string): Promise<void> => {
     const conn = connOf()
     if (!conn) {
-      result.innerHTML = '<div class="db-error db-result-error">Pick a connection first.</div>'
+      result.innerHTML = `<div class="db-error db-result-error">${UITexts.DbPane.pickConnectionFirst}</div>`
       return
     }
     const userSql = (sqlOverride ?? editor.getValue()).trim()
     if (!userSql) return
-    result.innerHTML = '<div class="db-muted db-result-empty">Running…</div>'
+    result.innerHTML = `<div class="db-muted db-result-empty">${UITexts.DbPane.running}</div>`
 
     // Detect simple SELECT * FROM <table> on the user-typed SQL. A sort re-run
     // re-uses the same parsed context (lastParsed) so we don't lose it.
@@ -374,8 +375,7 @@ export function createSqlPane(opts: {
     void (async () => {
       const conn = connOf()
       if (!conn) {
-        result.innerHTML =
-          '<div class="db-result-empty">Pick a connection — queries are saved under it.</div>'
+        result.innerHTML = `<div class="db-result-empty">${UITexts.DbPane.pickConnectionSaved}</div>`
         return
       }
       const nm = await promptText({
@@ -387,7 +387,7 @@ export function createSqlPane(opts: {
       })
       if (!nm) return
       fileName = nm.endsWith('.sql') ? nm : nm + '.sql'
-      await dbService.savedWrite(conn.id, fileName, editor.getValue())
+      await dbqService.write(conn.id, fileName, editor.getValue())
       persistence.save()
       window.dispatchEvent(new CustomEvent('crafterm:dbq-changed', { detail: { connId: conn.id } }))
     })()

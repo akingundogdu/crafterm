@@ -1,16 +1,17 @@
-import { state, panes } from '../../../state'
-import { allTabs, panesInLayout, ancestorFolders } from '../../../tree'
-import { paneStatus } from '../../../pane'
-import { selectPane, openTerminalRunning, resumeClaudeSession } from '../../../commands'
-import { appService, claudeService } from '@services'
+import { state, panes } from '@ui/state/state'
+import { allTabs, panesInLayout, ancestorFolders } from '@ui/tree/tree'
+import { paneStatus } from '@ui/pane/pane'
+import { selectPane, openTerminalRunning, resumeClaudeSession } from '@ui/commands/commands'
+import { appService, claudeService , zshService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- Claude sessions dashboard: list all Claude panes, jump to one ----
 
 export function showClaudeDashboard(): void {
   const { overlay, modal, close } = overlayModal('picker-modal')
 
-  const h = (<h2>Claude sessions</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.claude.sessionsHeading}</h2>) as HTMLHeadingElement
   const search = makeSearchInput('Search sessions…', () => render())
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
   modal.append(h, search, list)
@@ -89,13 +90,13 @@ export function showClaudeDashboard(): void {
 // Discovers any `claude-switch-<name>` alias/function (e.g. `cswap --switch-to N`)
 // and runs the chosen one in a new terminal. New Claude terminals then use it.
 export async function showClaudeAccountSwitcher(): Promise<void> {
-  const cmds = await appService.zshCommands()
+  const cmds = await zshService.commands()
   const accounts = cmds
     .filter((c) => /^claude-switch-/.test(c.name))
     .map((c) => ({ name: c.name, label: c.name.replace(/^claude-switch-/, ''), value: c.value }))
   const { modal, close } = overlayModal('list-modal')
 
-  const h = (<h2>Switch Claude account</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.claude.switchAccountHeading}</h2>) as HTMLHeadingElement
   modal.appendChild(h)
 
   if (!accounts.length) {
@@ -151,12 +152,12 @@ export async function showClaudeSessionResume(): Promise<void> {
   const sessions = await claudeService.sessions()
   const { modal, close } = overlayModal('picker-modal picker-modal-wide')
 
-  const h = (<h2>Resume Claude session</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.claude.resumeHeading}</h2>) as HTMLHeadingElement
   const input = (
     <input
       class="search-box-input"
       type="text"
-      placeholder="Search sessions…  (↑↓ move · ⏎ resume in a new terminal)"
+      placeholder={UITexts.Pickers.claude.resumePlaceholder}
     />
   ) as HTMLInputElement
   input.spellcheck = false
@@ -192,7 +193,7 @@ export async function showClaudeSessionResume(): Promise<void> {
     if (!items.length) {
       list.insertAdjacentHTML(
         'beforeend',
-        `<div class="empty-hint">${sessions.length ? 'No matches' : 'No Claude sessions found'}</div>`
+        `<div class="empty-hint">${sessions.length ? UITexts.Pickers.common.noMatches : UITexts.Pickers.claude.noSessions}</div>`
       )
       return
     }

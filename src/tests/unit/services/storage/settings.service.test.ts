@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { loadSettings } from '@services/storage/settings.service'
-import { settings } from '@ui/state'
-import type { SavedState } from '@services/storage/state.types'
+import { loadSettings } from '@repositories/settings.service'
+import { settings } from '@ui/state/state'
+import type { SavedState } from '@repositories/state.types'
 
 // Minimal SavedState; only the fields under test are populated. Everything else
 // is guarded in loadSettings and left at its default.

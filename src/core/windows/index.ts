@@ -1,10 +1,11 @@
 import { app, BrowserWindow, Notification, Menu } from 'electron'
 import { handle, on, emit, Channel } from '@services/channels.main'
-import * as terminal from '../services/terminal.manager'
-import { APP_NAME } from '../constants'
-import { Events } from '../events'
+import * as terminal from '../services/terminal.manager/terminal.manager.service'
+import { APP_NAME } from '../constants/constants'
+import { Events } from '../events/events'
 import { env } from '@configs/environment-variables'
 import { preloadPath, rendererHtmlPath, RENDERER_HTML } from './window-paths'
+import { UITexts } from '@texts'
 
 let mainWindow: BrowserWindow | null = null
 // The single detached "Improve Crafterm" window, if open.
@@ -122,7 +123,7 @@ export function buildAppMenu(): void {
   // Custom View submenu (no Reload / Force Reload — Cmd+R would otherwise blow
   // away every pane's state. Devtools and zoom stay so debugging still works.)
   const viewMenu: Electron.MenuItemConstructorOptions = {
-    label: 'View',
+    label: UITexts.Menu.view,
     submenu: [
       { role: 'toggleDevTools' },
       { type: 'separator' },
@@ -138,10 +139,10 @@ export function buildAppMenu(): void {
     { role: 'editMenu' },
     viewMenu,
     {
-      label: 'Pane',
+      label: UITexts.Menu.pane,
       submenu: [
         {
-          label: 'Close Pane',
+          label: UITexts.Menu.closePane,
           accelerator: 'CmdOrCtrl+W',
           // In a pop-out window Cmd+W closes that window; otherwise it closes
           // the active pane in the main window.
@@ -153,7 +154,7 @@ export function buildAppMenu(): void {
       ]
     },
     {
-      label: 'Window',
+      label: UITexts.Menu.window,
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },

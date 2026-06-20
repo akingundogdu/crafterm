@@ -1,13 +1,14 @@
 import './code-pane.css'
-import { codePanes, panes, state, paneActions, uid, settings } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { findTabByPane, panesInLayout } from '../../tree'
-import { setupPaneDnd } from '../../pane'
+import { codePanes, panes, state, paneActions, uid, settings } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
+import { findTabByPane, panesInLayout } from '@ui/tree/tree'
+import { setupPaneDnd } from '@ui/pane/pane'
 import { createButton, createSelect } from '@ui/components'
 import { createCodeEditor, type CodeEditor } from '../../editor/code-editor'
 import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco-setup'
 import { DEFAULT_EDITOR_THEME } from '../../editor/editor-themes'
-import { terminalService, fsService } from '@services'
+import { terminalService, fsService , shellService } from '@services'
 import { breadcrumb, refPath } from './path-ref'
 
 // An editable code editor pane (Monaco) opened from the Files panel.
@@ -43,7 +44,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
   let path = opts.path
 
   // ---- header: breadcrumb · dirty · save · copy · reveal · reload · close ----
-  const dirtyDot = (<span class="code-dirty-dot" title="Unsaved changes" style="display: none" />) as HTMLSpanElement
+  const dirtyDot = (<span class="code-dirty-dot" title={UITexts.CodePane.unsavedChanges} style="display: none" />) as HTMLSpanElement
   const htitle = (<span class="diff-path" title={path}>{breadcrumb(path)}</span>) as HTMLSpanElement
   const center = (
     <div class="diff-hcenter">
@@ -110,7 +111,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     title: 'Show in Finder',
     onClick: (e) => {
       e.stopPropagation()
-      fsService.revealPath(path)
+      shellService.revealPath(path)
     }
   })
   const reload = createButton({
@@ -195,7 +196,7 @@ export function createCodePane(opts: { path: string; themeName?: string; line?: 
     editor?.destroy()
     editor = null
     body.replaceChildren()
-    body.textContent = 'Loading file…'
+    body.textContent = UITexts.CodePane.loadingFile
     const res = await fsService.readText(path)
     body.replaceChildren()
     if (!res.ok) {

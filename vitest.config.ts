@@ -9,6 +9,9 @@ export default defineConfig({
     alias: {
       '@core': resolve(__dirname, 'src/core'),
       '@configs': resolve(__dirname, 'src/configs'),
+      '@models': resolve(__dirname, 'src/models'),
+      '@repositories': resolve(__dirname, 'src/repositories'),
+      '@texts': resolve(__dirname, 'src/ui-texts/ui-texts.ts'),
       '@services': resolve(__dirname, 'src/services'),
       '@ui': resolve(__dirname, 'src/ui'),
       '@resources': resolve(__dirname, 'src/resources'),

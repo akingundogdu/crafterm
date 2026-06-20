@@ -1,9 +1,10 @@
 import { Terminal } from '@xterm/xterm'
+import { UITexts } from '@texts'
 import { FitAddon } from '@xterm/addon-fit'
 import type { DockerKind } from '@services/docker/docker.types'
-import { settings, resolveTheme } from '../../../state'
+import { settings, resolveTheme } from '@ui/state/state'
 import { terminalService, dockerService } from '@services'
-import { makeCloseButton } from '../../../dialog'
+import { makeCloseButton } from '@ui/dialog/dialog'
 import { createButton, createOverlay } from '@ui/components'
 import { inspectFields } from '../inspect'
 
@@ -100,12 +101,12 @@ function renderInspectInto(panel: HTMLElement, kind: DockerKind, raw: string): v
 
   const toggle = createButton({
     className: 'settings-inline-btn docker-raw-toggle',
-    text: 'Raw JSON',
+    text: UITexts.Docker.detail.rawJson,
     onClick: () => {
       const showRaw = pre.style.display === 'none'
       pre.style.display = showRaw ? '' : 'none'
       table.style.display = showRaw ? 'none' : ''
-      toggle.textContent = showRaw ? 'Structured' : 'Raw JSON'
+      toggle.textContent = showRaw ? UITexts.Docker.detail.structured : UITexts.Docker.detail.rawJson
     }
   })
 
@@ -124,10 +125,10 @@ export function showDetailModal(opts: {
   initial?: DetailTab
 }): void {
   const { kind, id, name, running } = opts
-  const tabs: { key: DetailTab; label: string }[] = [{ key: 'inspect', label: 'Inspect' }]
+  const tabs: { key: DetailTab; label: string }[] = [{ key: 'inspect', label: UITexts.Docker.detail.inspect }]
   if (kind === 'container') {
-    tabs.push({ key: 'logs', label: 'Logs' })
-    if (running) tabs.push({ key: 'terminal', label: 'Terminal' })
+    tabs.push({ key: 'logs', label: UITexts.Docker.detail.logs })
+    if (running) tabs.push({ key: 'terminal', label: UITexts.Docker.detail.terminal })
   }
 
   const { overlay, mount, close, onClose } = createOverlay()
@@ -176,7 +177,7 @@ export function showDetailModal(opts: {
     built.add(key)
     const panel = panels.get(key)!
     if (key === 'inspect') {
-      panel.textContent = 'Loading…'
+      panel.textContent = UITexts.Docker.loading
       void dockerService.inspect(kind, id).then((raw) => renderInspectInto(panel, kind, raw))
     } else if (key === 'logs') {
       const termHost = (<div class="docker-term-host" />) as HTMLDivElement

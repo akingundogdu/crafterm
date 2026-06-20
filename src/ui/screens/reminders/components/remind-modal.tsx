@@ -1,6 +1,7 @@
 import { createOverlay, createButton } from '@ui/components'
-import { makeCloseButton } from '../../../dialog'
-import type { ReminderPayload } from '../../../types'
+import { UITexts } from '@texts'
+import { makeCloseButton } from '@ui/dialog/dialog'
+import type { ReminderPayload } from '@ui/types/types'
 import { snoozeOptions, snoozeReminder } from '../reminders'
 
 // Shared "Remind me about this" modal used by bookmarks, notebook items, and any
@@ -30,7 +31,7 @@ export function showRemindModal(
   const modal = (
     <div class="modal modal-prompt">
       {makeCloseButton(ov.close)}
-      <h2>Remind me about this</h2>
+      <h2>{UITexts.Reminders.remindModalTitle}</h2>
       <div class="field-hint">{subject}</div>
       {chips}
     </div>

@@ -1,4 +1,4 @@
-import { panes, state, paneActions } from '../../state'
+import { panes, state, paneActions } from '@ui/state/state'
 import { terminalService } from '@services'
 
 // Shared terminal-targeting helpers for the file/diff viewer panes. They resolve

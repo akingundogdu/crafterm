@@ -1,5 +1,6 @@
 import './settings.css'
-import { themes } from '../../themes'
+import { UITexts } from '@texts'
+import { themes } from '@ui/themes/themes'
 import {
   settings,
   state,
@@ -7,19 +8,19 @@ import {
   resolveTheme,
   applyBgColor,
   uid
-} from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from '../../types'
-import { BUILTIN_ACTIONS } from '../../types'
-import { flattenProjects, removeProject } from '../../catalog'
-import { makeProject } from '../../tree'
+} from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import type { PaletteCommand, ProjectNode, Application, ActionMenuItem, IosDevConfig } from '@ui/types/types'
+import { BUILTIN_ACTIONS } from '@ui/types/types'
+import { flattenProjects, removeProject } from '@ui/catalog/catalog'
+import { makeProject } from '@ui/tree/tree'
 import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
-import { applyAppearance } from '../../pane'
+import { applyAppearance } from '@ui/pane/pane'
 import { ALL_THEME_NAMES, applyTheme } from '../../editor/monaco-setup'
 import { applyOrientation, applySidebarFont, applyTabDisplay, tabMeta } from '../sidebar/sidebar'
 import { pickFolderPath } from '../pickers/folder/folder'
 import { createOverlay } from '@ui/components'
-import { makeCloseButton, promptForm, promptText } from '../../dialog'
+import { makeCloseButton, promptForm, promptText } from '@ui/dialog/dialog'
 import {
   KEYBINDINGS,
   effectiveCombo,
@@ -29,9 +30,9 @@ import {
   resetBinding,
   setRecording,
   isModifierKey
-} from '../../keybindings'
+} from '@ui/keybindings/keybindings'
 import { appService } from '@services'
-import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from '@services/storage/repositories'
+import { paletteCommandRepo, accountRepo, actionMenuRepo, applicationRepo, iosConfigRepo } from '@repositories'
 import { settingsCleanups, toHex6, buildSubTabs, labeledInput, labeledSelect } from './shared'
 import { buildTabsPanel } from './tabs/tabs'
 import { buildRemindersPanel } from './tabs/reminders'
@@ -61,17 +62,17 @@ export function openSettings(): void {
   modal.append(nav, body)
 
   const categories = [
-    'Appearance',
-    'Theme',
-    'Sidebar',
-    'Tabs',
-    'Workspace',
-    'Projects',
-    'Commands',
-    'Reminders',
-    'Action menu',
-    'Shortcuts',
-    'System update'
+    UITexts.Settings.tabs.appearance,
+    UITexts.Settings.tabs.theme,
+    UITexts.Settings.tabs.sidebar,
+    UITexts.Settings.tabs.tabs,
+    UITexts.Settings.tabs.workspace,
+    UITexts.Settings.tabs.projects,
+    UITexts.Settings.tabs.commands,
+    UITexts.Settings.tabs.reminders,
+    UITexts.Settings.tabs.actionMenu,
+    UITexts.Settings.tabs.shortcuts,
+    UITexts.Settings.tabs.systemUpdate
   ] as const
   const panels: Record<string, HTMLElement> = {}
   const navButtons: Record<string, HTMLButtonElement> = {}
@@ -129,13 +130,13 @@ export function openSettings(): void {
   }
   const refreshChip = (): void => {
     if (persistence.status.pending) {
-      chip.textContent = 'Saving…'
+      chip.textContent = UITexts.Settings.save.saving
       chip.dataset.state = 'pending'
     } else if (persistence.status.lastSavedAt) {
-      chip.textContent = `Saved · ${formatTime(persistence.status.lastSavedAt)}`
+      chip.textContent = UITexts.Settings.save.saved(formatTime(persistence.status.lastSavedAt))
       chip.dataset.state = 'saved'
     } else {
-      chip.textContent = 'No changes yet'
+      chip.textContent = UITexts.Settings.save.noChanges
       chip.dataset.state = 'idle'
     }
   }
@@ -143,6 +144,6 @@ export function openSettings(): void {
   const unsubscribe = persistence.subscribe(refreshChip)
   settingsCleanups.push(unsubscribe)
 
-  show('Appearance')
+  show(UITexts.Settings.tabs.appearance)
   mount()
 }

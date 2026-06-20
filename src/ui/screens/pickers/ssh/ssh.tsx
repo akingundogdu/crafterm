@@ -1,9 +1,10 @@
-import type { SshConnection } from '../../../types'
-import { uid } from '../../../state'
-import { openTerminalRunning } from '../../../commands'
-import { promptForm, promptConfirm } from '../../../dialog'
-import { sshConnectionRepo } from '@services/storage/repositories'
+import type { SshConnection } from '@ui/types/types'
+import { uid } from '@ui/state/state'
+import { openTerminalRunning } from '@ui/commands/commands'
+import { promptForm, promptConfirm } from '@ui/dialog/dialog'
+import { sshConnectionRepo } from '@repositories'
 import { overlayModal, makeSearchInput } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- SSH connections: saved hosts, connect in a new terminal ----
 //
@@ -26,20 +27,20 @@ function sshCommand(c: SshConnection): string {
 // Add or edit one connection via the shared form modal (host is required).
 async function editSshConnection(existing?: SshConnection): Promise<void> {
   const values = await promptForm({
-    title: existing ? 'Edit SSH connection' : 'New SSH connection',
+    title: existing ? UITexts.Pickers.ssh.editHeading : UITexts.Pickers.ssh.newHeading,
     fields: [
-      { key: 'host', label: 'Host', value: existing?.host, placeholder: 'example.com or 1.2.3.4' },
-      { key: 'user', label: 'User', value: existing?.user, placeholder: 'root' },
-      { key: 'port', label: 'Port', value: existing?.port ? String(existing.port) : '', placeholder: '22' },
-      { key: 'label', label: 'Label', value: existing?.label, placeholder: 'My server (optional)' },
+      { key: 'host', label: UITexts.Pickers.ssh.host, value: existing?.host, placeholder: UITexts.Pickers.ssh.hostPlaceholder },
+      { key: 'user', label: UITexts.Pickers.ssh.user, value: existing?.user, placeholder: UITexts.Pickers.ssh.userPlaceholder },
+      { key: 'port', label: UITexts.Pickers.ssh.port, value: existing?.port ? String(existing.port) : '', placeholder: UITexts.Pickers.ssh.portPlaceholder },
+      { key: 'label', label: UITexts.Pickers.ssh.label, value: existing?.label, placeholder: UITexts.Pickers.ssh.labelPlaceholder },
       {
         key: 'password',
         label: 'Password',
         value: existing?.password,
-        placeholder: '(optional · stored as plaintext)'
+        placeholder: UITexts.Pickers.ssh.passwordPlaceholder
       }
     ],
-    confirmText: existing ? 'Save' : 'Add'
+    confirmText: existing ? UITexts.Pickers.ssh.save : UITexts.Pickers.ssh.add
   })
   if (!values) return // cancelled, or host left empty (the required first field)
   const port = parseInt(values.port, 10)
@@ -58,7 +59,7 @@ async function editSshConnection(existing?: SshConnection): Promise<void> {
 export function showSshConnections(): void {
   const { modal, close } = overlayModal('picker-modal')
 
-  const h = (<h2>My SSH connections</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.ssh.connectionsHeading}</h2>) as HTMLHeadingElement
   modal.appendChild(h)
 
   const addBtn = (
@@ -134,9 +135,9 @@ export function showSshConnections(): void {
           onClick={(e: MouseEvent) => {
             e.stopPropagation()
             void promptConfirm({
-              title: 'Delete connection?',
+              title: UITexts.Pickers.ssh.deleteTitle,
               message: `Remove "${c.label || sshTarget(c)}" from saved connections?`,
-              confirmText: 'Delete'
+              confirmText: UITexts.Pickers.ssh.delete
             }).then((ok) => {
               if (!ok) return
               sshConnectionRepo.remove(c.id)

@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import { commandRunsClaude, looksLikeClaudeQuestion, paneStatus } from '@ui/terminal/activity-detection'
 import { isPlanOwnedByPane } from '@ui/terminal/pane-info'
-import type { Pane } from '@ui/types'
+import type { Pane } from '@ui/types/types'
 
 // Pure heuristics lifted verbatim from pane.ts in Phase 5. These guard the
 // thresholds/patterns that drive the notification tone + sidebar status — the

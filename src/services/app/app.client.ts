@@ -1,28 +1,22 @@
-import { call, send, listen, Channel } from '../channels.client'
+import { Channel } from '../channels.client'
+import { BaseClient } from '../base.client'
 
-// App lifecycle / version / self-update / sound / misc IPC.
-export const appService = {
-  version: () => call(Channel.App.Version),
-  buildInfo: () => call(Channel.App.BuildInfo),
-  buildCounter: (repoPath: string) => call(Channel.App.BuildCounter, { repoPath }),
-  repoGit: (repoPath: string) => call(Channel.App.RepoGit, { repoPath }),
-  deployBuild: (repoPath: string, command: string) => call(Channel.Deploy.Build, { repoPath, command }),
-  deployKillAllPtys: () => call(Channel.Deploy.KillAllPtys),
-  deploySwap: (repoPath: string) => call(Channel.Deploy.Swap, { repoPath }),
-  deployWasUpdating: () => call(Channel.Deploy.WasUpdating),
-  openExternal: (url: string) => send(Channel.External.Open, { url }),
-  notify: (title: string, body: string, paneId?: string) => send(Channel.Notify.Show, { title, body, paneId }),
-  monacoTheme: (name: string) => call(Channel.Monaco.Theme, { name }),
-  zshCommands: () => call(Channel.Zsh.Commands),
-  todoRead: (path?: string) => call(Channel.Todo.Read, { path }),
-  todoWrite: (path: string, content: string) => call(Channel.Todo.Write, { path, content }),
-  backlogRead: () => call(Channel.Backlog.Read),
-  playSound: (name: string) => send(Channel.Sound.Play, { name }),
-  playEventSound: (event: 'question' | 'done') => send(Channel.Sound.Event, { event }),
-  onAppQuitting: (cb: () => void) => listen(Channel.App.Quitting, () => cb()),
-  onFullscreenChange: (cb: (isFullscreen: boolean) => void) =>
-    listen(Channel.Window.Fullscreen, (isFull) => cb(isFull)),
-  openImproveWindow: () => call(Channel.ImproveWindow.Open),
-  improveWindowSetAlwaysOnTop: (value: boolean) =>
-    send(Channel.ImproveWindow.SetAlwaysOnTop, { value })
+// App lifecycle / version / external-open / notifications / improve-window IPC.
+// Self-update, monaco, zsh, todo, backlog, and sound live in their own clients.
+class AppClient extends BaseClient {
+  version = () => this.call(Channel.App.Version)
+  buildInfo = () => this.call(Channel.App.BuildInfo)
+  buildCounter = (repoPath: string) => this.call(Channel.App.BuildCounter, { repoPath })
+  repoGit = (repoPath: string) => this.call(Channel.App.RepoGit, { repoPath })
+  openExternal = (url: string) => this.send(Channel.External.Open, { url })
+  notify = (title: string, body: string, paneId?: string) =>
+    this.send(Channel.Notify.Show, { title, body, paneId })
+  onAppQuitting = (cb: () => void) => this.listen(Channel.App.Quitting, () => cb())
+  onFullscreenChange = (cb: (isFullscreen: boolean) => void) =>
+    this.listen(Channel.Window.Fullscreen, (isFull) => cb(isFull))
+  openImproveWindow = () => this.call(Channel.ImproveWindow.Open)
+  improveWindowSetAlwaysOnTop = (value: boolean) =>
+    this.send(Channel.ImproveWindow.SetAlwaysOnTop, { value })
 }
+
+export const appService = new AppClient()

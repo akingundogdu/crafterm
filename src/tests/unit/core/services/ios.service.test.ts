@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const runMock = vi.fn<(cmd: string, args: string[]) => Promise<string | null>>()
-vi.mock('@core/services/exec', () => ({
+vi.mock('@core/services/exec/exec.service', () => ({
   run: (cmd: string, args: string[]) => runMock(cmd, args),
   BIN: { lsof: '/usr/sbin/lsof', xcrun: '/usr/bin/xcrun', security: '/usr/bin/security', afplay: '/usr/bin/afplay' }
 }))
@@ -16,7 +16,7 @@ const execFileMock = vi.fn(
 )
 vi.mock('child_process', () => ({ execFile: (...a: unknown[]) => (execFileMock as (...x: unknown[]) => void)(...a) }))
 
-import * as ios from '@core/services/ios.service'
+import * as ios from '@core/services/ios/ios.service'
 
 beforeEach(() => {
   runMock.mockReset()

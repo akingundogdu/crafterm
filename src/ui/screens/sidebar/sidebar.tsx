@@ -1,7 +1,8 @@
-import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from '../../types'
+import type { SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode, PaneStatus } from '@ui/types/types'
+import { UITexts } from '@texts'
 import { openProcessView, killProcess, startBackgroundProcess } from '@services/bgproc'
-import { state, panes, settings, paneActions } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
+import { state, panes, settings, paneActions } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
 import {
   collectPinnedRoots,
   allTabs,
@@ -10,8 +11,8 @@ import {
   ancestorFolders,
   findById,
   isContainer
-} from '../../tree'
-import { paneStatus, isPlanOwnedByPane } from '../../pane'
+} from '@ui/tree/tree'
+import { paneStatus, isPlanOwnedByPane } from '@ui/pane/pane'
 import {
   selectTab,
   selectPane,
@@ -35,7 +36,7 @@ import {
   moveNode,
   setNodeGroup,
   runInSplit
-} from '../../commands'
+} from '@ui/commands/commands'
 import {
   showProjectPicker,
   showRunApps,
@@ -58,7 +59,7 @@ import {
 } from '../pickers/processes/processes'
 import { showImproveModal } from '../improve-crafterm/improve-crafterm'
 import { showDailyPlanModal } from '../daily-plan/daily-plan'
-import { promptText, promptSelect } from '../../dialog'
+import { promptText, promptSelect } from '@ui/dialog/dialog'
 import { renderDatabase, databaseHandleKey, dbApplyQuery } from '../database/database'
 import { renderDocker, dockerHandleKey, dockerApplyQuery } from '../docker/docker'
 import { renderAccounts, accountsApplyQuery, initAccounts } from '../accounts/accounts'
@@ -72,10 +73,10 @@ import {
   nbApplyQuery,
   nbClearQuery,
   notebookSelectFirst
-} from '../../notebook'
+} from '@ui/notebook/notebook'
 import './sidebar.css'
-import { fsService } from '@services'
-import { actionMenuRepo } from '@services/storage/repositories'
+import { fsService , shellService } from '@services'
+import { actionMenuRepo } from '@repositories'
 
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!
@@ -180,7 +181,7 @@ export function actionMenuSearchEntries(): { label: string; run: () => void }[] 
   return out
 }
 
-function runActionItem(item: import('../../types').ActionMenuItem): void {
+function runActionItem(item: import('@ui/types/types').ActionMenuItem): void {
   if (item.kind === 'builtin') {
     BUILTIN_ACTION_RUN[item.builtinId ?? '']?.()
     return
@@ -480,7 +481,7 @@ function knownGroups(): string[] {
 async function promptGroup(node: FolderNode | ProjectNode): Promise<void> {
   const g = await promptSelect({
     title: 'Set group',
-    label: 'Group / workspace',
+    label: UITexts.Sidebar.groupWorkspace,
     value: node.group ?? '',
     options: knownGroups(),
     emptyLabel: '(Ungrouped)',
@@ -502,7 +503,7 @@ async function promptGroup(node: FolderNode | ProjectNode): Promise<void> {
 
 function pinBadge(): HTMLElement {
   return (
-    <span class="pin-badge" title="pinned">
+    <span class="pin-badge" title={UITexts.Sidebar.pinnedTitle}>
       ●
     </span>
   ) as HTMLSpanElement
@@ -513,9 +514,9 @@ function pinBadge(): HTMLElement {
 // Claude session id matches a trailing -<uuid> (see isPlanOwnedByPane). That pane
 // is not necessarily the tab's first pane (the Claude session may live in any
 // split), so we have to scan every pane in the layout, not just firstPaneOf.
-function plansForTab(node: TabNode): import('../../types').PlanEntry[] {
+function plansForTab(node: TabNode): import('@ui/types/types').PlanEntry[] {
   const seen = new Set<string>()
-  const out: import('../../types').PlanEntry[] = []
+  const out: import('@ui/types/types').PlanEntry[] = []
   for (const id of panesInLayout(node.root)) {
     const pane = panes.get(id)
     if (!pane) continue
@@ -544,7 +545,7 @@ function buildLeading(node: SidebarNode): HTMLElement | null {
     <span
       class={'tri' + (node.detailsOpen ? ' expanded' : '')}
       innerHTML={CHEVRON_SVG}
-      title={node.detailsOpen ? 'Hide details' : 'Show details'}
+      title={node.detailsOpen ? UITexts.Sidebar.hideDetails : UITexts.Sidebar.showDetails}
       onClick={(e: MouseEvent) => {
         e.stopPropagation()
         toggleTabDetails(node.id)
@@ -577,7 +578,7 @@ function buildWorktreeProcesses(wt: WorktreeNode | ProjectNode): HTMLElement | n
           <span class="tab-pane-title">{(proc.status === 'done' ? '✓ ' : '') + proc.title}</span>
           <button
             class="tab-proc-kill"
-            title="Stop process"
+            title={UITexts.Sidebar.stopProcess}
             onClick={(e: MouseEvent) => {
               e.stopPropagation()
               killProcess(proc.stableId)
@@ -703,17 +704,17 @@ const TAB_ICON: Record<string, string> = {
 
 // Every tab in the two strips, with the shortcut shown in its hover tooltip.
 const TAB_META: { id: string; strip: 'left' | 'right'; label: string; shortcut?: string }[] = [
-  { id: 'tab-terminal', strip: 'left', label: 'Terminal', shortcut: '⌘1' },
-  { id: 'tab-notebook', strip: 'left', label: 'Notebook', shortcut: '⌘2' },
-  { id: 'tab-database', strip: 'left', label: 'Database', shortcut: '⌘3' },
-  { id: 'tab-docker', strip: 'left', label: 'Docker' },
-  { id: 'tab-accounts', strip: 'left', label: 'Accounts' },
-  { id: 'notif-tab-notifs', strip: 'right', label: 'Alerts' },
-  { id: 'notif-tab-reminders', strip: 'right', label: 'Reminders' },
-  { id: 'notif-tab-files', strip: 'right', label: 'Files' },
-  { id: 'notif-tab-time', strip: 'right', label: 'Time' },
-  { id: 'notif-tab-pr', strip: 'right', label: 'PR' },
-  { id: 'notif-tab-bm', strip: 'right', label: 'Bookmarks' }
+  { id: 'tab-terminal', strip: 'left', label: UITexts.Sidebar.tabs.terminal, shortcut: '⌘1' },
+  { id: 'tab-notebook', strip: 'left', label: UITexts.Sidebar.tabs.notebook, shortcut: '⌘2' },
+  { id: 'tab-database', strip: 'left', label: UITexts.Sidebar.tabs.database, shortcut: '⌘3' },
+  { id: 'tab-docker', strip: 'left', label: UITexts.Sidebar.tabs.docker },
+  { id: 'tab-accounts', strip: 'left', label: UITexts.Sidebar.tabs.accounts },
+  { id: 'notif-tab-notifs', strip: 'right', label: UITexts.Sidebar.tabs.alerts },
+  { id: 'notif-tab-reminders', strip: 'right', label: UITexts.Sidebar.tabs.reminders },
+  { id: 'notif-tab-files', strip: 'right', label: UITexts.Sidebar.tabs.files },
+  { id: 'notif-tab-time', strip: 'right', label: UITexts.Sidebar.tabs.time },
+  { id: 'notif-tab-pr', strip: 'right', label: UITexts.Sidebar.tabs.pr },
+  { id: 'notif-tab-bm', strip: 'right', label: UITexts.Sidebar.tabs.bookmarks }
 ]
 
 export function tabMeta(): typeof TAB_META {
@@ -885,7 +886,7 @@ function buildTrailing(node: SidebarNode): HTMLElement | null {
         (
           <button
             class="ios-wt-act"
-            title="New worktree"
+            title={UITexts.Sidebar.newWorktreeTitle}
             onClick={(e: MouseEvent) => {
               e.stopPropagation()
               void newWorktree(proj)
@@ -940,29 +941,29 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
   if (node.kind === 'tab' && node.status === 'archived') {
     // Archived session (shown only under "Show archived items"): reactivate it.
     // Never permanently deleted — that's the whole point of archiving.
-    items.push({ label: 'Restore session', run: () => paneActions.reactivateTab(node.id) })
+    items.push({ label: UITexts.Sidebar.menu.restoreSession, run: () => paneActions.reactivateTab(node.id) })
   } else if (node.kind === 'tab') {
     const trail = ancestorFolders(state.tree, node.id)
     const parentId = trail && trail.length ? trail[trail.length - 1].id : null
-    items.push({ label: 'New Claude terminal', run: () => void newClaudeTab(parentId) })
-    items.push({ label: 'Rename', run: () => tree.beginRename(node.id) })
-    if (node.titleLocked) items.push({ label: 'Auto-name', run: () => autoNameTab(node.id) })
+    items.push({ label: UITexts.Sidebar.menu.newClaudeTerminal, run: () => void newClaudeTab(parentId) })
+    items.push({ label: UITexts.Sidebar.menu.rename, run: () => tree.beginRename(node.id) })
+    if (node.titleLocked) items.push({ label: UITexts.Sidebar.menu.autoName, run: () => autoNameTab(node.id) })
     items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
-    items.push({ label: 'Close tab', run: () => closeTab(node.id), danger: true })
+    items.push({ label: UITexts.Sidebar.menu.closeTab, run: () => closeTab(node.id), danger: true })
   } else if (isWorktreeFolder(node)) {
     // A worktree node: a dedicated, type-aware menu — git-managed, so the generic
     // folder operations (subfolder / rename / delete folder / settings) don't apply.
     const wt = node.worktreePath
     const proj = worktreeProjectOf(node)
-    items.push({ label: 'New terminal here', run: () => void newTab(node.id, wt) })
-    items.push({ label: 'New Claude terminal here', run: () => void newClaudeTab(node.id, wt) })
+    items.push({ label: UITexts.Sidebar.menu.newTerminalHere, run: () => void newTab(node.id, wt) })
+    items.push({ label: UITexts.Sidebar.menu.newClaudeTerminalHere, run: () => void newClaudeTab(node.id, wt) })
     items.push({
-      label: 'Run in background…',
+      label: UITexts.Sidebar.menu.runInBackground,
       run: () =>
         void promptText({
           title: 'Run in background',
-          label: 'Command',
-          placeholder: 'command',
+          label: UITexts.Sidebar.menu.command,
+          placeholder: UITexts.Sidebar.commandPlaceholder,
           confirmText: 'Run'
         }).then(
           (command) => {
@@ -972,37 +973,37 @@ function buildMenu(node: SidebarNode): ContextMenuItem[] {
         )
     })
     for (const it of iosWorktreeMenuItems(node)) items.push(it)
-    items.push({ label: 'Reveal in Finder', run: () => fsService.revealPath(wt) })
+    items.push({ label: UITexts.Sidebar.menu.revealInFinder, run: () => shellService.revealPath(wt) })
     if (proj) {
-      items.push({ label: 'Delete worktree', danger: true, run: () => void removeWorktree(proj, wt) })
+      items.push({ label: UITexts.Sidebar.menu.deleteWorktree, danger: true, run: () => void removeWorktree(proj, wt) })
     }
   } else if (isWorktreeContainer(node)) {
     // The auto "worktrees" container: only "new worktree" (it's auto-managed).
     const proj = worktreeProjectOf(node)
-    if (proj) items.push({ label: 'New worktree…', run: () => void newWorktree(proj) })
+    if (proj) items.push({ label: UITexts.Sidebar.menu.newWorktree, run: () => void newWorktree(proj) })
     items.push({ label: node.collapsed ? 'Expand' : 'Collapse', run: () => toggleCollapse(node.id) })
   } else {
     // A project node opens its terminals at the project's path; other folders
     // inherit the active terminal's cwd (the legacy behaviour).
     const cwd = node.kind === 'project' ? node.path : undefined
-    items.push({ label: 'New terminal here', run: () => void newTab(node.id, cwd) })
-    items.push({ label: 'New Claude terminal here', run: () => void newClaudeTab(node.id, cwd) })
-    items.push({ label: 'New subfolder', run: () => void newFolder(node.id) })
+    items.push({ label: UITexts.Sidebar.menu.newTerminalHere, run: () => void newTab(node.id, cwd) })
+    items.push({ label: UITexts.Sidebar.menu.newClaudeTerminalHere, run: () => void newClaudeTab(node.id, cwd) })
+    items.push({ label: UITexts.Sidebar.menu.newSubfolder, run: () => void newFolder(node.id) })
     if (node.kind === 'project') {
-      items.push({ label: 'Run applications…', run: () => showRunApps(node) })
+      items.push({ label: UITexts.Sidebar.menu.runApplications, run: () => showRunApps(node) })
       if (node.runCommands && node.runCommands.length) {
-        items.push({ label: 'Run command…', run: () => showRunCommand(node) })
+        items.push({ label: UITexts.Sidebar.menu.runCommand, run: () => showRunCommand(node) })
       }
-      items.push({ label: 'New feature…', run: () => showFeatureSetup(node) })
+      items.push({ label: UITexts.Sidebar.menu.newFeature, run: () => showFeatureSetup(node) })
     }
-    items.push({ label: 'Rename', run: () => tree.beginRename(node.id) })
-    items.push({ label: 'Set group…', run: () => void promptGroup(node) })
-    items.push({ label: 'Folder settings…', run: () => showFolderSettings(node) })
+    items.push({ label: UITexts.Sidebar.menu.rename, run: () => tree.beginRename(node.id) })
+    items.push({ label: UITexts.Sidebar.menu.setGroup, run: () => void promptGroup(node) })
+    items.push({ label: UITexts.Sidebar.menu.folderSettings, run: () => showFolderSettings(node) })
     items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
-    items.push({ label: 'Delete folder', run: () => deleteFolder(node.id), danger: true })
+    items.push({ label: UITexts.Sidebar.menu.deleteFolder, run: () => deleteFolder(node.id), danger: true })
   }
   items.push({
-    label: showArchivedView ? 'Show active items' : 'Show archived items',
+    label: showArchivedView ? UITexts.Sidebar.showActiveItems : UITexts.Sidebar.showArchivedItems,
     run: () => toggleArchivedView()
   })
   return items
@@ -1174,7 +1175,7 @@ function buildSections(): TreeSection<SidebarNode>[] {
   const sections: TreeSection<SidebarNode>[] = []
 
   const pinned = collectPinnedRoots(state.tree).filter(passesArchiveFilter)
-  if (pinned.length) sections.push({ header: sectionLabel('Pinned'), nodes: pinned })
+  if (pinned.length) sections.push({ header: sectionLabel(UITexts.Sidebar.sections.pinned), nodes: pinned })
 
   const main = stripPinned(state.tree).filter(passesArchiveFilter)
 
@@ -1202,7 +1203,7 @@ function buildSections(): TreeSection<SidebarNode>[] {
   const freeTabs = main.filter((n) => n.kind === 'tab')
   const containers = main.filter((n) => n.kind !== 'tab')
   if (freeTabs.length) {
-    sections.push({ header: sectionLabel('Free'), nodes: freeTabs })
+    sections.push({ header: sectionLabel(UITexts.Sidebar.sections.free), nodes: freeTabs })
   }
 
   const groupOf = (n: SidebarNode): string => (isContainer(n) ? n.group || '' : '')
@@ -1312,8 +1313,8 @@ function showFolderSettings(node: FolderNode | ProjectNode): void {
     ) as HTMLDivElement
   )
 
-  const cancel = (<button>Cancel</button>) as HTMLButtonElement
-  const save = (<button class="button-primary">Save</button>) as HTMLButtonElement
+  const cancel = (<button>{UITexts.Sidebar.cancel}</button>) as HTMLButtonElement
+  const save = (<button class="button-primary">{UITexts.Sidebar.save}</button>) as HTMLButtonElement
   modal.appendChild(
     (
       <div class="modal-actions">

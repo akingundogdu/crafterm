@@ -1,4 +1,4 @@
-import type { DailyPlanStatus } from '../../types'
+import type { DailyPlanStatus } from '@ui/types/types'
 
 // Pure date + column helpers for the daily plan board. No state/DOM — the YYYY-MM-DD
 // keys compare lexicographically, so string range checks elsewhere are correct.

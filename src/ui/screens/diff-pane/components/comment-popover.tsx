@@ -1,3 +1,4 @@
+import { UITexts } from '@texts'
 // Inline PR review-comment popover for the diff pane. Anchored under the comment
 // button, it posts a comment on the currently selected line range. The range
 // source, the submit action, and the success hook are injected so the popover
@@ -42,14 +43,14 @@ export function createCommentPopover(opts: {
     const ta = (
       <textarea
         class="diff-comment-input"
-        placeholder="Write a review comment…  (⌘↵ to send, Esc to cancel)"
+        placeholder={UITexts.DiffPane.commentPlaceholder}
         ref={(el: HTMLTextAreaElement) => {
           el.spellcheck = false
         }}
       />
     ) as HTMLTextAreaElement
     const err = (<span class="diff-comment-err" />) as HTMLSpanElement
-    const sendBtn = (<button class="diff-comment-send">Comment</button>) as HTMLButtonElement
+    const sendBtn = (<button class="diff-comment-send">{UITexts.DiffPane.comment}</button>) as HTMLButtonElement
     pop = (
       <div class="diff-comment-pop">
         <div class="diff-comment-label">{`Comment on ${range.path} · ${loc}`}</div>
@@ -68,7 +69,7 @@ export function createCommentPopover(opts: {
         return
       }
       sendBtn.disabled = true
-      sendBtn.textContent = 'Sending…'
+      sendBtn.textContent = UITexts.DiffPane.sending
       err.textContent = ''
       const r = await opts.submit(range, text)
       if (r.ok) {
@@ -76,8 +77,8 @@ export function createCommentPopover(opts: {
         opts.onSuccess(range)
       } else {
         sendBtn.disabled = false
-        sendBtn.textContent = 'Comment'
-        err.textContent = r.error || 'Failed to post comment.'
+        sendBtn.textContent = UITexts.DiffPane.comment
+        err.textContent = r.error || UITexts.DiffPane.failedToPost
       }
     }
     sendBtn.addEventListener('click', (e) => {

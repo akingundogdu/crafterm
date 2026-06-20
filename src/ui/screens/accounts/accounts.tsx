@@ -1,7 +1,8 @@
 import './accounts.css'
-import type { AccountEntry, AccountField } from '../../types'
-import { accountRepo } from '@services/storage/repositories'
-import { promptConfirm } from '../../dialog'
+import { UITexts } from '@texts'
+import type { AccountEntry, AccountField } from '@ui/types/types'
+import { accountRepo } from '@repositories'
+import { promptConfirm } from '@ui/dialog/dialog'
 import { secretsService } from '@services'
 import { showAccountForm } from './components/account-form'
 
@@ -40,7 +41,7 @@ function filterEntries(): AccountEntry[] {
 async function copyToClipboard(text: string, btn: HTMLButtonElement): Promise<void> {
   await navigator.clipboard.writeText(text)
   const prev = btn.textContent
-  btn.textContent = 'Copied'
+  btn.textContent = UITexts.Accounts.copied
   setTimeout(() => (btn.textContent = prev), 1100)
 }
 
@@ -77,9 +78,9 @@ function accountCard(a: AccountEntry): HTMLElement {
   const del = (<button class="accounts-act button-danger">Delete</button>) as HTMLButtonElement
   del.addEventListener('click', async () => {
     const ok = await promptConfirm({
-      title: 'Delete entry',
+      title: UITexts.Accounts.deleteTitle,
       message: a.label,
-      confirmText: 'Delete'
+      confirmText: UITexts.Accounts.deleteConfirm
     })
     if (!ok) return
     accountRepo.remove(a.id)
@@ -135,7 +136,7 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
     if (f.secret) {
       const stored = await secretsService.get(a.id, f.key)
       if (stored == null) {
-        copy.textContent = 'Unavailable'
+        copy.textContent = UITexts.Accounts.unavailable
         setTimeout(() => (copy.textContent = 'Copy'), 1100)
         return
       }
@@ -150,13 +151,13 @@ function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
       if (val.classList.contains('shown')) {
         val.textContent = '••••••••'
         val.classList.remove('shown')
-        reveal.textContent = 'Show'
+        reveal.textContent = UITexts.Accounts.show
         return
       }
       const stored = await secretsService.get(a.id, f.key)
-      val.textContent = stored ?? '(not stored yet)'
+      val.textContent = stored ?? UITexts.Accounts.notStored
       val.classList.add('shown')
-      reveal.textContent = 'Hide'
+      reveal.textContent = UITexts.Accounts.hide
     })
     row.append(reveal)
   }
@@ -174,7 +175,7 @@ export function renderAccounts(): void {
   ;(['all', 'account', 'secret'] as const).forEach((k) => {
     const b = (
       <button class={'bookmarks-filter' + (k === kindFilter ? ' active' : '')}>
-        {k === 'all' ? 'All' : k === 'account' ? 'Accounts' : 'Secrets'}
+        {k === 'all' ? UITexts.Accounts.filter.all : k === 'account' ? UITexts.Accounts.filter.accounts : UITexts.Accounts.filter.secrets}
       </button>
     ) as HTMLButtonElement
     b.addEventListener('click', () => {
@@ -191,8 +192,8 @@ export function renderAccounts(): void {
       'beforeend',
       `<div class="empty-hint">${
         accountRepo.getAll().length === 0
-          ? 'No accounts yet. Use the + buttons below to add an account or secret.'
-          : 'No matches'
+          ? UITexts.Accounts.emptyNone
+          : UITexts.Accounts.emptyNoMatches
       }</div>`
     )
     return

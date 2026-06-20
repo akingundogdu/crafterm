@@ -1,3 +1,4 @@
+import { UITexts } from '@texts'
 // Shared line-selection engine for the read-only file/diff viewer panes. Owns the
 // `.diff-body` element, the rendered rows, contiguous range selection
 // (click / click-drag / shift-click), font scaling, and the floating action
@@ -48,7 +49,7 @@ export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
 
   // Floating action cluster anchored to the first selected row (left side).
   const plus = (
-    <button class="diff-act diff-act-term" title="Send this reference to the terminal">
+    <button class="diff-act diff-act-term" title={UITexts.Diff.sendReferenceToTerminal}>
       +
     </button>
   ) as HTMLButtonElement

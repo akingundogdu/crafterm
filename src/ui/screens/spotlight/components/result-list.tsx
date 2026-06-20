@@ -3,6 +3,7 @@
 // the component pulls no business/IPC modules and renders in isolation.
 
 import type { GsEntry } from '../../pickers/global-search/global-search'
+import { UITexts } from '@texts'
 
 export type SpotSource =
   | GsEntry['source']
@@ -51,7 +52,7 @@ export function createResultList(opts: {
     if (sel >= items.length) sel = Math.max(0, items.length - 1)
     el.replaceChildren()
     if (!items.length) {
-      el.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
+      el.insertAdjacentHTML('beforeend', `<div class="empty-hint">${UITexts.Spotlight.noMatches}</div>`)
       return
     }
     items.forEach((e, i) => {
@@ -84,7 +85,7 @@ export function createResultList(opts: {
     setLoading: () => {
       items = []
       el.replaceChildren()
-      el.insertAdjacentHTML('beforeend', '<div class="empty-hint">Loading…</div>')
+      el.insertAdjacentHTML('beforeend', `<div class="empty-hint">${UITexts.Spotlight.loading}</div>`)
     },
     move: (delta) => {
       sel = Math.min(items.length - 1, Math.max(0, sel + delta))

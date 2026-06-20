@@ -1,3 +1,4 @@
+import { UITexts } from '@texts'
 // A themed, dependency-free replacement for native <input type="date"> and
 // <input type="datetime-local">. The native calendar popup can't be styled to
 // match the app, so this renders the field as a trigger button and a custom
@@ -239,14 +240,14 @@ export function createDateField(opts: {
       })
       const timeRow = (
         <div class="datepicker-pop-time">
-          <span>Time</span>
+          <span>{UITexts.Components.time}</span>
           {timeInput}
         </div>
       ) as HTMLDivElement
       pop.appendChild(timeRow)
     }
 
-    const clearBtn = (<button class="datepicker-pop-foot-btn">Clear</button>) as HTMLButtonElement
+    const clearBtn = (<button class="datepicker-pop-foot-btn">{UITexts.Components.clear}</button>) as HTMLButtonElement
     clearBtn.addEventListener('click', () => {
       selected = null
       syncText()

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadScript } from '@core/services/scripts'
+import { loadScript } from '@core/services/scripts/scripts.service'
 
 // Templates ship under src/resources/runtime/templates; in tests cwd is the repo root.
 const TEMPLATES = join(process.cwd(), 'src', 'resources', 'runtime', 'templates')

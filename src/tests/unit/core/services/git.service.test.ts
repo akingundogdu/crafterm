@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock the exec layer so the parse logic is tested against canned git output,
 // with no real git/lsof process. `run` is dispatched per-test by inspecting args.
 const runMock = vi.fn<(cmd: string, args: string[]) => Promise<string | null>>()
-vi.mock('@core/services/exec', () => ({
+vi.mock('@core/services/exec/exec.service', () => ({
   run: (cmd: string, args: string[]) => runMock(cmd, args),
   gitBin: () => 'git'
 }))
 
-import * as git from '@core/services/git.service'
+import * as git from '@core/services/git/git.service'
 
 beforeEach(() => {
   runMock.mockReset()

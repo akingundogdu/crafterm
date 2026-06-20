@@ -6,21 +6,21 @@
 // Only nodes carrying the auto markers (`worktreeContainer` / `worktreePath`) are
 // ever created or removed here; the user's own folders/tabs are never touched.
 
-import type { ProjectNode, FolderNode, SidebarNode, WorktreeNode } from '@ui/types'
+import type { ProjectNode, FolderNode, SidebarNode, WorktreeNode } from '@ui/types/types'
 import {
   state,
   settings,
   requestSidebar,
   uid,
   pushNotification
-} from '@ui/state'
-import { persistence } from './storage/persistence.service'
-import { makeFolder, allTabs, projectOf } from '@ui/tree'
-import { flattenProjects } from '@ui/catalog'
-import { archiveTab } from '@ui/commands'
+} from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { makeFolder, allTabs, projectOf } from '@ui/tree/tree'
+import { flattenProjects } from '@ui/catalog/catalog'
+import { archiveTab } from '@ui/commands/commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
-import { promptForm, promptConfirm } from '@ui/dialog'
-import { gitService, appService } from '@services'
+import { promptForm, promptConfirm } from '@ui/dialog/dialog'
+import { gitService, appService , soundService } from '@services'
 import { norm, baseName, shq } from './domain/worktree-path'
 
 const RECONCILE_INTERVAL_MS = 20_000
@@ -358,7 +358,7 @@ export async function removeWorktree(
   )
   // Distinct error sound so a failed removal is audibly different from the
   // regular notification chime.
-  if (settings.notifSound) appService.playSound('Basso')
+  if (settings.notifSound) soundService.play('Basso')
   return false
 }
 

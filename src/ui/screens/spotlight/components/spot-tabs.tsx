@@ -2,25 +2,27 @@
 // tab and per-tab shortcut label are injected, so the component carries no
 // keybinding/state imports and renders in isolation under happy-dom.
 
+import { UITexts } from '@texts'
+
 export interface SpotTab {
   id: string
   label: string
 }
 
 export const TABS: SpotTab[] = [
-  { id: 'all', label: 'All' },
-  { id: 'files', label: 'Files' },
-  { id: 'commands', label: 'Commands' },
-  { id: 'claude', label: 'Claude' },
-  { id: 'terminals', label: 'Terminals' },
-  { id: 'shortcuts', label: 'Shortcuts' },
-  { id: 'plans', label: 'Plans' },
-  { id: 'bookmarks', label: 'Bookmarks' },
-  { id: 'apps', label: 'Apps' },
-  { id: 'tasks', label: 'Tasks' },
-  { id: 'projects', label: 'Projects' },
-  { id: 'notebooks', label: 'Notebooks' },
-  { id: 'accounts', label: 'Accounts' }
+  { id: 'all', label: UITexts.Spotlight.tabs.all },
+  { id: 'files', label: UITexts.Spotlight.tabs.files },
+  { id: 'commands', label: UITexts.Spotlight.tabs.commands },
+  { id: 'claude', label: UITexts.Spotlight.tabs.claude },
+  { id: 'terminals', label: UITexts.Spotlight.tabs.terminals },
+  { id: 'shortcuts', label: UITexts.Spotlight.tabs.shortcuts },
+  { id: 'plans', label: UITexts.Spotlight.tabs.plans },
+  { id: 'bookmarks', label: UITexts.Spotlight.tabs.bookmarks },
+  { id: 'apps', label: UITexts.Spotlight.tabs.apps },
+  { id: 'tasks', label: UITexts.Spotlight.tabs.tasks },
+  { id: 'projects', label: UITexts.Spotlight.tabs.projects },
+  { id: 'notebooks', label: UITexts.Spotlight.tabs.notebooks },
+  { id: 'accounts', label: UITexts.Spotlight.tabs.accounts }
 ]
 
 // tab id -> editable keybinding action id (drives the per-tab shortcut + label).

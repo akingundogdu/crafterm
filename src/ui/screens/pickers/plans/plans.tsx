@@ -1,6 +1,7 @@
-import { openMarkdownFile } from '../../../commands'
+import { openMarkdownFile } from '@ui/commands/commands'
 import { plansService } from '@services'
 import { overlayModal } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- Plans: list ~/.claude/plans and open one in the Markdown app ----
 
@@ -8,7 +9,7 @@ export async function showPlansModal(): Promise<void> {
   const plans = await plansService.list()
   const { modal, close } = overlayModal('list-modal')
 
-  modal.appendChild(<h2>Plans</h2>)
+  modal.appendChild(<h2>{UITexts.Pickers.plans.heading}</h2>)
 
   if (!plans.length) {
     modal.appendChild(<div class="empty-hint">No plans in ~/.claude/plans</div>)
@@ -19,7 +20,7 @@ export async function showPlansModal(): Promise<void> {
     <input
       class="search-box-input"
       type="text"
-      placeholder="Filter plans…  (↑↓ move · ⏎ open)"
+      placeholder={UITexts.Pickers.plans.placeholder}
       ref={(el: HTMLInputElement) => {
         el.spellcheck = false
       }}

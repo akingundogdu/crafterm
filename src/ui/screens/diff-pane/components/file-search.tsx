@@ -1,3 +1,4 @@
+import { UITexts } from '@texts'
 // Searchable file-list dropdown for the diff pane. Filters the diff's files by a
 // substring of their path and jumps to the picked file. Pure — the file list,
 // the active index, and the pick handler are injected, so it renders and filters
@@ -21,7 +22,7 @@ export function createFileSearch(opts: {
   const input = (
     <input
       class="diff-search-input"
-      placeholder="Filter files…"
+      placeholder={UITexts.DiffPane.filterFiles}
       ref={(el: HTMLInputElement) => {
         // Set the property (not just the attribute) so it reflects on `.spellcheck`.
         el.spellcheck = false
@@ -61,7 +62,7 @@ export function createFileSearch(opts: {
       list.appendChild(item)
     }
     if (!matches.length) {
-      const empty = (<div class="diff-search-empty">No matching files</div>) as HTMLDivElement
+      const empty = (<div class="diff-search-empty">{UITexts.DiffPane.noMatchingFiles}</div>) as HTMLDivElement
       list.appendChild(empty)
     }
   }

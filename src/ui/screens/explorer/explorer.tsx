@@ -1,11 +1,11 @@
 import './explorer.css'
-import { settings, state, panes } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { openMarkdownFile, openCodeEditor } from '../../commands'
+import { settings, state, panes } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { openMarkdownFile, openCodeEditor } from '@ui/commands/commands'
 import { createTreeView, type TreeAdapter, type TreeView, type TreeMenuItem } from '@ui/components'
-import { promptText, promptConfirm } from '../../dialog'
-import type { SidebarNode } from '../../types'
-import { gitService, fsService } from '@services'
+import { promptText, promptConfirm } from '@ui/dialog/dialog'
+import type { SidebarNode } from '@ui/types/types'
+import { gitService, fsService , shellService } from '@services'
 import { FOLDER_SVG, iconFor, iconCategory } from './file-icons'
 
 function treeEl(): HTMLElement {
@@ -196,7 +196,7 @@ function buildMenu(e: Entry): TreeMenuItem[] {
   } else {
     items.push({ label: 'Open in new page', run: () => openCodeEditor(e.path, { newPage: true }) })
   }
-  items.push({ label: 'Open in Finder', run: () => fsService.revealPath(e.path) })
+  items.push({ label: 'Open in Finder', run: () => shellService.revealPath(e.path) })
   items.push({ label: 'Rename…', run: () => void renameEntry(e) })
   items.push({
     label: `Exclude “${e.name}”`,

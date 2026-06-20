@@ -1,8 +1,9 @@
 import { createOverlay, createSelect, createButton } from '@ui/components'
-import { makeCloseButton } from '../../../dialog'
-import { state, panes } from '../../../state'
-import { flattenProjects, findProjectByPath } from '../../../catalog'
-import { updatePaneStatus } from '../../../pane'
+import { makeCloseButton } from '@ui/dialog/dialog'
+import { state, panes } from '@ui/state/state'
+import { flattenProjects, findProjectByPath } from '@ui/catalog/catalog'
+import { updatePaneStatus } from '@ui/pane/pane'
+import { UITexts } from '@texts'
 
 // Bind a terminal to a project/feature for automatic time tracking.
 export function openTrackModal(paneId: string): void {
@@ -26,7 +27,7 @@ export function openTrackModal(paneId: string): void {
     const owner = proj.value ? findProjectByPath(state.tree, proj.value) : null
     const s = createSelect({
       options: (owner?.features ?? []).map((f) => ({ value: f.id, label: f.name })),
-      emptyLabel: '(no feature)',
+      emptyLabel: UITexts.Time.noFeature,
       value: pane.trackFeatureId ?? ''
     })
     s.className = 'settings-select'
@@ -44,7 +45,7 @@ export function openTrackModal(paneId: string): void {
   if (pane.trackProjectPath) {
     actions.appendChild(
       createButton({
-        text: 'Stop tracking',
+        text: UITexts.Time.trackModal.stopTracking,
         onClick: () => {
           pane.trackProjectPath = null
           pane.trackFeatureId = null
@@ -56,7 +57,7 @@ export function openTrackModal(paneId: string): void {
   }
   actions.appendChild(
     createButton({
-      text: 'Track',
+      text: UITexts.Time.trackModal.track,
       variant: 'primary',
       onClick: () => {
         if (!proj.value) return
@@ -71,10 +72,10 @@ export function openTrackModal(paneId: string): void {
   const modal = (
     <div class="modal track-modal">
       {makeCloseButton(ov.close)}
-      <h2>Track time for this terminal</h2>
-      <div class="reminder-label">Project</div>
+      <h2>{UITexts.Time.trackModal.title}</h2>
+      <div class="reminder-label">{UITexts.Time.trackModal.project}</div>
       {proj}
-      <div class="reminder-label">Feature</div>
+      <div class="reminder-label">{UITexts.Time.trackModal.feature}</div>
       {feat}
       {actions}
     </div>

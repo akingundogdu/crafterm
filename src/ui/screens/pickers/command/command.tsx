@@ -1,10 +1,11 @@
-import { commandHistory, panes, state } from '../../../state'
-import { selectPane } from '../../../commands'
-import { allTabs, panesInLayout, ancestorFolders } from '../../../tree'
-import { paneStatus } from '../../../pane'
-import { terminalService, appService } from '@services'
-import { paletteCommandRepo } from '@services/storage/repositories'
+import { commandHistory, panes, state } from '@ui/state/state'
+import { selectPane } from '@ui/commands/commands'
+import { allTabs, panesInLayout, ancestorFolders } from '@ui/tree/tree'
+import { paneStatus } from '@ui/pane/pane'
+import { terminalService, appService , zshService } from '@services'
+import { paletteCommandRepo } from '@repositories'
 import { overlayModal } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- Command palette: zsh + user categories (predefined / cheatsheets) ----
 
@@ -12,19 +13,19 @@ import { overlayModal } from '../shared'
 // for the session — the first open pays the cost, the rest are instant.
 let zshCmdCache: { name: string; value: string }[] | null = null
 export async function loadZshCommands(): Promise<{ name: string; value: string }[]> {
-  if (!zshCmdCache) zshCmdCache = await appService.zshCommands()
+  if (!zshCmdCache) zshCmdCache = await zshService.commands()
   return zshCmdCache
 }
 
 export async function showCommandPalette(): Promise<void> {
   const { modal, close } = overlayModal('picker-modal picker-modal-wide')
 
-  const h = (<h2>Commands</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.command.heading}</h2>) as HTMLHeadingElement
   const input = (
     <input
       class="search-box-input"
       type="text"
-      placeholder="Search commands…  (⏎ insert into active terminal)"
+      placeholder={UITexts.Pickers.command.placeholder}
     />
   ) as HTMLInputElement
   input.spellcheck = false
@@ -149,9 +150,9 @@ export async function showCommandPalette(): Promise<void> {
 export function showTerminalSwitcher(): void {
   const { modal, close } = overlayModal('picker-modal picker-modal-wide')
 
-  const h = (<h2>Open terminals</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.command.terminalsHeading}</h2>) as HTMLHeadingElement
   const input = (
-    <input class="search-box-input" type="text" placeholder="Search terminals…  (↑↓ move · ⏎ focus)" />
+    <input class="search-box-input" type="text" placeholder={UITexts.Pickers.command.terminalsPlaceholder} />
   ) as HTMLInputElement
   input.spellcheck = false
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
@@ -209,7 +210,7 @@ export function showTerminalSwitcher(): void {
     if (!items.length) {
       list.insertAdjacentHTML(
         'beforeend',
-        `<div class="empty-hint">${all.length ? 'No matches' : 'No open terminals'}</div>`
+        `<div class="empty-hint">${all.length ? UITexts.Pickers.common.noMatches : UITexts.Pickers.command.noTerminals}</div>`
       )
       return
     }
@@ -269,9 +270,9 @@ export function showTerminalSwitcher(): void {
 export function showCommandHistory(): void {
   const { modal, close } = overlayModal('picker-modal')
 
-  const h = (<h2>Command history</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.command.historyHeading}</h2>) as HTMLHeadingElement
   const input = (
-    <input class="search-box-input" type="text" placeholder="Filter commands…" />
+    <input class="search-box-input" type="text" placeholder={UITexts.Pickers.command.filterPlaceholder} />
   ) as HTMLInputElement
   input.spellcheck = false
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
@@ -292,7 +293,7 @@ export function showCommandHistory(): void {
     list.replaceChildren()
     if (!items.length) {
       const hint = (
-        <div class="empty-hint">{commandHistory.length ? 'No matches' : 'No commands yet'}</div>
+        <div class="empty-hint">{commandHistory.length ? UITexts.Pickers.common.noMatches : UITexts.Pickers.command.noCommands}</div>
       ) as HTMLDivElement
       list.appendChild(hint)
       return

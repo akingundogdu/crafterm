@@ -1,6 +1,6 @@
 import './content.css'
-import '../../popout.css'
-import type { LayoutNode } from '../../types'
+import '@ui/popout/popout.css'
+import type { LayoutNode } from '@ui/types/types'
 import {
   panes,
   browsers,
@@ -11,10 +11,10 @@ import {
   codePanes,
   state,
   poppedOut
-} from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { findTab } from '../../tree'
-import { mountPanes } from '../../pane'
+} from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { findTab } from '@ui/tree/tree'
+import { mountPanes } from '@ui/pane/pane'
 import { terminalService } from '@services'
 
 const contentEl = document.getElementById('content')!

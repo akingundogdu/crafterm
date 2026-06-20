@@ -10,7 +10,7 @@ vi.mock('electron', () => ({
   shell: { trashItem: vi.fn(async (p: string) => { trashed.push(p) }) }
 }))
 
-import * as fsService from '@core/services/fs.service'
+import * as fsService from '@core/services/fs/fs.service'
 
 let base: string
 

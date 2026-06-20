@@ -1,6 +1,7 @@
-import type { Pane } from '../types'
-import { state, paneActions } from '../state'
-import { findProjectByPath, findFeature } from '../catalog'
+import type { Pane } from '@ui/types/types'
+import { state, paneActions } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { findProjectByPath, findFeature } from '@ui/catalog/catalog'
 
 // Keep only the last `n` path segments, prefixed with an ellipsis when trimmed.
 function lastPathSegments(p: string, n: number): string {
@@ -54,7 +55,7 @@ export function updatePaneStatus(pane: Pane): void {
   })
   if (fullCwd) {
     const copyBtn = (
-      <button class="pane-status-copy" title="Copy full path" aria-label="Copy full path" innerHTML={COPY_ICON} />
+      <button class="pane-status-copy" title={UITexts.Terminal.copyFullPath} aria-label={UITexts.Terminal.copyFullPath} innerHTML={COPY_ICON} />
     ) as HTMLButtonElement
     copyBtn.addEventListener('click', (e) => {
       e.stopPropagation()

@@ -23,7 +23,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: () => [fakeWindow] }
 }))
 
-import * as plansWatcher from '@core/services/plans.watcher'
+import * as plansWatcher from '@core/services/plans.watcher/plans.watcher.service'
 
 beforeEach(() => {
   vi.useFakeTimers()

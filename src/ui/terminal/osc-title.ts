@@ -1,7 +1,7 @@
-import type { Pane, LayoutNode } from '../types'
-import { panes, state, requestSidebar } from '../state'
-import { persistence } from '@services/storage/persistence.service'
-import { findTabByPane } from '../tree'
+import type { Pane, LayoutNode } from '@ui/types/types'
+import { panes, state, requestSidebar } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { findTabByPane } from '@ui/tree/tree'
 
 export function onPaneTitle(pane: Pane, raw: string): void {
   const clean = raw.trim()

@@ -1,16 +1,17 @@
 import { createModal, createField, createInput, createTextarea, createSelect } from '@ui/components'
-import type { Bookmark } from '../../../types'
-import { uid } from '../../../state'
-import { bookmarkRepo } from '@services/storage/repositories'
-import { makeCloseButton } from '../../../dialog'
+import { UITexts } from '@texts'
+import type { Bookmark } from '@ui/types/types'
+import { uid } from '@ui/state/state'
+import { bookmarkRepo } from '@repositories'
+import { makeCloseButton } from '@ui/dialog/dialog'
 import { TYPE_LABEL } from '../bookmark-meta'
 
 // Add / edit modal for a bookmark. `onSaved` re-renders the list after upsert.
 export function showBookmarkForm(existing: Bookmark | undefined, onSaved: () => void): void {
   const m = createModal({
-    title: existing ? 'Edit bookmark' : 'New bookmark',
+    title: existing ? UITexts.Bookmarks.form.editTitle : UITexts.Bookmarks.form.newTitle,
     className: 'bookmarks-form',
-    confirmText: 'Save'
+    confirmText: UITexts.Bookmarks.form.save
   })
 
   let done = false
@@ -35,28 +36,28 @@ export function showBookmarkForm(existing: Bookmark | undefined, onSaved: () => 
     })),
     value: existing?.type ?? 'link'
   })
-  const titleInput = createInput({ value: existing?.title ?? '', placeholder: 'A short name' })
+  const titleInput = createInput({ value: existing?.title ?? '', placeholder: UITexts.Bookmarks.form.titlePlaceholder })
   const contentInput = createTextarea({ value: existing?.content ?? '', rows: 4 })
   const tagsInput = createInput({
     value: (existing?.tags ?? []).join(', '),
-    placeholder: 'reading, infra'
+    placeholder: UITexts.Bookmarks.form.tagsPlaceholder
   })
 
   const contentField = createField('', contentInput)
   const contentLabel = contentField.querySelector('label')!
   const syncContentLabel = (): void => {
     const isLink = typeSel.value === 'link'
-    contentLabel.textContent = isLink ? 'URL' : 'Content'
-    contentInput.placeholder = isLink ? 'https://…' : 'Paste your text, code, or snippet'
+    contentLabel.textContent = isLink ? UITexts.Bookmarks.form.contentLabelUrl : UITexts.Bookmarks.form.contentLabel
+    contentInput.placeholder = isLink ? UITexts.Bookmarks.form.urlPlaceholder : UITexts.Bookmarks.form.contentPlaceholder
   }
   syncContentLabel()
   typeSel.addEventListener('change', syncContentLabel)
 
   m.append(
-    createField('Type', typeSel),
-    createField('Title', titleInput),
+    createField(UITexts.Bookmarks.form.fieldType, typeSel),
+    createField(UITexts.Bookmarks.form.fieldTitle, titleInput),
     contentField,
-    createField('Tags (comma separated)', tagsInput)
+    createField(UITexts.Bookmarks.form.fieldTags, tagsInput)
   )
 
   m.confirmBtn.addEventListener('click', () => {

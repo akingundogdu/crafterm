@@ -1,12 +1,13 @@
-import { settings, uid } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { promptForm } from '../../../dialog'
-import { BUILTIN_ACTIONS } from '../../../types'
-import type { ActionMenuItem } from '../../../types'
-import { actionMenuRepo } from '@services/storage/repositories'
+import { settings, uid } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
+import { promptForm } from '@ui/dialog/dialog'
+import { BUILTIN_ACTIONS } from '@ui/types/types'
+import type { ActionMenuItem } from '@ui/types/types'
+import { actionMenuRepo } from '@repositories'
 
 export function buildActionMenuPanel(panel: HTMLElement): void {
-  panel.insertAdjacentHTML('beforeend', '<h3>Action menu</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.actionMenu.heading}</h3>`)
   panel.insertAdjacentHTML(
     'beforeend',
     '<div class="field-hint">Rows shown in the sidebar ⋯ menu. Builtin rows trigger an in-app action; command rows run a shell command (split beside the active pane, or a new tab). Reorder, hide, edit, or add your own.</div>'
@@ -78,12 +79,12 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
             render()
           }}
         >
-          {item.hidden ? 'Show' : 'Hide'}
+          {item.hidden ? UITexts.Settings.actionMenu.show : UITexts.Settings.actionMenu.hide}
         </button>
       ) as HTMLButtonElement
       const edit = (
         <button class="wt-act" onClick={() => void editActionItem(item).then(render)}>
-          Edit
+          {UITexts.Settings.actionMenu.edit}
         </button>
       ) as HTMLButtonElement
       const del = (
@@ -94,7 +95,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
             render()
           }}
         >
-          Delete
+          {UITexts.Settings.actionMenu.delete}
         </button>
       ) as HTMLButtonElement
 
@@ -124,7 +125,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
         })
       }}
     >
-      + Add command
+      {UITexts.Settings.actionMenu.addCommand}
     </button>
   ) as HTMLButtonElement
   const reset = (
@@ -141,7 +142,7 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
         render()
       }}
     >
-      Reset to defaults
+      {UITexts.Settings.actionMenu.resetToDefaults}
     </button>
   ) as HTMLButtonElement
   const actions = (
@@ -161,15 +162,15 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
 async function editActionItem(existing?: ActionMenuItem): Promise<ActionMenuItem | null> {
   const isBuiltin = existing?.kind === 'builtin'
   const values = await promptForm({
-    title: existing ? 'Edit action' : 'New command action',
+    title: existing ? UITexts.Settings.actionMenu.editAction : UITexts.Settings.actionMenu.newAction,
     fields: isBuiltin
-      ? [{ key: 'title', label: 'Title', value: existing?.title, placeholder: 'menu label' }]
+      ? [{ key: 'title', label: UITexts.Settings.actionMenu.title, value: existing?.title, placeholder: 'menu label' }]
       : [
-          { key: 'title', label: 'Title', value: existing?.title, placeholder: 'Deploy' },
-          { key: 'command', label: 'Command', value: existing?.command, placeholder: 'npm run deploy' },
-          { key: 'opensAs', label: 'Opens as (split/tab)', value: existing?.opensAs ?? 'tab', placeholder: 'tab' }
+          { key: 'title', label: UITexts.Settings.actionMenu.title, value: existing?.title, placeholder: UITexts.Settings.actionMenu.titlePlaceholder },
+          { key: 'command', label: UITexts.Settings.actionMenu.command, value: existing?.command, placeholder: 'npm run deploy' },
+          { key: 'opensAs', label: UITexts.Settings.actionMenu.opensAs, value: existing?.opensAs ?? 'tab', placeholder: 'tab' }
         ],
-    confirmText: existing ? 'Save' : 'Add'
+    confirmText: existing ? UITexts.Settings.actionMenu.save : UITexts.Settings.actionMenu.add
   })
   if (!values) return null
   const title = (values.title || '').trim()

@@ -1,6 +1,6 @@
-import { filePanes, paneActions, uid } from '../../state'
-import { setupPaneDnd } from '../../pane'
-import { fsService } from '@services'
+import { filePanes, paneActions, uid } from '@ui/state/state'
+import { setupPaneDnd } from '@ui/pane/pane'
+import { fsService , shellService } from '@services'
 import { createButton } from '@ui/components'
 import { createLineSelect, type LineRow } from '../diff/line-select'
 import { sendRef, targetCwd } from '../diff/pane-ref'
@@ -52,7 +52,7 @@ export function createFilePane(opts: { path: string; targetPaneId: string | null
     title: 'Show in Finder',
     onClick: (e) => {
       e.stopPropagation()
-      fsService.revealPath(opts.path)
+      shellService.revealPath(opts.path)
     }
   })
   const reload = createButton({

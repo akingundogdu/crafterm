@@ -1,13 +1,9 @@
 // Filesystem domain data models (moved out of the former bridge api.d.ts).
-// Covers the dir:/md:/fs:/ide:/shell:/markdown: channels.
+// Covers the fs:* channels. DirEntry is shared (dir:list/plans:list/folder
+// picker); MarkdownFiles is shared (fs:findFiles + markdown:findAll).
 export interface DirEntry {
   name: string
   path: string
-}
-export interface DirListing {
-  path: string
-  parent: string | null
-  dirs: DirEntry[]
 }
 
 export interface FsEntry {

@@ -6,7 +6,7 @@ import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import { PALETTES, DEFAULT_EDITOR_THEME, type EditorThemePalette } from './editor-themes'
 import themelist from '../../../node_modules/monaco-themes/themes/themelist.json'
-import { appService } from '@services'
+import { appService , monacoService } from '@services'
 
 // Shared Monaco bootstrap for the code editor + SQL editor: wires language-
 // service workers (via Vite's `?worker` imports) and registers themes built from
@@ -122,7 +122,7 @@ export async function applyTheme(name: string): Promise<void> {
   }
   const id = externalId(name)
   if (!loadedExternal.has(name)) {
-    const data = await appService.monacoTheme(name)
+    const data = await monacoService.theme(name)
     if (!data) return // unknown theme / read failed — leave the current one active
     monaco.editor.defineTheme(id, data as unknown as monaco.editor.IStandaloneThemeData)
     loadedExternal.add(name)

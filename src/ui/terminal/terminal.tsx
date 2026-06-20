@@ -1,6 +1,7 @@
 import { Terminal, type ILink } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import type { Pane } from '../types'
+import { UITexts } from '@texts'
+import type { Pane } from '@ui/types/types'
 import {
   panes,
   opened,
@@ -9,13 +10,13 @@ import {
   requestSidebar,
   paneActions,
   state
-} from '../state'
-import { persistence, recordCommand } from '@services/storage/persistence.service'
+} from '@ui/state/state'
+import { persistence, recordCommand } from '@repositories/persistence.service'
 import { terminalService } from '@services'
 import { onPaneTitle } from './osc-title'
 import { commandRunsClaude, onBell } from './activity-detection'
 import { refreshPaneInfo } from './pane-info'
-import { setupPaneDnd, showPaneMenu } from '../pane'
+import { setupPaneDnd, showPaneMenu } from '@ui/pane/pane'
 
 // Push the pane's current geometry to the PTY, but only when it actually changed.
 // A tab switch detaches/reattaches the pane element, which re-fires the
@@ -61,7 +62,7 @@ export async function createPane(
     <button
       class="pane-daily-chip"
       style="display: none"
-      title="Daily ticket — click for details"
+      title={UITexts.Terminal.dailyTicket}
       onClick={(e: MouseEvent) => {
         e.stopPropagation()
         paneActions.viewTicketDetail(id)
@@ -71,7 +72,7 @@ export async function createPane(
   const menuBtn = (
     <button
       class="pane-btn"
-      title="Pane options"
+      title={UITexts.Terminal.paneOptions}
       onClick={(e: MouseEvent) => {
         e.stopPropagation()
         showPaneMenu(menuBtn, id)

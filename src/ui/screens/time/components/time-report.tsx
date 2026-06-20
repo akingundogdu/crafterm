@@ -1,9 +1,10 @@
 import { createOverlay, createButton } from '@ui/components'
-import { makeCloseButton } from '../../../dialog'
-import { state } from '../../../state'
-import { findProjectByPath, findFeature } from '../../../catalog'
-import { timeEntryRepo } from '@services/storage/repositories'
+import { makeCloseButton } from '@ui/dialog/dialog'
+import { state } from '@ui/state/state'
+import { findProjectByPath, findFeature } from '@ui/catalog/catalog'
+import { timeEntryRepo } from '@repositories'
 import { fmtHM, rangeStart, reportByProject, type Range } from '@services/domain/time'
+import { UITexts } from '@texts'
 
 // Report modal: total per project (and per feature) over a date range.
 export function showReport(): void {
@@ -17,14 +18,14 @@ export function showReport(): void {
   // "Copy" button can hand the user a paste-ready summary for clients.
   let reportText = ''
   const rangeLabel = (): string =>
-    range === 'today' ? 'Today' : range === 'week' ? 'Last 7 days' : range === 'month' ? 'Last 30 days' : 'All time'
+    range === 'today' ? UITexts.Time.report.today : range === 'week' ? UITexts.Time.report.week : range === 'month' ? UITexts.Time.report.month : UITexts.Time.report.all
 
   const render = (): void => {
     chipsRow.replaceChildren()
     ;(['today', 'week', 'month', 'all'] as Range[]).forEach((r) => {
       chipsRow.appendChild(
         createButton({
-          text: r === 'today' ? 'Today' : r === 'week' ? '7 days' : r === 'month' ? '30 days' : 'All',
+          text: r === 'today' ? UITexts.Time.report.tabToday : r === 'week' ? UITexts.Time.report.tabWeek : r === 'month' ? UITexts.Time.report.tabMonth : UITexts.Time.report.tabAll,
           className: 'time-report-chip' + (r === range ? ' active' : ''),
           onClick: () => {
             range = r
@@ -38,7 +39,7 @@ export function showReport(): void {
 
     body.replaceChildren()
     if (!byProj.size) {
-      body.insertAdjacentHTML('beforeend', '<div class="notif-empty">No time logged in this range</div>')
+      body.insertAdjacentHTML('beforeend', `<div class="notif-empty"></div>`)
       reportText = `Time report — ${rangeLabel()}\nNo time logged in this range`
       return
     }
@@ -73,7 +74,7 @@ export function showReport(): void {
       (
         <div
           class="time-report-row time-report-total"
-          innerHTML={`<span class="time-report-name">Total</span><span class="time-report-dur">${fmtHM(grand)}</span>`}
+          innerHTML={`<span class="time-report-name">${UITexts.Time.report.total}</span><span class="time-report-dur">${fmtHM(grand)}</span>`}
         />
       ) as HTMLDivElement
     )
@@ -82,18 +83,18 @@ export function showReport(): void {
   }
   render()
 
-  const copyBtn = createButton({ text: 'Copy report', className: 'settings-inline-btn' })
+  const copyBtn = createButton({ text: UITexts.Time.report.copy, className: 'settings-inline-btn' })
   copyBtn.addEventListener('click', () => {
     void navigator.clipboard.writeText(reportText)
-    copyBtn.textContent = 'Copied'
-    setTimeout(() => (copyBtn.textContent = 'Copy report'), 1200)
+    copyBtn.textContent = UITexts.Time.report.copied
+    setTimeout(() => (copyBtn.textContent = UITexts.Time.report.copy), 1200)
   })
   const foot = (<div class="time-report-foot">{copyBtn}</div>) as HTMLDivElement
 
   const modal = (
     <div class="modal time-report-modal">
       {makeCloseButton(ov.close)}
-      <h2>Time report</h2>
+      <h2>{UITexts.Time.report.title}</h2>
       {chipsRow}
       {body}
       {foot}

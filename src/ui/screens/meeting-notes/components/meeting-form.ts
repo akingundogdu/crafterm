@@ -1,9 +1,10 @@
 import { createModal, createField, createInput, createTextarea, createSelect, createDateField } from '@ui/components'
-import type { MeetingNote } from '../../../types'
-import { state, uid } from '../../../state'
-import { meetingNoteRepo } from '@services/storage/repositories'
-import { makeCloseButton } from '../../../dialog'
-import { flattenProjects } from '../../../catalog'
+import { UITexts } from '@texts'
+import type { MeetingNote } from '@ui/types/types'
+import { state, uid } from '@ui/state/state'
+import { meetingNoteRepo } from '@repositories'
+import { makeCloseButton } from '@ui/dialog/dialog'
+import { flattenProjects } from '@ui/catalog/catalog'
 
 function todayKey(): string {
   const d = new Date()
@@ -16,9 +17,9 @@ function todayKey(): string {
 // Create/edit a meeting note. `onSaved` re-renders the list after upsert.
 export function showMeetingForm(existing: MeetingNote | null, onSaved: () => void): void {
   const m = createModal({
-    title: existing ? 'Edit meeting note' : 'New meeting note',
+    title: existing ? UITexts.MeetingNotes.form.editTitle : UITexts.MeetingNotes.form.newTitle,
     className: 'daily-plan-form',
-    confirmText: 'Save'
+    confirmText: UITexts.MeetingNotes.form.save
   })
   m.overlay.classList.add('daily-plan-form-overlay')
 
@@ -37,30 +38,30 @@ export function showMeetingForm(existing: MeetingNote | null, onSaved: () => voi
   m.onClose(close)
   m.modal.prepend(makeCloseButton(close))
 
-  const titleInput = createInput({ value: existing?.title ?? '', placeholder: 'Meeting subject' })
+  const titleInput = createInput({ value: existing?.title ?? '', placeholder: UITexts.MeetingNotes.form.subjectPlaceholder })
   const dateInput = createDateField({ mode: 'date', value: existing?.date ?? todayKey() })
   const attInput = createInput({
     value: (existing?.attendees ?? []).join(', '),
-    placeholder: 'Alice, Bob, Carol'
+    placeholder: UITexts.MeetingNotes.form.attendeesPlaceholder
   })
   const projSel = createSelect({
     options: flattenProjects(state.tree).map((p) => ({ value: p.id, label: p.name })),
-    emptyLabel: '— None —',
+    emptyLabel: UITexts.MeetingNotes.form.noneOption,
     value: existing?.projectId ?? ''
   })
   const notesInput = createTextarea({
     value: existing?.notes ?? '',
     rows: 8,
-    placeholder: 'Agenda, decisions, action items…'
+    placeholder: UITexts.MeetingNotes.form.notesPlaceholder
   })
   notesInput.className = 'daily-plan-desc-input meeting-notes-body'
 
   m.append(
-    createField('Title', titleInput),
-    createField('Date', dateInput),
-    createField('Attendees', attInput, { hint: '(comma separated)' }),
-    createField('Project', projSel, { hint: '(optional)' }),
-    createField('Notes', notesInput)
+    createField(UITexts.MeetingNotes.form.fieldTitle, titleInput),
+    createField(UITexts.MeetingNotes.form.fieldDate, dateInput),
+    createField(UITexts.MeetingNotes.form.fieldAttendees, attInput, { hint: UITexts.MeetingNotes.form.attendeesHint }),
+    createField(UITexts.MeetingNotes.form.fieldProject, projSel, { hint: UITexts.MeetingNotes.form.projectHint }),
+    createField(UITexts.MeetingNotes.form.fieldNotes, notesInput)
   )
 
   const commit = (): boolean => {

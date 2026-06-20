@@ -1,16 +1,17 @@
-import { settings, requestSidebar } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
+import { settings, requestSidebar } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
 import { applyOrientation, applySidebarFont } from '../../sidebar/sidebar'
 import { labeledInput, labeledSelect } from '../shared'
 
 export function buildSidebarPanel(panel: HTMLElement): void {
-  panel.insertAdjacentHTML('beforeend', '<h3>Sidebar</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.sidebar.heading}</h3>`)
   labeledSelect(
     panel,
-    'Position',
+    UITexts.Settings.sidebar.position,
     [
-      ['left', 'Vertical (left)'],
-      ['top', 'Horizontal (top)']
+      ['left', UITexts.Settings.sidebar.verticalLeft],
+      ['top', UITexts.Settings.sidebar.horizontalTop]
     ],
     settings.sidebar.orientation,
     (v) => {
@@ -19,7 +20,7 @@ export function buildSidebarPanel(panel: HTMLElement): void {
       persistence.save()
     }
   )
-  labeledInput(panel, 'Sidebar font size', 'number', String(settings.sidebar.fontSize), (v) => {
+  labeledInput(panel, UITexts.Settings.sidebar.fontSize, 'number', String(settings.sidebar.fontSize), (v) => {
     const n = parseInt(v, 10)
     if (!Number.isNaN(n) && n >= 9 && n <= 22) {
       settings.sidebar.fontSize = n
@@ -29,10 +30,10 @@ export function buildSidebarPanel(panel: HTMLElement): void {
   })
 
   const detailDefs: Array<[keyof typeof settings.sidebar.details, string]> = [
-    ['status', 'Show status text'],
-    ['git', 'Show git branch'],
-    ['panes', 'Show pane count'],
-    ['paneList', 'Show panes under terminal']
+    ['status', UITexts.Settings.sidebar.showStatusText],
+    ['git', UITexts.Settings.sidebar.showGitBranch],
+    ['panes', UITexts.Settings.sidebar.showPaneCount],
+    ['paneList', UITexts.Settings.sidebar.showPanesUnderTerminal]
   ]
   detailDefs.forEach(([key, label]) => {
     const cb = (<input type="checkbox" />) as HTMLInputElement
@@ -61,7 +62,7 @@ export function buildSidebarPanel(panel: HTMLElement): void {
   const recRow = (
     <label class="checkbox-row">
       {recCb}
-      {'Group by recency (Today / Yesterday / Earlier)'}
+      {UITexts.Settings.sidebar.groupByRecency}
     </label>
   ) as HTMLLabelElement
   panel.appendChild(recRow)

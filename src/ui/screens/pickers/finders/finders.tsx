@@ -1,7 +1,8 @@
-import { settings } from '../../../state'
-import { openMarkdownFile } from '../../../commands'
-import { fsService } from '@services'
+import { settings } from '@ui/state/state'
+import { openMarkdownFile } from '@ui/commands/commands'
+import { fsService , markdownService } from '@services'
 import { overlayModal, makeSearchInput, baseName } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- All markdown finder (Cmd+O in Notebook): files under the configured folders ----
 
@@ -9,8 +10,8 @@ export async function showAllMarkdown(): Promise<void> {
   const folders = settings.commands.mdFolders
   const { modal, close } = overlayModal('picker-modal')
 
-  const h = (<h2>Open markdown file</h2>) as HTMLHeadingElement
-  const input = (<input class="search-box-input" type="text" placeholder="Search by file name" />) as HTMLInputElement
+  const h = (<h2>{UITexts.Pickers.finders.mdHeading}</h2>) as HTMLHeadingElement
+  const input = (<input class="search-box-input" type="text" placeholder={UITexts.Pickers.finders.searchPlaceholder} />) as HTMLInputElement
   input.spellcheck = false
 
   const ALL = ' all'
@@ -49,14 +50,14 @@ export async function showAllMarkdown(): Promise<void> {
     folderFilter = value
     chips.forEach((x) => x.classList.toggle('active', x === chip))
     list.replaceChildren()
-    countEl.textContent = 'Loading...'
+    countEl.textContent = UITexts.Pickers.finders.loading
     if (value === ALL) {
-      const results = await Promise.all(folders.map((f) => fsService.findAllMarkdown(f)))
+      const results = await Promise.all(folders.map((f) => markdownService.findAll(f)))
       const byPath = new Map<string, { path: string; name: string }>()
       results.forEach((r) => r.files.forEach((f) => byPath.set(f.path, f)))
       files = [...byPath.values()]
     } else {
-      const res = await fsService.findAllMarkdown(value)
+      const res = await markdownService.findAll(value)
       files = res.files
     }
     sel = 0
@@ -82,10 +83,10 @@ export async function showAllMarkdown(): Promise<void> {
       const hint = (
         <div class="empty-hint">
           {!folders.length
-            ? 'No folders configured. Add them in Settings → Commands.'
+            ? UITexts.Pickers.finders.noFoldersConfigured
             : idle
               ? 'Pick a folder above to list its notes.'
-              : 'No matches'}
+              : UITexts.Pickers.finders.noMatches}
         </div>
       ) as HTMLDivElement
       list.appendChild(hint)
@@ -190,7 +191,7 @@ export async function showFileFinder(opts: {
     folderFilter = value
     chips.forEach((x) => x.classList.toggle('active', x === chip))
     list.replaceChildren()
-    countEl.textContent = 'Loading...'
+    countEl.textContent = UITexts.Pickers.finders.loading
     if (value === ALL) {
       const results = await Promise.all(
         folders.map((f) => fsService.findFiles(f, settings.explorerExclude))
@@ -225,10 +226,10 @@ export async function showFileFinder(opts: {
       const hint = (
         <div class="empty-hint">
           {!folders.length
-            ? 'No folders configured. Add them in Settings → Commands.'
+            ? UITexts.Pickers.finders.noFoldersConfigured
             : idle
               ? 'Pick a folder above to list its files.'
-              : 'No matches'}
+              : UITexts.Pickers.finders.noMatches}
         </div>
       ) as HTMLDivElement
       list.appendChild(hint)

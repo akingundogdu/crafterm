@@ -16,7 +16,7 @@ vi.mock('fs', async (importOriginal) => {
 import { mkdtempSync, rmSync, readFileSync, existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import * as buildCounter from '@core/services/build-counter.service'
+import * as buildCounter from '@core/services/build-counter/build-counter.service'
 
 let dir: string
 let file: string

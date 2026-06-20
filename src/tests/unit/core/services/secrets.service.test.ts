@@ -14,7 +14,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from '@core/services/secrets.service'
+import { setSecret, getSecret, deleteSecret, isSecretsAvailable } from '@core/services/secrets/secrets.service'
 
 let baseDir: string
 

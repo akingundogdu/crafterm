@@ -2,6 +2,7 @@ import { collectBackgroundProcesses, killProcess, openProcessView } from '@servi
 import type { CollectedProcess } from '@services/bgproc'
 import { iosService } from '@services'
 import { overlayModal, makeSearchInput } from '../shared'
+import { UITexts } from '@texts'
 
 // ---- Running processes: every tracked background shell, view/kill -------
 //
@@ -20,7 +21,7 @@ const PROC_STATUS_LABEL: Record<string, string> = {
 export function showRunningProcessesDashboard(): void {
   const { modal, close } = overlayModal('picker-modal')
 
-  modal.appendChild(<h2>Running processes</h2>)
+  modal.appendChild(<h2>{UITexts.Pickers.processes.heading}</h2>)
 
   const search = makeSearchInput('Search processes…', () => render())
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
@@ -112,7 +113,7 @@ export function showRunningProcessesDashboard(): void {
 export function showRunningDevicesDashboard(): void {
   const { modal, close } = overlayModal('picker-modal')
 
-  modal.appendChild(<h2>Running devices</h2>)
+  modal.appendChild(<h2>{UITexts.Pickers.processes.devicesHeading}</h2>)
 
   const search = makeSearchInput('Search devices…', () => render())
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement

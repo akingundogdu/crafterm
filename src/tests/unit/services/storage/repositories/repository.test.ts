@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createArrayRepository, validated } from '@services/storage/repositories/repository'
+import { createArrayRepository, validated } from '@repositories/repository'
 
 interface Row {
   id: string

@@ -1,10 +1,11 @@
-import { settings } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
+import { settings } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
 import { applyTabDisplay, tabMeta } from '../../sidebar/sidebar'
 import { labeledSelect } from '../shared'
 
 export function buildTabsPanel(panel: HTMLElement): void {
-  panel.insertAdjacentHTML('beforeend', '<h3>Tabs</h3>')
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.tabsTab.heading}</h3>`)
   panel.insertAdjacentHTML(
     'beforeend',
     '<div class="field-hint">Controls the sidebar and right-panel tab strips. In icon-only mode, hover a tab to see its name and shortcut.</div>'
@@ -12,11 +13,11 @@ export function buildTabsPanel(panel: HTMLElement): void {
 
   labeledSelect(
     panel,
-    'Display',
+    UITexts.Settings.tabsTab.display,
     [
-      ['icon', 'Icon only'],
-      ['text', 'Text only'],
-      ['both', 'Icon + text']
+      ['icon', UITexts.Settings.tabsTab.iconOnly],
+      ['text', UITexts.Settings.tabsTab.textOnly],
+      ['both', UITexts.Settings.tabsTab.iconText]
     ],
     settings.tabDisplay.mode,
     (v) => {
@@ -51,6 +52,6 @@ export function buildTabsPanel(panel: HTMLElement): void {
       panel.appendChild(row)
     }
   }
-  renderHideGroup('left', 'Sidebar tabs (show)')
-  renderHideGroup('right', 'Right panel tabs (show)')
+  renderHideGroup('left', UITexts.Settings.tabsTab.sidebarShow)
+  renderHideGroup('right', UITexts.Settings.tabsTab.rightPanelShow)
 }

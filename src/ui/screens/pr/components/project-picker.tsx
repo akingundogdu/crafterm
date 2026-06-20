@@ -1,8 +1,9 @@
-import { settings } from '../../../state'
-import { persistence } from '@services/storage/persistence.service'
+import { settings } from '@ui/state/state'
+import { UITexts } from '@texts'
+import { persistence } from '@repositories/persistence.service'
 import { prService } from '@services'
 import { createOverlay, createSearchBox, createButton } from '@ui/components'
-import { makeCloseButton } from '../../../dialog'
+import { makeCloseButton } from '@ui/dialog/dialog'
 
 // Searchable, multi-select repo picker for the "All projects" PR/Deployments
 // view. Pre-checks the current selection; on save, persists settings.prProjects
@@ -16,15 +17,15 @@ export async function showProjectPicker(onSaved: () => void): Promise<void> {
   document.addEventListener('keydown', onKey, true)
   onClose(() => document.removeEventListener('keydown', onKey, true))
 
-  const input = createSearchBox('Search repositories by name', () => render())
+  const input = createSearchBox(UITexts.Pr.picker.search, () => render())
   const countEl = (<div class="md-count" />) as HTMLDivElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
-  list.textContent = 'Loading…'
+  list.textContent = UITexts.Pr.picker.loading
 
-  const cancel = createButton({ text: 'Cancel', onClick: close })
+  const cancel = createButton({ text: UITexts.Pr.picker.cancel, onClick: close })
   const save = createButton({
     variant: 'primary',
-    text: 'Save',
+    text: UITexts.Pr.picker.save,
     onClick: () => {
       settings.prProjects = repos.filter((r) => selected.has(r.path)).map((r) => r.path)
       persistence.save()
@@ -36,7 +37,7 @@ export async function showProjectPicker(onSaved: () => void): Promise<void> {
   const modal = (
     <div class="modal picker-modal">
       {makeCloseButton(close)}
-      <h2>Add projects</h2>
+      <h2>{UITexts.Pr.picker.title}</h2>
       {input}
       {countEl}
       {list}

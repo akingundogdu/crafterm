@@ -1,18 +1,19 @@
+import { UITexts } from '@texts'
 // iOS add-on for the worktree tree nodes. The generic worktree manager
 // (worktrees.ts) materializes worktrees as folder nodes; this layer adds, for an
 // "iOS app" project, a live status dot + ▶/⋯ build-run actions on each worktree
 // node. Build/run/etc. open a terminal *inside* the worktree folder node.
 
-import type { SidebarNode, ProjectNode, WorktreeNode } from '../../types'
+import type { SidebarNode, ProjectNode, WorktreeNode } from '@ui/types/types'
 import type { IosWorktreeStatus } from '@services/ios/ios.types'
-import { requestSidebar } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { flattenProjects } from '../../catalog'
-import { state } from '../../state'
+import { requestSidebar } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { flattenProjects } from '@ui/catalog/catalog'
+import { state } from '@ui/state/state'
 import { showContextMenu, type ContextMenuItem } from '@ui/components'
 import { isWorktreeFolder, worktreeProjectOf } from '@services/worktrees'
 import { startBackgroundProcess } from '@services/bgproc'
-import { findById, ancestorFolders } from '../../tree'
+import { findById, ancestorFolders } from '@ui/tree/tree'
 import { iosService } from '@services'
 
 type RunTarget = { kind: 'device' | 'simulator'; name: string; udid: string; scheme?: string }
@@ -302,7 +303,7 @@ export function iosWorktreeTrailing(node: SidebarNode): HTMLElement | null {
   const more = (
     <button
       class="ios-wt-act"
-      title="iOS actions"
+      title={UITexts.IosWorktree.iosActions}
       onClick={(e: MouseEvent) => {
         e.stopPropagation()
         showContextMenu(e, iosWorktreeMenuItems(node))

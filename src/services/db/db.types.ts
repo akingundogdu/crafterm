@@ -37,9 +37,3 @@ export interface DbColumns {
   columns: DbColumn[]
   error?: string
 }
-
-// Saved query metadata (dbq:list).
-export interface SavedQueryRef {
-  name: string
-  path: string
-}

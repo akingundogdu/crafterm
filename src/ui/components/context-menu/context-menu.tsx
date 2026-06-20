@@ -1,3 +1,4 @@
+import { UITexts } from '@texts'
 // Shared sidebar context menu — one implementation used by the terminal sidebar,
 // the notebook, and the database tree, so every right-click menu looks and
 // behaves identically (only the items + color target differ). Supports nested
@@ -117,7 +118,7 @@ function renderMenu(
           'context-menu-swatch context-menu-swatch-none' +
           (color.current === null ? ' context-menu-swatch-active' : '')
         }
-        title="No color"
+        title={UITexts.Components.noColor}
       />
     ) as HTMLButtonElement
     none.addEventListener('click', () => {

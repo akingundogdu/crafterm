@@ -13,6 +13,11 @@
     "baseUrl": ".",
     "paths": {
       "@core/*": ["src/core/*"],
+      "@models/*": ["src/models/*"],
+      "@repositories": ["src/repositories/index.ts"],
+      "@repositories/*": ["src/repositories/*"],
+      "@texts": ["src/ui-texts/ui-texts.ts"],
+      "@texts/*": ["src/ui-texts/*"],
       "@services": ["src/services/index.ts"],
       "@services/*": ["src/services/*"],
       "@ui/*": ["src/ui/*"],
@@ -20,6 +25,6 @@
       "@tests/*": ["src/tests/*"]
     }
   },
-  "include": ["src/ui/**/*", "src/services/**/*"],
-  "exclude": ["src/services/**/*.main.ts"]
+  "include": ["src/ui/**/*", "src/services/**/*", "src/models/**/*", "src/repositories/**/*", "src/ui-texts/**/*"],
+  "exclude": ["src/services/**/*.main.ts", "src/services/**/*.utils.ts", "src/services/**/*.service.ts"]
 }

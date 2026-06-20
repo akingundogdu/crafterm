@@ -1,7 +1,7 @@
 import './notifications.css'
-import { notifState, panes, poppedOut, settings, pushNotification } from '../../state'
-import { persistence } from '@services/storage/persistence.service'
-import { selectPane, openLink, openNote, openMarkdownFile } from '../../commands'
+import { notifState, panes, poppedOut, settings, pushNotification } from '@ui/state/state'
+import { persistence } from '@repositories/persistence.service'
+import { selectPane, openLink, openNote, openMarkdownFile } from '@ui/commands/commands'
 import {
   renderReminders,
   openReminderForm,
@@ -18,8 +18,9 @@ import { renderTime, initTime, startAutoTracker } from '../time/time'
 import { runUpdate } from '../pickers/update/update'
 import { terminalService, claudeService, secretsService, appService } from '@services'
 import { fmtResetTime, usageErrorShort, usageErrorLong } from '@services/domain/usage'
-import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from '@services/storage/repositories'
+import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from '@repositories'
 import { relTime, pathTail, shortModel } from './notif-format'
+import { UITexts } from '@texts'
 
 const appEl = document.getElementById('app')!
 const listEl = document.getElementById('notif-list')!
@@ -198,7 +199,7 @@ function evaluateUsageThresholds(u: RealUsage): void {
     pushNotification(
       '',
       `Claude ${label} usage ${top}%`,
-      'Claude Usage',
+      UITexts.Notifications.claudeUsageHeading,
       `${label} usage is at ${Math.round(pct)}% — resets ${fmtResetTime(win.resetsAt)}.`
     )
   }
@@ -228,7 +229,7 @@ function initStatusbarVersion(): void {
     if (!repo || !built || !built.commit) {
       needsRedeploy = false
       chip.classList.remove('has-update')
-      chip.title = base ? `Crafterm v${base} · click to deploy` : 'Crafterm'
+      chip.title = base ? UITexts.Notifications.deployHint(base) : UITexts.Notifications.appName
       return
     }
     const repoGit = await appService.repoGit(repo)
@@ -274,9 +275,9 @@ function initStatusbarVersion(): void {
     // Up to date: flash a brief confirmation, then restore the version label.
     if (textEl) {
       const prev = textEl.textContent
-      textEl.textContent = 'up to date'
+      textEl.textContent = UITexts.Notifications.upToDate
       window.setTimeout(() => {
-        if (textEl.textContent === 'up to date') textEl.textContent = prev
+        if (textEl.textContent === UITexts.Notifications.upToDate) textEl.textContent = prev
       }, 1600)
     }
   })
@@ -295,7 +296,7 @@ function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
     return
   }
 
-  const model = shortModel(u.modelName) || 'Claude usage'
+  const model = shortModel(u.modelName) || UITexts.Notifications.claudeUsageFallback
   const head = (
     <div
       class="usage-head"
@@ -328,9 +329,9 @@ function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
       />
     ) as HTMLDivElement
   }
-  const session = bar('Current session', u.fiveHour)
-  const week = bar('Current week (all models)', u.sevenDay)
-  const sonnet = bar('Current week (Sonnet only)', u.sevenDaySonnet)
+  const session = bar(UITexts.Notifications.bars.session, u.fiveHour)
+  const week = bar(UITexts.Notifications.bars.week, u.sevenDay)
+  const sonnet = bar(UITexts.Notifications.bars.weekSonnet, u.sevenDaySonnet)
   if (session) pop.appendChild(session)
   if (week) pop.appendChild(week)
   if (sonnet) pop.appendChild(sonnet)
@@ -366,7 +367,7 @@ export function renderNotifications(): void {
   updateBadge()
   listEl.replaceChildren()
   if (!notificationRepo.getAll().length) {
-    listEl.insertAdjacentHTML('beforeend', '<div class="notif-empty">No notifications</div>')
+    listEl.insertAdjacentHTML('beforeend', '<div class="notif-empty"></div>')
     return
   }
   notificationRepo.getAll().forEach((n) => {
@@ -378,7 +379,7 @@ export function renderNotifications(): void {
     const close = (
       <button
         class="notif-card-close"
-        title="Dismiss"
+        title={UITexts.Notifications.dismiss}
         onClick={(e: MouseEvent) => {
           e.stopPropagation()
           dismiss(n.id)
@@ -394,7 +395,7 @@ export function renderNotifications(): void {
       <button
         class="notif-card-chevron"
         innerHTML={CHEVRON_SVG}
-        title={expanded ? 'Hide details' : 'Show details'}
+        title={expanded ? UITexts.Notifications.hideDetails : UITexts.Notifications.showDetails}
         onClick={(e: MouseEvent) => {
           e.stopPropagation()
           if (expandedNotifs.has(n.id)) expandedNotifs.delete(n.id)
@@ -515,11 +516,11 @@ export function renderNotifications(): void {
 function buildSnoozeRow(
   text: string,
   notifId: string,
-  payload?: import('../../types').ReminderPayload
+  payload?: import('@ui/types/types').ReminderPayload
 ): HTMLElement {
   return (
     <div class="notif-card-snooze">
-      <span class="notif-snooze-label">Remind me later</span>
+      <span class="notif-snooze-label">{UITexts.Notifications.remindMeLater}</span>
       <div class="notif-snooze-chips">
         {snoozeOptions().map(
           (opt) =>
@@ -544,12 +545,12 @@ function buildSnoozeRow(
 // Labeled "Remind me" button in a pane card's detail body. Clicking it pops a
 // time-picker that creates a reminder pointing back at the same pane — when it
 // fires later, the resulting card carries an Open button (see resolvePayloadOpener).
-function buildRemindButton(n: import('../../types').AppNotification): HTMLElement {
+function buildRemindButton(n: import('@ui/types/types').AppNotification): HTMLElement {
   const btn = (
     <button
       class="notif-card-remind"
-      innerHTML='<span class="notif-remind-icon">⏰</span><span>Remind me</span>'
-      title="Remind me about this"
+      innerHTML={`<span class="notif-remind-icon">⏰</span><span>${UITexts.Notifications.remindMe}</span>`}
+      title={UITexts.Notifications.remindMeAbout}
       onClick={(e: MouseEvent) => {
         e.stopPropagation()
         showPaneRemindPicker(btn, n)
@@ -559,7 +560,7 @@ function buildRemindButton(n: import('../../types').AppNotification): HTMLElemen
   return (<div class="notif-card-remind-row">{btn}</div>) as HTMLDivElement
 }
 
-function showPaneRemindPicker(anchor: HTMLElement, n: import('../../types').AppNotification): void {
+function showPaneRemindPicker(anchor: HTMLElement, n: import('@ui/types/types').AppNotification): void {
   document.querySelector('.notif-remind-popover')?.remove()
   const pop = (
     <div class="notif-remind-popover">
@@ -597,21 +598,21 @@ function showPaneRemindPicker(anchor: HTMLElement, n: import('../../types').AppN
 // Resolve a reminder payload to a click action ("open this bookmark / pane /
 // note"). Returns null when the target can no longer be found.
 function resolvePayloadOpener(
-  payload: import('../../types').ReminderPayload | undefined
+  payload: import('@ui/types/types').ReminderPayload | undefined
 ): { label: string; open: () => void } | null {
   if (!payload) return null
   if (payload.kind === 'bookmark') {
     const bm = bookmarkRepo.get(payload.bookmarkId)
     if (!bm) return null
     return {
-      label: bm.type === 'link' ? 'Open' : 'Show',
+      label: bm.type === 'link' ? UITexts.Notifications.cardActions.open : UITexts.Notifications.cardActions.show,
       open: () => void openLink(bm.content)
     }
   }
   if (payload.kind === 'pane') {
     if (!panes.has(payload.paneId) && !poppedOut.has(payload.paneId)) return null
     return {
-      label: 'Go to pane',
+      label: UITexts.Notifications.cardActions.goToPane,
       open: () => {
         if (poppedOut.has(payload.paneId)) terminalService.popoutFocus(payload.paneId)
         else selectPane(payload.paneId)
@@ -620,7 +621,7 @@ function resolvePayloadOpener(
   }
   if (payload.kind === 'notebook') {
     return {
-      label: 'Open note',
+      label: UITexts.Notifications.cardActions.openNote,
       open: () => void openNote(payload.path)
     }
   }
@@ -628,13 +629,13 @@ function resolvePayloadOpener(
     const t = dailyTaskRepo.get(payload.taskId)
     if (!t) return null
     return {
-      label: 'Open task',
+      label: UITexts.Notifications.cardActions.openTask,
       open: () => showDailyPlanModal(t.date, t.id)
     }
   }
   if (payload.kind === 'plan') {
     return {
-      label: 'Open plan',
+      label: UITexts.Notifications.cardActions.openPlan,
       open: () => openMarkdownFile(payload.path)
     }
   }
@@ -642,7 +643,7 @@ function resolvePayloadOpener(
     const n = meetingNoteRepo.get(payload.noteId)
     if (!n) return null
     return {
-      label: 'Open meeting',
+      label: UITexts.Notifications.cardActions.openMeeting,
       open: () => openMeetingNote(n.id)
     }
   }

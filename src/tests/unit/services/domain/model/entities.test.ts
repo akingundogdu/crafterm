@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { reminderSchema, reminderPayloadSchema, makeReminder } from '@services/domain/model/reminder'
-import { bookmarkSchema, makeBookmark } from '@services/domain/model/bookmark'
-import { timeEntrySchema, makeTimeEntry } from '@services/domain/model/time-entry'
-import { meetingNoteSchema, makeMeetingNote } from '@services/domain/model/meeting-note'
-import { accountEntrySchema, makeAccountEntry } from '@services/domain/model/account'
+import { reminderSchema, reminderPayloadSchema, makeReminder } from '@models/reminder'
+import { bookmarkSchema, makeBookmark } from '@models/bookmark'
+import { timeEntrySchema, makeTimeEntry } from '@models/time-entry'
+import { meetingNoteSchema, makeMeetingNote } from '@models/meeting-note'
+import { accountEntrySchema, makeAccountEntry } from '@models/account'
 
 describe('reminder', () => {
   it('makeReminder validates with defaults (repeat=none, enabled=true)', () => {

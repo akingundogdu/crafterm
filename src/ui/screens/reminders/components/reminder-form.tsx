@@ -1,8 +1,9 @@
 import { createOverlay, createButton, createSelect, createTextarea, createDateField } from '@ui/components'
-import { makeCloseButton } from '../../../dialog'
-import { settings, uid } from '../../../state'
-import { reminderRepo, bookmarkRepo, dailyTaskRepo } from '@services/storage/repositories'
-import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from '../../../types'
+import { UITexts } from '@texts'
+import { makeCloseButton } from '@ui/dialog/dialog'
+import { settings, uid } from '@ui/state/state'
+import { reminderRepo, bookmarkRepo, dailyTaskRepo } from '@repositories'
+import type { Reminder, ReminderPayload, Bookmark, DailyPlanTask } from '@ui/types/types'
 import { renderReminders } from '../reminders'
 
 const DAY = 86_400_000
@@ -26,7 +27,7 @@ function createLinkedRecord(
     const bm: Bookmark = {
       id: uid('bm'),
       type: category === 'link' ? 'link' : 'text',
-      title: body.split('\n')[0].slice(0, 80) || 'Bookmark',
+      title: body.split('\n')[0].slice(0, 80) || UITexts.Reminders.defaultBookmarkTitle,
       content: body,
       tags: [],
       createdAt: Date.now()
@@ -40,7 +41,7 @@ function createLinkedRecord(
     const now = Date.now()
     const task: DailyPlanTask = {
       id: uid('task'),
-      title: body.split('\n')[0].slice(0, 120) || 'Task',
+      title: body.split('\n')[0].slice(0, 120) || UITexts.Reminders.defaultTaskTitle,
       date,
       status: 'todo',
       priority: 'medium',
@@ -109,16 +110,16 @@ export function openReminderForm(existing?: Reminder): void {
   }
 
   // text
-  const text = createTextarea({ rows: 4, placeholder: 'e.g. Stand-up meeting', value: existing?.text ?? '' })
+  const text = createTextarea({ rows: 4, placeholder: UITexts.Reminders.form.textPlaceholder, value: existing?.text ?? '' })
   text.className = 'reminder-input reminder-textarea'
 
   // type: a new reminder can also create a linked bookmark / link / daily task.
   const typeSel = createSelect({
     options: [
-      { value: 'normal', label: 'Reminder only' },
-      { value: 'bookmark', label: 'Bookmark' },
-      { value: 'link', label: 'Link' },
-      { value: 'dailyTask', label: 'Daily task' }
+      { value: 'normal', label: UITexts.Reminders.form.type.normal },
+      { value: 'bookmark', label: UITexts.Reminders.form.type.bookmark },
+      { value: 'link', label: UITexts.Reminders.form.type.link },
+      { value: 'dailyTask', label: UITexts.Reminders.form.type.dailyTask }
     ],
     value: existing?.category ?? 'normal'
   })
@@ -129,12 +130,12 @@ export function openReminderForm(existing?: Reminder): void {
   // repeat
   const repeat = createSelect({
     options: [
-      { value: 'none', label: 'No repeat' },
-      { value: 'daily', label: 'Daily' },
-      { value: 'weekly', label: 'Weekly' },
-      { value: 'biweekly', label: 'Every 2 weeks' },
-      { value: 'monthly', label: 'Monthly' },
-      { value: 'interval', label: 'Every N minutes' }
+      { value: 'none', label: UITexts.Reminders.form.repeat.none },
+      { value: 'daily', label: UITexts.Reminders.form.repeat.daily },
+      { value: 'weekly', label: UITexts.Reminders.form.repeat.weekly },
+      { value: 'biweekly', label: UITexts.Reminders.form.repeat.biweekly },
+      { value: 'monthly', label: UITexts.Reminders.form.repeat.monthly },
+      { value: 'interval', label: UITexts.Reminders.form.repeat.interval }
     ],
     value: existing?.repeat ?? 'none'
   })
@@ -163,9 +164,9 @@ export function openReminderForm(existing?: Reminder): void {
   // actions
   const actions = (
     <div class="modal-actions">
-      {createButton({ text: 'Cancel', onClick: ov.close })}
+      {createButton({ text: UITexts.Reminders.form.cancel, onClick: ov.close })}
       {createButton({
-        text: existing ? (reArm ? 'Remind again' : 'Save') : 'Add',
+        text: existing ? (reArm ? UITexts.Reminders.form.remindAgain : UITexts.Reminders.form.save) : UITexts.Reminders.form.add,
         variant: 'primary',
         onClick: () => {
           const ts = new Date(when.value).getTime()
@@ -207,15 +208,15 @@ export function openReminderForm(existing?: Reminder): void {
   const modal = (
     <div class="modal reminder-modal">
       {makeCloseButton(ov.close)}
-      <h2>{existing ? (reArm ? 'Remind again' : 'Edit reminder') : 'New reminder'}</h2>
-      <div class="reminder-label">When</div>
+      <h2>{existing ? (reArm ? UITexts.Reminders.form.remindAgainTitle : UITexts.Reminders.form.editTitle) : UITexts.Reminders.form.newTitle}</h2>
+      <div class="reminder-label">{UITexts.Reminders.form.labelWhen}</div>
       {when}
       {quick}
-      <div class="reminder-label">Reminder</div>
+      <div class="reminder-label">{UITexts.Reminders.form.labelReminder}</div>
       {text}
-      <div class="reminder-label">Type</div>
+      <div class="reminder-label">{UITexts.Reminders.form.labelType}</div>
       {typeSel}
-      <div class="reminder-label">Repeat</div>
+      <div class="reminder-label">{UITexts.Reminders.form.labelRepeat}</div>
       {repeatRow}
       {actions}
     </div>

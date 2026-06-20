@@ -1,6 +1,7 @@
 import { createOverlay, createButton } from '@ui/components'
-import type { Bookmark } from '../../../types'
-import { makeCloseButton } from '../../../dialog'
+import { UITexts } from '@texts'
+import type { Bookmark } from '@ui/types/types'
+import { makeCloseButton } from '@ui/dialog/dialog'
 import { snoozeReminder, snoozeOptions } from '../../../screens/reminders/reminders'
 
 // Quick "remind me about this bookmark" picker: one chip per snooze option.
@@ -25,7 +26,7 @@ export function showRemindPicker(bm: Bookmark): void {
   const modal = (
     <div class="modal modal-prompt">
       {makeCloseButton(ov.close)}
-      <h2>Remind me about this</h2>
+      <h2>{UITexts.Reminders.remindModalTitle}</h2>
       <div class="field-hint">{bm.title}</div>
       {chips}
     </div>

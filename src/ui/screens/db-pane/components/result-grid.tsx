@@ -1,7 +1,8 @@
 import type { DbColumn } from '@services/db/db.types'
-import type { DbConnection } from '../../../types'
+import type { DbConnection } from '@ui/types/types'
 import { createOverlay } from '@ui/components'
-import { makeCloseButton, promptConfirm } from '../../../dialog'
+import { UITexts } from '@texts'
+import { makeCloseButton, promptConfirm } from '@ui/dialog/dialog'
 import { dbService } from '@services'
 import { quoteIdent, literalOf } from '../sql-literal'
 
@@ -147,7 +148,7 @@ function buildRow(ctx: GridContext, row: unknown[], i: number): HTMLTableRowElem
 
 function buildCell(cell: unknown): HTMLTableCellElement {
   if (cell === null || cell === undefined) {
-    return (<td class="db-null">NULL</td>) as HTMLTableCellElement
+    return (<td class="db-null">{UITexts.DbPane.nullValue}</td>) as HTMLTableCellElement
   } else if (typeof cell === 'number') {
     return (<td class="db-num">{String(cell)}</td>) as HTMLTableCellElement
   } else if (typeof cell === 'object') {
@@ -416,7 +417,7 @@ function openRowFormModal(opts: {
       inputs[c.name] = { input, nullCb }
     }
 
-    const cancel = (<button>Cancel</button>) as HTMLButtonElement
+    const cancel = (<button>{UITexts.DbPane.cancel}</button>) as HTMLButtonElement
     const ok = (<button class="button-primary">{opts.submitText}</button>) as HTMLButtonElement
     const actions = (<div class="modal-actions" />) as HTMLDivElement
     actions.append(cancel, ok)

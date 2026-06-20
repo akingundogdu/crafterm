@@ -1,4 +1,5 @@
 import type { PullRequest, WorkflowRun, DeploymentStatus } from '@services/pr/pr.types'
+import { UITexts } from '@texts'
 import { createButton } from '@ui/components'
 import { overallState, runState, deployState, ago } from '../pr-status'
 
@@ -42,9 +43,9 @@ export function checksBadge(pr: PullRequest): HTMLElement {
 export function reviewBadge(pr: PullRequest): HTMLElement | null {
   if (!pr.reviewDecision) return null
   const map: Record<string, { cls: string; text: string }> = {
-    APPROVED: { cls: 'ok', text: 'approved' },
-    CHANGES_REQUESTED: { cls: 'bad', text: 'changes' },
-    REVIEW_REQUIRED: { cls: 'wait', text: 'review needed' }
+    APPROVED: { cls: 'ok', text: UITexts.Pr.review.approved },
+    CHANGES_REQUESTED: { cls: 'bad', text: UITexts.Pr.review.changes },
+    REVIEW_REQUIRED: { cls: 'wait', text: UITexts.Pr.review.reviewNeeded }
   }
   const m = map[pr.reviewDecision] ?? { cls: 'none', text: pr.reviewDecision.toLowerCase() }
   return statusTag(m.cls, m.text)
@@ -122,19 +123,19 @@ export function buildPrCard(pr: PullRequest, a: PrCardActions): HTMLElement {
 
   const open = createButton({
     className: 'pr-act primary',
-    text: 'Review',
-    title: 'Open the PR in an in-app browser pane',
+    text: UITexts.Pr.card.review,
+    title: UITexts.Pr.card.reviewTitle,
     onClick: a.onReview
   })
   const diff = createButton({
     className: 'pr-act',
-    text: 'Diff',
-    title: 'Open the diff in an in-app pane; select lines to send to a terminal',
+    text: UITexts.Pr.card.diff,
+    title: UITexts.Pr.card.diffTitle,
     onClick: a.onDiff
   })
   const merge = createButton({
     className: 'pr-act merge',
-    text: 'Merge',
+    text: UITexts.Pr.card.merge,
     onClick: a.onMerge
   })
   merge.disabled = pr.mergeable === 'CONFLICTING' || pr.isDraft
@@ -167,15 +168,15 @@ export function buildRunCard(
 
   const open = createButton({
     className: 'pr-act primary',
-    text: 'Open',
-    title: 'Open this run on GitHub',
+    text: UITexts.Pr.card.open,
+    title: UITexts.Pr.card.runOpenTitle,
     onClick: a.onOpen
   })
   open.disabled = !run.url
   const logs = createButton({
     className: 'pr-act',
-    text: 'Logs',
-    title: 'Show job/step breakdown',
+    text: UITexts.Pr.card.logs,
+    title: UITexts.Pr.card.logsTitle,
     onClick: a.onLogs
   })
 
@@ -217,8 +218,8 @@ export function buildDeployCard(d: DeploymentStatus, a: { onOpen: () => void }):
   if (d.url) {
     const open = createButton({
       className: 'pr-act primary',
-      text: 'Open',
-      title: 'Open the deployment / environment URL',
+      text: UITexts.Pr.card.open,
+      title: UITexts.Pr.card.deployOpenTitle,
       onClick: a.onOpen
     })
     acts = (<div class="pr-actions">{open}</div>) as HTMLDivElement

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePlanFilename } from '@core/planFilename'
+import { parsePlanFilename } from '@core/planFilename/planFilename'
 
 const UUID = '7cbb26b8-3e9e-4c2e-bc98-9b9e7236928a'
 const UUID2 = '0925d895-73c2-44bd-8787-fa658dd04bbb'

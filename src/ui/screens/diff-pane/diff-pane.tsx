@@ -1,6 +1,6 @@
 import './diff-pane.css'
-import { diffPanes, state, paneActions, uid, pushNotification } from '../../state'
-import { setupPaneDnd } from '../../pane'
+import { diffPanes, state, paneActions, uid, pushNotification } from '@ui/state/state'
+import { setupPaneDnd } from '@ui/pane/pane'
 import { prService } from '@services'
 import { createButton } from '@ui/components'
 import { createLineSelect, type LineRow } from '../diff/line-select'

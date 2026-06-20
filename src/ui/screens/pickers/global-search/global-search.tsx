@@ -1,17 +1,18 @@
 import './global-search.css'
-import { state, panes } from '../../../state'
-import { flattenProjects } from '../../../catalog'
-import { allTabs, panesInLayout } from '../../../tree'
-import { buildPaneMenu } from '../../../pane'
+import { state, panes } from '@ui/state/state'
+import { flattenProjects } from '@ui/catalog/catalog'
+import { allTabs, panesInLayout } from '@ui/tree/tree'
+import { buildPaneMenu } from '@ui/pane/pane'
+import { UITexts } from '@texts'
 import {
   splitProjectRight,
   selectPane,
   openLink,
   openMarkdownFile,
   openNote
-} from '../../../commands'
+} from '@ui/commands/commands'
 import { notebookService } from '@services'
-import { bookmarkRepo, accountRepo } from '@services/storage/repositories'
+import { bookmarkRepo, accountRepo } from '@repositories'
 import { actionMenuSearchEntries } from '../../sidebar/sidebar'
 import { overlayModal } from '../shared'
 
@@ -152,13 +153,13 @@ export const SOURCE_LABEL: Record<GsEntry['source'], string> = {
 export async function showGlobalSearch(): Promise<void> {
   const entries = await buildGlobalSearchIndex()
   const { modal, close } = overlayModal('picker-modal')
-  const h = (<h2>Search Crafterm</h2>) as HTMLHeadingElement
+  const h = (<h2>{UITexts.Pickers.globalSearch.heading}</h2>) as HTMLHeadingElement
   modal.appendChild(h)
   const input = (
     <input
       class="search-box-input"
       type="text"
-      placeholder="Search projects, panes, actions, bookmarks, notes, plans…"
+      placeholder={UITexts.Pickers.globalSearch.placeholder}
     />
   ) as HTMLInputElement
   input.spellcheck = false
