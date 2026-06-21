@@ -7,7 +7,7 @@ import { uid } from '@ui/state/state'
 import { dailyTaskRepo } from '@repositories'
 import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { showRemindModal } from '../../reminders/reminders'
-import { createDateField, createOverlay } from '@ui/components'
+import { createDateField, createOverlay, FormField } from '@ui/components'
 import {
   FORM_STATUSES,
   PRIORITIES,
@@ -54,35 +54,14 @@ export function showTaskForm({
   const titleInput = (<textarea class="daily-plan-title-input" placeholder="What needs doing?" />) as HTMLTextAreaElement
   titleInput.rows = 2
   titleInput.value = existing?.title ?? ''
-  const titleField = (
-    <div class="field daily-plan-text-field">
-      <label>Title</label>
-      {titleInput}
-    </div>
-  ) as HTMLDivElement
 
   // Description (optional)
   const descInput = (<textarea class="daily-plan-desc-input" placeholder="Notes, links, context…" />) as HTMLTextAreaElement
   descInput.rows = 3
   descInput.value = existing?.description ?? ''
-  const descField = (
-    <div class="field daily-plan-text-field">
-      <label>
-        Description <span class="field-hint">(optional)</span>
-      </label>
-      {descInput}
-    </div>
-  ) as HTMLDivElement
 
   // Tags
   const tagPicker = (<div class="daily-plan-tag-picker" />) as HTMLDivElement
-  const tagField = (
-    <div class="field">
-      <label>Tags</label>
-      {tagPicker}
-    </div>
-  ) as HTMLDivElement
-
   const selectedTagIds: string[] = [...(existing?.tagIds ?? [])]
   buildTagPicker(tagPicker, selectedTagIds)
 
@@ -114,17 +93,6 @@ export function showTaskForm({
     if (projSel.value) projSel.classList.remove('field-invalid')
   })
   updateProjHint()
-  // Wrap the select + path hint in a column so the select keeps the same width
-  // as the other fields and the hint sits beneath it (not squeezed beside it).
-  const projField = (
-    <div class="field">
-      <label>Project</label>
-      <div class="field-control-col">
-        {projSel}
-        {projHint}
-      </div>
-    </div>
-  ) as HTMLDivElement
 
   // Status
   const statusSel = document.createElement('select')
@@ -135,12 +103,6 @@ export function showTaskForm({
     statusSel.appendChild(o)
   }
   statusSel.value = existing?.status ?? defaultStatus
-  const statusField = (
-    <div class="field">
-      <label>Status</label>
-      {statusSel}
-    </div>
-  ) as HTMLDivElement
 
   // Priority
   const prioSel = document.createElement('select')
@@ -151,32 +113,12 @@ export function showTaskForm({
     prioSel.appendChild(o)
   }
   prioSel.value = existing?.priority ?? 'medium'
-  const prioField = (
-    <div class="field">
-      <label>Priority</label>
-      {prioSel}
-    </div>
-  ) as HTMLDivElement
 
   // Date
   const dateInput = createDateField({ mode: 'date', value: existing?.date ?? selectedDate })
-  const dateField = (
-    <div class="field">
-      <label>Date</label>
-      {dateInput}
-    </div>
-  ) as HTMLDivElement
 
   // Due date (optional) — when set, cards show the time left / overdue.
   const dueInput = createDateField({ mode: 'date', value: existing?.dueDate ?? '' })
-  const dueField = (
-    <div class="field">
-      <label>
-        Due date <span class="field-hint">(optional)</span>
-      </label>
-      {dueInput}
-    </div>
-  ) as HTMLDivElement
 
   // Worktree slug (optional) — when set, it's appended to the issue key for the
   // worktree branch/name (e.g. CRF-12 → CRF-12-fix-login). Empty → the worktree is
@@ -198,17 +140,6 @@ export function showTaskForm({
   slugInput.addEventListener('input', updateSlugHint)
   projSel.addEventListener('change', updateSlugHint)
   updateSlugHint()
-  const slugField = (
-    <div class="field">
-      <label>
-        Worktree slug <span class="field-hint">(optional)</span>
-      </label>
-      <div class="field-control-col">
-        {slugInput}
-        {slugHint}
-      </div>
-    </div>
-  ) as HTMLDivElement
 
   // Persist the form into a task (updating `existing` or creating a new one) and
   // return it; null when the title is empty. Shared by Save and Remind.
@@ -318,15 +249,15 @@ export function showTaskForm({
     <div class="modal modal-prompt daily-plan-form">
       {makeCloseButton(close)}
       <h2>{existing ? 'Edit task' : 'New task'}</h2>
-      {titleField}
-      {descField}
-      {tagField}
-      {projField}
-      {statusField}
-      {prioField}
-      {dateField}
-      {dueField}
-      {slugField}
+      <FormField label="Title" extraClass="daily-plan-text-field">{titleInput}</FormField>
+      <FormField label="Description" hint="(optional)" extraClass="daily-plan-text-field">{descInput}</FormField>
+      <FormField label="Tags">{tagPicker}</FormField>
+      <FormField label="Project" column>{projSel}{projHint}</FormField>
+      <FormField label="Status">{statusSel}</FormField>
+      <FormField label="Priority">{prioSel}</FormField>
+      <FormField label="Date">{dateInput}</FormField>
+      <FormField label="Due date" hint="(optional)">{dueInput}</FormField>
+      <FormField label="Worktree slug" hint="(optional)" column>{slugInput}{slugHint}</FormField>
       {actions}
     </div>
   ) as HTMLDivElement
