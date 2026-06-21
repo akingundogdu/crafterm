@@ -1,5 +1,6 @@
 import { settings } from '@ui/state/state'
 import { applicationRepo } from '@repositories'
+import { FormField } from '@ui/components'
 import type { ProjectNode, Application } from '@ui/types/types'
 
 type FieldFn = (
@@ -62,28 +63,25 @@ export function buildAppsSection(props: AppsSectionProps): void {
       applicationRepo.upsert(p.id, app)
     })
 
-    const opensLab = (<label>Opens as</label>) as HTMLLabelElement
-    const opensSel = (<select class="settings-select" />) as HTMLSelectElement
-    ;[
-      ['split', 'Split (tiled tab)'],
-      ['tab', 'Separate tab']
-    ].forEach(([v, lbl]) => {
-      const o = document.createElement('option')
-      o.value = v
-      o.textContent = lbl
-      if ((app.opensAs ?? 'split') === v) o.selected = true
-      opensSel.appendChild(o)
-    })
+    const opensSel = (
+      <select class="settings-select">
+        {(
+          [
+            ['split', 'Split (tiled tab)'],
+            ['tab', 'Separate tab']
+          ] as const
+        ).map(([v, lbl]) => (
+          <option value={v} selected={(app.opensAs ?? 'split') === v}>
+            {lbl}
+          </option>
+        ))}
+      </select>
+    ) as HTMLSelectElement
     opensSel.addEventListener('change', () => {
       app.opensAs = opensSel.value as Application['opensAs']
       applicationRepo.upsert(p.id, app)
     })
-    const opensWrap = (
-      <div class="field">
-        {opensLab}
-        {opensSel}
-      </div>
-    ) as HTMLDivElement
+    const opensWrap = (<FormField label="Opens as">{opensSel}</FormField>) as HTMLDivElement
     card.appendChild(opensWrap)
 
     // one command field per environment

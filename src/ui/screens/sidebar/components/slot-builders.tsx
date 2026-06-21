@@ -73,105 +73,117 @@ function buildWorktreeProcesses(wt: WorktreeNode | ProjectNode): HTMLElement | n
 export function buildBelow(node: SidebarNode): HTMLElement | null {
   if (node.kind === 'worktree' || node.kind === 'project') return buildWorktreeProcesses(node)
   if (node.kind !== 'tab') return null
-  const frag = document.createElement('div')
-  frag.className = 'tab-below'
   const detail = tabDetail(node)
   const paneIds = panesInLayout(node.root)
   const showPanes = settings.sidebar.details.paneList && paneIds.length > 1
 
-  if (node.detailsOpen) {
-    if (detail) {
-      frag.appendChild((<div class="tab-sub">{detail}</div>) as HTMLDivElement)
-    }
-    if (showPanes) {
-      const prows = paneIds.map((id) => {
-        const p = panes.get(id)
-        return (
-          <div class="tab-pane-row" onClick={makePaneRowClick(id)}>
-            <span class="tab-pane-title">{p?.title || 'terminal'}</span>
+  const subBlock = node.detailsOpen && detail ? ((<div class="tab-sub">{detail}</div>) as HTMLDivElement) : null
+
+  const paneBlock =
+    node.detailsOpen && showPanes
+      ? ((
+          <div class="tab-panes">
+            {paneIds.map((id) => {
+              const p = panes.get(id)
+              return (
+                <div class="tab-pane-row" onClick={makePaneRowClick(id)}>
+                  <span class="tab-pane-title">{p?.title || 'terminal'}</span>
+                </div>
+              ) as HTMLDivElement
+            })}
           </div>
-        ) as HTMLDivElement
-      })
-      frag.appendChild((<div class="tab-panes">{prows}</div>) as HTMLDivElement)
-    }
-  }
+        ) as HTMLDivElement)
+      : null
 
   // Plan files for this terminal's branch. Only shown when the user has
   // expanded the tab's detail line, so plans don't sit between rows and get
   // mis-clicked as a terminal.
-  if (node.detailsOpen) {
-    const plans = plansForTab(node)
-    if (plans.length) {
-      const prows = plans.map(
-        (plan) =>
-          (
-            <div
-              class="tab-plan-row"
-              title={plan.path}
-              onMouseDown={(e: MouseEvent) => e.stopPropagation()}
-              onClick={makePlanRowClick(plan.path)}
-            >
-              <span class="tab-plan-icon" innerHTML={PLAN_SVG} />
-              <span class="tab-plan-title">{plan.slug || plan.name.replace(/\.(md|mdx|mdc)$/i, '')}</span>
-            </div>
-          ) as HTMLDivElement
-      )
-      frag.appendChild((<div class="tab-plans">{prows}</div>) as HTMLDivElement)
-    }
-  }
+  const plans = node.detailsOpen ? plansForTab(node) : []
+  const planBlock = plans.length
+    ? ((
+        <div class="tab-plans">
+          {plans.map(
+            (plan) =>
+              (
+                <div
+                  class="tab-plan-row"
+                  title={plan.path}
+                  onMouseDown={(e: MouseEvent) => e.stopPropagation()}
+                  onClick={makePlanRowClick(plan.path)}
+                >
+                  <span class="tab-plan-icon" innerHTML={PLAN_SVG} />
+                  <span class="tab-plan-title">{plan.slug || plan.name.replace(/\.(md|mdx|mdc)$/i, '')}</span>
+                </div>
+              ) as HTMLDivElement
+          )}
+        </div>
+      ) as HTMLDivElement)
+    : null
+
+  const frag = (
+    <div class="tab-below">
+      {subBlock}
+      {paneBlock}
+      {planBlock}
+    </div>
+  ) as HTMLDivElement
 
   return frag.childElementCount ? frag : null
 }
 
 // trailing slot: Claude status pill + folder child-count badge + pin badge.
 export function buildTrailing(node: SidebarNode): HTMLElement | null {
-  const wrap = document.createElement('span')
   // iOS worktree folder → ▶/⋯ build-run actions.
   const iosActions = iosWorktreeTrailing(node)
-  if (iosActions) wrap.appendChild(iosActions)
+
   // Worktrees container → quick "+ new worktree".
-  if (isWorktreeContainer(node)) {
-    const proj = worktreeProjectOf(node)
-    if (proj) {
-      wrap.appendChild(
-        (
-          <button class="ios-wt-act" title={UITexts.Sidebar.newWorktreeTitle} onClick={makeNewWorktreeClick(proj)}>
-            +
-          </button>
-        ) as HTMLButtonElement
-      )
-    }
-  }
+  const worktreeProj = isWorktreeContainer(node) ? worktreeProjectOf(node) : null
+  const newWorktreeBtn = worktreeProj
+    ? ((
+        <button class="ios-wt-act" title={UITexts.Sidebar.newWorktreeTitle} onClick={makeNewWorktreeClick(worktreeProj)}>
+          +
+        </button>
+      ) as HTMLButtonElement)
+    : null
+
+  let statusPill: HTMLElement | null = null
   if (node.kind === 'tab') {
     // A code-review/test task overrides the Claude status pill with its badge.
     const taskBadge = tabTaskBadge(node)
     if (taskBadge) {
-      wrap.appendChild(
-        (
-          <span
-            class={'claude-status claude-' + taskBadge}
-            title={taskBadge === 'review' ? 'Ticket is in code review' : 'Ticket is in test'}
-          >
-            {taskBadge}
-          </span>
-        ) as HTMLSpanElement
-      )
+      statusPill = (
+        <span
+          class={'claude-status claude-' + taskBadge}
+          title={taskBadge === 'review' ? 'Ticket is in code review' : 'Ticket is in test'}
+        >
+          {taskBadge}
+        </span>
+      ) as HTMLSpanElement
     } else {
       const cs = claudeStatusOfTab(node)
       if (cs) {
-        wrap.appendChild(
-          (
-            <span class={'claude-status claude-' + cs} title={CLAUDE_STATUS_TITLE[cs]}>
-              {CLAUDE_STATUS_LABEL[cs]}
-            </span>
-          ) as HTMLSpanElement
-        )
+        statusPill = (
+          <span class={'claude-status claude-' + cs} title={CLAUDE_STATUS_TITLE[cs]}>
+            {CLAUDE_STATUS_LABEL[cs]}
+          </span>
+        ) as HTMLSpanElement
       }
     }
   }
-  if (node.kind === 'folder' || node.kind === 'project') {
-    wrap.appendChild((<span class="tab-badge">{String(allTabs([node]).length)}</span>) as HTMLSpanElement)
-  }
-  if (node.pinned) wrap.appendChild(pinBadge())
+
+  const childCountBadge =
+    node.kind === 'folder' || node.kind === 'project'
+      ? ((<span class="tab-badge">{String(allTabs([node]).length)}</span>) as HTMLSpanElement)
+      : null
+
+  const wrap = (
+    <span>
+      {iosActions}
+      {newWorktreeBtn}
+      {statusPill}
+      {childCountBadge}
+      {node.pinned ? pinBadge() : null}
+    </span>
+  ) as HTMLSpanElement
   return wrap.childElementCount ? wrap : null
 }

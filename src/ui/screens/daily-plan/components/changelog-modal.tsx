@@ -1,5 +1,5 @@
 import { makeCloseButton } from '@ui/components/dialog/dialog'
-import { createOverlay } from '@ui/components'
+import { createOverlay, FormField } from '@ui/components'
 import { CHANGELOG_RANGES, buildChangelogMarkdown } from '../daily-plan.state'
 
 // Modal: pick a day range, then generate a copyable markdown changelog of
@@ -17,20 +17,15 @@ export function showChangelogModal(): void {
   document.addEventListener('keydown', onKey, true)
 
   // Range select
-  const rangeSel = (<select class="settings-select" />) as HTMLSelectElement
-  for (const r of CHANGELOG_RANGES) {
-    const o = document.createElement('option')
-    o.value = r.id
-    o.textContent = r.label
-    rangeSel.appendChild(o)
-  }
+  const rangeSel = (
+    <select class="settings-select">
+      {CHANGELOG_RANGES.map((r) => (
+        <option value={r.id}>{r.label}</option>
+      ))}
+    </select>
+  ) as HTMLSelectElement
   rangeSel.value = 'today'
-  const rangeField = (
-    <div class="field">
-      <label>Date range</label>
-      {rangeSel}
-    </div>
-  ) as HTMLDivElement
+  const rangeField = (<FormField label="Date range">{rangeSel}</FormField>) as HTMLDivElement
 
   // Generate + output
   const output = (

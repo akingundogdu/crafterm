@@ -5,6 +5,7 @@ import { promptText } from '@ui/components/dialog/dialog'
 import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
 import { flattenProjects, removeProject } from '@ui/catalog/catalog'
 import { makeProject } from '@ui/tree/tree'
+import { FormField } from '@ui/components'
 import type { ProjectNode } from '@ui/types/types'
 import { buildSubTabs } from '../shared'
 import { computeGroupOptions } from './projects.state'
@@ -69,7 +70,6 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     onChange: (v: string) => void,
     opts: { textarea?: boolean; rows?: number; options?: string[] } = {}
   ): void => {
-    const lab = (<label>{label}</label>) as HTMLLabelElement
     const input = opts.textarea
       ? document.createElement('textarea')
       : document.createElement('input')
@@ -78,12 +78,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     input.value = value
     input.placeholder = placeholder
     input.addEventListener('change', () => onChange(input.value))
-    const wrap = (
-      <div class="field">
-        {lab}
-        {input}
-      </div>
-    ) as HTMLDivElement
+    const wrap = (<FormField label={label}>{input}</FormField>) as HTMLDivElement
     if (opts.options && input instanceof HTMLInputElement) {
       const listId = 'dl-' + Math.random().toString(36).slice(2, 9)
       input.setAttribute('list', listId)
@@ -104,7 +99,6 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     options: string[],
     onChange: (v: string) => void
   ): void => {
-    const lab = (<label>{label}</label>) as HTMLLabelElement
     const all = [...new Set([...options, ...(value ? [value] : [])])]
     const sel = (
       <select>
@@ -114,12 +108,7 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     ) as HTMLSelectElement
     sel.value = value
     sel.addEventListener('change', () => onChange(sel.value))
-    const wrap = (
-      <div class="field">
-        {lab}
-        {sel}
-      </div>
-    ) as HTMLDivElement
+    const wrap = (<FormField label={label}>{sel}</FormField>) as HTMLDivElement
     parent.appendChild(wrap)
   }
 

@@ -315,19 +315,20 @@ export function renderDailyCompact(host: HTMLElement): void {
 
   // --- Toolbar: title · fullscreen · range · new task --------------------
   const rangeSel = (
-    <select class="settings-select daily-compact-range" />
+    <select class="settings-select daily-compact-range">
+      {(
+        [
+          ['day', UITexts.DailyPlan.range.today],
+          ['3d', UITexts.DailyPlan.range.last3],
+          ['7d', UITexts.DailyPlan.range.last7]
+        ] as const
+      ).map(([val, label]) => (
+        <option value={val} selected={val === selectedRange}>
+          {label}
+        </option>
+      ))}
+    </select>
   ) as HTMLSelectElement
-  ;[
-    ['day', UITexts.DailyPlan.range.today],
-    ['3d', UITexts.DailyPlan.range.last3],
-    ['7d', UITexts.DailyPlan.range.last7]
-  ].forEach(([val, label]) => {
-    const o = document.createElement('option')
-    o.value = val
-    o.textContent = label
-    if (val === selectedRange) o.selected = true
-    rangeSel.appendChild(o)
-  })
   rangeSel.addEventListener('change', () => {
     selectedRange = rangeSel.value as DailyRange
     render()
@@ -355,23 +356,25 @@ export function renderDailyCompact(host: HTMLElement): void {
   host.appendChild(toolbar)
 
   // --- Status tab strip (counts per status, current scope) ---------------
-  const tabs = (<div class="daily-compact-tabs" />) as HTMLDivElement
-  for (const status of STATUSES) {
-    const count = tasks.filter((t) => boardColumnOf(t.status) === status.id).length
-    const b = (
-      <button
-        class={'daily-compact-tab' + (compactStatus === status.id ? ' active' : '')}
-        onClick={() => {
-          compactStatus = status.id
-          render()
-        }}
-      >
-        <span>{status.label}</span>
-        <span class="daily-compact-tab-count">{String(count)}</span>
-      </button>
-    ) as HTMLButtonElement
-    tabs.appendChild(b)
-  }
+  const tabs = (
+    <div class="daily-compact-tabs">
+      {STATUSES.map((status) => {
+        const count = tasks.filter((t) => boardColumnOf(t.status) === status.id).length
+        return (
+          <button
+            class={'daily-compact-tab' + (compactStatus === status.id ? ' active' : '')}
+            onClick={() => {
+              compactStatus = status.id
+              render()
+            }}
+          >
+            <span>{status.label}</span>
+            <span class="daily-compact-tab-count">{String(count)}</span>
+          </button>
+        )
+      })}
+    </div>
+  ) as HTMLDivElement
   host.appendChild(tabs)
 
   // --- Search ------------------------------------------------------------
@@ -475,45 +478,48 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
   host.appendChild((<div class="daily-plan-subtitle">{formatHeader(selectedDate)}</div>) as HTMLDivElement)
   host.appendChild(nav)
 
-  const actions = document.createElement('div')
-  actions.className = 'daily-plan-actions'
-
-  const rangeSel = (<select class="settings-select daily-plan-range" />) as HTMLSelectElement
-  ;[
-    ['day', UITexts.DailyPlan.range.today],
-    ['3d', UITexts.DailyPlan.range.last3],
-    ['7d', UITexts.DailyPlan.range.last7]
-  ].forEach(([val, label]) => {
-    const o = document.createElement('option')
-    o.value = val
-    o.textContent = label
-    if (val === selectedRange) o.selected = true
-    rangeSel.appendChild(o)
-  })
+  const rangeSel = (
+    <select class="settings-select daily-plan-range">
+      {(
+        [
+          ['day', UITexts.DailyPlan.range.today],
+          ['3d', UITexts.DailyPlan.range.last3],
+          ['7d', UITexts.DailyPlan.range.last7]
+        ] as const
+      ).map(([val, label]) => (
+        <option value={val} selected={val === selectedRange}>
+          {label}
+        </option>
+      ))}
+    </select>
+  ) as HTMLSelectElement
   rangeSel.addEventListener('change', () => {
     selectedRange = rangeSel.value as DailyRange
     rerender()
   })
-  actions.appendChild(rangeSel)
 
   // Project filter (todo4): show only the selected project's tasks.
-  const projFilter = (<select class="settings-select daily-plan-range" />) as HTMLSelectElement
-  const allOpt = document.createElement('option')
-  allOpt.value = ''
-  allOpt.textContent = UITexts.DailyPlan.allProjects
-  projFilter.appendChild(allOpt)
-  for (const { p, depth } of projectTree()) {
-    const o = document.createElement('option')
-    o.value = p.id
-    o.textContent = '   '.repeat(depth) + (depth ? '└ ' : '') + p.name
-    if (p.id === projectFilter) o.selected = true
-    projFilter.appendChild(o)
-  }
+  const projFilter = (
+    <select class="settings-select daily-plan-range">
+      <option value="">{UITexts.DailyPlan.allProjects}</option>
+      {projectTree().map(({ p, depth }) => (
+        <option value={p.id} selected={p.id === projectFilter}>
+          {'   '.repeat(depth) + (depth ? '└ ' : '') + p.name}
+        </option>
+      ))}
+    </select>
+  ) as HTMLSelectElement
   projFilter.addEventListener('change', () => {
     projectFilter = projFilter.value || null
     rerender()
   })
-  actions.appendChild(projFilter)
+
+  const actions = (
+    <div class="daily-plan-actions">
+      {rangeSel}
+      {projFilter}
+    </div>
+  ) as HTMLDivElement
 
   const newBtn = (
     <button class="daily-plan-primary-btn" onClick={() => showTaskForm(null, rerender)}>

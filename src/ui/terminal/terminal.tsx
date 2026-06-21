@@ -104,8 +104,7 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
 export function startPaneRename(pane: Pane): void {
   const header = pane.el.querySelector('.pane-header')
   if (!header) return
-  const input = document.createElement('input')
-  input.className = 'pane-rename'
+  const input = (<input class="pane-rename" />) as HTMLInputElement
   input.value = pane.title
   header.replaceChild(input, pane.htitle)
   input.focus()

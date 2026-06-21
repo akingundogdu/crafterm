@@ -150,17 +150,20 @@ export function renderCard({
   // Due date: show the time left (or overdue) for unfinished tasks; finished
   // ones just show the date so the urgency colours don't linger.
   if (task.dueDate) {
-    const due = document.createElement('div')
-    due.className = 'daily-plan-card-due'
     if (task.status === 'done') {
-      due.classList.add('done')
-      due.textContent = `Due ${shortDue(task.dueDate)}`
+      card.appendChild(
+        (
+          <div class="daily-plan-card-due done">{`Due ${shortDue(task.dueDate)}`}</div>
+        ) as HTMLDivElement
+      )
     } else {
       const info = dueInfo(task.dueDate)
-      due.classList.add(info.cls)
-      due.textContent = info.label
+      card.appendChild(
+        (
+          <div class={`daily-plan-card-due ${info.cls}`}>{info.label}</div>
+        ) as HTMLDivElement
+      )
     }
-    card.appendChild(due)
   }
 
   // In a multi-day range view, surface which day each card belongs to.
@@ -183,18 +186,18 @@ export function renderCard({
   }
 
   if (task.tagIds.length) {
-    const tagRow = (<div class="daily-plan-card-tags" />) as HTMLDivElement
-    for (const tagId of task.tagIds) {
-      const tag = tagById(tagId)
-      if (!tag) continue
-      tagRow.appendChild(
-        (
-          <span class="daily-plan-tag-chip" style={{ backgroundColor: tag.color }}>
-            {tag.name}
-          </span>
-        ) as HTMLSpanElement
-      )
-    }
+    const tagRow = (
+      <div class="daily-plan-card-tags">
+        {task.tagIds
+          .map((tagId) => tagById(tagId))
+          .filter((tag): tag is NonNullable<typeof tag> => !!tag)
+          .map((tag) => (
+            <span class="daily-plan-tag-chip" style={{ backgroundColor: tag.color }}>
+              {tag.name}
+            </span>
+          ))}
+      </div>
+    ) as HTMLDivElement
     card.appendChild(tagRow)
   }
 

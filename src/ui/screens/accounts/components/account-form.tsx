@@ -1,4 +1,4 @@
-import { createOverlay, createButton, createInput, createTextarea, createField } from '@ui/components'
+import { createOverlay, createButton, createInput, createTextarea, FormField } from '@ui/components'
 import { UITexts } from '@texts'
 import type { AccountEntry } from '@ui/types/types'
 import { makeCloseButton } from '@ui/components/dialog/dialog'
@@ -31,7 +31,7 @@ export function showAccountForm(
       : createInput({ value: val, placeholder })
     input.addEventListener('input', () => onChange(input.value))
     input.addEventListener('keydown', (e) => e.stopPropagation())
-    return createField(label, input)
+    return <FormField label={label}>{input}</FormField>
   }
 
   const fieldsList = (<div class="accounts-form-fields" />) as HTMLDivElement

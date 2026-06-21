@@ -15,26 +15,36 @@ export function actionMenuSearchEntries(): { label: string; run: () => void }[] 
 
 function showActionsMenu(anchor: HTMLElement): void {
   document.querySelector('.context-menu')?.remove()
-  const menu = document.createElement('div')
-  menu.className = 'context-menu'
   const r = anchor.getBoundingClientRect()
-  menu.style.left = Math.min(r.left, window.innerWidth - 200) + 'px'
-  menu.style.top = r.bottom + 4 + 'px'
-  const addItem = (label: string, fn: () => void): void => {
-    const b = document.createElement('button')
-    b.textContent = label
-    b.addEventListener('click', () => {
-      menu.remove()
-      fn()
-    })
-    menu.appendChild(b)
-  }
-  for (const item of actionMenuRepo.getAll()) {
-    if (item.hidden) continue
+  const visibleItems = actionMenuRepo.getAll().filter((item) => {
+    if (item.hidden) return false
     // Skip builtins whose id is no longer known (e.g. after a downgrade).
-    if (item.kind === 'builtin' && !BUILTIN_ACTION_RUN[item.builtinId ?? '']) continue
-    addItem(item.title, () => runActionItem(item))
-  }
+    if (item.kind === 'builtin' && !BUILTIN_ACTION_RUN[item.builtinId ?? '']) return false
+    return true
+  })
+  const menu = (
+    <div
+      class="context-menu"
+      style={{
+        left: Math.min(r.left, window.innerWidth - 200) + 'px',
+        top: r.bottom + 4 + 'px'
+      }}
+    >
+      {visibleItems.map(
+        (item) =>
+          (
+            <button
+              onClick={() => {
+                menu.remove()
+                runActionItem(item)
+              }}
+            >
+              {item.title}
+            </button>
+          ) as HTMLButtonElement
+      )}
+    </div>
+  ) as HTMLDivElement
   document.body.appendChild(menu)
   const onDown = (ev: MouseEvent): void => {
     if (!menu.contains(ev.target as Node)) {

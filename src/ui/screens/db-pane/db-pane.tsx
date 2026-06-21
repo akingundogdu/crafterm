@@ -106,18 +106,17 @@ export function createSqlPane(opts: {
     const conns = flattenConns()
     connSel.replaceChildren()
     if (!conns.length) {
-      const o = document.createElement('option')
-      o.value = ''
-      o.textContent = UITexts.DbPane.noConnections
-      connSel.appendChild(o)
+      connSel.appendChild((<option value="">{UITexts.DbPane.noConnections}</option>) as HTMLOptionElement)
       currentConnId = null
     } else {
-      for (const cn of conns) {
-        const o = document.createElement('option')
-        o.value = cn.conn.id
-        o.textContent = `${cn.conn.name}  ·  ${engineLabel(cn.conn.engine)}`
-        connSel.appendChild(o)
-      }
+      connSel.append(
+        ...conns.map(
+          (cn) =>
+            (
+              <option value={cn.conn.id}>{`${cn.conn.name}  ·  ${engineLabel(cn.conn.engine)}`}</option>
+            ) as HTMLOptionElement
+        )
+      )
       if (currentConnId && conns.some((c) => c.conn.id === currentConnId)) {
         connSel.value = currentConnId
       } else {
@@ -203,18 +202,19 @@ export function createSqlPane(opts: {
 
     if (res.error) {
       result.replaceChildren()
-      const e = document.createElement('div')
-      e.className = 'db-error db-result-error'
-      e.textContent = res.error
-      result.appendChild(e)
+      result.appendChild((<div class="db-error db-result-error">{res.error}</div>) as HTMLDivElement)
       return
     }
     if (!res.columns.length) {
       result.replaceChildren()
-      const ok = document.createElement('div')
-      ok.className = 'db-result-empty'
-      ok.innerHTML = `<span class="db-ok-badge">OK</span> ${res.rowCount} row(s) affected · ${ms}ms`
-      result.appendChild(ok)
+      result.appendChild(
+        (
+          <div
+            class="db-result-empty"
+            innerHTML={`<span class="db-ok-badge">OK</span> ${res.rowCount} row(s) affected · ${ms}ms`}
+          />
+        ) as HTMLDivElement
+      )
       return
     }
 

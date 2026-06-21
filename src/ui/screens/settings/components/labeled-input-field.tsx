@@ -1,3 +1,4 @@
+import { FormField } from '@ui/components'
 import { makeInputChange } from '../shared.state'
 
 // A `.field` row: a label paired with a text input; forwards value changes.
@@ -10,12 +11,7 @@ export function labeledInput(
 ): HTMLInputElement {
   const input = (<input type={type} onChange={makeInputChange(onChange)} />) as HTMLInputElement
   input.value = value
-  const field = (
-    <div class="field">
-      <label>{label}</label>
-      {input}
-    </div>
-  ) as HTMLDivElement
+  const field = (<FormField label={label}>{input}</FormField>) as HTMLDivElement
   parent.appendChild(field)
   return input
 }

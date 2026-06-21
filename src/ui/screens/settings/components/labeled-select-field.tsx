@@ -1,3 +1,4 @@
+import { FormField } from '@ui/components'
 import { makeSelectChange } from '../shared.state'
 
 // A `.field` row: a label paired with a select; forwards value changes.
@@ -14,12 +15,7 @@ export function labeledSelect(
     if (val === selected) o.selected = true
     sel.appendChild(o)
   })
-  const field = (
-    <div class="field">
-      <label>{label}</label>
-      {sel}
-    </div>
-  ) as HTMLDivElement
+  const field = (<FormField label={label}>{sel}</FormField>) as HTMLDivElement
   parent.appendChild(field)
   return sel
 }

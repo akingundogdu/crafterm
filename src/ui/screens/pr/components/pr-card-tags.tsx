@@ -15,11 +15,9 @@ export function prCardTags(pr: PullRequest): HTMLElement {
   const rev = reviewBadge(pr)
   if (rev) tags.appendChild(rev)
   if (pr.comments > 0) {
-    const cm = document.createElement('span')
-    cm.className = 'pr-status-tag none comment'
+    const cm = (<span class="pr-status-tag none comment" title={commentTitle(pr.comments)} />) as HTMLSpanElement
     cm.innerHTML = COMMENT_SVG
     cm.appendChild(document.createTextNode(String(pr.comments)))
-    cm.title = commentTitle(pr.comments)
     tags.appendChild(cm)
   }
   return tags

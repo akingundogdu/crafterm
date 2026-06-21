@@ -1,7 +1,7 @@
 import type { FolderNode, ProjectNode } from '@ui/types/types'
 import { UITexts } from '@texts'
 import { persistence } from '@repositories/persistence.service'
-import { createOverlay } from '@ui/components'
+import { createOverlay, FormField } from '@ui/components'
 
 // Per-folder settings modal (startup command / env / shell). `renderSidebar` is
 // injected so this piece does not import the shell back (avoids a cycle).
@@ -19,14 +19,7 @@ export function showFolderSettings(node: FolderNode | ProjectNode, renderSidebar
   const textField = (label: string, value: string, ph: string): HTMLInputElement => {
     const i = (<input type="text" placeholder={ph} />) as HTMLInputElement
     i.value = value
-    modal.appendChild(
-      (
-        <div class="field">
-          <label>{label}</label>
-          {i}
-        </div>
-      ) as HTMLDivElement
-    )
+    modal.appendChild((<FormField label={label}>{i}</FormField>) as HTMLDivElement)
     return i
   }
   // Projects expose name/path/command (the bits unique to a project); folders
@@ -42,10 +35,9 @@ export function showFolderSettings(node: FolderNode | ProjectNode, renderSidebar
   env.rows = 4
   modal.appendChild(
     (
-      <div class="field field-col">
-        <label>Environment (KEY=VALUE per line)</label>
+      <FormField label="Environment (KEY=VALUE per line)" extraClass="field-col">
         {env}
-      </div>
+      </FormField>
     ) as HTMLDivElement
   )
 

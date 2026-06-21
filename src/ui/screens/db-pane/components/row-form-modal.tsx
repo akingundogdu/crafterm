@@ -47,11 +47,19 @@ export function openRowFormModal(opts: {
 
       const nullCb = (<input type="checkbox" />) as HTMLInputElement
       nullCb.checked = opts.initial[c.name].isNull
-      const nullWrap = (<label class="db-row-modal-null" />) as HTMLLabelElement
-      nullWrap.append(nullCb, document.createTextNode(' NULL'))
+      const nullWrap = (
+        <label class="db-row-modal-null">
+          {nullCb}
+          {' NULL'}
+        </label>
+      ) as HTMLLabelElement
 
-      const labelRow = (<div class="db-row-modal-field-label-row" />) as HTMLDivElement
-      labelRow.append(lab, nullWrap)
+      const labelRow = (
+        <div class="db-row-modal-field-label-row">
+          {lab}
+          {nullWrap}
+        </div>
+      ) as HTMLDivElement
 
       // textarea for text-ish types, input otherwise.
       const isLong = /text|json|jsonb|character\s+varying|varchar|blob/i.test(c.type)
@@ -76,16 +84,24 @@ export function openRowFormModal(opts: {
         if (nullCb.checked) input.value = ''
       })
 
-      const field = (<div class="db-row-modal-field" />) as HTMLDivElement
-      field.append(labelRow, input)
+      const field = (
+        <div class="db-row-modal-field">
+          {labelRow}
+          {input}
+        </div>
+      ) as HTMLDivElement
       list.appendChild(field)
       inputs[c.name] = { input, nullCb }
     }
 
     const cancel = (<button>{UITexts.DbPane.cancel}</button>) as HTMLButtonElement
     const ok = (<button class="button-primary">{opts.submitText}</button>) as HTMLButtonElement
-    const actions = (<div class="modal-actions" />) as HTMLDivElement
-    actions.append(cancel, ok)
+    const actions = (
+      <div class="modal-actions">
+        {cancel}
+        {ok}
+      </div>
+    ) as HTMLDivElement
 
     const modal = (
       <div class="modal db-row-modal">

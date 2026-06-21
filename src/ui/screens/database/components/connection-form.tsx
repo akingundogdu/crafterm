@@ -56,26 +56,20 @@ export function buildConnectionForm(opts: {
   name.value = c?.name ?? ''
 
   // network fields (postgres/mysql)
-  const host = document.createElement('input')
-  const port = document.createElement('input')
-  const user = document.createElement('input')
-  const pass = document.createElement('input')
-  const database = document.createElement('input')
+  const mkNet = (label: string, value: string, ph: string, type = 'text'): HTMLInputElement => {
+    const input = (<input class="reminder-input" type={type} placeholder={ph} />) as HTMLInputElement
+    input.value = value
+    netWrap.append((<div class="reminder-label">{label}</div>) as HTMLDivElement, input)
+    return input
+  }
   const ssl = (<input type="checkbox" />) as HTMLInputElement
   ssl.checked = !!c?.ssl
   const netWrap = (<div />) as HTMLDivElement
-  const mkNet = (label: string, input: HTMLInputElement, value: string, ph: string, type = 'text'): void => {
-    input.className = 'reminder-input'
-    input.type = type
-    input.value = value
-    input.placeholder = ph
-    netWrap.append((<div class="reminder-label">{label}</div>) as HTMLDivElement, input)
-  }
-  mkNet(UITexts.Database.fields.host, host, c?.host ?? '', UITexts.Database.ph.host)
-  mkNet(UITexts.Database.fields.port, port, c?.port ? String(c.port) : '', UITexts.Database.ph.port, 'number')
-  mkNet(UITexts.Database.fields.user, user, c?.user ?? '', UITexts.Database.ph.user)
-  mkNet(UITexts.Database.fields.password, pass, c?.password ?? '', UITexts.Database.ph.password, 'password')
-  mkNet(UITexts.Database.fields.database, database, c?.database ?? '', UITexts.Database.ph.database)
+  const host = mkNet(UITexts.Database.fields.host, c?.host ?? '', UITexts.Database.ph.host)
+  const port = mkNet(UITexts.Database.fields.port, c?.port ? String(c.port) : '', UITexts.Database.ph.port, 'number')
+  const user = mkNet(UITexts.Database.fields.user, c?.user ?? '', UITexts.Database.ph.user)
+  const pass = mkNet(UITexts.Database.fields.password, c?.password ?? '', UITexts.Database.ph.password, 'password')
+  const database = mkNet(UITexts.Database.fields.database, c?.database ?? '', UITexts.Database.ph.database)
   netWrap.appendChild(
     (
       <label class="checkbox-row">

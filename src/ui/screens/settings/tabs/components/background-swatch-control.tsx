@@ -1,4 +1,5 @@
 import { UITexts } from '@texts'
+import { FormField } from '@ui/components'
 
 interface BackgroundSwatchControlProps {
   presets: readonly string[]
@@ -56,10 +57,5 @@ export function buildBackgroundSwatchControl(props: BackgroundSwatchControlProps
   }
   mark()
 
-  return (
-    <div class="field">
-      <label>{UITexts.Settings.appearance.background}</label>
-      {row}
-    </div>
-  ) as HTMLDivElement
+  return (<FormField label={UITexts.Settings.appearance.background}>{row}</FormField>) as HTMLDivElement
 }
