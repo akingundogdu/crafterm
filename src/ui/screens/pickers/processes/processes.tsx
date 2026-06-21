@@ -1,7 +1,8 @@
 import { overlayModal, makeSearchInput } from '../shared'
 import { UITexts } from '@texts'
+import { processRow } from './components/process-row'
+import { deviceAppRow } from './components/device-app-row'
 import {
-  PROC_STATUS_LABEL,
   sortedProcesses,
   filterProcesses,
   groupRunningDevices,
@@ -30,24 +31,13 @@ export function showRunningProcessesDashboard(): void {
       return
     }
     items.forEach((c) => {
-      const row = (
-        <div class="pick-row worktree-row">
-          <div class="claude-main">
-            <span class="claude-title">{c.proc.title}</span>
-            <span class="claude-sub">{[c.proc.target?.name, c.proc.cwd].filter(Boolean).join(' · ')}</span>
-          </div>
-          <span class={'proc-status proc-status-' + c.proc.status}>
-            {PROC_STATUS_LABEL[c.proc.status] ?? c.proc.status}
-          </span>
-          <button class="worktree-action" onClick={makeViewClick(c.proc.stableId, close)}>
-            View
-          </button>
-          <button class="worktree-action worktree-remove" onClick={makeKillClick(c.proc.stableId, render)}>
-            Kill
-          </button>
-        </div>
-      ) as HTMLDivElement
-      list.appendChild(row)
+      list.appendChild(
+        processRow({
+          item: c,
+          onView: makeViewClick(c.proc.stableId, close),
+          onKill: makeKillClick(c.proc.stableId, render)
+        })
+      )
     })
   }
 
@@ -81,18 +71,7 @@ export function showRunningDevicesDashboard(): void {
       list.appendChild((<div class="proc-group-header">{`${g.name} (${g.kind})`}</div>) as HTMLDivElement)
 
       items.forEach((c) => {
-        const row = (
-          <div class="pick-row worktree-row">
-            <div class="claude-main">
-              <span class="claude-title">{c.proc.title}</span>
-              <span class="claude-sub">{c.proc.cwd}</span>
-            </div>
-            <button class="worktree-action worktree-remove" onClick={makeStopAppClick(c, render)}>
-              Stop app
-            </button>
-          </div>
-        ) as HTMLDivElement
-        list.appendChild(row)
+        list.appendChild(deviceAppRow({ item: c, onStop: makeStopAppClick(c, render) }))
       })
     }
     if (!shown) {

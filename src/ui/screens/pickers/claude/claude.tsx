@@ -9,10 +9,11 @@ import {
   makeAccountRowClick,
   loadResumeSessions,
   filterResumeSessions,
-  resumeSession,
-  relTime,
-  shortCwd
+  resumeSession
 } from './claude.state'
+import { claudeSessionRow } from './components/claude-session-row'
+import { accountRow } from './components/account-row'
+import { resumeSessionRow } from './components/resume-session-row'
 
 // ---- Claude sessions dashboard: list all Claude panes, jump to one ----
 
@@ -37,16 +38,7 @@ export function showClaudeDashboard(): void {
       return
     }
     shown.forEach((s) => {
-      const row = (
-        <div class="pick-row claude-row" onClick={makeSessionRowClick(s.paneId, done)}>
-          <span class={'status-dot ' + s.status} />
-          <div class="claude-main">
-            <span class="claude-title">{s.group ? `${s.title}  ·  ${s.group}` : s.title}</span>
-            <span class="claude-sub">{[s.branch, s.cwd].filter(Boolean).join(' · ') || s.status}</span>
-          </div>
-        </div>
-      ) as HTMLDivElement
-      list.appendChild(row)
+      list.appendChild(claudeSessionRow(s, makeSessionRowClick(s.paneId, done)))
     })
   }
 
@@ -96,13 +88,7 @@ export async function showClaudeAccountSwitcher(): Promise<void> {
       return
     }
     items.forEach((a) => {
-      const row = (
-        <button class="pick-row project-row" onClick={makeAccountRowClick(a.name, a.label, close)}>
-          <span class="picker-name">{a.label}</span>
-          {a.value && <span class="project-sub">{a.value}</span>}
-        </button>
-      ) as HTMLButtonElement
-      list.appendChild(row)
+      list.appendChild(accountRow(a, makeAccountRowClick(a.name, a.label, close)))
     })
   }
   renderAcc()
@@ -147,18 +133,17 @@ export async function showClaudeSessionResume(): Promise<void> {
       return
     }
     items.slice(0, 400).forEach((s, i) => {
-      const row = (
-        <div class={'pick-row project-row' + (i === sel ? ' active' : '')}>
-          <span class="picker-name">{s.summary || '(no prompt)'}</span>
-          <span class="project-sub">{`${shortCwd(s.cwd)} · ${relTime(s.mtimeMs)}`}</span>
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', () => resume(s))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        resumeSessionRow(
+          s,
+          i === sel,
+          () => resume(s),
+          () => {
+            sel = i
+            highlight()
+          }
+        )
+      )
     })
   }
   input.addEventListener('input', () => {

@@ -15,6 +15,11 @@ import {
   makeRunSplit,
   makeRunTab
 } from './project.state'
+import { projectRow } from './components/project-row'
+import { environmentChips } from './components/environment-chips'
+import { applicationCheckboxRow } from './components/application-checkbox-row'
+import { runCommandRow } from './components/run-command-row'
+import { runAppRow } from './components/run-app-row'
 
 // ---- Project picker: open a saved project (or a blank terminal) ----
 
@@ -51,18 +56,18 @@ export function showProjectPicker(parentFolderId: string | null, opts?: { split?
     if (sel >= items.length) sel = Math.max(0, items.length - 1)
     list.replaceChildren()
     items.forEach((e, i) => {
-      const row = (
-        <div class={'pick-row project-row' + (i === sel ? ' active' : '')}>
-          <span class="picker-name">{e.label}</span>
-          {e.sub && <span class="project-sub">{e.sub}</span>}
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', (ev) => choose(e, ev.metaKey || ev.ctrlKey))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        projectRow({
+          label: e.label,
+          sub: e.sub,
+          active: i === sel,
+          onClick: (split) => choose(e, split),
+          onHover: () => {
+            sel = i
+            highlight()
+          }
+        })
+      )
     })
   }
   const highlight = (): void => {
@@ -113,21 +118,16 @@ export function showRunApps(project: ProjectNode): void {
 
   let env = settings.environments[0]
   modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
-  const envBar = (<div class="run-env-bar" />) as HTMLDivElement
-  const envBtns: HTMLButtonElement[] = []
-  settings.environments.forEach((name) => {
-    const b = (
-      <button class={'run-env-chip' + (name === env ? ' active' : '')}>{name}</button>
-    ) as HTMLButtonElement
-    b.addEventListener('click', () => {
-      env = name
-      envBtns.forEach((x) => x.classList.toggle('active', x === b))
-      renderApps()
+  modal.append(
+    environmentChips({
+      environments: settings.environments,
+      selected: env,
+      onSelect: (name) => {
+        env = name
+        renderApps()
+      }
     })
-    envBtns.push(b)
-    envBar.appendChild(b)
-  })
-  modal.append(envBar)
+  )
 
   modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Applications</div>')
   const list = (<div class="run-app-list" />) as HTMLDivElement
@@ -138,23 +138,8 @@ export function showRunApps(project: ProjectNode): void {
     checks.clear()
     apps.forEach((app) => {
       const cmd = (app.commands?.[env] ?? '').trim()
-      const cb = (
-        <input
-          type="checkbox"
-          ref={(el: HTMLInputElement) => {
-            el.checked = !!cmd
-            el.disabled = !cmd
-          }}
-        />
-      ) as HTMLInputElement
-      const row = (
-        <label class={'run-app-row' + (cmd ? '' : ' disabled')}>
-          {cb}
-          <span class="run-app-name">{app.name}</span>
-          <span class="run-app-cmd">{cmd || `no command for ${env}`}</span>
-        </label>
-      ) as HTMLLabelElement
-      checks.set(app, cb)
+      const { row, checkbox } = applicationCheckboxRow({ name: app.name, cmd, env })
+      checks.set(app, checkbox)
       list.appendChild(row)
     })
   }
@@ -211,18 +196,18 @@ function pickProjectWithApps(title: string, onPick: (p: ProjectNode) => void): v
     list.replaceChildren()
     items.forEach((p, i) => {
       const n = p.apps?.length ?? 0
-      const row = (
-        <div class={'pick-row project-row' + (i === sel ? ' active' : '')}>
-          <span class="picker-name">{p.name}</span>
-          <span class="project-sub">{`${p.path} · ${n} app${n === 1 ? '' : 's'}`}</span>
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', () => choose(p))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        projectRow({
+          label: p.name,
+          sub: `${p.path} · ${n} app${n === 1 ? '' : 's'}`,
+          active: i === sel,
+          onClick: () => choose(p),
+          onHover: () => {
+            sel = i
+            highlight()
+          }
+        })
+      )
     })
   }
   input.addEventListener('keydown', (e) => {
@@ -275,32 +260,14 @@ export function showRunCommand(project: ProjectNode): void {
       env: project.env,
       shell: project.shell
     }
-    const main = (
-      <div class="claude-main">
-        <span class="picker-name">{rc.name}</span>
-        <span class="project-sub">{rc.command}</span>
-      </div>
-    ) as HTMLDivElement
-    const splitBtn = (
-      <button class="worktree-action" title={UITexts.Pickers.project.runSplitTitle}>
-        Split
-      </button>
-    ) as HTMLButtonElement
-    splitBtn.addEventListener('click', makeRunSplit(target, close))
-    const tabBtn = (
-      <button class="worktree-action" title={UITexts.Pickers.project.runTabTitle}>
-        New tab
-      </button>
-    ) as HTMLButtonElement
-    tabBtn.addEventListener('click', makeRunTab(target, project.id, close))
-    const row = (
-      <div class="pick-row project-row">
-        {main}
-        {splitBtn}
-        {tabBtn}
-      </div>
-    ) as HTMLDivElement
-    list.appendChild(row)
+    list.appendChild(
+      runCommandRow({
+        name: rc.name,
+        command: rc.command,
+        onSplit: makeRunSplit(target, close),
+        onTab: makeRunTab(target, project.id, close)
+      })
+    )
   }
 }
 
@@ -327,33 +294,15 @@ export function showRunApp(project: ProjectNode, app: Application): void {
   for (const env of envs) {
     const dev = (app.commands[env] ?? '').trim()
     const command = startup ? `${startup} && ${dev}` : dev
-    const main = (
-      <div class="claude-main">
-        <span class="picker-name">{env}</span>
-        <span class="project-sub">{dev}</span>
-      </div>
-    ) as HTMLDivElement
     const target = { name: `${app.name} · ${env}`, path: appPath, command, env: project.env, shell: project.shell }
-    const splitBtn = (
-      <button class="worktree-action" title={UITexts.Pickers.project.runSplitTitle}>
-        Split
-      </button>
-    ) as HTMLButtonElement
-    splitBtn.addEventListener('click', makeRunSplit(target, close))
-    const tabBtn = (
-      <button class="worktree-action" title={UITexts.Pickers.project.runTabTitle}>
-        New tab
-      </button>
-    ) as HTMLButtonElement
-    tabBtn.addEventListener('click', makeRunTab(target, project.id, close))
-    const row = (
-      <div class="pick-row project-row">
-        {main}
-        {splitBtn}
-        {tabBtn}
-      </div>
-    ) as HTMLDivElement
-    list.appendChild(row)
+    list.appendChild(
+      runAppRow({
+        env,
+        command: dev,
+        onSplit: makeRunSplit(target, close),
+        onTab: makeRunTab(target, project.id, close)
+      })
+    )
   }
 }
 
@@ -405,21 +354,16 @@ export function showFeatureSetup(project: ProjectNode): void {
   const wt = new Map<Application, HTMLInputElement>()
   if (hasApps) {
     modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
-    const envBar = (<div class="run-env-bar" />) as HTMLDivElement
-    const envBtns: HTMLButtonElement[] = []
-    settings.environments.forEach((name) => {
-      const b = (
-        <button class={'run-env-chip' + (name === env ? ' active' : '')}>{name}</button>
-      ) as HTMLButtonElement
-      b.addEventListener('click', () => {
-        env = name
-        envBtns.forEach((x) => x.classList.toggle('active', x === b))
-        renderApps()
+    modal.append(
+      environmentChips({
+        environments: settings.environments,
+        selected: env,
+        onSelect: (name) => {
+          env = name
+          renderApps()
+        }
       })
-      envBtns.push(b)
-      envBar.appendChild(b)
-    })
-    modal.append(envBar)
+    )
 
     modal.insertAdjacentHTML(
       'beforeend',
@@ -433,40 +377,14 @@ export function showFeatureSetup(project: ProjectNode): void {
       wt.clear()
       apps.forEach((app) => {
         const cmd = (app.commands?.[env] ?? '').trim()
-        const cb = (
-          <input
-            type="checkbox"
-            title={UITexts.Pickers.project.includeTitle}
-            ref={(el: HTMLInputElement) => {
-              el.checked = !!cmd
-              el.disabled = !cmd
-            }}
-          />
-        ) as HTMLInputElement
-        const wtCb = (
-          <input
-            type="checkbox"
-            ref={(el: HTMLInputElement) => {
-              el.disabled = !cmd
-            }}
-          />
-        ) as HTMLInputElement
-        const wtLabel = (
-          <label class="feature-wt">
-            {wtCb}
-            worktree
-          </label>
-        ) as HTMLLabelElement
-        const row = (
-          <div class={'run-app-row feature-app-row' + (cmd ? '' : ' disabled')}>
-            {cb}
-            <span class="run-app-name">{app.name}</span>
-            <span class="run-app-cmd">{cmd || `no command for ${env}`}</span>
-            {wtLabel}
-          </div>
-        ) as HTMLDivElement
-        incl.set(app, cb)
-        wt.set(app, wtCb)
+        const { row, checkbox, worktreeCheckbox } = applicationCheckboxRow({
+          name: app.name,
+          cmd,
+          env,
+          withWorktree: true
+        })
+        incl.set(app, checkbox)
+        if (worktreeCheckbox) wt.set(app, worktreeCheckbox)
         list.appendChild(row)
       })
     }

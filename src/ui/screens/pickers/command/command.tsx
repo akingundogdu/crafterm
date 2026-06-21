@@ -10,10 +10,12 @@ import {
   filterPaletteCommands,
   buildOpenTerminals,
   filterTerminals,
-  filterHistory,
-  makeHistoryBtnCopy,
-  makeHistoryRowCopy
+  filterHistory
 } from './command.state'
+import { paletteRow } from './components/palette-row'
+import { terminalRow } from './components/terminal-row'
+import { commandHistoryRow } from './components/command-history-row'
+import { renderCategoryChips } from './components/category-chips'
 
 export type { PaletteCommand, OpenTerminal, ZshCommand } from './command.types'
 export { loadZshCommands } from './command.state'
@@ -60,30 +62,25 @@ export async function showCommandPalette(): Promise<void> {
       return
     }
     items.slice(0, 500).forEach((c, i) => {
-      const name = (<span class="palette-name">{c.name}</span>) as HTMLSpanElement
-      const tag = (<span class="palette-cat">{c.category}</span>) as HTMLSpanElement
-      const row = (
-        <div class={'pick-row palette-row' + (i === sel ? ' active' : '')}>
-          {name}
-          {c.value && c.value !== c.name && <span class="palette-val">{c.value}</span>}
-          {tag}
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', () => insert(c))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        paletteRow({
+          command: c,
+          active: i === sel,
+          onClick: () => insert(c),
+          onHover: () => {
+            sel = i
+            highlight()
+          }
+        })
+      )
     })
   }
   const renderChips = (): void => {
-    chips.replaceChildren()
-    categories.forEach((cat) => {
-      const chip = (
-        <button class={'picker-markdown-chip' + (active.has(cat) ? ' active' : '')}>{cat}</button>
-      ) as HTMLButtonElement
-      chip.addEventListener('click', () => {
+    renderCategoryChips({
+      container: chips,
+      categories,
+      active,
+      onToggle: (cat) => {
         if (active.has(cat)) {
           if (active.size > 1) active.delete(cat) // keep at least one category active
         } else {
@@ -92,8 +89,7 @@ export async function showCommandPalette(): Promise<void> {
         sel = 0
         renderChips()
         render()
-      })
-      chips.appendChild(chip)
+      }
     })
   }
   input.addEventListener('input', () => {
@@ -160,29 +156,17 @@ export function showTerminalSwitcher(): void {
       return
     }
     items.forEach((t, i) => {
-      const title = (
-        <span class="claude-title">
-          {(t.claude ? '↺ ' : '') + (t.group ? `${t.title}  ·  ${t.group}` : t.title)}
-        </span>
-      ) as HTMLSpanElement
-      const sub = (
-        <span class="claude-sub">{[t.branch, t.cwd].filter(Boolean).join(' · ') || t.status}</span>
-      ) as HTMLSpanElement
-      const row = (
-        <div class={'pick-row claude-row' + (i === sel ? ' active' : '')}>
-          <span class={'status-dot ' + t.status} />
-          <div class="claude-main">
-            {title}
-            {sub}
-          </div>
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', () => focusTerm(t))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        terminalRow({
+          terminal: t,
+          active: i === sel,
+          onClick: () => focusTerm(t),
+          onHover: () => {
+            sel = i
+            highlight()
+          }
+        })
+      )
     })
   }
   input.addEventListener('input', () => {
@@ -236,17 +220,7 @@ export function showCommandHistory(): void {
       return
     }
     items.slice(0, 500).forEach((cmd) => {
-      const text = (<span class="cmd-text">{cmd}</span>) as HTMLSpanElement
-      const btn = (<button class="cmd-copy">Copy</button>) as HTMLButtonElement
-      btn.addEventListener('click', makeHistoryBtnCopy(cmd, btn))
-      const row = (
-        <div class="pick-row cmd-row">
-          {text}
-          {btn}
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', makeHistoryRowCopy(cmd, btn))
-      list.appendChild(row)
+      list.appendChild(commandHistoryRow({ command: cmd }))
     })
   }
 

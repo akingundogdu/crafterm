@@ -1,10 +1,12 @@
 import { settings } from '@ui/state/state'
 import { openMarkdownFile } from '@ui/commands/commands'
 import { fsService, markdownService } from '@services'
-import { overlayModal, makeSearchInput, baseName } from '../shared'
+import { overlayModal, makeSearchInput } from '../shared'
 import { UITexts } from '@texts'
 import type { MdFile } from './finders.types'
-import { ALL_FOLDERS, prettyPath, filterByName, dedupeByPath, fileCountLabel } from './finders.state'
+import { ALL_FOLDERS, filterByName, dedupeByPath, fileCountLabel } from './finders.state'
+import { mdFileRow } from './components/md-file-row'
+import { filterChips } from './components/filter-chips'
 
 export type { MdFile, FileFinderOptions } from './finders.types'
 
@@ -21,25 +23,7 @@ export async function showAllMarkdown(): Promise<void> {
   let folderFilter: string | null = null // null = nothing loaded yet
   let files: MdFile[] = []
 
-  const filterBar = (<div class="md-filters" />) as HTMLDivElement
-  const chips: HTMLButtonElement[] = []
-  const makeChip = (label: string, value: string): void => {
-    const c = (
-      <button
-        class="picker-markdown-chip"
-        title={value === ALL_FOLDERS ? 'All configured folders' : value}
-        onClick={() => void load(value, c)}
-      >
-        {label}
-      </button>
-    ) as HTMLButtonElement
-    filterBar.appendChild(c)
-    chips.push(c)
-  }
-  if (folders.length) {
-    makeChip('All', ALL_FOLDERS)
-    folders.forEach((f) => makeChip(baseName(f), f))
-  }
+  const { bar: filterBar, chips } = filterChips(folders, (value, chip) => void load(value, chip))
 
   const countEl = (<div class="picker-markdown-count" />) as HTMLDivElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
@@ -89,20 +73,17 @@ export async function showAllMarkdown(): Promise<void> {
       return
     }
     items.slice(0, 500).forEach((f, i) => {
-      const row = (
-        <div class={'pick-row mdfile-row' + (i === sel ? ' active' : '')}>
-          <div class="claude-main">
-            <span class="picker-name">{f.name}</span>
-            <span class="project-sub">{prettyPath(f.path.slice(0, f.path.length - f.name.length))}</span>
-          </div>
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', () => open(f.path))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        mdFileRow(
+          f,
+          i === sel,
+          () => open(f.path),
+          () => {
+            sel = i
+            highlight()
+          }
+        )
+      )
     })
   }
   const highlight = (): void => {
@@ -151,25 +132,7 @@ export async function showFileFinder(opts: {
   let folderFilter: string | null = null
   let files: MdFile[] = []
 
-  const filterBar = (<div class="md-filters" />) as HTMLDivElement
-  const chips: HTMLButtonElement[] = []
-  const makeChip = (label: string, value: string): void => {
-    const c = (
-      <button
-        class="picker-markdown-chip"
-        title={value === ALL_FOLDERS ? 'All configured folders' : value}
-        onClick={() => void load(value, c)}
-      >
-        {label}
-      </button>
-    ) as HTMLButtonElement
-    filterBar.appendChild(c)
-    chips.push(c)
-  }
-  if (folders.length) {
-    makeChip('All', ALL_FOLDERS)
-    folders.forEach((f) => makeChip(baseName(f), f))
-  }
+  const { bar: filterBar, chips } = filterChips(folders, (value, chip) => void load(value, chip))
 
   const countEl = (<div class="picker-markdown-count" />) as HTMLDivElement
   const list = (<div class="pick-list picker-list" />) as HTMLDivElement
@@ -224,20 +187,17 @@ export async function showFileFinder(opts: {
       return
     }
     items.slice(0, 500).forEach((f, i) => {
-      const row = (
-        <div class={'pick-row mdfile-row' + (i === sel ? ' active' : '')}>
-          <div class="claude-main">
-            <span class="picker-name">{f.name}</span>
-            <span class="project-sub">{prettyPath(f.path.slice(0, f.path.length - f.name.length))}</span>
-          </div>
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', () => pick(f))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        mdFileRow(
+          f,
+          i === sel,
+          () => pick(f),
+          () => {
+            sel = i
+            highlight()
+          }
+        )
+      )
     })
   }
   const highlight = (): void => {

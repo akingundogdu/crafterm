@@ -4,6 +4,7 @@ import { dirService } from '@services'
 import { overlayModal } from '../shared'
 import { UITexts } from '@texts'
 import { filterDirs, makeOpenHere } from './folder.state'
+import { folderRow } from './components/folder-row'
 
 // ---- Pick a folder (returns its path) — used by Settings to choose md folders ----
 export function pickFolderPath(startDir?: string): Promise<string | null> {
@@ -53,27 +54,18 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
         return
       }
       items.forEach((d, i) => {
-        const drill = (
-          <button class="picker-drill" title={UITexts.Pickers.folder.enterFolder}>
-            ›
-          </button>
-        ) as HTMLButtonElement
-        drill.addEventListener('click', (e) => {
-          e.stopPropagation()
-          void load(d.path)
-        })
-        const row = (
-          <div class={'pick-row picker-row' + (i === sel ? ' active' : '')}>
-            <span class="picker-name">{d.name}</span>
-            {drill}
-          </div>
-        ) as HTMLDivElement
-        row.addEventListener('click', () => finish(d.path))
-        row.addEventListener('mouseenter', () => {
-          sel = i
-          highlight()
-        })
-        list.appendChild(row)
+        list.appendChild(
+          folderRow({
+            name: d.name,
+            isActive: i === sel,
+            onSelect: () => finish(d.path),
+            onDrill: () => void load(d.path),
+            onHover: () => {
+              sel = i
+              highlight()
+            }
+          })
+        )
       })
     }
     const load = async (p?: string): Promise<void> => {
@@ -158,27 +150,18 @@ export async function showFolderPicker(): Promise<void> {
       return
     }
     items.forEach((d, i) => {
-      const drill = (
-        <button class="picker-drill" title={UITexts.Pickers.folder.enterFolder}>
-          ›
-        </button>
-      ) as HTMLButtonElement
-      drill.addEventListener('click', (e) => {
-        e.stopPropagation()
-        void load(d.path)
-      })
-      const row = (
-        <div class={'pick-row picker-row' + (i === sel ? ' active' : '')}>
-          <span class="picker-name">{d.name}</span>
-          {drill}
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', () => openHere(d.path))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        folderRow({
+          name: d.name,
+          isActive: i === sel,
+          onSelect: () => openHere(d.path),
+          onDrill: () => void load(d.path),
+          onHover: () => {
+            sel = i
+            highlight()
+          }
+        })
+      )
     })
   }
 

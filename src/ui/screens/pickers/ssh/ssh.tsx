@@ -2,7 +2,6 @@ import { sshConnectionRepo } from '@repositories'
 import { overlayModal, makeSearchInput } from '../shared'
 import { UITexts } from '@texts'
 import {
-  sshTarget,
   filterConnections,
   makeAddClick,
   makeCopyPwdClick,
@@ -10,6 +9,7 @@ import {
   makeDeleteClick,
   makeRowClick
 } from './ssh.state'
+import { sshConnectionRow } from './components/ssh-connection-row'
 
 // ---- SSH connections: saved hosts, connect in a new terminal ----
 //
@@ -35,27 +35,15 @@ export function showSshConnections(): void {
       return
     }
     conns.forEach((c) => {
-      const row = (
-        <div class="pick-row worktree-row">
-          <div class="claude-main">
-            <span class="claude-title">{c.label || sshTarget(c)}</span>
-            <span class="claude-sub">{sshTarget(c) + (c.port ? `:${c.port}` : '')}</span>
-          </div>
-          {c.password && (
-            <button class="worktree-action" onClick={makeCopyPwdClick(c.password)}>
-              Copy pwd
-            </button>
-          )}
-          <button class="worktree-action" onClick={makeEditClick(c, render)}>
-            Edit
-          </button>
-          <button class="worktree-action worktree-remove" onClick={makeDeleteClick(c, render)}>
-            Delete
-          </button>
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', makeRowClick(c, close))
-      list.appendChild(row)
+      list.appendChild(
+        sshConnectionRow({
+          conn: c,
+          onCopyPwd: makeCopyPwdClick(c.password ?? ''),
+          onEdit: makeEditClick(c, render),
+          onDelete: makeDeleteClick(c, render),
+          onRowClick: makeRowClick(c, close)
+        })
+      )
     })
   }
 

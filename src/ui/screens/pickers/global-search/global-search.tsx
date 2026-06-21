@@ -3,6 +3,7 @@ import { UITexts } from '@texts'
 import { overlayModal } from '../shared'
 import type { GsEntry } from './global-search.types'
 import { SOURCE_LABEL, buildGlobalSearchIndex, filterEntries, makeChoose } from './global-search.state'
+import { globalSearchRow } from './components/global-search-row'
 
 export type { GsEntry } from './global-search.types'
 export { SOURCE_LABEL, buildGlobalSearchIndex } from './global-search.state'
@@ -46,19 +47,17 @@ export async function showGlobalSearch(): Promise<void> {
       return
     }
     items.forEach((e, i) => {
-      const row = (
-        <button class={'pick-row gs-row' + (i === sel ? ' active' : '')}>
-          <span class={'spotlight-source-badge gs-' + e.source}>{SOURCE_LABEL[e.source]}</span>
-          <span class="spotlight-label">{e.label}</span>
-          {e.detail && <span class="spotlight-detail">{e.detail}</span>}
-        </button>
-      ) as HTMLButtonElement
-      row.addEventListener('click', () => choose(e))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      list.appendChild(row)
+      list.appendChild(
+        globalSearchRow({
+          entry: e,
+          isActive: i === sel,
+          onChoose: () => choose(e),
+          onHover: () => {
+            sel = i
+            highlight()
+          }
+        })
+      )
     })
   }
 

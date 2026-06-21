@@ -1,6 +1,8 @@
 import { overlayModal, makeSearchInput } from '../shared'
 import { UITexts } from '@texts'
 import type { Stash } from './git.types'
+import { stashRow } from './components/stash-row'
+import { gitQuickActionChips } from './components/git-quick-action-chips'
 import {
   loadStashes,
   filterStashes,
@@ -39,37 +41,13 @@ export async function showStashManager(paneId: string): Promise<void> {
       return
     }
     stashes.forEach((s) => {
-      const applyBtn = (
-        <button
-          class="settings-inline-btn"
-          title={UITexts.Pickers.git.restoreTitle}
-          onClick={makeStashApplyClick(paneId, s.ref, close)}
-        >
-          Apply
-        </button>
-      ) as HTMLButtonElement
-      const dropBtn = (
-        <button
-          class="improve-cancel"
-          title={UITexts.Pickers.git.deleteStashTitle}
-          onClick={makeStashDropClick(paneId, s.ref, reload)}
-        >
-          Drop
-        </button>
-      ) as HTMLButtonElement
-      const row = (
-        <div class="pick-row stash-row">
-          <div class="claude-main">
-            <span class="claude-title">{s.description || s.ref}</span>
-            <span class="claude-sub">{s.ref}</span>
-          </div>
-          <div class="stash-actions">
-            {applyBtn}
-            {dropBtn}
-          </div>
-        </div>
-      ) as HTMLDivElement
-      list.appendChild(row)
+      list.appendChild(
+        stashRow({
+          stash: s,
+          onApply: makeStashApplyClick(paneId, s.ref, close),
+          onDrop: makeStashDropClick(paneId, s.ref, reload)
+        })
+      )
     })
   }
 
@@ -86,19 +64,11 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
   modal.append(h)
 
   // Quick chips: fire common git commands into the pane without leaving the modal.
-  const actions = (
-    <div class="git-quick-actions">
-      <button class="git-quick-chip" type="button" title="git fetch --all --prune" onClick={makeQuickRun(paneId, 'git fetch --all --prune', close)}>
-        Fetch
-      </button>
-      <button class="git-quick-chip" type="button" title="git pull" onClick={makeQuickRun(paneId, 'git pull', close)}>
-        Pull
-      </button>
-      <button class="git-quick-chip" type="button" title="git status" onClick={makeQuickRun(paneId, 'git status', close)}>
-        Status
-      </button>
-    </div>
-  ) as HTMLDivElement
+  const actions = gitQuickActionChips({
+    onFetch: makeQuickRun(paneId, 'git fetch --all --prune', close),
+    onPull: makeQuickRun(paneId, 'git pull', close),
+    onStatus: makeQuickRun(paneId, 'git status', close)
+  })
   modal.append(actions)
 
   const sub = (<div class="git-quick-sub">Checkout</div>) as HTMLDivElement

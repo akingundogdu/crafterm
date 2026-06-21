@@ -1,5 +1,5 @@
 import './update.css'
-import { createButton, createOverlay } from '@ui/components'
+import { createOverlay } from '@ui/components'
 import { settings } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
 import { promptConfirm } from '@ui/components/dialog/dialog'
@@ -8,6 +8,7 @@ import { pickFolderPath } from '../folder/folder'
 import { UITexts } from '@texts'
 import type { UpdateStep } from './update.types'
 import { resolveUpdateCommand } from './update.state'
+import { updateStepRow } from './components/update-step-row'
 
 export type { UpdateStep } from './update.types'
 
@@ -48,32 +49,7 @@ export async function runUpdate(): Promise<void> {
   overlay.appendChild(modal)
   mount()
 
-  const step = (label: string): UpdateStep => {
-    let labelEl!: HTMLElement
-    const row = (
-      <div class="update-step active">
-        <span class="update-dot" />
-        <span class="update-label" ref={(el: HTMLSpanElement) => (labelEl = el)} />
-      </div>
-    ) as HTMLDivElement
-    labelEl.textContent = label
-    list.appendChild(row)
-    return {
-      done: () => {
-        row.classList.remove('active')
-        row.classList.add('done')
-      },
-      fail: (msg) => {
-        row.classList.remove('active')
-        row.classList.add('failed')
-        const e = (<div class="update-error">{msg}</div>) as HTMLDivElement
-        modal.appendChild(e)
-        const btn = createButton({ className: 'primary', text: 'Close', onClick: close })
-        btn.style.marginTop = '12px'
-        modal.appendChild(btn)
-      }
-    }
-  }
+  const step = (label: string): UpdateStep => updateStepRow({ label, list, modal, onClose: close })
 
   // Save sessions (flush synchronously) so the relaunch restores them.
   const s1 = step('Saving sessions…')

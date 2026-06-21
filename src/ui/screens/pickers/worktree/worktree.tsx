@@ -1,7 +1,7 @@
 import { state, panes } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { gitService } from '@services'
-import { overlayModal, makeSearchInput, baseName } from '../shared'
+import { overlayModal, makeSearchInput } from '../shared'
 import {
   worktreeMatches,
   makeAddWorktree,
@@ -9,6 +9,7 @@ import {
   makeRemoveWorktree,
   makeOpenDir
 } from './worktree.state'
+import { worktreeRow } from './components/worktree-row'
 
 // ---- Worktree dashboard: list the active repo's worktrees, act on them ----
 
@@ -44,22 +45,14 @@ export async function showWorktreeDashboard(): Promise<void> {
       return
     }
     items.forEach((w) => {
-      const row = (
-        <div class="pick-row worktree-row">
-          <div class="claude-main">
-            <span class="claude-title">{baseName(w.path)}</span>
-            <span class="claude-sub">{[w.branch, w.path].filter(Boolean).join(' · ')}</span>
-          </div>
-          <button class="worktree-action" onClick={makeOpenClaude(w.path, close)}>
-            Claude
-          </button>
-          <button class="worktree-action worktree-remove" onClick={makeRemoveWorktree(root, w.path, close)}>
-            Remove
-          </button>
-        </div>
-      ) as HTMLDivElement
-      row.addEventListener('click', makeOpenDir(w.path, close))
-      list.appendChild(row)
+      list.appendChild(
+        worktreeRow({
+          worktree: w,
+          onOpenClaude: makeOpenClaude(w.path, close),
+          onRemove: makeRemoveWorktree(root, w.path, close),
+          onRowClick: makeOpenDir(w.path, close)
+        })
+      )
     })
   }
   renderWt()
