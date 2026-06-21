@@ -15,6 +15,7 @@ export function buildHideTogglesGroup(props: HideTogglesGroupProps): void {
   for (const t of tabMeta().filter((m) => m.strip === strip)) {
     const cb = (<input type="checkbox" />) as HTMLInputElement
     cb.checked = !settings.tabDisplay.hidden[strip].includes(t.id)
+    // makeToggle(strip, t.id, cb) needs the element itself, unavailable until after creation.
     cb.addEventListener('change', makeToggle(strip, t.id, cb))
     const row = (
       <label style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '2px 0' }}>

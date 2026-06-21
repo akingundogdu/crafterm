@@ -11,8 +11,16 @@ export function createPopoverGrid(
   ctx: PopoverContext
 ): { head: HTMLDivElement; weekRow: HTMLDivElement; grid: HTMLDivElement; renderGrid: () => void } {
   const monthLabel = (<span class="datepicker-pop-month" />) as HTMLSpanElement
-  const prev = (<button class="datepicker-pop-nav">‹</button>) as HTMLButtonElement
-  const next = (<button class="datepicker-pop-nav">›</button>) as HTMLButtonElement
+  const prev = (
+    <button class="datepicker-pop-nav" onClick={makeMonthNav(-1, ctx)}>
+      ‹
+    </button>
+  ) as HTMLButtonElement
+  const next = (
+    <button class="datepicker-pop-nav" onClick={makeMonthNav(1, ctx)}>
+      ›
+    </button>
+  ) as HTMLButtonElement
   const head = (
     <div class="datepicker-pop-head">
       {prev}
@@ -34,9 +42,6 @@ export function createPopoverGrid(
       grid.appendChild(createPopoverCell(cell, model, ctx))
     }
   }
-
-  prev.addEventListener('click', makeMonthNav(-1, ctx))
-  next.addEventListener('click', makeMonthNav(1, ctx))
 
   return { head, weekRow, grid, renderGrid }
 }

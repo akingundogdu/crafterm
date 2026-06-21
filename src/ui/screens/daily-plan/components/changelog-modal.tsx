@@ -37,20 +37,31 @@ export function showChangelogModal(): void {
   ) as HTMLTextAreaElement
   output.rows = 14
 
-  const copyBtn = (<button>Copy</button>) as HTMLButtonElement
+  const copyBtn = (
+    <button
+      onClick={() => {
+        void navigator.clipboard.writeText(output.value)
+        const prev = copyBtn.textContent
+        copyBtn.textContent = 'Copied!'
+        setTimeout(() => (copyBtn.textContent = prev), 1200)
+      }}
+    >
+      Copy
+    </button>
+  ) as HTMLButtonElement
   copyBtn.disabled = true
-  copyBtn.addEventListener('click', () => {
-    void navigator.clipboard.writeText(output.value)
-    const prev = copyBtn.textContent
-    copyBtn.textContent = 'Copied!'
-    setTimeout(() => (copyBtn.textContent = prev), 1200)
-  })
 
-  const generateBtn = (<button class="button-primary">Generate</button>) as HTMLButtonElement
-  generateBtn.addEventListener('click', () => {
-    output.value = buildChangelogMarkdown(rangeSel.value)
-    copyBtn.disabled = false
-  })
+  const generateBtn = (
+    <button
+      class="button-primary"
+      onClick={() => {
+        output.value = buildChangelogMarkdown(rangeSel.value)
+        copyBtn.disabled = false
+      }}
+    >
+      Generate
+    </button>
+  ) as HTMLButtonElement
 
   const actions = (
     <div class="modal-actions">

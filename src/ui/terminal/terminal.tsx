@@ -104,11 +104,6 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
 export function startPaneRename(pane: Pane): void {
   const header = pane.el.querySelector('.pane-header')
   if (!header) return
-  const input = (<input class="pane-rename" />) as HTMLInputElement
-  input.value = pane.title
-  header.replaceChild(input, pane.htitle)
-  input.focus()
-  input.select()
   const done = (commit: boolean): void => {
     if (commit) {
       const v = input.value.trim()
@@ -122,10 +117,19 @@ export function startPaneRename(pane: Pane): void {
     persistence.save()
     requestSidebar()
   }
-  input.addEventListener('keydown', (e) => {
-    e.stopPropagation()
-    if (e.key === 'Enter') done(true)
-    else if (e.key === 'Escape') done(false)
-  })
-  input.addEventListener('blur', () => done(true))
+  const input = (
+    <input
+      class="pane-rename"
+      onKeydown={(e: KeyboardEvent) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') done(true)
+        else if (e.key === 'Escape') done(false)
+      }}
+      onBlur={() => done(true)}
+    />
+  ) as HTMLInputElement
+  input.value = pane.title
+  header.replaceChild(input, pane.htitle)
+  input.focus()
+  input.select()
 }

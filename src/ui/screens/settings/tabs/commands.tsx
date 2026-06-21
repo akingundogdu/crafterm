@@ -46,7 +46,9 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
   )
 
   const addBtn = (
-    <button class="settings-inline-btn">{UITexts.Settings.commands.addCommand}</button>
+    <button class="settings-inline-btn" onClick={() => void editPaletteCommand().then(render)}>
+      {UITexts.Settings.commands.addCommand}
+    </button>
   ) as HTMLButtonElement
   panel.appendChild(addBtn)
 
@@ -79,7 +81,6 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
         })
     })
   }
-  addBtn.addEventListener('click', () => void editPaletteCommand().then(render))
   render()
 }
 
@@ -95,7 +96,17 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
   const list = (<div class="projects-editor" />) as HTMLDivElement
   panel.appendChild(list)
 
-  const addBtn = (<button class="settings-inline-btn">{UITexts.Settings.commands.addFolder}</button>) as HTMLButtonElement
+  const addBtn = (
+    <button
+      class="settings-inline-btn"
+      onClick={async () => {
+        const picked = await pickFolderPath()
+        if (picked && addMdFolder(picked)) render()
+      }}
+    >
+      {UITexts.Settings.commands.addFolder}
+    </button>
+  ) as HTMLButtonElement
   panel.appendChild(addBtn)
 
   const render = (): void => {
@@ -117,9 +128,5 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
     })
   }
 
-  addBtn.addEventListener('click', async () => {
-    const picked = await pickFolderPath()
-    if (picked && addMdFolder(picked)) render()
-  })
   render()
 }

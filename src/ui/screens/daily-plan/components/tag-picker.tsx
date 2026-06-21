@@ -17,12 +17,18 @@ export function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
     for (const tagId of selectedIds) {
       const tag = tagById(tagId)
       if (!tag) continue
-      const x = (<button class="daily-plan-tag-chip-x">×</button>) as HTMLButtonElement
-      x.addEventListener('click', () => {
-        const i = selectedIds.indexOf(tagId)
-        if (i >= 0) selectedIds.splice(i, 1)
-        renderChips()
-      })
+      const x = (
+        <button
+          class="daily-plan-tag-chip-x"
+          onClick={() => {
+            const i = selectedIds.indexOf(tagId)
+            if (i >= 0) selectedIds.splice(i, 1)
+            renderChips()
+          }}
+        >
+          ×
+        </button>
+      ) as HTMLButtonElement
       const chip = (
         <span class="daily-plan-tag-chip removable" style={{ backgroundColor: tag.color }}>
           {tag.name}
@@ -34,7 +40,18 @@ export function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
   }
 
   const input = (
-    <input type="text" class="daily-plan-tag-input" placeholder="Search or create tag…" />
+    <input
+      type="text"
+      class="daily-plan-tag-input"
+      placeholder="Search or create tag…"
+      onFocus={() => {
+        renderDropdown()
+      }}
+      onInput={() => renderDropdown()}
+      onBlur={() => {
+        setTimeout(() => (dropdown.hidden = true), 120)
+      }}
+    />
   ) as HTMLInputElement
   host.appendChild(input)
 
@@ -64,52 +81,51 @@ export function buildTagPicker(host: HTMLElement, selectedIds: string[]): void {
       .slice(0, 20)
     for (const tag of matches) {
       const row = (
-        <button class="daily-plan-tag-option">
+        <button
+          class="daily-plan-tag-option"
+          onMousedown={(e: MouseEvent) => {
+            e.preventDefault()
+            selectedIds.push(tag.id)
+            input.value = ''
+            renderChips()
+            renderDropdown()
+            input.focus()
+          }}
+        >
           <span class="daily-plan-tag-swatch" style={{ backgroundColor: tag.color }} />
           <span>{tag.name}</span>
         </button>
       ) as HTMLButtonElement
-      row.addEventListener('mousedown', (e) => {
-        e.preventDefault()
-        selectedIds.push(tag.id)
-        input.value = ''
-        renderChips()
-        renderDropdown()
-        input.focus()
-      })
       dropdown.appendChild(row)
     }
     const exact = dailyTagRepo.getAll().some((t) => t.name.toLowerCase() === q)
     if (q && !exact) {
       const create = (
-        <button class="daily-plan-tag-option create">{`+ Create "${input.value.trim()}"`}</button>
+        <button
+          class="daily-plan-tag-option create"
+          onMousedown={(e: MouseEvent) => {
+            e.preventDefault()
+            const tag: DailyPlanTag = {
+              id: uid('tag'),
+              name: input.value.trim(),
+              color: nextTagColor()
+            }
+            dailyTagRepo.upsert(tag)
+            selectedIds.push(tag.id)
+            input.value = ''
+            renderChips()
+            renderDropdown()
+            input.focus()
+          }}
+        >
+          {`+ Create "${input.value.trim()}"`}
+        </button>
       ) as HTMLButtonElement
-      create.addEventListener('mousedown', (e) => {
-        e.preventDefault()
-        const tag: DailyPlanTag = {
-          id: uid('tag'),
-          name: input.value.trim(),
-          color: nextTagColor()
-        }
-        dailyTagRepo.upsert(tag)
-        selectedIds.push(tag.id)
-        input.value = ''
-        renderChips()
-        renderDropdown()
-        input.focus()
-      })
       dropdown.appendChild(create)
     }
     dropdown.hidden = dropdown.childElementCount === 0
   }
 
-  input.addEventListener('focus', () => {
-    renderDropdown()
-  })
-  input.addEventListener('input', renderDropdown)
-  input.addEventListener('blur', () => {
-    setTimeout(() => (dropdown.hidden = true), 120)
-  })
   // Enter: select the tag whose name exactly matches the query (if one exists),
   // otherwise create a new tag with the typed text. Partial matches don't trigger
   // a select — you get exactly the tag you typed, or a fresh one.

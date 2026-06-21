@@ -19,7 +19,7 @@ export function worktreeRow({
 }: WorktreeRowProps): HTMLDivElement {
   const w = worktree
   const row = (
-    <div class="pick-row worktree-row">
+    <div class="pick-row worktree-row" onClick={onRowClick}>
       <div class="claude-main">
         <span class="claude-title">{baseName(w.path)}</span>
         <span class="claude-sub">{[w.branch, w.path].filter(Boolean).join(' · ')}</span>
@@ -32,6 +32,5 @@ export function worktreeRow({
       </button>
     </div>
   ) as HTMLDivElement
-  row.addEventListener('click', onRowClick)
   return row
 }

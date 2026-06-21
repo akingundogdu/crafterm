@@ -22,6 +22,7 @@ export function buildSoundSelector(props: SoundSelectorProps): void {
       })}
     </select>
   ) as HTMLSelectElement
+  // makeChange(sel) needs the element itself, unavailable until after creation.
   sel.addEventListener('change', makeChange(sel))
   const soundRow = (<div class="settings-row" />) as HTMLDivElement
   soundRow.insertAdjacentHTML('beforeend', `<span class="settings-row-label">${UITexts.Settings.workspace.soundLabel}</span>`)

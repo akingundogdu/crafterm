@@ -34,15 +34,18 @@ export function buildAppsSection(props: AppsSectionProps): void {
   applicationRepo.listForProject(p.id).forEach((app) => {
     const title = (<span class="app-card-title">{app.name || '(unnamed app)'}</span>) as HTMLSpanElement
     const delApp = (
-      <button class="settings-app-delete" title="Remove application">
+      <button
+        class="settings-app-delete"
+        title="Remove application"
+        onClick={() => {
+          applicationRepo.remove(p.id, app.id)
+          renderTree()
+          renderDetail()
+        }}
+      >
         ✕
       </button>
     ) as HTMLButtonElement
-    delApp.addEventListener('click', () => {
-      applicationRepo.remove(p.id, app.id)
-      renderTree()
-      renderDetail()
-    })
     const card = (
       <div class="settings-app-card">
         <div class="app-card-head">
@@ -64,7 +67,13 @@ export function buildAppsSection(props: AppsSectionProps): void {
     })
 
     const opensSel = (
-      <select class="settings-select">
+      <select
+        class="settings-select"
+        onChange={() => {
+          app.opensAs = opensSel.value as Application['opensAs']
+          applicationRepo.upsert(p.id, app)
+        }}
+      >
         {(
           [
             ['split', 'Split (tiled tab)'],
@@ -77,10 +86,6 @@ export function buildAppsSection(props: AppsSectionProps): void {
         ))}
       </select>
     ) as HTMLSelectElement
-    opensSel.addEventListener('change', () => {
-      app.opensAs = opensSel.value as Application['opensAs']
-      applicationRepo.upsert(p.id, app)
-    })
     const opensWrap = (<FormField label="Opens as">{opensSel}</FormField>) as HTMLDivElement
     card.appendChild(opensWrap)
 
@@ -101,30 +106,43 @@ export function buildAppsSection(props: AppsSectionProps): void {
     card.insertAdjacentHTML('beforeend', '<div class="app-cmd-head">Run commands</div>')
     app.runCommands = app.runCommands ?? []
     app.runCommands.forEach((rc) => {
-      const nameI = (<input type="text" placeholder="name" />) as HTMLInputElement
+      const nameI = (
+        <input
+          type="text"
+          placeholder="name"
+          onChange={() => {
+            rc.name = nameI.value.trim() || rc.name
+            applicationRepo.upsert(p.id, app)
+          }}
+          onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
+        />
+      ) as HTMLInputElement
       nameI.value = rc.name
-      nameI.addEventListener('change', () => {
-        rc.name = nameI.value.trim() || rc.name
-        applicationRepo.upsert(p.id, app)
-      })
-      nameI.addEventListener('keydown', (e) => e.stopPropagation())
-      const cmdI = (<input type="text" placeholder="shell command" />) as HTMLInputElement
+      const cmdI = (
+        <input
+          type="text"
+          placeholder="shell command"
+          onChange={() => {
+            rc.command = cmdI.value.trim()
+            applicationRepo.upsert(p.id, app)
+          }}
+          onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
+        />
+      ) as HTMLInputElement
       cmdI.value = rc.command
-      cmdI.addEventListener('change', () => {
-        rc.command = cmdI.value.trim()
-        applicationRepo.upsert(p.id, app)
-      })
-      cmdI.addEventListener('keydown', (e) => e.stopPropagation())
       const delRc = (
-        <button class="settings-app-delete" title="Remove command">
+        <button
+          class="settings-app-delete"
+          title="Remove command"
+          onClick={() => {
+            app.runCommands = (app.runCommands ?? []).filter((x) => x !== rc)
+            applicationRepo.upsert(p.id, app)
+            renderDetail()
+          }}
+        >
           ✕
         </button>
       ) as HTMLButtonElement
-      delRc.addEventListener('click', () => {
-        app.runCommands = (app.runCommands ?? []).filter((x) => x !== rc)
-        applicationRepo.upsert(p.id, app)
-        renderDetail()
-      })
       const row = (
         <div class="settings-app-rc-row">
           {nameI}
@@ -135,24 +153,34 @@ export function buildAppsSection(props: AppsSectionProps): void {
       card.appendChild(row)
     })
     const addRc = (
-      <button class="settings-inline-btn app-rc-add">+ Add run command</button>
+      <button
+        class="settings-inline-btn app-rc-add"
+        onClick={() => {
+          app.runCommands = app.runCommands ?? []
+          app.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+          applicationRepo.upsert(p.id, app)
+          renderDetail()
+        }}
+      >
+        + Add run command
+      </button>
     ) as HTMLButtonElement
-    addRc.addEventListener('click', () => {
-      app.runCommands = app.runCommands ?? []
-      app.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
-      applicationRepo.upsert(p.id, app)
-      renderDetail()
-    })
     card.appendChild(addRc)
 
     parent.appendChild(card)
   })
 
-  const addApp = (<button class="settings-inline-btn">+ Add application</button>) as HTMLButtonElement
-  addApp.addEventListener('click', () => {
-    applicationRepo.upsert(p.id, { id: uid('app'), name: 'app', commands: {} })
-    renderTree()
-    renderDetail()
-  })
+  const addApp = (
+    <button
+      class="settings-inline-btn"
+      onClick={() => {
+        applicationRepo.upsert(p.id, { id: uid('app'), name: 'app', commands: {} })
+        renderTree()
+        renderDetail()
+      }}
+    >
+      + Add application
+    </button>
+  ) as HTMLButtonElement
   parent.appendChild(addApp)
 }

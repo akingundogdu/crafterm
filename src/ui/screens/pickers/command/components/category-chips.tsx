@@ -14,9 +14,13 @@ export function renderCategoryChips({
   container.replaceChildren()
   categories.forEach((cat) => {
     const chip = (
-      <button class={'picker-markdown-chip' + (active.has(cat) ? ' active' : '')}>{cat}</button>
+      <button
+        class={'picker-markdown-chip' + (active.has(cat) ? ' active' : '')}
+        onClick={() => onToggle(cat)}
+      >
+        {cat}
+      </button>
     ) as HTMLButtonElement
-    chip.addEventListener('click', () => onToggle(cat))
     container.appendChild(chip)
   })
 }

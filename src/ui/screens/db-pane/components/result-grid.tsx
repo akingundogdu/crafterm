@@ -39,12 +39,12 @@ function buildActionsBar(ctx: GridContext): HTMLElement {
       class="db-grid-action-btn"
       title={'Insert a new row into ' + (ctx.editable?.table ?? '')}
       innerHTML='<span class="db-grid-action-glyph">+</span> New row'
+      onClick={() => {
+        if (!ctx.editable) return
+        void openInsertModal(ctx.editable)
+      }}
     />
   ) as HTMLButtonElement
-  insertBtn.addEventListener('click', () => {
-    if (!ctx.editable) return
-    void openInsertModal(ctx.editable)
-  })
   return (<div class="db-grid-actions">{insertBtn}</div>) as HTMLDivElement
 }
 
@@ -68,12 +68,15 @@ function buildHead(ctx: GridContext): HTMLTableSectionElement {
       const active = ctx.sort?.column === col
       if (active) arrow.textContent = ctx.sort?.dir === 'asc' ? '↑' : '↓'
       th = (
-        <th class={'db-grid-sortable' + (active ? ' active' : '')} tabindex="0">
+        <th
+          class={'db-grid-sortable' + (active ? ' active' : '')}
+          tabindex="0"
+          onClick={() => cycleSort(ctx, col)}
+        >
           {col}
           {arrow}
         </th>
       ) as HTMLTableCellElement
-      th.addEventListener('click', () => cycleSort(ctx, col))
     } else {
       th = (<th>{col}</th>) as HTMLTableCellElement
     }
@@ -128,28 +131,28 @@ function buildRowActions(ctx: GridContext, row: unknown[]): HTMLTableCellElement
       class="db-row-action"
       title={hasPk ? 'Edit row' : 'No primary key — edit disabled'}
       innerHTML={PEN_SVG}
+      onClick={(e: MouseEvent) => {
+        e.stopPropagation()
+        if (!hasPk) return
+        void openEditModal(editable, ctx.columns, row)
+      }}
     />
   ) as HTMLButtonElement
   edit.disabled = !hasPk
-  edit.addEventListener('click', (e) => {
-    e.stopPropagation()
-    if (!hasPk) return
-    void openEditModal(editable, ctx.columns, row)
-  })
 
   const del = (
     <button
       class="db-row-action db-row-action-delete"
       title={hasPk ? 'Delete row' : 'No primary key — delete disabled'}
       innerHTML={TRASH_SVG}
+      onClick={(e: MouseEvent) => {
+        e.stopPropagation()
+        if (!hasPk) return
+        void deleteRow(editable, ctx.columns, row)
+      }}
     />
   ) as HTMLButtonElement
   del.disabled = !hasPk
-  del.addEventListener('click', (e) => {
-    e.stopPropagation()
-    if (!hasPk) return
-    void deleteRow(editable, ctx.columns, row)
-  })
 
   td.append(edit, del)
   return td

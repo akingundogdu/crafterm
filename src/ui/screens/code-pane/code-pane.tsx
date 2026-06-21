@@ -54,13 +54,12 @@ export function createCodePane(opts: CreateCodePaneOptions): string {
   const body = (<div class="diff-body code-body" />) as HTMLDivElement
 
   const el = (
-    <div class="pane-box diff-pane code-pane" dataset={{ paneId: id }}>
+    <div class="pane-box diff-pane code-pane" dataset={{ paneId: id }} onMousedown={makeSelectPane(id)}>
       {header}
       {body}
     </div>
   ) as HTMLDivElement
   setupPaneDnd(el, header, id)
-  el.addEventListener('mousedown', makeSelectPane(id))
 
   // ---- orchestration ----
   const applyFont = (): void => {

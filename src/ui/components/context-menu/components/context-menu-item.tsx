@@ -13,23 +13,28 @@ export function createContextMenuItem(
   reopen?: () => void
 ): HTMLButtonElement {
   const hasChildren = !!item.children
+  // A leaf doesn't close the open submenu on hover — that would shut the flyout
+  // the user is diagonally reaching for. It closes when another parent opens, a
+  // leaf is clicked, or the user clicks outside.
+  let open: (() => void) | null = null
   const b = (
-    <button class={item.danger ? 'context-menu-danger' : undefined}>
+    <button
+      class={item.danger ? 'context-menu-danger' : undefined}
+      onMouseEnter={hasChildren ? () => void open?.() : undefined}
+      onClick={
+        hasChildren
+          ? (e: MouseEvent) => {
+              e.stopPropagation()
+              void open?.()
+            }
+          : makeLeafClick(item, reopen)
+      }
+    >
       {hasChildren ? `${item.label}  ▸` : item.label}
     </button>
   ) as HTMLButtonElement
   if (hasChildren) {
-    const open = makeSubmenuOpen(item, menu, b, depth, renderMenu)
-    b.addEventListener('mouseenter', () => void open())
-    b.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void open()
-    })
-  } else {
-    // A leaf doesn't close the open submenu on hover — that would shut the
-    // flyout the user is diagonally reaching for. It closes when another parent
-    // opens, a leaf is clicked, or the user clicks outside.
-    b.addEventListener('click', makeLeafClick(item, reopen))
+    open = makeSubmenuOpen(item, menu, b, depth, renderMenu)
   }
   return b
 }

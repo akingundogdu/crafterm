@@ -11,12 +11,11 @@ export function resumeSessionRow(
   onMouseEnter: () => void
 ): HTMLDivElement {
   const row = (
-    <div class={'pick-row project-row' + (active ? ' active' : '')}>
+    <div class={'pick-row project-row' + (active ? ' active' : '')} onClick={onClick}>
       <span class="picker-name">{s.summary || '(no prompt)'}</span>
       <span class="project-sub">{`${shortCwd(s.cwd)} · ${relTime(s.mtimeMs)}`}</span>
     </div>
   ) as HTMLDivElement
-  row.addEventListener('click', onClick)
   row.addEventListener('mouseenter', onMouseEnter)
   return row
 }

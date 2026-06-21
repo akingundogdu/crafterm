@@ -8,6 +8,7 @@ export function createPopoverTimeInput(ctx: PopoverContext): HTMLDivElement {
   const timeInput = (<input type="time" class="datepicker-pop-time-input" />) as HTMLInputElement
   ctx.timeInput = timeInput
   timeInput.value = ctx.model.selected ? timeValue(ctx.model.selected) : ''
+  // Imperative: handler closes over the input element by reference.
   timeInput.addEventListener('input', makeTimeInput(ctx, timeInput))
   return (
     <div class="datepicker-pop-time">

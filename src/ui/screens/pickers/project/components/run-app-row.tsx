@@ -17,17 +17,15 @@ export function runAppRow({ env, command, onSplit, onTab }: RunAppRowProps): HTM
     </div>
   ) as HTMLDivElement
   const splitBtn = (
-    <button class="worktree-action" title={UITexts.Pickers.project.runSplitTitle}>
+    <button class="worktree-action" title={UITexts.Pickers.project.runSplitTitle} onClick={onSplit}>
       Split
     </button>
   ) as HTMLButtonElement
-  splitBtn.addEventListener('click', onSplit)
   const tabBtn = (
-    <button class="worktree-action" title={UITexts.Pickers.project.runTabTitle}>
+    <button class="worktree-action" title={UITexts.Pickers.project.runTabTitle} onClick={onTab}>
       New tab
     </button>
   ) as HTMLButtonElement
-  tabBtn.addEventListener('click', onTab)
   return (
     <div class="pick-row project-row">
       {main}

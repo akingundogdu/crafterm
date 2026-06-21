@@ -42,7 +42,7 @@ export function createMeetingNoteCard(opts: MeetingNoteCardOptions): HTMLElement
   ) as HTMLButtonElement
 
   const card = (
-    <div class="meeting-note-card">
+    <div class="meeting-note-card" onClick={makeCardClick(note, rerender)}>
       <div class="meeting-note-top">
         <span class="meeting-note-date">{formatDate(note.date)}</span>
         <div class="meeting-note-title">{note.title || UITexts.MeetingNotes.untitled}</div>
@@ -71,6 +71,5 @@ export function createMeetingNoteCard(opts: MeetingNoteCardOptions): HTMLElement
     card.appendChild(body)
   }
 
-  card.addEventListener('click', makeCardClick(note, rerender))
   return card
 }

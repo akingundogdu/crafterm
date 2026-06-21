@@ -94,8 +94,14 @@ export function openRowFormModal(opts: {
       inputs[c.name] = { input, nullCb }
     }
 
-    const cancel = (<button>{UITexts.DbPane.cancel}</button>) as HTMLButtonElement
-    const ok = (<button class="button-primary">{opts.submitText}</button>) as HTMLButtonElement
+    const cancel = (
+      <button onClick={() => close(null)}>{UITexts.DbPane.cancel}</button>
+    ) as HTMLButtonElement
+    const ok = (
+      <button class="button-primary" onClick={() => close(collectFieldValues(opts.columns, inputs))}>
+        {opts.submitText}
+      </button>
+    ) as HTMLButtonElement
     const actions = (
       <div class="modal-actions">
         {cancel}
@@ -113,11 +119,9 @@ export function openRowFormModal(opts: {
     ) as HTMLDivElement
     overlay.appendChild(modal)
 
-    cancel.addEventListener('click', () => close(null))
     overlay.addEventListener('mousedown', (e) => {
       if (e.target === overlay) close(null)
     })
-    ok.addEventListener('click', () => close(collectFieldValues(opts.columns, inputs)))
     const onKey = (e: KeyboardEvent): void => {
       e.stopPropagation()
       if (e.key === 'Escape') close(null)

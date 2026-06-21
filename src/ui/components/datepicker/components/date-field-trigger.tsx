@@ -19,7 +19,11 @@ export function createDateFieldTrigger(
 ): { btn: DateField; model: FieldModel; syncText: () => void } {
   const text = (<span class="datepicker-field-text" />) as HTMLSpanElement
   const btn = (
-    <button type="button" class={'datepicker-field' + (className ? ` ${className}` : '')}>
+    <button
+      type="button"
+      class={'datepicker-field' + (className ? ` ${className}` : '')}
+      onClick={makeTriggerClick(() => openPopover(btn, model, syncText))}
+    >
       {text}
       <span class="datepicker-field-glyph" innerHTML={CAL_SVG} />
     </button>
@@ -40,7 +44,6 @@ export function createDateFieldTrigger(
   syncText()
 
   defineValueProp(btn, mode, model, syncText)
-  btn.addEventListener('click', makeTriggerClick(() => openPopover(btn, model, syncText)))
 
   return { btn, model, syncText }
 }

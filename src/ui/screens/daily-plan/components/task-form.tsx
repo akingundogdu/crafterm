@@ -123,7 +123,9 @@ export function showTaskForm({
   // Worktree slug (optional) — when set, it's appended to the issue key for the
   // worktree branch/name (e.g. CRF-12 → CRF-12-fix-login). Empty → the worktree is
   // named by the issue key alone.
-  const slugInput = (<input type="text" placeholder="e.g. fix-login" />) as HTMLInputElement
+  const slugInput = (
+    <input type="text" placeholder="e.g. fix-login" onInput={() => updateSlugHint()} />
+  ) as HTMLInputElement
   slugInput.value = existing?.worktreeSlug ?? ''
   const slugHint = (<div class="daily-plan-proj-hint" />) as HTMLDivElement
   const updateSlugHint = (): void => {
@@ -137,7 +139,6 @@ export function showTaskForm({
       existing?.issueKey ?? (p?.issueKeyPrefix?.trim() ? `${p.issueKeyPrefix.trim()}-#` : 'KEY')
     slugHint.textContent = `Worktree: ${keyPreview}-${slug}`
   }
-  slugInput.addEventListener('input', updateSlugHint)
   projSel.addEventListener('change', updateSlugHint)
   updateSlugHint()
 
@@ -196,12 +197,18 @@ export function showTaskForm({
   }
 
   // Actions
-  const save = (<button class="button-primary">Save</button>) as HTMLButtonElement
-  save.addEventListener('click', () => {
-    if (!commit()) return
-    close()
-    onSaved()
-  })
+  const save = (
+    <button
+      class="button-primary"
+      onClick={() => {
+        if (!commit()) return
+        close()
+        onSaved()
+      }}
+    >
+      Save
+    </button>
+  ) as HTMLButtonElement
   const actions = (
     <div class="modal-actions">
       <button onClick={() => close()}>Cancel</button>

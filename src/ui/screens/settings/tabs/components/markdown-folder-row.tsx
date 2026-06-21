@@ -12,11 +12,10 @@ export function buildMarkdownFolderRow(props: MarkdownFolderRowProps): HTMLDivEl
   const label = (<span class="mdfolder-path">{prettyPath}</span>) as HTMLSpanElement
   label.title = path
   const del = (
-    <button class="project-del" title={UITexts.Settings.commands.remove}>
+    <button class="project-del" title={UITexts.Settings.commands.remove} onClick={onDelete}>
       ✕
     </button>
   ) as HTMLButtonElement
-  del.addEventListener('click', onDelete)
   return (
     <div class="project-edit-row">
       {label}

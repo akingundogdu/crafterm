@@ -11,7 +11,7 @@ export function paletteRow({ command, active, onClick, onHover }: PaletteRowProp
   const name = (<span class="palette-name">{command.name}</span>) as HTMLSpanElement
   const tag = (<span class="palette-cat">{command.category}</span>) as HTMLSpanElement
   const row = (
-    <div class={'pick-row palette-row' + (active ? ' active' : '')}>
+    <div class={'pick-row palette-row' + (active ? ' active' : '')} onClick={onClick}>
       {name}
       {command.value && command.value !== command.name && (
         <span class="palette-val">{command.value}</span>
@@ -19,7 +19,6 @@ export function paletteRow({ command, active, onClick, onHover }: PaletteRowProp
       {tag}
     </div>
   ) as HTMLDivElement
-  row.addEventListener('click', onClick)
   row.addEventListener('mouseenter', onHover)
   return row
 }

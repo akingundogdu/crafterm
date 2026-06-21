@@ -17,13 +17,17 @@ import { buildIosConfigSection } from './components/ios-config-section'
 export function buildProjectsPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.projects.heading}</h3>`)
 
-  const cb = (<input type="text" />) as HTMLInputElement
+  const cb = (
+    <input
+      type="text"
+      onChange={() => {
+        settings.askProjectOnNew = cb.checked
+        persistence.save()
+      }}
+    />
+  ) as HTMLInputElement
   cb.type = 'checkbox'
   cb.checked = settings.askProjectOnNew
-  cb.addEventListener('change', () => {
-    settings.askProjectOnNew = cb.checked
-    persistence.save()
-  })
   const ask = (
     <label class="checkbox-row">
       {cb}
@@ -101,13 +105,12 @@ export function buildProjectsPanel(panel: HTMLElement): void {
   ): void => {
     const all = [...new Set([...options, ...(value ? [value] : [])])]
     const sel = (
-      <select>
+      <select onChange={() => onChange(sel.value)}>
         <option value="">{emptyLabel}</option>
         {all.map((v) => (<option value={v}>{v}</option>))}
       </select>
     ) as HTMLSelectElement
     sel.value = value
-    sel.addEventListener('change', () => onChange(sel.value))
     const wrap = (<FormField label={label}>{sel}</FormField>) as HTMLDivElement
     parent.appendChild(wrap)
   }
@@ -116,16 +119,19 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     envBar.replaceChildren()
     settings.environments.forEach((name, i) => {
       const x = (
-        <button class="env-chip-x" title="Remove environment">
+        <button
+          class="env-chip-x"
+          title="Remove environment"
+          onClick={() => {
+            settings.environments.splice(i, 1)
+            persistence.save()
+            renderEnvs()
+            renderDetail()
+          }}
+        >
           ×
         </button>
       ) as HTMLButtonElement
-      x.addEventListener('click', () => {
-        settings.environments.splice(i, 1)
-        persistence.save()
-        renderEnvs()
-        renderDetail()
-      })
       const chip = (
         <span class="settings-env-chip">
           <span>{name}</span>
@@ -135,23 +141,27 @@ export function buildProjectsPanel(panel: HTMLElement): void {
       envBar.appendChild(chip)
     })
     const add = (
-      <button class="settings-inline-btn env-add">+ Environment</button>
+      <button
+        class="settings-inline-btn env-add"
+        onClick={() => {
+          void (async () => {
+            const name = await promptText({
+              title: UITexts.Settings.projects.newEnvironment,
+              label: UITexts.Settings.projects.name,
+              placeholder: 'staging',
+              confirmText: UITexts.Settings.projects.add
+            })
+            if (!name || settings.environments.includes(name)) return
+            settings.environments.push(name)
+            persistence.save()
+            renderEnvs()
+            renderDetail()
+          })()
+        }}
+      >
+        + Environment
+      </button>
     ) as HTMLButtonElement
-    add.addEventListener('click', () => {
-      void (async () => {
-        const name = await promptText({
-          title: UITexts.Settings.projects.newEnvironment,
-          label: UITexts.Settings.projects.name,
-          placeholder: 'staging',
-          confirmText: UITexts.Settings.projects.add
-        })
-        if (!name || settings.environments.includes(name)) return
-        settings.environments.push(name)
-        persistence.save()
-        renderEnvs()
-        renderDetail()
-      })()
-    })
     envBar.appendChild(add)
   }
 
@@ -163,16 +173,16 @@ export function buildProjectsPanel(panel: HTMLElement): void {
         <button
           class="env-chip-x"
           title="Remove group from suggestions (does not unset on existing projects)"
+          onClick={() => {
+            settings.groups = settings.groups.filter((g) => g !== name)
+            persistence.save()
+            renderGroups()
+            renderDetail()
+          }}
         >
           ×
         </button>
       ) as HTMLButtonElement
-      x.addEventListener('click', () => {
-        settings.groups = settings.groups.filter((g) => g !== name)
-        persistence.save()
-        renderGroups()
-        renderDetail()
-      })
       const chip = (
         <span class="settings-env-chip">
           <span>{name}</span>
@@ -181,23 +191,29 @@ export function buildProjectsPanel(panel: HTMLElement): void {
       ) as HTMLSpanElement
       groupBar.appendChild(chip)
     })
-    const add = (<button class="settings-inline-btn env-add">+ Group</button>) as HTMLButtonElement
-    add.addEventListener('click', () => {
-      void (async () => {
-        const name = await promptText({
-          title: UITexts.Settings.projects.newGroup,
-          label: UITexts.Settings.projects.name,
-          placeholder: 'work',
-          confirmText: UITexts.Settings.projects.add
-        })
-        const g = (name ?? '').trim()
-        if (!g || settings.groups.includes(g)) return
-        settings.groups.push(g)
-        persistence.save()
-        renderGroups()
-        renderDetail()
-      })()
-    })
+    const add = (
+      <button
+        class="settings-inline-btn env-add"
+        onClick={() => {
+          void (async () => {
+            const name = await promptText({
+              title: UITexts.Settings.projects.newGroup,
+              label: UITexts.Settings.projects.name,
+              placeholder: 'work',
+              confirmText: UITexts.Settings.projects.add
+            })
+            const g = (name ?? '').trim()
+            if (!g || settings.groups.includes(g)) return
+            settings.groups.push(g)
+            persistence.save()
+            renderGroups()
+            renderDetail()
+          })()
+        }}
+      >
+        + Group
+      </button>
+    ) as HTMLButtonElement
     groupBar.appendChild(add)
   }
 
@@ -213,6 +229,11 @@ export function buildProjectsPanel(panel: HTMLElement): void {
           <div
             class={'proj-li' + (p === selected ? ' active' : '')}
             style={{ paddingLeft: 8 + depth * 14 + 'px' }}
+            onClick={() => {
+              selected = p
+              renderTree()
+              renderDetail()
+            }}
           >
             <span class="proj-li-name">{p.name || '(untitled)'}</span>
             {p.group && <span class="proj-li-group">{p.group}</span>}
@@ -221,11 +242,6 @@ export function buildProjectsPanel(panel: HTMLElement): void {
             )}
           </div>
         ) as HTMLDivElement
-        row.addEventListener('click', () => {
-          selected = p
-          renderTree()
-          renderDetail()
-        })
         listCol.appendChild(row)
         const subProjects = p.children.filter((c): c is ProjectNode => c.kind === 'project')
         if (subProjects.length) renderRows(subProjects, depth + 1)
@@ -233,16 +249,22 @@ export function buildProjectsPanel(panel: HTMLElement): void {
     }
     renderRows(topProjects, 0)
 
-    const addBtn = (<button class="settings-inline-btn">+ Add project</button>) as HTMLButtonElement
-    addBtn.addEventListener('click', () => {
-      const proj = makeProject(uid('p'), 'New project', '')
-      state.tree.push(proj)
-      selected = proj
-      persistence.save()
-      requestSidebar()
-      renderTree()
-      renderDetail()
-    })
+    const addBtn = (
+      <button
+        class="settings-inline-btn"
+        onClick={() => {
+          const proj = makeProject(uid('p'), 'New project', '')
+          state.tree.push(proj)
+          selected = proj
+          persistence.save()
+          requestSidebar()
+          renderTree()
+          renderDetail()
+        }}
+      >
+        + Add project
+      </button>
+    ) as HTMLButtonElement
     listCol.appendChild(addBtn)
   }
 
@@ -318,7 +340,18 @@ export function buildProjectsPanel(panel: HTMLElement): void {
           )
           // Support worktrees: auto-list this repo's git worktrees as folder
           // nodes under the project (terminals nest inside each worktree).
-          const wtCb = (<input type="text" />) as HTMLInputElement
+          const wtCb = (
+            <input
+              type="text"
+              onChange={() => {
+                p.supportWorktree = wtCb.checked
+                persistence.save()
+                requestSidebar()
+                if (p.supportWorktree) void reconcileWorktrees()
+                else purgeWorktrees(p)
+              }}
+            />
+          ) as HTMLInputElement
           wtCb.type = 'checkbox'
           wtCb.checked = !!p.supportWorktree
           wtCb.style.marginRight = '8px'
@@ -330,13 +363,6 @@ export function buildProjectsPanel(panel: HTMLElement): void {
           ) as HTMLLabelElement
           const wtField = (<div class="field">{wtLabel}</div>) as HTMLDivElement
           el.appendChild(wtField)
-          wtCb.addEventListener('change', () => {
-            p.supportWorktree = wtCb.checked
-            persistence.save()
-            requestSidebar()
-            if (p.supportWorktree) void reconcileWorktrees()
-            else purgeWorktrees(p)
-          })
         }
       },
       {
@@ -373,27 +399,37 @@ export function buildProjectsPanel(panel: HTMLElement): void {
       onTabChange: (i) => activeSubTabIdx.set(subTabKey, i)
     })
 
-    const addSub = (<button class="settings-inline-btn">+ Add sub-project</button>) as HTMLButtonElement
-    addSub.addEventListener('click', () => {
-      const child = makeProject(uid('p'), 'New sub-project', '')
-      p.children.push(child)
-      selected = child
-      persistence.save()
-      requestSidebar()
-      renderTree()
-      renderDetail()
-    })
-    const del = (
-      <button class="settings-inline-btn project-del-btn">Delete project</button>
+    const addSub = (
+      <button
+        class="settings-inline-btn"
+        onClick={() => {
+          const child = makeProject(uid('p'), 'New sub-project', '')
+          p.children.push(child)
+          selected = child
+          persistence.save()
+          requestSidebar()
+          renderTree()
+          renderDetail()
+        }}
+      >
+        + Add sub-project
+      </button>
     ) as HTMLButtonElement
-    del.addEventListener('click', () => {
-      removeProject(state.tree, p)
-      selected = flattenProjects(state.tree)[0] ?? null
-      persistence.save()
-      requestSidebar()
-      renderTree()
-      renderDetail()
-    })
+    const del = (
+      <button
+        class="settings-inline-btn project-del-btn"
+        onClick={() => {
+          removeProject(state.tree, p)
+          selected = flattenProjects(state.tree)[0] ?? null
+          persistence.save()
+          requestSidebar()
+          renderTree()
+          renderDetail()
+        }}
+      >
+        Delete project
+      </button>
+    ) as HTMLButtonElement
     const actions = (
       <div class="proj-detail-actions">
         {addSub}

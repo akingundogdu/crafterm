@@ -20,7 +20,7 @@ export function terminalRow({ terminal, active, onClick, onHover }: TerminalRowP
     </span>
   ) as HTMLSpanElement
   const row = (
-    <div class={'pick-row claude-row' + (active ? ' active' : '')}>
+    <div class={'pick-row claude-row' + (active ? ' active' : '')} onClick={onClick}>
       <span class={'status-dot ' + terminal.status} />
       <div class="claude-main">
         {title}
@@ -28,7 +28,6 @@ export function terminalRow({ terminal, active, onClick, onHover }: TerminalRowP
       </div>
     </div>
   ) as HTMLDivElement
-  row.addEventListener('click', onClick)
   row.addEventListener('mouseenter', onHover)
   return row
 }

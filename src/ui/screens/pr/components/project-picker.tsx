@@ -64,13 +64,17 @@ export async function showProjectPicker(onSaved: () => void): Promise<void> {
       return
     }
     for (const r of items) {
-      const cb = (<input type="checkbox" />) as HTMLInputElement
+      const cb = (
+        <input
+          type="checkbox"
+          onChange={() => {
+            if (cb.checked) selected.add(r.path)
+            else selected.delete(r.path)
+            countEl.textContent = projectCountLabel(selected.size, items.length)
+          }}
+        />
+      ) as HTMLInputElement
       cb.checked = selected.has(r.path)
-      cb.addEventListener('change', () => {
-        if (cb.checked) selected.add(r.path)
-        else selected.delete(r.path)
-        countEl.textContent = projectCountLabel(selected.size, items.length)
-      })
       const row = (
         <label class="pick-row pr-pick-row">
           {cb}

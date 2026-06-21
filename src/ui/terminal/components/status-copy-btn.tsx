@@ -9,8 +9,8 @@ export function createStatusCopyBtn(onClick: (e: Event) => void): HTMLButtonElem
       title={UITexts.Terminal.copyFullPath}
       aria-label={UITexts.Terminal.copyFullPath}
       innerHTML={COPY_ICON}
+      onClick={onClick}
     />
   ) as HTMLButtonElement
-  copyBtn.addEventListener('click', onClick)
   return copyBtn
 }

@@ -41,8 +41,29 @@ export function showFolderSettings(node: FolderNode | ProjectNode, renderSidebar
     ) as HTMLDivElement
   )
 
-  const cancel = (<button>{UITexts.Sidebar.cancel}</button>) as HTMLButtonElement
-  const save = (<button class="button-primary">{UITexts.Sidebar.save}</button>) as HTMLButtonElement
+  const cancel = (<button onClick={close}>{UITexts.Sidebar.cancel}</button>) as HTMLButtonElement
+  const save = (
+    <button
+      class="button-primary"
+      onClick={() => {
+        if (isProject && nameInput && pathInput && commandInput) {
+          const projNode = node as ProjectNode
+          const newName = nameInput.value.trim()
+          if (newName) projNode.name = newName
+          projNode.path = pathInput.value.trim()
+          projNode.command = commandInput.value.trim() || undefined
+        }
+        node.startup = startup.value.trim() || undefined
+        node.shell = shell.value.trim() || undefined
+        node.env = env.value.trim() || undefined
+        persistence.save()
+        renderSidebar()
+        close()
+      }}
+    >
+      {UITexts.Sidebar.save}
+    </button>
+  ) as HTMLButtonElement
   modal.appendChild(
     (
       <div class="modal-actions">
@@ -51,23 +72,6 @@ export function showFolderSettings(node: FolderNode | ProjectNode, renderSidebar
       </div>
     ) as HTMLDivElement
   )
-
-  cancel.addEventListener('click', close)
-  save.addEventListener('click', () => {
-    if (isProject && nameInput && pathInput && commandInput) {
-      const projNode = node as ProjectNode
-      const newName = nameInput.value.trim()
-      if (newName) projNode.name = newName
-      projNode.path = pathInput.value.trim()
-      projNode.command = commandInput.value.trim() || undefined
-    }
-    node.startup = startup.value.trim() || undefined
-    node.shell = shell.value.trim() || undefined
-    node.env = env.value.trim() || undefined
-    persistence.save()
-    renderSidebar()
-    close()
-  })
   modal.querySelectorAll('input, textarea').forEach((el) => el.addEventListener('keydown', (e) => e.stopPropagation()))
 
   mount()

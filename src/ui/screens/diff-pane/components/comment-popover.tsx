@@ -38,7 +38,7 @@ export function createCommentPopover(opts: CommentPopoverOptions): CommentPopove
     const err = (<span class="diff-comment-err" />) as HTMLSpanElement
     const sendBtn = (<button class="diff-comment-send">{UITexts.DiffPane.comment}</button>) as HTMLButtonElement
     pop = (
-      <div class="diff-comment-pop">
+      <div class="diff-comment-pop" onMouseDown={stopMousedown}>
         <div class="diff-comment-label">{`Comment on ${range.path} · ${locationLabel(range)}`}</div>
         {ta}
         <div class="diff-comment-footer">
@@ -51,7 +51,6 @@ export function createCommentPopover(opts: CommentPopoverOptions): CommentPopove
     const submit = makeSubmit({ ta, sendBtn, err, range, submit: opts.submit, onSuccess: opts.onSuccess, close })
     sendBtn.addEventListener('click', makeSendClick(submit))
     ta.addEventListener('keydown', makeTextareaKeydown(submit, close))
-    pop.addEventListener('mousedown', stopMousedown)
 
     document.body.appendChild(pop)
     positionPopover(pop, opts.anchorRect())

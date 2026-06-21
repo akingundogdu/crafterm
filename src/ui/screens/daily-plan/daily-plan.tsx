@@ -315,7 +315,13 @@ export function renderDailyCompact(host: HTMLElement): void {
 
   // --- Toolbar: title · fullscreen · range · new task --------------------
   const rangeSel = (
-    <select class="settings-select daily-compact-range">
+    <select
+      class="settings-select daily-compact-range"
+      onChange={() => {
+        selectedRange = rangeSel.value as DailyRange
+        render()
+      }}
+    >
       {(
         [
           ['day', UITexts.DailyPlan.range.today],
@@ -329,10 +335,6 @@ export function renderDailyCompact(host: HTMLElement): void {
       ))}
     </select>
   ) as HTMLSelectElement
-  rangeSel.addEventListener('change', () => {
-    selectedRange = rangeSel.value as DailyRange
-    render()
-  })
 
   const toolbar = (
     <div class="daily-compact-toolbar">
@@ -384,6 +386,10 @@ export function renderDailyCompact(host: HTMLElement): void {
       class="nb-subtab-search"
       placeholder={UITexts.DailyPlan.searchTasks}
       onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
+      onInput={() => {
+        compactSearch = search.value
+        fillList()
+      }}
     />
   ) as HTMLInputElement
   search.value = compactSearch
@@ -409,10 +415,6 @@ export function renderDailyCompact(host: HTMLElement): void {
     }
     for (const task of items) listHost.appendChild(renderCard(task, render))
   }
-  search.addEventListener('input', () => {
-    compactSearch = search.value
-    fillList()
-  })
   fillList()
 }
 
@@ -479,7 +481,13 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
   host.appendChild(nav)
 
   const rangeSel = (
-    <select class="settings-select daily-plan-range">
+    <select
+      class="settings-select daily-plan-range"
+      onChange={() => {
+        selectedRange = rangeSel.value as DailyRange
+        rerender()
+      }}
+    >
       {(
         [
           ['day', UITexts.DailyPlan.range.today],
@@ -493,14 +501,16 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
       ))}
     </select>
   ) as HTMLSelectElement
-  rangeSel.addEventListener('change', () => {
-    selectedRange = rangeSel.value as DailyRange
-    rerender()
-  })
 
   // Project filter (todo4): show only the selected project's tasks.
   const projFilter = (
-    <select class="settings-select daily-plan-range">
+    <select
+      class="settings-select daily-plan-range"
+      onChange={() => {
+        projectFilter = projFilter.value || null
+        rerender()
+      }}
+    >
       <option value="">{UITexts.DailyPlan.allProjects}</option>
       {projectTree().map(({ p, depth }) => (
         <option value={p.id} selected={p.id === projectFilter}>
@@ -509,10 +519,6 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
       ))}
     </select>
   ) as HTMLSelectElement
-  projFilter.addEventListener('change', () => {
-    projectFilter = projFilter.value || null
-    rerender()
-  })
 
   const actions = (
     <div class="daily-plan-actions">
@@ -548,14 +554,14 @@ function renderHeader(host: HTMLElement, rerender: () => void): void {
     const filterBtn = (
       <button
         class={'daily-plan-secondary-btn daily-tagfilter-btn' + (tagFilter.size ? ' active' : '')}
+        onClick={(e: MouseEvent) => {
+          e.stopPropagation()
+          openTagFilterPopover(filterBtn, rerender)
+        }}
       >
         {tagFilter.size ? UITexts.DailyPlan.filterTagsCount(tagFilter.size) : UITexts.DailyPlan.filterTags}
       </button>
     ) as HTMLButtonElement
-    filterBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      openTagFilterPopover(filterBtn, rerender)
-    })
     actions.append(filterBtn, newBtn, manageBtn, changelogBtn)
   } else {
     actions.append(newBtn, manageBtn, changelogBtn)
@@ -614,13 +620,13 @@ function renderBoard(host: HTMLElement, rerender: () => void): void {
         class="daily-plan-col-search"
         placeholder="Search…"
         onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
+        onInput={() => {
+          colSearch[status.id] = search.value
+          applyColFilter(body, colCount, status.id)
+        }}
       />
     ) as HTMLInputElement
     search.value = colSearch[status.id] ?? ''
-    search.addEventListener('input', () => {
-      colSearch[status.id] = search.value
-      applyColFilter(body, colCount, status.id)
-    })
 
     const body = (<div class="daily-plan-column-body" />) as HTMLDivElement
     for (const task of colTasks) {

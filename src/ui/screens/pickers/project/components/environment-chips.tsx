@@ -16,12 +16,16 @@ export function environmentChips({
   const envBtns: HTMLButtonElement[] = []
   environments.forEach((name) => {
     const b = (
-      <button class={'run-env-chip' + (name === selected ? ' active' : '')}>{name}</button>
+      <button
+        class={'run-env-chip' + (name === selected ? ' active' : '')}
+        onClick={() => {
+          envBtns.forEach((x) => x.classList.toggle('active', x === b))
+          onSelect(name)
+        }}
+      >
+        {name}
+      </button>
     ) as HTMLButtonElement
-    b.addEventListener('click', () => {
-      envBtns.forEach((x) => x.classList.toggle('active', x === b))
-      onSelect(name)
-    })
     envBtns.push(b)
     envBar.appendChild(b)
   })

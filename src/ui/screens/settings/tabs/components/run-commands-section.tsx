@@ -33,15 +33,18 @@ export function buildRunCommandsSection(props: RunCommandsSectionProps): void {
   p.runCommands.forEach((rc) => {
     const title = (<span class="app-card-title">{rc.name || '(unnamed command)'}</span>) as HTMLSpanElement
     const del = (
-      <button class="settings-app-delete" title="Remove command">
+      <button
+        class="settings-app-delete"
+        title="Remove command"
+        onClick={() => {
+          p.runCommands = (p.runCommands ?? []).filter((x) => x !== rc)
+          persistence.save()
+          renderDetail()
+        }}
+      >
         ✕
       </button>
     ) as HTMLButtonElement
-    del.addEventListener('click', () => {
-      p.runCommands = (p.runCommands ?? []).filter((x) => x !== rc)
-      persistence.save()
-      renderDetail()
-    })
     const card = (
       <div class="settings-app-card">
         <div class="app-card-head">
@@ -61,12 +64,18 @@ export function buildRunCommandsSection(props: RunCommandsSectionProps): void {
     })
     parent.appendChild(card)
   })
-  const add = (<button class="settings-inline-btn">+ Add command</button>) as HTMLButtonElement
-  add.addEventListener('click', () => {
-    p.runCommands = p.runCommands ?? []
-    p.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
-    persistence.save()
-    renderDetail()
-  })
+  const add = (
+    <button
+      class="settings-inline-btn"
+      onClick={() => {
+        p.runCommands = p.runCommands ?? []
+        p.runCommands.push({ id: uid('rc'), name: 'command', command: '' })
+        persistence.save()
+        renderDetail()
+      }}
+    >
+      + Add command
+    </button>
+  ) as HTMLButtonElement
   parent.appendChild(add)
 }

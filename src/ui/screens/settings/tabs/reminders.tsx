@@ -46,11 +46,17 @@ export function buildRemindersPanel(panel: HTMLElement): void {
       )
     })
 
-    const add = (<button class="settings-inline-btn">+ Add preset</button>) as HTMLButtonElement
-    add.addEventListener('click', () => {
-      addDefaultPreset()
-      renderList()
-    })
+    const add = (
+      <button
+        class="settings-inline-btn"
+        onClick={() => {
+          addDefaultPreset()
+          renderList()
+        }}
+      >
+        + Add preset
+      </button>
+    ) as HTMLButtonElement
     list.appendChild(add)
   }
   renderList()

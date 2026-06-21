@@ -22,8 +22,24 @@ interface ActionClusterHandle {
 // "+" button — its send action, the mousedown guard, and the warn/title state —
 // plus anchoring and visibility.
 export function createActionCluster(opts: ActionClusterOptions): ActionClusterHandle {
+  const send = (): void => {
+    const ref = opts.currentRef()
+    if (!ref) return
+    if (!opts.sendRef(ref)) {
+      plus.classList.add('warn')
+      plus.title = 'Open a terminal first'
+    }
+  }
   const plus = (
-    <button class="diff-act diff-act-term" title={UITexts.Diff.sendReferenceToTerminal}>
+    <button
+      class="diff-act diff-act-term"
+      title={UITexts.Diff.sendReferenceToTerminal}
+      onMouseDown={preventAndStop}
+      onClick={(e: MouseEvent) => {
+        e.stopPropagation()
+        send()
+      }}
+    >
       +
     </button>
   ) as HTMLButtonElement
@@ -33,20 +49,6 @@ export function createActionCluster(opts: ActionClusterOptions): ActionClusterHa
       {opts.extraActions ?? []}
     </div>
   ) as HTMLDivElement
-
-  const send = (): void => {
-    const ref = opts.currentRef()
-    if (!ref) return
-    if (!opts.sendRef(ref)) {
-      plus.classList.add('warn')
-      plus.title = 'Open a terminal first'
-    }
-  }
-  plus.addEventListener('mousedown', preventAndStop)
-  plus.addEventListener('click', (e) => {
-    e.stopPropagation()
-    send()
-  })
 
   return {
     el,

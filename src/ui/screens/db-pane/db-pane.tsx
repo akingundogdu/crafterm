@@ -80,14 +80,17 @@ export function createSqlPane(opts: {
   ) as HTMLDivElement
 
   const el = (
-    <div class="pane-box sql-pane" dataset={{ paneId: id }}>
+    <div
+      class="pane-box sql-pane"
+      dataset={{ paneId: id }}
+      onMouseDown={() => paneActions.select(id)}
+    >
       {header}
       {body}
     </div>
   ) as HTMLDivElement
 
   setupPaneDnd(el, header, id)
-  el.addEventListener('mousedown', () => paneActions.select(id))
 
   // ---- state ----
   let currentConnId: string | null = opts.connId ?? null

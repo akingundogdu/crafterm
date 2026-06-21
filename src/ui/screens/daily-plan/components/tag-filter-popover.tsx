@@ -52,18 +52,20 @@ export function openTagFilterPopover({ anchor, tagFilter, rerender }: TagFilterP
 
   for (const tag of dailyTagRepo.getAll()) {
     const row = (
-      <button class={'daily-tagfilter-row' + (tagFilter.has(tag.id) ? ' active' : '')}>
+      <button
+        class={'daily-tagfilter-row' + (tagFilter.has(tag.id) ? ' active' : '')}
+        onClick={() => {
+          if (tagFilter.has(tag.id)) tagFilter.delete(tag.id)
+          else tagFilter.add(tag.id)
+          row.classList.toggle('active', tagFilter.has(tag.id))
+          rerender()
+        }}
+      >
         <span class="daily-tagfilter-swatch" style={{ backgroundColor: tag.color }} />
         <span class="daily-tagfilter-name">{tag.name}</span>
         <span class="daily-tagfilter-check">✓</span>
       </button>
     ) as HTMLButtonElement
-    row.addEventListener('click', () => {
-      if (tagFilter.has(tag.id)) tagFilter.delete(tag.id)
-      else tagFilter.add(tag.id)
-      row.classList.toggle('active', tagFilter.has(tag.id))
-      rerender()
-    })
     pop.appendChild(row)
   }
 

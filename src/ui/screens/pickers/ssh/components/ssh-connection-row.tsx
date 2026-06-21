@@ -21,7 +21,7 @@ export function sshConnectionRow({
 }: SshConnectionRowProps): HTMLDivElement {
   const c = conn
   const row = (
-    <div class="pick-row worktree-row">
+    <div class="pick-row worktree-row" onClick={onRowClick}>
       <div class="claude-main">
         <span class="claude-title">{c.label || sshTarget(c)}</span>
         <span class="claude-sub">{sshTarget(c) + (c.port ? `:${c.port}` : '')}</span>
@@ -39,6 +39,5 @@ export function sshConnectionRow({
       </button>
     </div>
   ) as HTMLDivElement
-  row.addEventListener('click', onRowClick)
   return row
 }

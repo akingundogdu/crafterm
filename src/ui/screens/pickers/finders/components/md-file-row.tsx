@@ -11,14 +11,13 @@ export function mdFileRow(
   onMouseEnter: () => void
 ): HTMLDivElement {
   const row = (
-    <div class={'pick-row mdfile-row' + (active ? ' active' : '')}>
+    <div class={'pick-row mdfile-row' + (active ? ' active' : '')} onClick={onClick}>
       <div class="claude-main">
         <span class="picker-name">{f.name}</span>
         <span class="project-sub">{prettyPath(f.path.slice(0, f.path.length - f.name.length))}</span>
       </div>
     </div>
   ) as HTMLDivElement
-  row.addEventListener('click', onClick)
   row.addEventListener('mouseenter', onMouseEnter)
   return row
 }

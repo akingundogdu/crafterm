@@ -54,7 +54,16 @@ export function buildThemePanel(panel: HTMLElement): void {
   )
 
   const copyBtn = (
-    <button class="settings-inline-btn">Copy current colors → Custom</button>
+    <button
+      class="settings-inline-btn"
+      onClick={() => {
+        copyCurrentToCustom()
+        sel.value = 'Custom'
+        renderColors()
+      }}
+    >
+      Copy current colors → Custom
+    </button>
   ) as HTMLButtonElement
   panel.appendChild(copyBtn)
 
@@ -73,13 +82,9 @@ export function buildThemePanel(panel: HTMLElement): void {
     })
   }
 
+  // sel comes from the labeledSelect helper, not an inline JSX element here.
   sel.addEventListener('change', () => {
     setThemeName(sel.value)
-    renderColors()
-  })
-  copyBtn.addEventListener('click', () => {
-    copyCurrentToCustom()
-    sel.value = 'Custom'
     renderColors()
   })
   renderColors()

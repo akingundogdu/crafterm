@@ -11,6 +11,7 @@ export function buildRecencyToggle(props: RecencyToggleProps): void {
   const { panel, makeToggle } = props
   const recCb = (<input type="checkbox" />) as HTMLInputElement
   recCb.checked = !!settings.sidebar.groupByRecency
+  // makeToggle(recCb) needs the element itself, unavailable until after creation.
   recCb.addEventListener('change', makeToggle(recCb))
   const recRow = (
     <label class="checkbox-row">

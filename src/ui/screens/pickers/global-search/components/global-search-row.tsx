@@ -19,13 +19,12 @@ export function globalSearchRow({
 }: GlobalSearchRowProps): HTMLButtonElement {
   const e = entry
   const row = (
-    <button class={'pick-row gs-row' + (isActive ? ' active' : '')}>
+    <button class={'pick-row gs-row' + (isActive ? ' active' : '')} onClick={onChoose}>
       <span class={'spotlight-source-badge gs-' + e.source}>{SOURCE_LABEL[e.source]}</span>
       <span class="spotlight-label">{e.label}</span>
       {e.detail && <span class="spotlight-detail">{e.detail}</span>}
     </button>
   ) as HTMLButtonElement
-  row.addEventListener('click', onChoose)
   row.addEventListener('mouseenter', onHover)
   return row
 }

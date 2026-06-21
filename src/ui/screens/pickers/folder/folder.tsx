@@ -20,7 +20,11 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
     }
 
     const path = (<div class="picker-path" />) as HTMLDivElement
-    const useBtn = (<button class="settings-inline-btn">Use this folder</button>) as HTMLButtonElement
+    const useBtn = (
+      <button class="settings-inline-btn" onClick={() => finish(current)}>
+        Use this folder
+      </button>
+    ) as HTMLButtonElement
     const input = (
       <input
         class="search-box-input"
@@ -79,7 +83,6 @@ export function pickFolderPath(startDir?: string): Promise<string | null> {
       renderList()
     }
 
-    useBtn.addEventListener('click', () => finish(current))
     overlay.addEventListener('mousedown', (e) => {
       if (e.target === overlay) finish(null)
     })

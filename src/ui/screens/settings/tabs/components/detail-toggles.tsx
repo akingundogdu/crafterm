@@ -18,6 +18,7 @@ export function buildDetailToggles(props: DetailTogglesProps): void {
   detailDefs.forEach(([key, label]) => {
     const cb = (<input type="checkbox" />) as HTMLInputElement
     cb.checked = settings.sidebar.details[key]
+    // makeToggle(key, cb) needs the element itself, unavailable until after creation.
     cb.addEventListener('change', makeToggle(key, cb))
     const r = (
       <label class="checkbox-row">

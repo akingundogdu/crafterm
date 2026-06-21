@@ -19,18 +19,24 @@ export function buildPresetCard(props: PresetCardProps): HTMLDivElement {
     <input
       type="text"
       placeholder={UITexts.Settings.reminders.label}
+      onChange={() => {
+        labelI.value = onCommitLabel(labelI.value)
+      }}
       ref={(el: HTMLInputElement) => {
         el.value = label
       }}
     />
   ) as HTMLInputElement
-  labelI.addEventListener('change', () => {
-    labelI.value = onCommitLabel(labelI.value)
-  })
 
   // kind: relative offset (minutes) vs day-based jump
   const kindSel = (
-    <select class="settings-select">
+    <select
+      class="settings-select"
+      onChange={() => {
+        syncSnapVisibility()
+        applyValue()
+      }}
+    >
       {[
         ['offset', UITexts.Settings.reminders.offsetMinutes],
         ['days', UITexts.Settings.reminders.daysAhead]
@@ -81,19 +87,16 @@ export function buildPresetCard(props: PresetCardProps): HTMLDivElement {
   syncSnapVisibility()
 
   const applyValue = (): void => onApplyValue(kindSel.value, valueI.value, snap.checked)
-  kindSel.addEventListener('change', () => {
-    syncSnapVisibility()
-    applyValue()
-  })
+  // applyValue is declared after the valueI/snap JSX, so it can't be referenced
+  // as a prop value there (temporal dead zone); wire these imperatively.
   valueI.addEventListener('change', applyValue)
   snap.addEventListener('change', applyValue)
 
   const del = (
-    <button class="settings-app-delete" title={UITexts.Settings.reminders.removePreset}>
+    <button class="settings-app-delete" title={UITexts.Settings.reminders.removePreset} onClick={onDelete}>
       ✕
     </button>
   ) as HTMLButtonElement
-  del.addEventListener('click', onDelete)
 
   return (
     <div class="settings-app-card">

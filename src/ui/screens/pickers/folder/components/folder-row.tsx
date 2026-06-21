@@ -12,21 +12,23 @@ interface FolderRowProps {
 // selection index, list state, and navigation stay in the parent.
 export function folderRow({ name, isActive, onSelect, onDrill, onHover }: FolderRowProps): HTMLDivElement {
   const drill = (
-    <button class="picker-drill" title={UITexts.Pickers.folder.enterFolder}>
+    <button
+      class="picker-drill"
+      title={UITexts.Pickers.folder.enterFolder}
+      onClick={(e: MouseEvent) => {
+        e.stopPropagation()
+        onDrill()
+      }}
+    >
       ›
     </button>
   ) as HTMLButtonElement
-  drill.addEventListener('click', (e) => {
-    e.stopPropagation()
-    onDrill()
-  })
   const row = (
-    <div class={'pick-row picker-row' + (isActive ? ' active' : '')}>
+    <div class={'pick-row picker-row' + (isActive ? ' active' : '')} onClick={onSelect}>
       <span class="picker-name">{name}</span>
       {drill}
     </div>
   ) as HTMLDivElement
-  row.addEventListener('click', onSelect)
   row.addEventListener('mouseenter', onHover)
   return row
 }

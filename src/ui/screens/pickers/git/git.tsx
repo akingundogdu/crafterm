@@ -108,11 +108,10 @@ export async function showBranchCheckout(paneId: string): Promise<void> {
     }
     items.forEach((b, i) => {
       const row = (
-        <div class={'pick-row' + (i === sel ? ' active' : '')}>
+        <div class={'pick-row' + (i === sel ? ' active' : '')} onClick={() => checkout(b)}>
           <span class="picker-name">{b}</span>
         </div>
       ) as HTMLDivElement
-      row.addEventListener('click', () => checkout(b))
       row.addEventListener('mouseenter', () => {
         sel = i
         highlight()

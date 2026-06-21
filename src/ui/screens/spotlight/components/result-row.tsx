@@ -14,14 +14,15 @@ export function createResultRow(opts: {
   onHover: (index: number) => void
 }): HTMLButtonElement {
   const { entry, index, selected, showBadge, badgeFor, onChoose, onHover } = opts
-  const row = (
-    <button class={'pick-row spot-row' + (selected ? ' active' : '')}>
+  return (
+    <button
+      class={'pick-row spot-row' + (selected ? ' active' : '')}
+      onClick={makeRowChoose(onChoose, entry)}
+      onMouseEnter={() => onHover(index)}
+    >
       {showBadge && <span class={'spotlight-source-badge gs-' + entry.source}>{badgeFor(entry.source)}</span>}
       <span class="spotlight-label">{entry.label}</span>
       {entry.detail && <span class="spotlight-detail">{entry.detail}</span>}
     </button>
   ) as HTMLButtonElement
-  row.addEventListener('click', makeRowChoose(onChoose, entry))
-  row.addEventListener('mouseenter', () => onHover(index))
-  return row
 }

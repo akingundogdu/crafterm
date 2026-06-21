@@ -44,13 +44,12 @@ export function createFilePane(opts: CreateFilePaneOptions): string {
   })
 
   const el = (
-    <div class="pane-box diff-pane" dataset={{ paneId: id }}>
+    <div class="pane-box diff-pane" dataset={{ paneId: id }} onMousedown={makeSelectPane(id)}>
       {header}
       {view.body}
     </div>
   ) as HTMLDivElement
   setupPaneDnd(el, header, id)
-  el.addEventListener('mousedown', makeSelectPane(id))
 
   // ---- load ----
   const load = async (): Promise<void> => {

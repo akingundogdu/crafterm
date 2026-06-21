@@ -48,42 +48,58 @@ export function showManageTagsModal({ rerender, tagFilter }: ManageTagsModalProp
       return
     }
     for (const tag of dailyTagRepo.getAll()) {
-      const color = (<input type="color" class="daily-plan-tag-color" />) as HTMLInputElement
+      const color = (
+        <input
+          type="color"
+          class="daily-plan-tag-color"
+          onChange={() => {
+            tag.color = color.value
+            dailyTagRepo.upsert(tag)
+          }}
+        />
+      ) as HTMLInputElement
       color.value = tag.color
-      color.addEventListener('change', () => {
-        tag.color = color.value
-        dailyTagRepo.upsert(tag)
-      })
 
-      const name = (<input type="text" class="daily-plan-tag-name" />) as HTMLInputElement
+      const name = (
+        <input
+          type="text"
+          class="daily-plan-tag-name"
+          onChange={() => {
+            const v = name.value.trim()
+            if (v) {
+              tag.name = v
+              dailyTagRepo.upsert(tag)
+            } else {
+              name.value = tag.name
+            }
+          }}
+        />
+      ) as HTMLInputElement
       name.value = tag.name
-      name.addEventListener('change', () => {
-        const v = name.value.trim()
-        if (v) {
-          tag.name = v
-          dailyTagRepo.upsert(tag)
-        } else {
-          name.value = tag.name
-        }
-      })
 
-      const del = (<button class="daily-plan-tag-delete">Delete</button>) as HTMLButtonElement
-      del.addEventListener('click', async () => {
-        const ok = await promptConfirm({
-          title: 'Delete tag',
-          message: `Delete "${tag.name}"? It will be removed from every task.`,
-          confirmText: 'Delete'
-        })
-        if (!ok) return
-        dailyTaskRepo.remove(tag.id)
-        for (const t of dailyTaskRepo.getAll()) {
-          if (!t.tagIds.includes(tag.id)) continue
-          t.tagIds = t.tagIds.filter((id) => id !== tag.id)
-          dailyTaskRepo.upsert(t)
-        }
-        tagFilter.delete(tag.id) // drop from the active filter so the board isn't stranded empty
-        renderList()
-      })
+      const del = (
+        <button
+          class="daily-plan-tag-delete"
+          onClick={async () => {
+            const ok = await promptConfirm({
+              title: 'Delete tag',
+              message: `Delete "${tag.name}"? It will be removed from every task.`,
+              confirmText: 'Delete'
+            })
+            if (!ok) return
+            dailyTaskRepo.remove(tag.id)
+            for (const t of dailyTaskRepo.getAll()) {
+              if (!t.tagIds.includes(tag.id)) continue
+              t.tagIds = t.tagIds.filter((id) => id !== tag.id)
+              dailyTaskRepo.upsert(t)
+            }
+            tagFilter.delete(tag.id) // drop from the active filter so the board isn't stranded empty
+            renderList()
+          }}
+        >
+          Delete
+        </button>
+      ) as HTMLButtonElement
 
       const row = (
         <div class="daily-plan-tag-row">

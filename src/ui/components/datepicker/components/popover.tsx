@@ -39,8 +39,7 @@ export function openPopover(
   const { head, weekRow, grid, renderGrid } = createPopoverGrid(model, ctx)
   ctx.renderGrid = renderGrid
 
-  const pop = (<div class="datepicker-pop" />) as HTMLDivElement
-  pop.addEventListener('mousedown', stopMousedown)
+  const pop = (<div class="datepicker-pop" onMouseDown={stopMousedown} />) as HTMLDivElement
   pop.append(head, weekRow, grid)
 
   if (mode === 'datetime') {

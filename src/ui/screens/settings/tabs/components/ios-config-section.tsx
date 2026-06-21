@@ -13,7 +13,22 @@ export function buildIosConfigSection(p: ProjectNode, panel: HTMLElement): void 
   panel.replaceChildren()
 
   // "iOS app" toggle: reveals the config + the sidebar worktree manager.
-  const checkbox = (<input type="text" />) as HTMLInputElement
+  const checkbox = (
+    <input
+      type="text"
+      onChange={() => {
+        p.iosApp = checkbox.checked
+        if (p.iosApp) {
+          iosConfigRepo.ensure(p.id, defaultIosConfig)
+          p.supportWorktree = true // iOS needs the worktree nodes to attach to
+          void reconcileWorktrees()
+        }
+        persistence.save()
+        requestSidebar()
+        renderBody()
+      }}
+    />
+  ) as HTMLInputElement
   checkbox.type = 'checkbox'
   checkbox.checked = !!p.iosApp
   checkbox.style.marginRight = '8px'
@@ -85,7 +100,26 @@ export function buildIosConfigSection(p: ProjectNode, panel: HTMLElement): void 
       'beforeend',
       '<div class="field-hint">Gitignored local files (paths relative to the repo root) copied from the main checkout, e.g. Secrets.xcconfig.</div>'
     )
-    const addBtn = (<button class="settings-inline-btn">+ Add file</button>) as HTMLButtonElement
+    const addBtn = (
+      <button
+        class="settings-inline-btn"
+        onClick={() => {
+          void promptForm({
+            title: 'Add file to copy',
+            fields: [{ key: 'path', label: 'Path (relative to repo root)', placeholder: 'Secrets.xcconfig' }],
+            confirmText: UITexts.Settings.projects.add
+          }).then((values) => {
+            const rel = (values?.path || '').trim()
+            if (!rel || cfg.copyFiles.includes(rel)) return
+            cfg.copyFiles.push(rel)
+            iosConfigRepo.set(p.id, cfg)
+            renderFiles()
+          })
+        }}
+      >
+        + Add file
+      </button>
+    ) as HTMLButtonElement
     body.appendChild(addBtn)
     const list = (<div class="palette-admin-list" />) as HTMLDivElement
     body.appendChild(list)
@@ -97,12 +131,18 @@ export function buildIosConfigSection(p: ProjectNode, panel: HTMLElement): void 
         return
       }
       cfg.copyFiles.forEach((rel, i) => {
-        const del = (<button class="worktree-action worktree-remove">Delete</button>) as HTMLButtonElement
-        del.addEventListener('click', () => {
-          cfg.copyFiles.splice(i, 1)
-          iosConfigRepo.set(p.id, cfg)
-          renderFiles()
-        })
+        const del = (
+          <button
+            class="worktree-action worktree-remove"
+            onClick={() => {
+              cfg.copyFiles.splice(i, 1)
+              iosConfigRepo.set(p.id, cfg)
+              renderFiles()
+            }}
+          >
+            Delete
+          </button>
+        ) as HTMLButtonElement
         const row = (
           <div class="palette-admin-row">
             <span class="palette-admin-cmd">{rel}</span>
@@ -112,32 +152,8 @@ export function buildIosConfigSection(p: ProjectNode, panel: HTMLElement): void 
         list.appendChild(row)
       })
     }
-    addBtn.addEventListener('click', () => {
-      void promptForm({
-        title: 'Add file to copy',
-        fields: [{ key: 'path', label: 'Path (relative to repo root)', placeholder: 'Secrets.xcconfig' }],
-        confirmText: UITexts.Settings.projects.add
-      }).then((values) => {
-        const rel = (values?.path || '').trim()
-        if (!rel || cfg.copyFiles.includes(rel)) return
-        cfg.copyFiles.push(rel)
-        iosConfigRepo.set(p.id, cfg)
-        renderFiles()
-      })
-    })
     renderFiles()
   }
 
-  checkbox.addEventListener('change', () => {
-    p.iosApp = checkbox.checked
-    if (p.iosApp) {
-      iosConfigRepo.ensure(p.id, defaultIosConfig)
-      p.supportWorktree = true // iOS needs the worktree nodes to attach to
-      void reconcileWorktrees()
-    }
-    persistence.save()
-    requestSidebar()
-    renderBody()
-  })
   renderBody()
 }

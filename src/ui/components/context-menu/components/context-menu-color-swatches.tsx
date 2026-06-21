@@ -12,22 +12,24 @@ export function createColorSwatches(color: ColorOption): HTMLDivElement {
         (color.current === null ? ' context-menu-swatch-active' : '')
       }
       title={UITexts.Components.noColor}
+      onClick={makeSwatchClick(color.onPick, null)}
     />
   ) as HTMLButtonElement
-  none.addEventListener('click', makeSwatchClick(color.onPick, null))
   return (
     <div class="context-menu-swatches">
       {none}
-      {NODE_PALETTE.map((c) => {
-        const s = (
-          <button
-            class={'context-menu-swatch' + (color.current === c ? ' context-menu-swatch-active' : '')}
-            style={{ background: c }}
-          />
-        ) as HTMLButtonElement
-        s.addEventListener('click', makeSwatchClick(color.onPick, c))
-        return s
-      })}
+      {NODE_PALETTE.map(
+        (c) =>
+          (
+            <button
+              class={
+                'context-menu-swatch' + (color.current === c ? ' context-menu-swatch-active' : '')
+              }
+              style={{ background: c }}
+              onClick={makeSwatchClick(color.onPick, c)}
+            />
+          ) as HTMLButtonElement
+      )}
     </div>
   ) as HTMLDivElement
 }

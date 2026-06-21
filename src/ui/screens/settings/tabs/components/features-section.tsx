@@ -23,24 +23,32 @@ export function buildFeaturesSection(props: FeaturesSectionProps): void {
     )
   }
   p.features.forEach((feat) => {
-    const input = (<input type="text" placeholder="feature name" />) as HTMLInputElement
+    const input = (
+      <input
+        type="text"
+        placeholder="feature name"
+        onChange={() => {
+          feat.name = input.value.trim() || feat.name
+          persistence.save()
+        }}
+        onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
+      />
+    ) as HTMLInputElement
     input.value = feat.name
-    input.addEventListener('change', () => {
-      feat.name = input.value.trim() || feat.name
-      persistence.save()
-    })
-    input.addEventListener('keydown', (e) => e.stopPropagation())
     const del = (
-      <button class="feat-del" title="Remove feature">
+      <button
+        class="feat-del"
+        title="Remove feature"
+        onClick={() => {
+          p.features = (p.features ?? []).filter((f) => f !== feat)
+          persistence.save()
+          renderTree()
+          renderDetail()
+        }}
+      >
         ✕
       </button>
     ) as HTMLButtonElement
-    del.addEventListener('click', () => {
-      p.features = (p.features ?? []).filter((f) => f !== feat)
-      persistence.save()
-      renderTree()
-      renderDetail()
-    })
     const row = (
       <div class="feat-row">
         {input}
@@ -50,12 +58,18 @@ export function buildFeaturesSection(props: FeaturesSectionProps): void {
     parent.appendChild(row)
   })
 
-  const add = (<button class="settings-inline-btn">+ Add feature</button>) as HTMLButtonElement
-  add.addEventListener('click', () => {
-    p.features = p.features ?? []
-    p.features.push({ id: uid('ft'), name: 'feature' })
-    persistence.save()
-    renderDetail()
-  })
+  const add = (
+    <button
+      class="settings-inline-btn"
+      onClick={() => {
+        p.features = p.features ?? []
+        p.features.push({ id: uid('ft'), name: 'feature' })
+        persistence.save()
+        renderDetail()
+      }}
+    >
+      + Add feature
+    </button>
+  ) as HTMLButtonElement
   parent.appendChild(add)
 }

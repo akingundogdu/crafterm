@@ -32,7 +32,13 @@ export { destroyDiffPane } from './diff-pane.state'
 export function createDiffPane(opts: CreateDiffPaneOptions): string {
   const id = uid('df')
 
-  const el = (<div class="pane-box diff-pane" dataset={{ paneId: id }} />) as HTMLDivElement
+  const el = (
+    <div
+      class="pane-box diff-pane"
+      dataset={{ paneId: id }}
+      onMouseDown={() => paneActions.select(id)}
+    />
+  ) as HTMLDivElement
 
   let files: FileDiff[] = []
 
@@ -85,7 +91,6 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
 
   el.append(header.el, fileSearch.el, view.body)
   setupPaneDnd(el, header.el, id)
-  el.addEventListener('mousedown', () => paneActions.select(id))
 
   // ---- render one file ----
   const renderFile = (): void => {

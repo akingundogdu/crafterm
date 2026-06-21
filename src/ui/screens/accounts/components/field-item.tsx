@@ -28,9 +28,8 @@ export function fieldItem(opts: {
   })
   valI.addEventListener('input', () => opts.onValueInput(valI.value))
   valI.addEventListener('keydown', (e) => e.stopPropagation())
-  const cb = (<input type="checkbox" />) as HTMLInputElement
+  const cb = (<input type="checkbox" onChange={() => opts.onSecretToggle(cb.checked)} />) as HTMLInputElement
   cb.checked = p.secret
-  cb.addEventListener('change', () => opts.onSecretToggle(cb.checked))
   const secretChk = (<label class="accounts-form-secret" />) as HTMLLabelElement
   secretChk.append(cb, document.createTextNode(' secret'))
   const del = createButton({

@@ -22,7 +22,14 @@ export function buildTodoRow(
   // Auto-number by list position; fall back to a text-embedded leading number.
   const badgeNum = opts.orderNum != null ? String(opts.orderNum) : num
   const text = (
-    <span class="improve-item-text" title="Click to read full text">
+    <span
+      class="improve-item-text"
+      title="Click to read full text"
+      onClick={(e: MouseEvent) => {
+        e.stopPropagation()
+        showDetail(entry.text)
+      }}
+    >
       {opts.nextUp && (
         <span class="improve-badge next" title="Next up — AI will implement this one next">
           ▶ next
@@ -36,10 +43,6 @@ export function buildTodoRow(
       {body}
     </span>
   ) as HTMLSpanElement
-  text.addEventListener('click', (e) => {
-    e.stopPropagation()
-    showDetail(entry.text)
-  })
 
   const acts = (<div class="improve-item-actions" />) as HTMLDivElement
   if (opts.editable) {
@@ -53,11 +56,15 @@ export function buildTodoRow(
   }
   opts.actions.forEach((a) => {
     const b = (
-      <button class={'improve-item-btn' + (a.cls ? ' ' + a.cls : '')} type="button" title={a.title}>
+      <button
+        class={'improve-item-btn' + (a.cls ? ' ' + a.cls : '')}
+        type="button"
+        title={a.title}
+        onClick={() => void a.run()}
+      >
         {a.icon}
       </button>
     ) as HTMLButtonElement
-    b.addEventListener('click', () => void a.run())
     acts.appendChild(b)
   })
   const row = (

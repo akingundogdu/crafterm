@@ -378,15 +378,18 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
     const tabs = (<div class="improve-tabs" />) as HTMLDivElement
     const mkTab = (key: typeof activeTab, label: string, count: number): void => {
       const b = (
-        <button type="button" class={'improve-tab' + (activeTab === key ? ' active' : '')}>
+        <button
+          type="button"
+          class={'improve-tab' + (activeTab === key ? ' active' : '')}
+          onClick={() => {
+            activeTab = key
+            render()
+          }}
+        >
           {label + ' '}
           <span class="improve-tab-count">{String(count)}</span>
         </button>
       ) as HTMLButtonElement
-      b.addEventListener('click', () => {
-        activeTab = key
-        render()
-      })
       tabs.appendChild(b)
     }
     mkTab('todo', 'Todo', todoCount)
@@ -397,21 +400,25 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
     // "Clear all" toolbar only on the Done tab when there's something to clear
     if (activeTab === 'done' && doneItems.length) {
       const clearBtn = (
-        <button class="improve-clear-done" type="button" title="Remove all done items from todo-list.md">
+        <button
+          class="improve-clear-done"
+          type="button"
+          title="Remove all done items from todo-list.md"
+          onClick={async () => {
+            const ok = await promptConfirm({
+              title: 'Clear done items',
+              message: `Remove all ${doneItems.length} done item(s)? This rewrites todo-list.md.`,
+              confirmText: 'Clear all'
+            })
+            if (!ok) return
+            if (done) done.items = []
+            await save()
+            render()
+          }}
+        >
           Clear all
         </button>
       ) as HTMLButtonElement
-      clearBtn.addEventListener('click', async () => {
-        const ok = await promptConfirm({
-          title: 'Clear done items',
-          message: `Remove all ${doneItems.length} done item(s)? This rewrites todo-list.md.`,
-          confirmText: 'Clear all'
-        })
-        if (!ok) return
-        if (done) done.items = []
-        await save()
-        render()
-      })
       const toolbar = (<div class="improve-panel-toolbar" />) as HTMLDivElement
       toolbar.appendChild(clearBtn)
       cols.appendChild(toolbar)

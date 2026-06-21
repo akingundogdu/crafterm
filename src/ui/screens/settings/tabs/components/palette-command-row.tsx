@@ -10,10 +10,16 @@ interface PaletteCommandRowProps {
 // One palette-admin row: command name + text with edit/delete actions.
 export function buildPaletteCommandRow(props: PaletteCommandRowProps): HTMLDivElement {
   const { command: c, onEdit, onDelete } = props
-  const edit = (<button class="worktree-action">{UITexts.Settings.commands.edit}</button>) as HTMLButtonElement
-  edit.addEventListener('click', onEdit)
-  const del = (<button class="worktree-action worktree-remove">{UITexts.Settings.commands.delete}</button>) as HTMLButtonElement
-  del.addEventListener('click', onDelete)
+  const edit = (
+    <button class="worktree-action" onClick={onEdit}>
+      {UITexts.Settings.commands.edit}
+    </button>
+  ) as HTMLButtonElement
+  const del = (
+    <button class="worktree-action worktree-remove" onClick={onDelete}>
+      {UITexts.Settings.commands.delete}
+    </button>
+  ) as HTMLButtonElement
   return (
     <div class="palette-admin-row">
       <div class="palette-admin-text">

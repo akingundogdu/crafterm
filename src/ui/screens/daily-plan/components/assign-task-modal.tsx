@@ -65,6 +65,7 @@ export function assignPaneToTask({ paneId, openTaskForm }: AssignTaskModalProps)
       class="daily-assign-search"
       placeholder={UITexts.DailyPlan.searchTasks}
       onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
+      onInput={() => renderList()}
     />
   ) as HTMLInputElement
 
@@ -106,7 +107,6 @@ export function assignPaneToTask({ paneId, openTaskForm }: AssignTaskModalProps)
       list.appendChild(row)
     }
   }
-  search.addEventListener('input', renderList)
   renderList()
 
   document.body.appendChild(overlay)

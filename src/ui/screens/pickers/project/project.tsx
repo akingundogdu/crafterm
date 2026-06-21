@@ -145,14 +145,19 @@ export function showRunApps(project: ProjectNode): void {
   }
   renderApps()
 
-  const cancel = (<button>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
-  cancel.addEventListener('click', close)
-  const run = (<button class="button-primary">Run</button>) as HTMLButtonElement
-  run.addEventListener('click', () => {
-    const selected = apps.filter((a) => checks.get(a)?.checked)
-    if (selected.length) void runApplications(project, env, selected)
-    close()
-  })
+  const cancel = (<button onClick={close}>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
+  const run = (
+    <button
+      class="button-primary"
+      onClick={() => {
+        const selected = apps.filter((a) => checks.get(a)?.checked)
+        if (selected.length) void runApplications(project, env, selected)
+        close()
+      }}
+    >
+      Run
+    </button>
+  ) as HTMLButtonElement
   const actions = (
     <div class="modal-actions">
       {cancel}
@@ -391,19 +396,24 @@ export function showFeatureSetup(project: ProjectNode): void {
     renderApps()
   }
 
-  const cancel = (<button>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
-  cancel.addEventListener('click', close)
-  const create = (<button class="button-primary">Create</button>) as HTMLButtonElement
-  create.addEventListener('click', () => {
-    const branch = sanitizeBranch(branchInput.value || nameInput.value)
-    if (!branch) return
-    const chosen = apps
-      .filter((a) => incl.get(a)?.checked)
-      .map((app) => ({ app, worktree: !!wt.get(app)?.checked }))
-    if (!chosen.length) return
-    void createFeature(project, { branch, base: baseInput.value, env, apps: chosen })
-    close()
-  })
+  const cancel = (<button onClick={close}>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
+  const create = (
+    <button
+      class="button-primary"
+      onClick={() => {
+        const branch = sanitizeBranch(branchInput.value || nameInput.value)
+        if (!branch) return
+        const chosen = apps
+          .filter((a) => incl.get(a)?.checked)
+          .map((app) => ({ app, worktree: !!wt.get(app)?.checked }))
+        if (!chosen.length) return
+        void createFeature(project, { branch, base: baseInput.value, env, apps: chosen })
+        close()
+      }}
+    >
+      Create
+    </button>
+  ) as HTMLButtonElement
   const actions = (
     <div class="modal-actions">
       {cancel}
