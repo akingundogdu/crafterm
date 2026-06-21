@@ -1,12 +1,13 @@
 import { settings, uid } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
-import type { DbGroup, DbConnNode, DbConnection, DbEngine } from '@ui/types/types'
+import type { DbGroup, DbConnNode, DbConnection } from '@ui/types/types'
 import type { DbObjects } from '@services/db/db.types'
-import { makeCloseButton, promptText } from '@ui/components/dialog/dialog'
+import { promptText } from '@ui/components/dialog/dialog'
 import { openSqlInSplit } from '@ui/commands/commands'
-import { createTreeView, createOverlay, type TreeAdapter, type TreeView, type DropPos } from '@ui/components'
+import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@ui/components'
 import './database.css'
 import { dbService, dbqService } from '@services'
+import { buildConnectionForm } from './components/connection-form'
 import { dbConnectionRepo } from '@repositories'
 import { UITexts } from '@texts'
 import type { DbSectionKind, DbTreeNode } from './database.types'
@@ -335,162 +336,25 @@ async function renameGroup(node: DbGroup): Promise<void> {
 // ---- connection form ----
 
 function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void {
-  const { overlay, mount, close } = createOverlay()
-
-  const c = existing?.conn
-
-  // Engine segmented control: static buttons, imperative active-state + handlers.
-  let engineVal: DbEngine = c?.engine ?? 'postgres'
-  const segBtns: HTMLButtonElement[] = []
-  const pickEngine = (v: DbEngine) => (): void => {
-    engineVal = v
-    segBtns.forEach((x) => x.classList.toggle('active', x.dataset.engine === v))
-    applyEngine()
-  }
-  const seg = (
-    <div class="database-engine-selector">
-      {(
-        [
-          ['postgres', UITexts.Database.engines.postgres],
-          ['mysql', UITexts.Database.engines.mysql],
-          ['sqlite', 'SQLite']
-        ] as [DbEngine, string][]
-      ).map(([v, lbl]) => {
-        const b = (
-          <button
-            type="button"
-            dataset={{ engine: v }}
-            class={'database-engine-button ' + engineClass(v) + (v === engineVal ? ' active' : '')}
-            onClick={pickEngine(v)}
-          >
-            {lbl}
-          </button>
-        ) as HTMLButtonElement
-        segBtns.push(b)
-        return b
-      })}
-    </div>
-  ) as HTMLDivElement
-
-  const name = (<input class="reminder-input" type="text" placeholder={UITexts.Database.ph.name} />) as HTMLInputElement
-  name.value = c?.name ?? ''
-
-  // network fields (postgres/mysql)
-  const host = document.createElement('input')
-  const port = document.createElement('input')
-  const user = document.createElement('input')
-  const pass = document.createElement('input')
-  const database = document.createElement('input')
-  const ssl = (<input type="checkbox" />) as HTMLInputElement
-  ssl.checked = !!c?.ssl
-  const netWrap = (<div />) as HTMLDivElement
-  const mkNet = (label: string, input: HTMLInputElement, value: string, ph: string, type = 'text'): void => {
-    input.className = 'reminder-input'
-    input.type = type
-    input.value = value
-    input.placeholder = ph
-    netWrap.append((<div class="reminder-label">{label}</div>) as HTMLDivElement, input)
-  }
-  mkNet(UITexts.Database.fields.host, host, c?.host ?? '', UITexts.Database.ph.host)
-  mkNet(UITexts.Database.fields.port, port, c?.port ? String(c.port) : '', UITexts.Database.ph.port, 'number')
-  mkNet(UITexts.Database.fields.user, user, c?.user ?? '', UITexts.Database.ph.user)
-  mkNet(UITexts.Database.fields.password, pass, c?.password ?? '', UITexts.Database.ph.password, 'password')
-  mkNet(UITexts.Database.fields.database, database, c?.database ?? '', UITexts.Database.ph.database)
-  netWrap.appendChild(
-    (
-      <label class="checkbox-row">
-        {ssl}
-        Use SSL
-      </label>
-    ) as HTMLLabelElement
-  )
-
-  // sqlite field
-  const file = (<input class="reminder-input" placeholder={UITexts.Database.ph.file} />) as HTMLInputElement
-  file.value = c?.file ?? ''
-  const fileWrap = (
-    <div>
-      <div class="reminder-label">SQLite file</div>
-      {file}
-    </div>
-  ) as HTMLDivElement
-
-  const applyEngine = (): void => {
-    const sqlite = engineVal === 'sqlite'
-    netWrap.style.display = sqlite ? 'none' : ''
-    fileWrap.style.display = sqlite ? '' : 'none'
-    port.placeholder = engineVal === 'mysql' ? '3306' : '5432'
-  }
-
-  const status = (<div class="db-conn-status" />) as HTMLDivElement
-
-  const build = (): DbConnection => ({
-    id: c?.id ?? uid('dbc'),
-    name: name.value.trim() || 'connection',
-    engine: engineVal,
-    host: host.value.trim() || undefined,
-    port: port.value ? parseInt(port.value, 10) : undefined,
-    user: user.value.trim() || undefined,
-    password: pass.value || undefined,
-    database: database.value.trim() || undefined,
-    ssl: ssl.checked || undefined,
-    file: file.value.trim() || undefined
-  })
-
-  const onTestConn = (): void => {
-    void (async () => {
-      status.textContent = UITexts.Database.testing
-      status.className = 'db-conn-status'
-      const r = await dbService.connect(build())
-      status.textContent = r.ok ? UITexts.Database.connected : UITexts.Database.failed(r.error)
-      status.className = 'db-conn-status ' + (r.ok ? 'ok' : 'err')
-    })()
-  }
-
-  const onSaveConn = (): void => {
-    const conn = build()
-    if (existing) {
-      existing.conn = conn
-      objCache.delete(conn.id)
-    } else {
-      const node: DbConnNode = { kind: 'conn', id: uid('dbn'), collapsed: false, conn }
-      if (parentGroupId) {
-        findGroup(parentGroupId)?.children.push(node)
-        expanded.add(parentGroupId)
+  buildConnectionForm({
+    existing,
+    onSave: (conn) => {
+      if (existing) {
+        existing.conn = conn
+        objCache.delete(conn.id)
       } else {
-        settings.dbTree.push(node)
+        const node: DbConnNode = { kind: 'conn', id: uid('dbn'), collapsed: false, conn }
+        if (parentGroupId) {
+          findGroup(parentGroupId)?.children.push(node)
+          expanded.add(parentGroupId)
+        } else {
+          settings.dbTree.push(node)
+        }
       }
+      persistence.save()
+      void refresh()
     }
-    persistence.save()
-    void refresh()
-    close()
-  }
-
-  const actions = (
-    <div class="modal-actions">
-      <button onClick={onTestConn}>Test</button>
-      <button class="button-primary" onClick={onSaveConn}>
-        {existing ? UITexts.Database.save : UITexts.Database.add}
-      </button>
-    </div>
-  ) as HTMLDivElement
-
-  const modal = (
-    <div class="modal db-conn-modal">
-      {makeCloseButton(close)}
-      <h2>{existing ? UITexts.Database.editHeading : UITexts.Database.newHeading}</h2>
-      <div class="reminder-label">Engine</div>
-      {seg}
-    </div>
-  ) as HTMLDivElement
-  overlay.appendChild(modal)
-
-  // Name field + the rest, appended after the engine segment (preserving order).
-  modal.append((<div class="reminder-label">Name</div>) as HTMLDivElement, name, netWrap, fileWrap, status, actions)
-
-  applyEngine()
-  mount()
-  name.focus()
+  })
 }
 
 // Listen for save events from SQL panes so the connection's "Queries" list

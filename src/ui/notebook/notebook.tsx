@@ -16,7 +16,6 @@ import type { NbSubTab, PlanItem } from './notebook.types'
 import {
   FOLDER_SVG,
   NOTE_SVG,
-  LINK_SVG,
   MD_RE,
   basename,
   parentOf,
@@ -26,6 +25,9 @@ import {
   groupPlansByProject,
   stopAnd
 } from './notebook.state'
+import { buildSubtabsHeader } from './components/subtabs-header'
+import { buildPlanRow } from './components/plan-row'
+import { buildLinkedFileRow } from './components/linked-file-row'
 
 export type { NbSubTab } from './notebook.types'
 
@@ -137,26 +139,10 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
   container = host
   host.replaceChildren()
 
-  const subtabs = (<div class="nb-subtabs" />) as HTMLDivElement
-  const mk = (key: NbSubTab, label: string): void => {
-    const b = (
-      <button
-        class={'notebook-mode-tab' + (nbSubTab === key ? ' active' : '')}
-        onClick={() => {
-          if (nbSubTab === key) return
-          nbSubTab = key
-          void renderNotebook(host)
-        }}
-      >
-        {label}
-      </button>
-    ) as HTMLButtonElement
-    subtabs.appendChild(b)
-  }
-  mk('notes', 'Notes')
-  mk('plans', 'Plans')
-  mk('daily', 'Daily Plan')
-  mk('meeting', 'Meeting Notes')
+  const subtabs = buildSubtabsHeader(nbSubTab, (key) => {
+    nbSubTab = key
+    void renderNotebook(host)
+  })
   host.appendChild(subtabs)
 
   const body = (<div class="nb-subtab-body" />) as HTMLDivElement
@@ -274,33 +260,18 @@ function renderPlansGroups(host: HTMLElement): void {
     const section = (
       <div class="nb-plans-group">
         <div class="nb-linked-head">{`${project} · ${plans.length}`}</div>
-        {plans.map((p) => renderPlanRow(p))}
+        {plans.map((p) =>
+          buildPlanRow(p, {
+            onOpen: (path) => openMarkdownFile(path),
+            onRemind: (item) =>
+              showRemindModal(item.name.replace(MD_RE, ''), `Plan: ${item.name}`, { kind: 'plan', path: item.path }),
+            onReveal: (path) => shellService.revealPath(path)
+          })
+        )}
       </div>
     ) as HTMLDivElement
     host.appendChild(section)
   }
-}
-
-function renderPlanRow(p: PlanItem): HTMLElement {
-  const actions = (<span class="nb-actions" />) as HTMLSpanElement
-  actions.append(
-    actBtn(
-      '⏰',
-      'Remind me',
-      stopAnd(() => showRemindModal(p.name.replace(MD_RE, ''), `Plan: ${p.name}`, { kind: 'plan', path: p.path }))
-    ),
-    actBtn('⤴', 'Show in Finder', stopAnd(() => shellService.revealPath(p.path)))
-  )
-  const row = (
-    <div class="tab-item nb-linked-row" title={p.path} onClick={() => openMarkdownFile(p.path)}>
-      <div class="tab-row">
-        <span class="folder-icon" innerHTML={NOTE_SVG} />
-        <span class="tab-title">{p.name.replace(MD_RE, '')}</span>
-        {actions}
-      </div>
-    </div>
-  ) as HTMLDivElement
-  return row
 }
 
 // ---- search (driven by the shared sidebar search bar) -----------------------
@@ -344,25 +315,13 @@ function renderLinked(host: HTMLElement): void {
     </div>
   ) as HTMLDivElement
   for (const f of items) {
-    const actions = (<span class="nb-actions" />) as HTMLSpanElement
-    actions.append(
-      actBtn(
-        '⤴',
-        'Show in Finder',
-        stopAnd(() => shellService.openPath(f.path.slice(0, f.path.lastIndexOf('/')) || f.path))
-      ),
-      actBtn('✕', 'Unlink', stopAnd(() => unlink(f.path)))
+    section.appendChild(
+      buildLinkedFileRow(f, {
+        onOpen: (path) => openLinked(path),
+        onReveal: (path) => shellService.openPath(path),
+        onUnlink: (path) => unlink(path)
+      })
     )
-    const row = (
-      <div class="tab-item nb-linked-row" title={f.path} onClick={() => openLinked(f.path)}>
-        <div class="tab-row">
-          <span class="folder-icon" innerHTML={LINK_SVG} />
-          <span class="tab-title">{MD_RE.test(f.name) ? f.name.replace(MD_RE, '') : f.name}</span>
-          {actions}
-        </div>
-      </div>
-    ) as HTMLDivElement
-    section.appendChild(row)
   }
   host.appendChild(section)
 }

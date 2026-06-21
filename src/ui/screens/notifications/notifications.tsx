@@ -91,7 +91,7 @@ export function renderNotifications(): void {
   updateBadge()
   listEl.replaceChildren()
   if (!notificationRepo.getAll().length) {
-    listEl.insertAdjacentHTML('beforeend', '<div class="notif-empty"></div>')
+    listEl.insertAdjacentHTML('beforeend', `<div class="notif-empty">${UITexts.Notifications.empty}</div>`)
     return
   }
   notificationRepo.getAll().forEach((n) => {

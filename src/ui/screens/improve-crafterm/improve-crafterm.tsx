@@ -19,11 +19,12 @@ import type { Entry, RowAction } from './improve-crafterm.types'
 import {
   todoJsonPath,
   docToJson,
-  showDetail,
   makePopoutClick,
   makeOnTopClick,
   makeOpenSettingsClick
 } from './improve-crafterm.state'
+import { buildTodoRow, type TodoRowOptions } from './components/todo-row'
+import { fillTodoList } from './components/todo-list-section'
 
 // ---- Improve Crafterm panel -----------------------------------------
 
@@ -244,65 +245,7 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
     input.addEventListener('blur', () => void commit(true))
   }
 
-  const makeRow = (
-    entry: Entry,
-    opts: { editable?: boolean; nextUp?: boolean; orderNum?: number; actions: RowAction[] }
-  ): HTMLElement => {
-    const { num, body } = splitOrder(entry.text)
-    // Auto-number by list position; fall back to a text-embedded leading number.
-    const badgeNum = opts.orderNum != null ? String(opts.orderNum) : num
-    const text = (
-      <span class="improve-item-text" title="Click to read full text">
-        {opts.nextUp && (
-          <span class="improve-badge next" title="Next up — AI will implement this one next">
-            ▶ next
-          </span>
-        )}
-        {entry.inProgress && (
-          <span class="improve-badge ai" title="In progress — being worked on by AI">
-            🤖 in progress
-          </span>
-        )}
-        {body}
-      </span>
-    ) as HTMLSpanElement
-    text.addEventListener('click', (e) => {
-      e.stopPropagation()
-      showDetail(entry.text)
-    })
-
-    const acts = (<div class="improve-item-actions" />) as HTMLDivElement
-    if (opts.editable) {
-      const eb = (
-        <button class="improve-item-btn" type="button" title="Edit">
-          ✎
-        </button>
-      ) as HTMLButtonElement
-      eb.addEventListener('click', () => beginEdit(entry, row))
-      acts.appendChild(eb)
-    }
-    opts.actions.forEach((a) => {
-      const b = (
-        <button class={'improve-item-btn' + (a.cls ? ' ' + a.cls : '')} type="button" title={a.title}>
-          {a.icon}
-        </button>
-      ) as HTMLButtonElement
-      b.addEventListener('click', () => void a.run())
-      acts.appendChild(b)
-    })
-    const row = (
-      <div class={'improve-item' + (opts.nextUp ? ' next-up' : '')}>
-        {badgeNum && (
-          <span class="improve-order" title={`Priority #${badgeNum}`}>
-            {badgeNum}
-          </span>
-        )}
-        {text}
-        {acts}
-      </div>
-    ) as HTMLDivElement
-    return row
-  }
+  const makeRow = (entry: Entry, opts: TodoRowOptions): HTMLElement => buildTodoRow(entry, opts, beginEdit)
 
   // Which tab is shown in the single wide panel.
   let activeTab: 'todo' | 'ready' | 'done' = 'todo'
@@ -339,51 +282,14 @@ export async function showImproveModal(opts: { windowMode?: boolean } = {}): Pro
   }
 
   // Render the Todo list (in-progress + backlog, with drag-to-reorder) into `list`.
-  const fillTodo = (list: HTMLElement, progEntries: Entry[], backEntries: Entry[], backlog?: Section): void => {
-    const splitGroups = progEntries.length > 0 && backEntries.length > 0
-    const doneAction = (entry: Entry): RowAction => ({
-      icon: '✓',
-      title: 'Mark done',
-      cls: 'mark-done',
-      run: () => moveEntry(entry, 'Done', true)
+  const fillTodo = (list: HTMLElement, progEntries: Entry[], backEntries: Entry[], backlog?: Section): void =>
+    fillTodoList(list, progEntries, backEntries, backlog, {
+      buildRow: makeRow,
+      addSubhead,
+      moveEntry,
+      save,
+      render
     })
-    if (splitGroups) addSubhead(list, '🤖 In progress')
-    progEntries.forEach((entry, i) =>
-      list.appendChild(makeRow(entry, { editable: true, orderNum: i + 1, actions: [doneAction(entry)] }))
-    )
-    if (splitGroups) addSubhead(list, 'Up next')
-    // Drag to reorder backlog priority — file order is the AI's work order.
-    let dragFrom: number | null = null
-    backEntries.forEach((entry, i) => {
-      const row = makeRow(entry, { editable: true, nextUp: i === 0, orderNum: i + 1, actions: [doneAction(entry)] })
-      row.draggable = true
-      row.classList.add('draggable')
-      row.addEventListener('dragstart', (e) => {
-        dragFrom = i
-        row.classList.add('dragging')
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
-      })
-      row.addEventListener('dragend', () => {
-        dragFrom = null
-        list.querySelectorAll('.improve-item').forEach((el) => el.classList.remove('dragging', 'drag-over'))
-      })
-      row.addEventListener('dragover', (e) => {
-        e.preventDefault()
-        row.classList.add('drag-over')
-      })
-      row.addEventListener('dragleave', () => row.classList.remove('drag-over'))
-      row.addEventListener('drop', async (e) => {
-        e.preventDefault()
-        row.classList.remove('drag-over')
-        if (dragFrom === null || dragFrom === i || !backlog) return
-        const [moved] = backlog.items.splice(dragFrom, 1)
-        backlog.items.splice(i, 0, moved)
-        await save()
-        render()
-      })
-      list.appendChild(row)
-    })
-  }
 
   const render = (): void => {
     renderStats()
