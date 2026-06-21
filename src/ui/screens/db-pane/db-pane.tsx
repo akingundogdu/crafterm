@@ -4,15 +4,15 @@ import { persistence } from '@repositories/persistence.service'
 import type { DbConnection } from '@ui/types/types'
 import type { DbColumn } from '@services/db/db.types'
 import { createSqlEditor, type SqlEditor } from '../../editor/sql-editor/sql-editor'
-import { ALL_THEME_NAMES, currentThemeName, applyTheme } from '../../editor/monaco/monaco-setup'
+import { currentThemeName, applyTheme } from '../../editor/monaco/monaco-setup'
 import { setupPaneDnd } from '@ui/pane/pane'
 import { promptText } from '@ui/components/dialog/dialog'
 import { renderResultGrid, type SortState, type EditableContext } from './components/result-grid'
+import { createQueryToolbar } from './components/query-toolbar'
 import './db-pane.css'
 import { dbService, dbqService } from '@services'
 import type { ParsedSelect } from './db-pane.types'
 import {
-  PLAY_SVG,
   engineClass,
   engineLabel,
   flattenConns,
@@ -60,32 +60,7 @@ export function createSqlPane(opts: {
   ) as HTMLDivElement
 
   // toolbar
-  const dot = (<span class="db-conn-dot" />) as HTMLSpanElement
-  const connSel = (<select class="settings-select" />) as HTMLSelectElement
-  const runBtn = (
-    <button class="button-primary db-run-btn" innerHTML={PLAY_SVG + '<span>' + UITexts.DbPane.run + '</span><kbd>⌘↵</kbd>'} />
-  ) as HTMLButtonElement
-  const saveBtn = (<button class="db-save-btn">{UITexts.DbPane.saveSql}</button>) as HTMLButtonElement
-  // theme picker (right-aligned via CSS)
-  const themeSel = (
-    <select class="settings-select db-theme-select" title={UITexts.DbPane.editorTheme}>
-      {ALL_THEME_NAMES.map((t) => (<option value={t}>{t}</option>) as HTMLOptionElement)}
-    </select>
-  ) as HTMLSelectElement
-  const connWrap = (
-    <div class="db-conn-select">
-      {dot}
-      {connSel}
-    </div>
-  ) as HTMLDivElement
-  const bar = (
-    <div class="db-query-bar">
-      {connWrap}
-      {runBtn}
-      {saveBtn}
-      {themeSel}
-    </div>
-  ) as HTMLDivElement
+  const { bar, dot, connSel, runBtn, saveBtn, themeSel } = createQueryToolbar()
 
   // editor host
   const editorHost = (<div class="db-query-editor" />) as HTMLDivElement

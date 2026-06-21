@@ -4,6 +4,7 @@ import type { AccountEntry } from '@ui/types/types'
 import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { renderAccounts } from '../accounts'
 import { createAccountDraft, initialPending, makeSaveAccount } from './account-form.state'
+import { fieldItem } from './field-item'
 
 // Create/edit an account or secret. Secret field values never round-trip through
 // the draft/JSON — they go to safeStorage via the secrets service on save. The
@@ -39,43 +40,24 @@ export function showAccountForm(
   const renderFields = (): void => {
     fieldsList.replaceChildren()
     pending.forEach((p, idx) => {
-      const keyI = createInput({ value: p.key, placeholder: UITexts.Accounts.form.keyPlaceholder })
-      keyI.addEventListener('input', () => (p.key = keyI.value))
-      keyI.addEventListener('keydown', (e) => e.stopPropagation())
-      const valI = createInput({
-        value: p.secret ? '' : draft.fields[idx]?.value ?? '',
-        placeholder: p.secret
-          ? p.existed
-            ? UITexts.Accounts.form.keepExisting
-            : UITexts.Accounts.form.newSecret
-          : UITexts.Accounts.form.value,
-        type: p.secret ? 'password' : 'text'
-      })
-      valI.addEventListener('input', () => {
-        p.rawValue = valI.value
-        if (!p.secret) draft.fields[idx].value = valI.value
-      })
-      valI.addEventListener('keydown', (e) => e.stopPropagation())
-      const cb = (<input type="checkbox" />) as HTMLInputElement
-      cb.checked = p.secret
-      cb.addEventListener('change', () => {
-        p.secret = cb.checked
-        renderFields()
-      })
-      const secretChk = (<label class="accounts-form-secret" />) as HTMLLabelElement
-      secretChk.append(cb, document.createTextNode(' secret'))
-      const del = createButton({
-        text: '✕',
-        className: 'accounts-action small danger',
-        type: 'button',
-        onClick: () => {
+      const row = fieldItem({
+        pending: p,
+        initialValue: draft.fields[idx]?.value ?? '',
+        onKeyInput: (v) => (p.key = v),
+        onValueInput: (v) => {
+          p.rawValue = v
+          if (!p.secret) draft.fields[idx].value = v
+        },
+        onSecretToggle: (secret) => {
+          p.secret = secret
+          renderFields()
+        },
+        onDelete: () => {
           pending.splice(idx, 1)
           draft.fields.splice(idx, 1)
           renderFields()
         }
       })
-      const row = (<div class="accounts-form-field-row" />) as HTMLDivElement
-      row.append(keyI, valI, secretChk, del)
       fieldsList.appendChild(row)
     })
     const addBtn = createButton({

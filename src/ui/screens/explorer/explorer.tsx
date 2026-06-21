@@ -13,6 +13,7 @@ import {
   makeSearchInputHandler,
   stopPropagation
 } from './explorer.state'
+import { buildExplorerSearchRow } from './components/explorer-search-row'
 
 function treeEl(): HTMLElement {
   return document.getElementById('explorer-tree')!
@@ -39,15 +40,13 @@ async function renderSearch(root: string, query: string): Promise<void> {
     return
   }
   for (const m of matches) {
-    const row = (
-      <div class="explorer-row file" style="padding-left:6px">
-        <span class="explorer-tri" />
-        <span class="explorer-name">{m.name}</span>
-        <span class="explorer-sub">{shortPath(m.path.replace(/\/[^/]+$/, ''))}</span>
-      </div>
-    ) as HTMLDivElement
-    row.addEventListener('click', makeSearchRowClick(m.path))
-    el.appendChild(row)
+    el.appendChild(
+      buildExplorerSearchRow({
+        name: m.name,
+        subPath: shortPath(m.path.replace(/\/[^/]+$/, '')),
+        onClick: makeSearchRowClick(m.path)
+      })
+    )
   }
 }
 

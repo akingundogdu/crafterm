@@ -15,23 +15,16 @@ import {
 import { findTab } from '@ui/tree/tree'
 import { mountPanes } from '@ui/pane/pane'
 import { tabContainers, layoutSig, makePopoutFocus, persistResizedLayout } from './content.state'
+import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 
 const contentEl = document.getElementById('content')!
 
 // A pane shown in a separate pop-out window leaves this placeholder behind.
 function buildPlaceholder(paneId: string): HTMLElement {
-  return (
-    <div class="pane-box pane-popped">
-      <div class="pane-popped-inner">
-        <div class="pane-popped-label">
-          {(panes.get(paneId)?.title || 'Terminal') + ' is open in a separate window'}
-        </div>
-        <button class="settings-inline-btn" onClick={makePopoutFocus(paneId)}>
-          Focus window
-        </button>
-      </div>
-    </div>
-  ) as HTMLElement
+  return buildPoppedOutPlaceholder({
+    title: panes.get(paneId)?.title || 'Terminal',
+    onFocusClick: makePopoutFocus(paneId)
+  })
 }
 
 function buildNode(node: LayoutNode): HTMLElement {

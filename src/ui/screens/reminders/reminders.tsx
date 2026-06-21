@@ -2,15 +2,8 @@ import './reminders.css'
 import { UITexts } from '@texts'
 import { reminderRepo } from '@repositories'
 import type { Reminder, ReminderPayload } from '@ui/types/types'
-import {
-  fmtWhen,
-  relPast,
-  repeatLabel,
-  addSnooze,
-  runTick,
-  makeFormOpenClick,
-  makeDeleteClick
-} from './reminders.state'
+import { addSnooze, runTick, makeFormOpenClick, makeDeleteClick } from './reminders.state'
+import { createReminderCard } from './components/reminder-card'
 
 // Re-exported for the many callers that import these from the reminders module
 // (main, spotlight, meetingNotes, notebook, dailyPlan, bookmarks, notifications).
@@ -30,26 +23,12 @@ export function snoozeReminder(text: string, at: number, payload?: ReminderPaylo
 }
 
 function reminderCard(r: Reminder, past: boolean): HTMLElement {
-  const rep = repeatLabel(r)
-  return (
-    <div class={'reminder-card' + (past ? ' past' : '')}>
-      <div class="reminder-top">
-        <span class="reminder-when">
-          {past ? `fired ${relPast(r.firedAt ?? r.time)}` : fmtWhen(r.time)}
-        </span>
-        {rep && !past && <span class="reminder-repeat">{'↻ ' + rep}</span>}
-      </div>
-      <div class="reminder-text">{r.text}</div>
-      <div class="reminder-actions">
-        <button class="worktree-action" onClick={makeFormOpenClick(r)}>
-          {past ? UITexts.Reminders.card.remindAgain : UITexts.Reminders.card.edit}
-        </button>
-        <button class="worktree-action worktree-remove" onClick={makeDeleteClick(r, renderReminders)}>
-          {UITexts.Reminders.card.delete}
-        </button>
-      </div>
-    </div>
-  ) as HTMLDivElement
+  return createReminderCard({
+    reminder: r,
+    past,
+    onEdit: makeFormOpenClick(r),
+    onDelete: makeDeleteClick(r, renderReminders)
+  })
 }
 
 export function renderReminders(): void {

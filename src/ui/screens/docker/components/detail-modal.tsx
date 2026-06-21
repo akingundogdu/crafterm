@@ -3,9 +3,9 @@ import type { DockerKind } from '@services/docker/docker.types'
 import { dockerService } from '@services'
 import { makeCloseButton } from '@ui/components/dialog/dialog'
 import { createButton, createOverlay } from '@ui/components'
-import { inspectFields } from '../inspect'
 import type { EmbeddedTerm, DetailTab, DetailModalOptions } from './detail-modal.types'
-import { makeEmbeddedTerm, parseInspect, tabsFor, makeRawToggle, bindEscapeClose } from './detail-modal.state'
+import { makeEmbeddedTerm, tabsFor, bindEscapeClose } from './detail-modal.state'
+import { createInspectPanel } from './inspect-panel'
 
 // The Docker resource detail modal: a tabbed Inspect / Logs / Terminal view.
 // Containers get all three (Terminal only when running); other kinds get Inspect
@@ -14,38 +14,7 @@ import { makeEmbeddedTerm, parseInspect, tabsFor, makeRawToggle, bindEscapeClose
 // Render the parsed inspect into a structured table, with a Raw JSON toggle.
 function renderInspectInto(panel: HTMLElement, kind: DockerKind, raw: string): void {
   panel.replaceChildren()
-  const parsed = parseInspect(raw)
-  if (!parsed) {
-    panel.appendChild(
-      <pre class="docker-pre" ref={(el: HTMLPreElement) => (el.textContent = raw || '(empty)')} />
-    )
-    return
-  }
-
-  const table = (
-    <div class="docker-kv">
-      {inspectFields(kind, parsed).map(([label, value]) => (
-        <>
-          <div class="docker-kv-key">{label}</div>
-          <div class="docker-kv-val">{value}</div>
-        </>
-      ))}
-    </div>
-  ) as HTMLDivElement
-
-  const pre = (
-    <pre class="docker-pre" style="display: none">
-      {JSON.stringify(parsed, null, 2)}
-    </pre>
-  ) as HTMLPreElement
-
-  const toggle = createButton({
-    className: 'settings-inline-btn docker-raw-toggle',
-    text: UITexts.Docker.detail.rawJson,
-    onClick: makeRawToggle(table, pre)
-  })
-
-  panel.append(toggle, table, pre)
+  panel.appendChild(createInspectPanel(kind, raw))
 }
 
 // Open the rich detail modal. Containers get Inspect/Logs/Terminal (Terminal

@@ -1,6 +1,6 @@
 import './accounts.css'
 import { UITexts } from '@texts'
-import type { AccountEntry, AccountField } from '@ui/types/types'
+import type { AccountEntry } from '@ui/types/types'
 import { accountRepo } from '@repositories'
 import {
   currentKindFilter,
@@ -15,6 +15,9 @@ import {
   makeNewEntryClick,
   makeSettingsClick
 } from './accounts.state'
+import { metaRow } from './components/meta-row'
+import { fieldRow } from './components/field-row'
+import { accountFilters } from './components/account-filters'
 
 // One sidebar mode for both 'account' (full credential ledger row) and 'secret'
 // (env-var-style single value). Cards share rendering; the kind toggles which
@@ -30,54 +33,28 @@ function tagChip(text: string): HTMLElement {
 }
 
 // ---- card ---------------------------------------------------------------
-function metaRow(label: string, value: string, copyable: boolean): HTMLElement {
-  return (
-    <div class="accounts-meta-row">
-      <span class="accounts-meta-key">{label}</span>
-      <span class="accounts-meta-val">{value}</span>
-      {copyable && (
-        <button class="accounts-action small" onClick={makeMetaCopyClick(value)}>
-          Copy
-        </button>
-      )}
-    </div>
-  ) as HTMLDivElement
-}
-
-function fieldRow(a: AccountEntry, f: AccountField): HTMLElement {
-  const val = (
-    <span class={'accounts-meta-val' + (f.secret ? ' accounts-secret' : '')}>
-      {f.secret ? '••••••••' : f.value ?? ''}
-    </span>
-  ) as HTMLSpanElement
-  return (
-    <div class="accounts-meta-row">
-      <span class="accounts-meta-key">{f.key}</span>
-      {val}
-      <button class="accounts-action small" onClick={makeFieldCopyClick(a, f)}>
-        Copy
-      </button>
-      {f.secret && (
-        <button class="accounts-action small" onClick={makeRevealClick(a, f, val)}>
-          Show
-        </button>
-      )}
-    </div>
-  ) as HTMLDivElement
-}
-
 function accountCard(a: AccountEntry): HTMLElement {
   const hasMeta = !!(a.login || a.url || a.notes)
   const meta = (
     <div class="accounts-metadata">
-      {a.login && metaRow('login', a.login, true)}
-      {a.url && metaRow('url', a.url, true)}
-      {a.notes && metaRow('notes', a.notes, false)}
+      {a.login && metaRow({ label: 'login', value: a.login, copyable: true, onCopy: makeMetaCopyClick(a.login) })}
+      {a.url && metaRow({ label: 'url', value: a.url, copyable: true, onCopy: makeMetaCopyClick(a.url) })}
+      {a.notes && metaRow({ label: 'notes', value: a.notes, copyable: false, onCopy: () => {} })}
     </div>
   ) as HTMLDivElement
 
   const fields = a.fields?.length
-    ? ((<div class="accounts-fields">{a.fields.map((f) => fieldRow(a, f))}</div>) as HTMLDivElement)
+    ? ((
+        <div class="accounts-fields">
+          {a.fields.map((f) =>
+            fieldRow({
+              field: f,
+              onCopy: makeFieldCopyClick(a, f),
+              onReveal: (valEl) => makeRevealClick(a, f, valEl)
+            })
+          )}
+        </div>
+      ) as HTMLDivElement)
     : null
 
   const tags = a.tags.length
@@ -114,22 +91,10 @@ export function renderAccounts(): void {
   el.className = 'tab-list accounts-list-wrap'
 
   // toolbar (kind filter chips)
-  const bar = (
-    <div class="accounts-filters">
-      {(['all', 'account', 'secret'] as const).map((k) => (
-        <button
-          class={'bookmarks-filter' + (k === currentKindFilter() ? ' active' : '')}
-          onClick={makeFilterClick(k, renderAccounts)}
-        >
-          {k === 'all'
-            ? UITexts.Accounts.filter.all
-            : k === 'account'
-              ? UITexts.Accounts.filter.accounts
-              : UITexts.Accounts.filter.secrets}
-        </button>
-      ))}
-    </div>
-  ) as HTMLDivElement
+  const bar = accountFilters({
+    active: currentKindFilter(),
+    onSelect: (k) => makeFilterClick(k, renderAccounts)
+  })
   el.appendChild(bar)
 
   const items = filterEntries()

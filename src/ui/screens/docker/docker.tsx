@@ -4,8 +4,9 @@ import { dockerService } from '@services'
 import { createButton } from '@ui/components'
 import { field as f } from './inspect'
 import { makeRow, fillEmpty } from './components/row'
+import { createDockerEmptyState } from './components/docker-empty-state'
+import { createDockerSubTabBar } from './components/docker-subtab-bar'
 import {
-  SUB_TABS,
   setDockerHost,
   setDockerRerender,
   currentSubTab,
@@ -37,33 +38,11 @@ export async function renderDocker(el: HTMLElement): Promise<void> {
 
   const avail = await dockerService.available()
   if (!avail.ok) {
-    const empty = (
-      <div class="docker-empty">
-        <div class="docker-empty-title">Docker is not available</div>
-        <div class="docker-empty-sub">{avail.error || 'Start Docker Desktop and try again.'}</div>
-        {createButton({
-          className: 'settings-inline-btn',
-          text: UITexts.Docker.retry,
-          onClick: makeRetryClick(el)
-        })}
-      </div>
-    ) as HTMLDivElement
-    el.appendChild(empty)
+    el.appendChild(createDockerEmptyState({ error: avail.error, onRetry: makeRetryClick(el) }))
     return
   }
 
-  const bar = (
-    <div class="docker-subtabs">
-      {SUB_TABS.map((t) =>
-        createButton({
-          className: 'docker-subtab' + (t.key === currentSubTab() ? ' active' : ''),
-          text: t.label,
-          onClick: makeSubTabClick(el, t.key)
-        })
-      )}
-    </div>
-  ) as HTMLDivElement
-  el.appendChild(bar)
+  el.appendChild(createDockerSubTabBar({ onSelect: (key) => makeSubTabClick(el, key) }))
 
   const list = (<div class="docker-list" />) as HTMLDivElement
   el.appendChild(list)

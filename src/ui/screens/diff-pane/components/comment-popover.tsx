@@ -2,13 +2,13 @@ import { UITexts } from '@texts'
 import type { CommentPopoverHandle, CommentPopoverOptions } from './comment-popover.types'
 import {
   locationLabel,
-  disableSpellcheck,
   positionPopover,
   stopMousedown,
   makeSubmit,
   makeSendClick,
   makeTextareaKeydown
 } from './comment-popover.state'
+import { createCommentTextarea } from './comment-textarea'
 
 export type { CommentRange, CommentPopoverHandle } from './comment-popover.types'
 
@@ -34,9 +34,7 @@ export function createCommentPopover(opts: CommentPopoverOptions): CommentPopove
     close()
     const range = opts.getRange()
     if (!range) return
-    const ta = (
-      <textarea class="diff-comment-input" placeholder={UITexts.DiffPane.commentPlaceholder} ref={disableSpellcheck} />
-    ) as HTMLTextAreaElement
+    const ta = createCommentTextarea()
     const err = (<span class="diff-comment-err" />) as HTMLSpanElement
     const sendBtn = (<button class="diff-comment-send">{UITexts.DiffPane.comment}</button>) as HTMLButtonElement
     pop = (

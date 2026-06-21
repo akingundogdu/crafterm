@@ -1,12 +1,11 @@
 import { filePanes, uid } from '@ui/state/state'
 import { setupPaneDnd } from '@ui/pane/pane'
 import { fsService } from '@services'
-import { createButton } from '@ui/components'
 import { createLineSelect } from '../diff/line-select'
+import { createFilePaneHeader } from './components/file-pane-header'
 import type { CreateFilePaneOptions } from './file-pane.types'
 import {
   registerFilePaneCleanup,
-  shortPath,
   buildLineRows,
   makeRefFile,
   makeSendRef,
@@ -30,43 +29,13 @@ export function createFilePane(opts: CreateFilePaneOptions): string {
   const id = uid('fp')
 
   // ---- header: path · copy · reveal · reload · close ----
-  const copyBtn = createButton({
-    className: 'diff-hbtn',
-    text: '⧉',
-    title: 'Copy full path',
-    onClick: makeCopyPathClick(opts.path)
+  const header = createFilePaneHeader({
+    path: opts.path,
+    onCopyPath: makeCopyPathClick(opts.path),
+    onReveal: makeRevealClick(opts.path),
+    onReload: makeReloadClick(() => void load()),
+    onClose: makeCloseClick(id)
   })
-  const revealBtn = createButton({
-    className: 'diff-hbtn',
-    text: '⌕',
-    title: 'Show in Finder',
-    onClick: makeRevealClick(opts.path)
-  })
-  const reload = createButton({
-    className: 'diff-hbtn',
-    text: '⟳',
-    title: 'Reload file',
-    onClick: makeReloadClick(() => void load())
-  })
-  const close = createButton({
-    className: 'diff-hbtn diff-hclose',
-    text: '×',
-    title: 'Close',
-    onClick: makeCloseClick(id)
-  })
-  const header = (
-    <div class="pane-header diff-header">
-      <div class="diff-hcenter">
-        <span class="diff-path" title={opts.path}>
-          {shortPath(opts.path)}
-        </span>
-      </div>
-      {copyBtn}
-      {revealBtn}
-      {reload}
-      {close}
-    </div>
-  ) as HTMLDivElement
 
   const view = createLineSelect({
     refFile: makeRefFile(opts.path, opts.targetPaneId),

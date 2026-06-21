@@ -1,5 +1,6 @@
 import { UITexts } from '@texts'
 import { actionMenuRepo } from '@repositories'
+import { buildActionMenuRow } from './components/action-menu-row'
 import {
   builtinLabel,
   moveActionItem,
@@ -26,83 +27,33 @@ export function buildActionMenuPanel(panel: HTMLElement): void {
       list.insertAdjacentHTML('beforeend', '<div class="field-hint">No items.</div>')
     }
     actionMenuRepo.getAll().forEach((item, i) => {
-      const up = (
-        <button
-          class="worktree-action"
-          ref={(el: HTMLButtonElement) => {
-            el.disabled = i === 0
-          }}
-          onClick={() => {
+      const subtitle =
+        item.kind === 'builtin'
+          ? `builtin · ${builtinLabel(item.builtinId)}`
+          : `command (${item.opensAs ?? 'tab'}) · ${item.command || '—'}`
+      list.appendChild(
+        buildActionMenuRow({
+          item,
+          isFirst: i === 0,
+          isLast: i === actionMenuRepo.getAll().length - 1,
+          subtitle,
+          onMoveUp: () => {
             if (moveActionItem(i, -1)) render()
-          }}
-        >
-          ↑
-        </button>
-      ) as HTMLButtonElement
-      const down = (
-        <button
-          class="worktree-action"
-          ref={(el: HTMLButtonElement) => {
-            el.disabled = i === actionMenuRepo.getAll().length - 1
-          }}
-          onClick={() => {
+          },
+          onMoveDown: () => {
             if (moveActionItem(i, 1)) render()
-          }}
-        >
-          ↓
-        </button>
-      ) as HTMLButtonElement
-
-      const txt = (
-        <div class="action-menu-text">
-          <span class="action-menu-name">{item.title}</span>
-          <span class="action-menu-sub">
-            {item.kind === 'builtin'
-              ? `builtin · ${builtinLabel(item.builtinId)}`
-              : `command (${item.opensAs ?? 'tab'}) · ${item.command || '—'}`}
-          </span>
-        </div>
-      ) as HTMLDivElement
-
-      const hideBtn = (
-        <button
-          class="worktree-action"
-          onClick={() => {
+          },
+          onToggleHidden: () => {
             toggleActionHidden(item)
             render()
-          }}
-        >
-          {item.hidden ? UITexts.Settings.actionMenu.show : UITexts.Settings.actionMenu.hide}
-        </button>
-      ) as HTMLButtonElement
-      const edit = (
-        <button class="worktree-action" onClick={() => void editActionItem(item).then(render)}>
-          {UITexts.Settings.actionMenu.edit}
-        </button>
-      ) as HTMLButtonElement
-      const del = (
-        <button
-          class="worktree-action worktree-remove"
-          onClick={() => {
+          },
+          onEdit: () => void editActionItem(item).then(render),
+          onDelete: () => {
             removeActionItem(item.id)
             render()
-          }}
-        >
-          {UITexts.Settings.actionMenu.delete}
-        </button>
-      ) as HTMLButtonElement
-
-      const row = (
-        <div class={'action-menu-row' + (item.hidden ? ' hidden' : '')}>
-          {up}
-          {down}
-          {txt}
-          {hideBtn}
-          {edit}
-          {del}
-        </div>
-      ) as HTMLDivElement
-      list.appendChild(row)
+          }
+        })
+      )
     })
   }
 

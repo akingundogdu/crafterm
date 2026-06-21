@@ -2,7 +2,9 @@ import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { themes } from '@ui/themes/themes'
 import { ALL_THEME_NAMES } from '../../../editor/monaco/monaco-setup'
-import { toHex6, labeledInput, labeledSelect } from '../shared'
+import { labeledInput, labeledSelect } from '../shared'
+import { buildColorRow } from './components/color-row'
+import { buildBackgroundSwatchControl } from './components/background-swatch-control'
 import {
   BG_PRESETS,
   COLOR_KEYS,
@@ -32,56 +34,12 @@ export function buildAppearancePanel(panel: HTMLElement): void {
 }
 
 function buildBackgroundControl(panel: HTMLElement): void {
-  const apply = (color: string): void => {
-    applyBackground(color)
-    mark()
-  }
-
-  const swatches: HTMLButtonElement[] = []
-  const swatchEls = BG_PRESETS.map(
-    (c) =>
-      (
-        <button
-          class="bg-swatch"
-          style={{ background: c }}
-          title={c}
-          ref={(el: HTMLButtonElement) => swatches.push(el)}
-          onClick={() => apply(c)}
-        />
-      ) as HTMLButtonElement
-  )
-
-  // free color picker for anything else
-  const custom = (
-    <input
-      type="color"
-      class="bg-custom"
-      title={UITexts.Settings.appearance.customColor}
-      ref={(el: HTMLInputElement) => {
-        el.value = /^#[0-9a-fA-F]{6}$/.test(settings.bgColor) ? settings.bgColor : '#000000'
-      }}
-      onInput={() => apply(custom.value)}
-    />
-  ) as HTMLInputElement
-
-  const row = (
-    <div class="bg-swatches">
-      {swatchEls}
-      {custom}
-    </div>
-  ) as HTMLDivElement
-
-  const mark = (): void => {
-    swatches.forEach((s, i) => s.classList.toggle('active', BG_PRESETS[i] === settings.bgColor))
-  }
-  mark()
-
-  const field = (
-    <div class="field">
-      <label>{UITexts.Settings.appearance.background}</label>
-      {row}
-    </div>
-  ) as HTMLDivElement
+  const field = buildBackgroundSwatchControl({
+    presets: BG_PRESETS,
+    currentBgColor: () => settings.bgColor,
+    customColor: settings.bgColor,
+    onApply: applyBackground
+  })
   panel.appendChild(field)
 }
 
@@ -111,37 +69,7 @@ export function buildThemePanel(panel: HTMLElement): void {
     const src = themeColorSource()
     COLOR_KEYS.forEach((key) => {
       const val = src[key] || '#000000'
-      const color = (
-        <input
-          type="color"
-          ref={(el: HTMLInputElement) => {
-            el.value = toHex6(val)
-          }}
-          onInput={() => apply(color.value)}
-        />
-      ) as HTMLInputElement
-      const hex = (
-        <input
-          type="text"
-          ref={(el: HTMLInputElement) => {
-            el.value = val
-          }}
-          onChange={() => apply(hex.value)}
-        />
-      ) as HTMLInputElement
-      const apply = (v: string): void => {
-        color.value = toHex6(v)
-        hex.value = v
-        setCustomColor(key, v)
-      }
-      const rowEl = (
-        <div class="color-row">
-          <label>{key}</label>
-          {color}
-          {hex}
-        </div>
-      ) as HTMLDivElement
-      colorWrap.appendChild(rowEl)
+      colorWrap.appendChild(buildColorRow({ key, value: val, onApply: setCustomColor }))
     })
   }
 

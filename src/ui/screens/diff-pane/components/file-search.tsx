@@ -1,6 +1,7 @@
 import { UITexts } from '@texts'
 import type { FileSearchHandle, FileSearchOptions } from './file-search.types'
 import { filterFiles, disableSpellcheck, makeItemPick, makeSearchKeydown } from './file-search.state'
+import { createSearchItem } from './search-item'
 
 export type { FileSearchHandle } from './file-search.types'
 
@@ -32,13 +33,9 @@ export function createFileSearch(opts: FileSearchOptions): FileSearchHandle {
     const matches = filterFiles(opts.getFiles(), input.value)
     const activeIdx = opts.getActiveIdx()
     for (const { f, i } of matches.slice(0, 200)) {
-      const item = (
-        <div class={'diff-search-item' + (i === activeIdx ? ' active' : '')} title={f.path}>
-          {f.path}
-        </div>
-      ) as HTMLDivElement
-      item.addEventListener('mousedown', makeItemPick(i, close, opts.onPick))
-      list.appendChild(item)
+      list.appendChild(
+        createSearchItem({ file: f, active: i === activeIdx, onPick: makeItemPick(i, close, opts.onPick) })
+      )
     }
     if (!matches.length) {
       list.appendChild(

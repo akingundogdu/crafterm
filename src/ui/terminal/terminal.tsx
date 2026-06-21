@@ -1,6 +1,5 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { UITexts } from '@texts'
 import type { Pane } from '@ui/types/types'
 import { panes, settings, resolveTheme, requestSidebar } from '@ui/state/state'
 import { persistence } from '@repositories/persistence.service'
@@ -9,6 +8,7 @@ import { onPaneTitle } from './osc-title'
 import { onBell } from './activity-detection'
 import { refreshPaneInfo } from './pane-info'
 import { setupPaneDnd } from '@ui/pane/pane'
+import { createPaneHeader } from './components/pane-header'
 import type { CreatePaneOptions } from './terminal.types'
 import {
   pushResize,
@@ -54,30 +54,11 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
   const fit = new FitAddon()
   term.loadAddon(fit)
 
-  const htitle = (<span class="pane-title">zsh</span>) as HTMLSpanElement
-  // Chip showing the assigned daily task (hidden until one is assigned). Clicking
-  // it opens the assign/update modal.
-  const taskChip = (
-    <button class="pane-daily-chip" style="display: none" title={UITexts.Terminal.dailyTicket} onClick={makeTaskChipClick(id)} />
-  ) as HTMLButtonElement
-  const menuBtn = (
-    <button class="pane-btn" title={UITexts.Terminal.paneOptions} onClick={makeMenuClick(id)}>
-      ⋯
-    </button>
-  ) as HTMLButtonElement
-  const close = (
-    <button class="pane-close" onClick={makeCloseClick(id)}>
-      ×
-    </button>
-  ) as HTMLButtonElement
-  const header = (
-    <div class="pane-header">
-      {htitle}
-      {taskChip}
-      {menuBtn}
-      {close}
-    </div>
-  ) as HTMLDivElement
+  const { header, htitle } = createPaneHeader({
+    onTaskChipClick: makeTaskChipClick(id),
+    onMenuClick: makeMenuClick(id),
+    onCloseClick: makeCloseClick(id)
+  })
 
   // The xterm mount target — kept imperative so xterm attaches to the exact node.
   const host = document.createElement('div')

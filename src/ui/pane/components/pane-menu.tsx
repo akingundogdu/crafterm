@@ -1,4 +1,6 @@
 import { buildPaneMenu } from '../pane.state'
+import { createSwatchButton } from './swatch-button'
+import { createMenuItem } from './menu-item'
 
 // Per-pane options menu (anchored under the ⋯ button). Builds the .context-menu
 // DOM from buildPaneMenu entries (swatch rows / labels / action items) and wires
@@ -23,18 +25,15 @@ export function showPaneMenu(
         swatchRow = (<div class="context-menu-swatches" />) as HTMLDivElement
         menu.appendChild(swatchRow)
       }
-      const s = (
-        <button
-          class={'context-menu-swatch' + (e.color === null ? ' context-menu-swatch-none' : '')}
-          onClick={() => {
+      swatchRow.appendChild(
+        createSwatchButton({
+          color: e.color,
+          onClick: () => {
             menu.remove()
             e.run()
-          }}
-        />
-      ) as HTMLButtonElement
-      if (e.color) s.style.background = e.color
-      else s.title = 'Default'
-      swatchRow.appendChild(s)
+          }
+        })
+      )
       continue
     }
     swatchRow = null
@@ -43,17 +42,15 @@ export function showPaneMenu(
       menu.appendChild(lab)
       continue
     }
-    const b = (
-      <button
-        onClick={() => {
+    menu.appendChild(
+      createMenuItem({
+        label: e.label,
+        onClick: () => {
           menu.remove()
           e.run()
-        }}
-      >
-        {e.label}
-      </button>
-    ) as HTMLButtonElement
-    menu.appendChild(b)
+        }
+      })
+    )
   }
 
   document.body.appendChild(menu)

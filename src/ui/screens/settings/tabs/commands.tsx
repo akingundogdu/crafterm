@@ -2,6 +2,8 @@ import { settings } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { pickFolderPath } from '../../pickers/folder/folder'
 import { buildSubTabs, labeledInput } from '../shared'
+import { buildPaletteCommandRow } from './components/palette-command-row'
+import { buildMarkdownFolderRow } from './components/markdown-folder-row'
 import {
   saveIdeCommand,
   saveOpenMyZsh,
@@ -64,24 +66,16 @@ function buildPaletteCommandsControl(panel: HTMLElement): void {
       cmds
         .filter((c) => c.category === cat)
         .forEach((c) => {
-          const edit = (<button class="worktree-action">{UITexts.Settings.commands.edit}</button>) as HTMLButtonElement
-          edit.addEventListener('click', () => void editPaletteCommand(c).then(render))
-          const del = (<button class="worktree-action worktree-remove">{UITexts.Settings.commands.delete}</button>) as HTMLButtonElement
-          del.addEventListener('click', () => {
-            removePaletteCommand(c.id)
-            render()
-          })
-          const row = (
-            <div class="palette-admin-row">
-              <div class="palette-admin-text">
-                <span class="palette-admin-name">{c.name}</span>
-                <span class="palette-admin-cmd">{c.command}</span>
-              </div>
-              {edit}
-              {del}
-            </div>
-          ) as HTMLDivElement
-          list.appendChild(row)
+          list.appendChild(
+            buildPaletteCommandRow({
+              command: c,
+              onEdit: () => void editPaletteCommand(c).then(render),
+              onDelete: () => {
+                removePaletteCommand(c.id)
+                render()
+              }
+            })
+          )
         })
     })
   }
@@ -110,24 +104,16 @@ function buildMarkdownFoldersControl(panel: HTMLElement): void {
       list.insertAdjacentHTML('beforeend', `<div class="field-hint">${UITexts.Settings.commands.noFolders}</div>`)
     }
     settings.commands.mdFolders.forEach((path, idx) => {
-      const label = (<span class="mdfolder-path">{prettyMdPath(path)}</span>) as HTMLSpanElement
-      label.title = path
-      const del = (
-        <button class="project-del" title={UITexts.Settings.commands.remove}>
-          ✕
-        </button>
-      ) as HTMLButtonElement
-      del.addEventListener('click', () => {
-        removeMdFolder(idx)
-        render()
-      })
-      const row = (
-        <div class="project-edit-row">
-          {label}
-          {del}
-        </div>
-      ) as HTMLDivElement
-      list.appendChild(row)
+      list.appendChild(
+        buildMarkdownFolderRow({
+          path,
+          prettyPath: prettyMdPath(path),
+          onDelete: () => {
+            removeMdFolder(idx)
+            render()
+          }
+        })
+      )
     })
   }
 

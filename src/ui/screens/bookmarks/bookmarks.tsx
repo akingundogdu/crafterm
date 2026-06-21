@@ -1,18 +1,13 @@
 import './bookmarks.css'
 import { UITexts } from '@texts'
-import { createButton, createInput } from '@ui/components'
+import { createButton } from '@ui/components'
 import { bookmarkRepo } from '@repositories'
-import { TYPE_LABEL } from './bookmark-meta'
 import { createBookmarkCard } from './components/bookmark-card'
+import { createBookmarkToolbar } from './components/bookmark-toolbar'
+import { createTypeFilterBar } from './components/type-filter-bar'
 import {
-  TYPE_FILTERS,
-  currentTypeFilter,
   currentTagFilter,
-  currentQuery,
   filterBookmarks,
-  makeAddClick,
-  makeSearchInput,
-  makeTypeFilterClick,
   makeClearTagClick,
   makeTagFilter
 } from './bookmarks.state'
@@ -40,35 +35,8 @@ export function renderBookmarks(): void {
     }
   }
 
-  const add = createButton({
-    text: '+ Bookmark',
-    className: 'settings-inline-btn',
-    onClick: makeAddClick(renderBookmarks)
-  })
-  const search = createInput({ value: currentQuery(), placeholder: UITexts.Bookmarks.searchPlaceholder })
-  search.className = 'bookmarks-search'
-  search.addEventListener('input', makeSearchInput(search, renderList))
-
-  const bar = (
-    <div class="bookmarks-toolbar">
-      {add}
-      {search}
-    </div>
-  ) as HTMLDivElement
-  el.appendChild(bar)
-
-  const typeBar = (
-    <div class="bookmarks-filters">
-      {TYPE_FILTERS.map((t) =>
-        createButton({
-          text: t === 'all' ? UITexts.Bookmarks.allFilter : TYPE_LABEL[t],
-          className: 'bookmarks-filter' + (t === currentTypeFilter() ? ' active' : ''),
-          onClick: makeTypeFilterClick(t, renderBookmarks)
-        })
-      )}
-    </div>
-  ) as HTMLDivElement
-  el.appendChild(typeBar)
+  el.appendChild(createBookmarkToolbar({ onRerender: renderBookmarks, onRenderList: renderList }))
+  el.appendChild(createTypeFilterBar({ onRerender: renderBookmarks }))
 
   if (currentTagFilter()) {
     el.appendChild(

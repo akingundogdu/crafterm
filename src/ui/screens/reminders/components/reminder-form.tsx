@@ -2,14 +2,8 @@ import { createOverlay, createButton, createSelect, createTextarea, createDateFi
 import { UITexts } from '@texts'
 import { makeCloseButton } from '@ui/components/dialog/dialog'
 import type { Reminder } from '@ui/types/types'
-import {
-  toLocalInput,
-  quickPresets,
-  makePresetClick,
-  makeIntervalSetup,
-  makeRepeatChange,
-  makeSaveReminder
-} from './reminder-form.state'
+import { toLocalInput, quickPresets, makePresetClick, makeSaveReminder } from './reminder-form.state'
+import { createRepeatSelector } from './repeat-selector'
 
 const HOUR = 3_600_000
 
@@ -58,28 +52,7 @@ export function openReminderForm(existing?: Reminder): void {
   if (existing) typeSel.disabled = true
 
   // repeat
-  const repeat = createSelect({
-    options: [
-      { value: 'none', label: UITexts.Reminders.form.repeat.none },
-      { value: 'daily', label: UITexts.Reminders.form.repeat.daily },
-      { value: 'weekly', label: UITexts.Reminders.form.repeat.weekly },
-      { value: 'biweekly', label: UITexts.Reminders.form.repeat.biweekly },
-      { value: 'monthly', label: UITexts.Reminders.form.repeat.monthly },
-      { value: 'interval', label: UITexts.Reminders.form.repeat.interval }
-    ],
-    value: existing?.repeat ?? 'none'
-  })
-  repeat.className = 'settings-select'
-  const interval = (
-    <input type="number" class="reminder-input reminder-interval" min="1" ref={makeIntervalSetup(existing)} />
-  ) as HTMLInputElement
-  repeat.addEventListener('change', makeRepeatChange(repeat, interval))
-  const repeatRow = (
-    <div class="reminder-quick">
-      {repeat}
-      {interval}
-    </div>
-  ) as HTMLDivElement
+  const { row: repeatRow, repeat, interval } = createRepeatSelector(existing)
 
   // actions
   const actions = (

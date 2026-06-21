@@ -5,7 +5,10 @@ import { findProjectByPath, findFeature } from '@ui/catalog/catalog'
 import { timeEntryRepo } from '@repositories'
 import { fmtHM, rangeStart, reportByProject, type Range } from '@services/domain/time'
 import { UITexts } from '@texts'
-import { rangeLabel, rangeTab, makeCopyClick } from './time-report.state'
+import { rangeLabel, makeCopyClick } from './time-report.state'
+import { renderRangeChips } from './range-chips'
+import { reportProjectRow } from './report-project-row'
+import { reportFeatureRow } from './report-feature-row'
 
 // Report modal: total per project (and per feature) over a date range.
 export function showReport(): void {
@@ -20,18 +23,13 @@ export function showReport(): void {
   let reportText = ''
 
   const render = (): void => {
-    chipsRow.replaceChildren()
-    ;(['today', 'week', 'month', 'all'] as Range[]).forEach((r) => {
-      chipsRow.appendChild(
-        createButton({
-          text: rangeTab(r),
-          className: 'time-report-chip' + (r === range ? ' active' : ''),
-          onClick: () => {
-            range = r
-            render()
-          }
-        })
-      )
+    renderRangeChips({
+      host: chipsRow,
+      active: range,
+      onSelect: (r) => {
+        range = r
+        render()
+      }
     })
 
     const byProj = reportByProject(timeEntryRepo.getAll(), rangeStart(range))
@@ -47,25 +45,11 @@ export function showReport(): void {
     for (const [path, info] of [...byProj].sort((a, b) => b[1].total - a[1].total)) {
       grand += info.total
       const proj = findProjectByPath(state.tree, path)
-      body.appendChild(
-        (
-          <div
-            class="time-report-row time-report-proj"
-            innerHTML={`<span class="time-report-name">${proj?.name ?? path}</span><span class="time-report-dur">${fmtHM(info.total)}</span>`}
-          />
-        ) as HTMLDivElement
-      )
+      body.appendChild(reportProjectRow({ name: proj?.name ?? path, duration: fmtHM(info.total) }))
       lines.push(`${proj?.name ?? path}: ${fmtHM(info.total)}`)
       for (const [fid, ms] of [...info.feats].sort((a, b) => b[1] - a[1])) {
         const feat = fid ? findFeature(state.tree, fid)?.feature : null
-        body.appendChild(
-          (
-            <div
-              class="time-report-row time-report-feat"
-              innerHTML={`<span class="time-report-name">${feat?.name ?? '(no feature)'}</span><span class="time-report-dur">${fmtHM(ms)}</span>`}
-            />
-          ) as HTMLDivElement
-        )
+        body.appendChild(reportFeatureRow({ name: feat?.name ?? '(no feature)', duration: fmtHM(ms) }))
         lines.push(`  - ${feat?.name ?? '(no feature)'}: ${fmtHM(ms)}`)
       }
     }

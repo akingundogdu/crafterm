@@ -2,20 +2,17 @@ import './code-pane.css'
 import { codePanes, uid } from '@ui/state/state'
 import { UITexts } from '@texts'
 import { setupPaneDnd } from '@ui/pane/pane'
-import { createButton, createSelect } from '@ui/components'
 import { createCodeEditor, type CodeEditor } from '@ui/editor/code-editor/code-editor'
-import { ALL_THEME_NAMES, currentThemeName } from '../../editor/monaco/monaco-setup'
 import { DEFAULT_EDITOR_THEME } from '../../editor/monaco/editor-themes'
 import { fsService } from '@services'
 import { breadcrumb } from './path-ref'
+import { createCodePaneHeader } from './components/code-pane-header'
 import type { CreateCodePaneOptions } from './code-pane.types'
 import {
   DEFAULT_FONT,
   registerCodePaneCleanup,
   runCodePaneCleanup,
   clampFont,
-  stopMousedown,
-  makeThemeChange,
   makeCopyRef,
   makeAddToChat,
   makeCopyPathClick,
@@ -42,43 +39,17 @@ export function createCodePane(opts: CreateCodePaneOptions): string {
   let dirty = false
   let editor: CodeEditor | null = null
 
-  // ---- header: breadcrumb · dirty · save · copy · reveal · reload · close ----
-  const dirtyDot = (<span class="code-editor-unsaved-dot" title={UITexts.CodePane.unsavedChanges} style="display: none" />) as HTMLSpanElement
-  const htitle = (<span class="diff-path" title={path}>{breadcrumb(path)}</span>) as HTMLSpanElement
-  const center = (
-    <div class="diff-hcenter">
-      {dirtyDot}
-      {htitle}
-    </div>
-  ) as HTMLDivElement
-
-  // Global Monaco theme picker (changes every editor — themes are global).
-  const themeSel = createSelect({ options: [...ALL_THEME_NAMES], value: currentThemeName() })
-  themeSel.className = 'code-editor-theme-select'
-  themeSel.title = 'Editor theme'
-  themeSel.addEventListener('mousedown', stopMousedown)
-  themeSel.addEventListener('change', makeThemeChange(themeSel))
-
   const copyRef = makeCopyRef(() => editor, () => path, id)
   const addToChat = makeAddToChat(() => editor, () => path, id)
 
-  const saveBtn = createButton({ className: 'diff-hbtn', text: '💾', title: 'Save (⌘S)' })
-  const copyBtn = createButton({ className: 'diff-hbtn', text: '⧉', title: 'Copy full path', onClick: makeCopyPathClick(() => path) })
-  const revealBtn = createButton({ className: 'diff-hbtn', text: '⌕', title: 'Show in Finder', onClick: makeRevealClick(() => path) })
-  const reloadBtn = createButton({ className: 'diff-hbtn', text: '⟳', title: 'Reload from disk (discards unsaved edits)', onClick: makeReloadClick(() => void load()) })
-  const closeBtn = createButton({ className: 'diff-hbtn diff-hclose', text: '×', title: 'Close', onClick: makeCloseClick(id) })
-
-  const header = (
-    <div class="pane-header diff-header">
-      {center}
-      {themeSel}
-      {saveBtn}
-      {copyBtn}
-      {revealBtn}
-      {reloadBtn}
-      {closeBtn}
-    </div>
-  ) as HTMLDivElement
+  // ---- header: breadcrumb · dirty · save · copy · reveal · reload · close ----
+  const { header, dirtyDot, htitle, saveBtn } = createCodePaneHeader({
+    path,
+    onCopyPath: makeCopyPathClick(() => path),
+    onReveal: makeRevealClick(() => path),
+    onReload: makeReloadClick(() => void load()),
+    onClose: makeCloseClick(id)
+  })
 
   const body = (<div class="diff-body code-body" />) as HTMLDivElement
 
