@@ -1,5 +1,8 @@
 import type { SelectOptions } from './select.types'
-import { CREATE_OPTION, applySelectValue } from './select.state'
+import { applySelectValue } from './select.state'
+import { createSelectEmptyOption } from './components/select-empty-option'
+import { mapSelectOption } from './components/select-option-mapper'
+import { createSelectCreateOption } from './components/select-create-option'
 
 export type { SelectOption, SelectOptions } from './select.types'
 export { CREATE_OPTION } from './select.state'
@@ -10,15 +13,9 @@ export { CREATE_OPTION } from './select.state'
 export function createSelect(opts: SelectOptions): HTMLSelectElement {
   const sel = (
     <select>
-      {opts.emptyLabel != null && <option value="">{opts.emptyLabel}</option>}
-      {opts.options.map((opt) =>
-        typeof opt === 'string' ? (
-          <option value={opt}>{opt}</option>
-        ) : (
-          <option value={opt.value}>{opt.label}</option>
-        )
-      )}
-      {opts.allowCreate && <option value={CREATE_OPTION}>{opts.createLabel ?? '+ New…'}</option>}
+      {opts.emptyLabel != null && createSelectEmptyOption(opts.emptyLabel)}
+      {opts.options.map((opt) => mapSelectOption(opt))}
+      {opts.allowCreate && createSelectCreateOption(opts.createLabel)}
     </select>
   ) as HTMLSelectElement
   applySelectValue(sel, opts.value)

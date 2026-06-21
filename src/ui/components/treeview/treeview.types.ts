@@ -66,3 +66,30 @@ export interface LiveRow<T> {
   belowHost: HTMLElement
   numEl: HTMLElement | null
 }
+
+// Shared mutable context handed to every extracted treeview piece. The state
+// itself stays inside `createTreeView`; this object only exposes typed
+// getters/setters + the cross-piece callbacks, so the closure remains the
+// single source of truth.
+export interface TreeContext<T> {
+  host: HTMLElement
+  a: TreeAdapter<T>
+  view: TreeView<T>
+  // mutable state accessors
+  getDragId(): string | null
+  setDragId(id: string | null): void
+  isRenaming(): boolean
+  setRenaming(id: string | null): void
+  getFilter(): string
+  setFilter(value: string): void
+  getLive(): LiveRow<T>[]
+  setLive(rows: LiveRow<T>[]): void
+  getLastSections(): TreeSection<T>[]
+  setLastSections(sections: TreeSection<T>[]): void
+  // cross-piece callbacks (wired in createTreeView)
+  select(id: string | null): void
+  rerender(): void
+  rowOf(node: T, depth: number, guides: boolean[], isLast: boolean): HTMLElement
+  startRename(node: T, labelEl: HTMLElement): void
+  clearDropMarks(): void
+}

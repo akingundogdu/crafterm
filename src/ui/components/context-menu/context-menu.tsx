@@ -1,17 +1,9 @@
-import { UITexts } from '@texts'
 import './context-menu.css'
 import type { ContextMenuItem, ColorOption } from './context-menu.types'
-import {
-  NODE_PALETTE,
-  closeFromDepth,
-  closeContextMenu,
-  pushMenu,
-  menuAt,
-  keepOnScreen,
-  makeLeafClick,
-  makeSwatchClick,
-  installOutsideHandler
-} from './context-menu.state'
+import { closeFromDepth, closeContextMenu, installOutsideHandler } from './context-menu.state'
+import { createContextMenuContainer, mountContextMenu } from './components/context-menu-container'
+import { createContextMenuItem } from './components/context-menu-item'
+import { createColorSwatches } from './components/context-menu-color-swatches'
 
 export type { ContextMenuItem, ColorOption } from './context-menu.types'
 export { NODE_PALETTE, closeContextMenu } from './context-menu.state'
@@ -32,79 +24,15 @@ function renderMenu(
   reopen?: () => void
 ): void {
   closeFromDepth(depth)
-  const menu = (<div class="context-menu" style={{ left: x + 'px', top: y + 'px' }} />) as HTMLDivElement
+  const menu = createContextMenuContainer(x, y)
 
   for (const item of items) {
-    const hasChildren = !!item.children
-    const b = (
-      <button class={item.danger ? 'context-menu-danger' : undefined}>
-        {hasChildren ? `${item.label}  ▸` : item.label}
-      </button>
-    ) as HTMLButtonElement
-    if (hasChildren) {
-      const open = async (): Promise<void> => {
-        closeFromDepth(depth + 1)
-        const r = b.getBoundingClientRect()
-        const src = item.children!
-        if (typeof src !== 'function') {
-          renderMenu(src.length ? src : [{ label: '(none)' }], depth + 1, r.right - 2, r.top - 4, undefined, open)
-          return
-        }
-        // Async producer (e.g. enumerating devices/schemes) — show an immediate
-        // "Loading…" flyout so the menu never feels frozen, then swap in results.
-        renderMenu([{ label: 'Loading…' }], depth + 1, r.right - 2, r.top - 4)
-        const placeholder = menuAt(depth + 1)
-        const kids = await src()
-        // Bail if the menu was torn down or the user opened a different submenu.
-        if (!menu.isConnected || menuAt(depth + 1) !== placeholder) return
-        renderMenu(kids.length ? kids : [{ label: '(none)' }], depth + 1, r.right - 2, r.top - 4, undefined, open)
-      }
-      b.addEventListener('mouseenter', () => void open())
-      b.addEventListener('click', (e) => {
-        e.stopPropagation()
-        void open()
-      })
-    } else {
-      // A leaf doesn't close the open submenu on hover — that would shut the
-      // flyout the user is diagonally reaching for. It closes when another parent
-      // opens, a leaf is clicked, or the user clicks outside.
-      b.addEventListener('click', makeLeafClick(item, reopen))
-    }
-    menu.appendChild(b)
+    menu.appendChild(createContextMenuItem(item, menu, depth, renderMenu, reopen))
   }
 
-  if (depth === 0 && color) {
-    const none = (
-      <button
-        class={
-          'context-menu-swatch context-menu-swatch-none' +
-          (color.current === null ? ' context-menu-swatch-active' : '')
-        }
-        title={UITexts.Components.noColor}
-      />
-    ) as HTMLButtonElement
-    none.addEventListener('click', makeSwatchClick(color.onPick, null))
-    const colors = (
-      <div class="context-menu-swatches">
-        {none}
-        {NODE_PALETTE.map((c) => {
-          const s = (
-            <button
-              class={'context-menu-swatch' + (color.current === c ? ' context-menu-swatch-active' : '')}
-              style={{ background: c }}
-            />
-          ) as HTMLButtonElement
-          s.addEventListener('click', makeSwatchClick(color.onPick, c))
-          return s
-        })}
-      </div>
-    ) as HTMLDivElement
-    menu.appendChild(colors)
-  }
+  if (depth === 0 && color) menu.appendChild(createColorSwatches(color))
 
-  document.body.appendChild(menu)
-  pushMenu(menu, depth)
-  keepOnScreen(menu, depth, x)
+  mountContextMenu(menu, depth, x)
 }
 
 export function showContextMenu(e: MouseEvent, items: ContextMenuItem[], color?: ColorOption): void {

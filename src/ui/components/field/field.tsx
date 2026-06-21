@@ -1,6 +1,8 @@
 import './field.css'
 import type { FieldOptions } from './field.types'
 import { resolveFieldProps } from './field.state'
+import { createFieldLabel } from './components/field-label'
+import { createFieldContainer } from './components/field-container'
 
 export type { FieldOptions } from './field.types'
 
@@ -14,18 +16,5 @@ export function createField(
   opts?: FieldOptions
 ): HTMLDivElement {
   const p = resolveFieldProps(opts)
-  return (
-    <div class="field">
-      <label>
-        {labelText}
-        {p.hint ? (
-          <>
-            {' '}
-            <span class="field-hint">{p.hint}</span>
-          </>
-        ) : null}
-      </label>
-      {control}
-    </div>
-  ) as HTMLDivElement
+  return createFieldContainer(createFieldLabel(labelText, p.hint), control)
 }
