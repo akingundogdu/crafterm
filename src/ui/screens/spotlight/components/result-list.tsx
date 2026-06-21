@@ -2,9 +2,11 @@
 // selection index, and row rendering. The badge label resolver is injected so
 // the component pulls no business/IPC modules and renders in isolation.
 
-import { UITexts } from '@texts'
 import type { SpotEntry, SpotSource, ResultListHandle } from './result-list.types'
-import { makeRowChoose, clampSelection } from './result-list.state'
+import { clampSelection } from './result-list.state'
+import { createResultRow } from './result-row'
+import { showEmptyHint } from './spot-empty'
+import { moveSelection, applyHighlight } from './result-list.navigator'
 
 export type { SpotSource, SpotEntry, ResultListHandle } from './result-list.types'
 
@@ -18,33 +20,30 @@ export function createResultList(opts: {
   let showBadge = false
   let sel = 0
 
-  const highlight = (): void => {
-    el.querySelectorAll<HTMLElement>('.spot-row').forEach((row, i) => {
-      row.classList.toggle('active', i === sel)
-    })
-  }
+  const highlight = (): void => applyHighlight(el, sel)
 
   const render = (): void => {
     sel = clampSelection(sel, items.length)
     el.replaceChildren()
     if (!items.length) {
-      el.insertAdjacentHTML('beforeend', `<div class="empty-hint">${UITexts.Spotlight.noMatches}</div>`)
+      showEmptyHint(el, 'no-matches')
       return
     }
     items.forEach((e, i) => {
-      const row = (
-        <button class={'pick-row spot-row' + (i === sel ? ' active' : '')}>
-          {showBadge && <span class={'spotlight-source-badge gs-' + e.source}>{opts.badgeFor(e.source)}</span>}
-          <span class="spotlight-label">{e.label}</span>
-          {e.detail && <span class="spotlight-detail">{e.detail}</span>}
-        </button>
-      ) as HTMLButtonElement
-      row.addEventListener('click', makeRowChoose(opts.onChoose, e))
-      row.addEventListener('mouseenter', () => {
-        sel = i
-        highlight()
-      })
-      el.appendChild(row)
+      el.appendChild(
+        createResultRow({
+          entry: e,
+          index: i,
+          selected: i === sel,
+          showBadge,
+          badgeFor: opts.badgeFor,
+          onChoose: opts.onChoose,
+          onHover: (idx) => {
+            sel = idx
+            highlight()
+          }
+        })
+      )
     })
   }
 
@@ -58,11 +57,10 @@ export function createResultList(opts: {
     },
     setLoading: () => {
       items = []
-      el.replaceChildren()
-      el.insertAdjacentHTML('beforeend', `<div class="empty-hint">${UITexts.Spotlight.loading}</div>`)
+      showEmptyHint(el, 'loading')
     },
     move: (delta) => {
-      sel = clampSelection(sel + delta, items.length)
+      sel = moveSelection(sel, delta, items.length)
       highlight()
     },
     selected: () => items[sel]

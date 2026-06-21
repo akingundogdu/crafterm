@@ -1,6 +1,8 @@
-import { UITexts } from '@texts'
 import type { LineRow, LineSelectOptions, LineSelectHandle } from './line-select.types'
-import { DEFAULT_FONT, clampFont, buildRef, preventAndStop } from './line-select.state'
+import { buildRef } from './line-select.state'
+import { createSelectionEngine } from './selection.engine'
+import { createDiffRow } from './components/diff-row'
+import { createActionCluster } from './components/action-cluster'
 
 export type { LineRow, LineSelectOptions, LineSelectHandle } from './line-select.types'
 
@@ -17,121 +19,73 @@ export type { LineRow, LineSelectOptions, LineSelectHandle } from './line-select
 export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
   const body = (<div class="diff-body" />) as HTMLDivElement
 
-  // Floating action cluster anchored to the first selected row (left side).
-  const plus = (
-    <button class="diff-act diff-act-term" title={UITexts.Diff.sendReferenceToTerminal}>
-      +
-    </button>
-  ) as HTMLButtonElement
-  const actions = (
-    <div class="diff-actions" style={{ display: 'none' }}>
-      {plus}
-      {opts.extraActions ?? []}
-    </div>
-  ) as HTMLDivElement
-
-  let fontSize = DEFAULT_FONT
   const rows: HTMLElement[] = [] // selectable rows, in order
-  let anchor = -1
-  let selStart = -1
-  let selEnd = -1
-  let dragging = false
-
-  const applyFont = (): void => {
-    body.style.fontSize = fontSize + 'px'
-  }
-  applyFont()
 
   const currentRef = (): string | null => {
-    if (selStart < 0) return null
+    if (selection.selStart() < 0) return null
     const file = opts.refFile()
     if (!file) return null
-    const a = Number(rows[selStart].dataset.line)
-    const b = Number(rows[selEnd].dataset.line)
+    const a = Number(rows[selection.selStart()].dataset.line)
+    const b = Number(rows[selection.selEnd()].dataset.line)
     return buildRef(file, a, b)
   }
 
-  const currentRange = (): { a: number; b: number } | null => {
-    if (selStart < 0) return null
-    return { a: Number(rows[selStart].dataset.line), b: Number(rows[selEnd].dataset.line) }
-  }
-
-  const send = (): void => {
-    const ref = currentRef()
-    if (!ref) return
-    if (!opts.sendRef(ref)) {
-      plus.classList.add('warn')
-      plus.title = 'Open a terminal first'
-    }
-  }
-  plus.addEventListener('mousedown', preventAndStop)
-  plus.addEventListener('click', (e) => {
-    e.stopPropagation()
-    send()
+  const cluster = createActionCluster({
+    extraActions: opts.extraActions,
+    currentRef,
+    sendRef: opts.sendRef
   })
 
   // Anchor the action cluster to the first selected row (rides scroll because
   // it's a child of that row).
   const positionPlus = (): void => {
-    if (selStart < 0) {
-      actions.style.display = 'none'
-      if (actions.parentElement) actions.remove()
+    if (selection.selStart() < 0) {
+      cluster.hide()
       opts.onSelectionCleared?.()
       return
     }
-    rows[selStart].appendChild(actions)
-    plus.classList.remove('warn')
-    plus.title = 'Send this reference to the terminal'
-    actions.style.display = ''
+    cluster.anchorTo(rows[selection.selStart()])
   }
 
-  const refreshSelection = (): void => {
-    rows.forEach((r, i) => r.classList.toggle('selected', i >= selStart && i <= selEnd))
-    positionPlus()
-  }
+  const selection = createSelectionEngine({
+    rows,
+    applyFont: (fontSize) => {
+      body.style.fontSize = fontSize + 'px'
+    },
+    onSelectionChange: positionPlus
+  })
 
-  const setSelection = (a: number, b: number): void => {
-    selStart = Math.min(a, b)
-    selEnd = Math.max(a, b)
-    refreshSelection()
-  }
-
-  const clearSelection = (): void => {
-    anchor = selStart = selEnd = -1
-    refreshSelection()
+  const currentRange = (): { a: number; b: number } | null => {
+    if (selection.selStart() < 0) return null
+    return {
+      a: Number(rows[selection.selStart()].dataset.line),
+      b: Number(rows[selection.selEnd()].dataset.line)
+    }
   }
 
   const setRows = (descs: LineRow[]): void => {
     body.replaceChildren()
     rows.length = 0
-    clearSelection()
+    selection.clearSelection()
     for (const d of descs) {
-      const row = (
-        <div class={d.className}>
-          <span class="diff-gutter" ref={(el: HTMLSpanElement) => (el.textContent = d.gutter)} />
-          <span class="diff-text" ref={(el: HTMLSpanElement) => (el.textContent = d.text)} />
-        </div>
-      ) as HTMLDivElement
-      if (d.line != null) {
-        row.dataset.line = String(d.line)
-        const idx = rows.length
-        rows.push(row)
-        row.addEventListener('mousedown', (e) => {
+      const idx = rows.length
+      const row = createDiffRow({
+        desc: d,
+        onMouseDown: (e) => {
           e.preventDefault()
           e.stopPropagation()
           opts.onRowSelect()
-          if (e.shiftKey && anchor >= 0) {
-            setSelection(anchor, idx)
+          if (e.shiftKey && selection.anchor() >= 0) {
+            selection.extendTo(idx)
           } else {
-            anchor = idx
-            dragging = true
-            setSelection(idx, idx)
+            selection.beginDrag(idx)
           }
-        })
-        row.addEventListener('mouseenter', () => {
-          if (dragging && anchor >= 0) setSelection(anchor, idx)
-        })
-      }
+        },
+        onMouseEnter: () => {
+          if (selection.isDragging() && selection.anchor() >= 0) selection.extendTo(idx)
+        }
+      })
+      if (d.line != null) rows.push(row)
       body.appendChild(row)
     }
   }
@@ -139,13 +93,13 @@ export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
   const setMessage = (msg: string): void => {
     body.replaceChildren()
     rows.length = 0
-    clearSelection()
+    selection.clearSelection()
     body.textContent = msg
   }
 
   // drag ends anywhere
   const onUp = (): void => {
-    dragging = false
+    selection.endDrag()
   }
   document.addEventListener('mouseup', onUp)
 
@@ -153,16 +107,10 @@ export function createLineSelect(opts: LineSelectOptions): LineSelectHandle {
     body,
     setRows,
     setMessage,
-    clearSelection,
+    clearSelection: selection.clearSelection,
     currentRange,
-    setFont: (delta: number) => {
-      fontSize = clampFont(fontSize, delta)
-      applyFont()
-    },
-    resetFont: () => {
-      fontSize = DEFAULT_FONT
-      applyFont()
-    },
+    setFont: selection.setFont,
+    resetFont: selection.resetFont,
     destroy: () => {
       document.removeEventListener('mouseup', onUp)
     }

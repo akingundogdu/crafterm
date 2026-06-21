@@ -3,7 +3,8 @@
 // keybinding/state imports and renders in isolation under happy-dom.
 
 import type { SpotTab, SpotTabsHandle } from './spot-tabs.types'
-import { TABS, TAB_ACTION, spotTabClass, makeTabSelect } from './spot-tabs.state'
+import { TABS, TAB_ACTION } from './spot-tabs.state'
+import { createTabButton } from './tab-button'
 
 export type { SpotTab, SpotTabsHandle } from './spot-tabs.types'
 export { TABS, TAB_ACTION } from './spot-tabs.state'
@@ -17,18 +18,14 @@ export function createSpotTabs(opts: {
 
   const render = (): void => {
     el.replaceChildren(
-      ...TABS.map((t: SpotTab) => {
-        const combo = opts.comboFor(t.id)
-        return (
-          <button
-            class={spotTabClass(t.id === opts.getActive())}
-            onClick={makeTabSelect(opts.onSelect, t.id)}
-          >
-            <span class="spot-tab-name">{t.label}</span>
-            {combo && <span class="spot-tab-combo">{combo}</span>}
-          </button>
-        ) as HTMLButtonElement
-      })
+      ...TABS.map((t: SpotTab) =>
+        createTabButton({
+          tab: t,
+          active: t.id === opts.getActive(),
+          combo: opts.comboFor(t.id),
+          onSelect: opts.onSelect
+        })
+      )
     )
   }
 

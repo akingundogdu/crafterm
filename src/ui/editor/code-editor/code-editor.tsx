@@ -1,39 +1,23 @@
 import './code-editor.css'
-import { ensureThemes, applyTheme } from '../monaco/monaco-setup'
+import { applyTheme } from '../monaco/monaco-setup'
 import type { CodeEditor, CreateCodeEditorOptions } from './code-editor.types'
-import {
-  configureTsOnce,
-  ensureImportNavigation,
-  createModelAndEditor,
-  bindSaveCommand,
-  bindChange,
-  mountSelectionActions,
-  revealLine,
-  readSelectionRange
-} from './code-editor.state'
-import { createSelectionActions } from './components/selection-actions'
+import { revealLine, readSelectionRange } from './code-editor.state'
+import { runOneTimeSetup } from './code-editor.init.engine'
+import { buildEditor } from './code-editor.model.engine'
+import { setupSelectionActions } from './code-editor.selection.engine'
 
 export type { CodeEditor } from './code-editor.types'
 export { setEditorOpenHandler } from './code-editor.state'
 
 // Monaco-backed code editor pane: VSCode's editor engine (TextMate-grade
 // highlighting + full TS/JS IntelliSense out of the box). This is the view layer
-// — it composes the helpers in `code-editor.state.ts` and exposes the imperative
+// — it composes the engines (init / model / selection) and exposes the imperative
 // handle. Worker wiring + themes come from `monaco-setup`.
 export function createCodeEditor(opts: CreateCodeEditorOptions): CodeEditor {
-  configureTsOnce()
-  ensureThemes()
-  ensureImportNavigation()
+  runOneTimeSetup()
 
-  const { editor, model } = createModelAndEditor(opts)
-  bindSaveCommand(editor, opts.onSave)
-  const changeSub = bindChange(model, opts.onChange)
-
-  let selectionActions: { dispose(): void } | null = null
-  if (opts.onCopyRef || opts.onAddToChat) {
-    const node = createSelectionActions({ onCopyRef: opts.onCopyRef, onAddToChat: opts.onAddToChat })
-    selectionActions = mountSelectionActions(editor, node, { onAddToChat: opts.onAddToChat })
-  }
+  const { editor, model, changeSub } = buildEditor(opts)
+  const selectionActions = setupSelectionActions(editor, opts)
 
   if (opts.line && opts.line > 1) requestAnimationFrame(() => revealLine(editor, model, opts.line!))
 

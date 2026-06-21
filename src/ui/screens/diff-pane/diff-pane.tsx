@@ -8,9 +8,11 @@ import { sendRef } from '../diff/pane-ref'
 import { parseDiff, type FileDiff } from './parse-diff'
 import { createFileSearch } from './components/file-search'
 import { createCommentPopover } from './components/comment-popover'
+import { createDiffHeader } from './components/diff-header'
+import { createDiffNavigation } from './diff-navigation.engine'
+import { createDiffKeyboard } from './diff-keyboard.engine'
 import type { CreateDiffPaneOptions } from './diff-pane.types'
 import {
-  SEARCH_SVG,
   COMMENT_SVG,
   registerDiffCleanup,
   destroyDiffPane,
@@ -33,57 +35,15 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
   const el = (<div class="pane-box diff-pane" dataset={{ paneId: id }} />) as HTMLDivElement
 
   let files: FileDiff[] = []
-  let activeIdx = 0
 
   // ---- header: prev · search | path · counter | reload · next · close ----
-  const prev = createButton({
-    className: 'diff-nav',
-    text: '‹',
-    title: 'Previous file',
-    onClick: stopAnd(() => showFile(activeIdx - 1))
+  const header = createDiffHeader({
+    onPrev: () => nav.showFile(nav.activeIdx() - 1),
+    onNext: () => nav.showFile(nav.activeIdx() + 1),
+    onToggleSearch: () => fileSearch.toggle(),
+    onReload: () => void load(),
+    onClose: () => paneActions.close(id)
   })
-  const searchBtn = createButton({
-    className: 'diff-hbtn',
-    title: 'Find a file in this diff',
-    onClick: stopAnd(() => fileSearch.toggle())
-  })
-  searchBtn.innerHTML = SEARCH_SVG
-  const htitle = (<span class="diff-path" />) as HTMLSpanElement
-  const counter = (<span class="diff-counter" />) as HTMLSpanElement
-  const center = (
-    <div class="diff-hcenter">
-      {htitle}
-      {counter}
-    </div>
-  ) as HTMLDivElement
-  const reload = createButton({
-    className: 'diff-hbtn',
-    text: '⟳',
-    title: 'Reload diff',
-    onClick: stopAnd(() => void load())
-  })
-  const next = createButton({
-    className: 'diff-nav',
-    text: '›',
-    title: 'Next file',
-    onClick: stopAnd(() => showFile(activeIdx + 1))
-  })
-  const close = createButton({
-    className: 'diff-hbtn diff-hclose',
-    text: '×',
-    title: 'Close',
-    onClick: stopAnd(() => paneActions.close(id))
-  })
-  const header = (
-    <div class="pane-header diff-header">
-      {prev}
-      {searchBtn}
-      {center}
-      {reload}
-      {next}
-      {close}
-    </div>
-  ) as HTMLDivElement
 
   // ---- comment button (lives inside the engine's floating action cluster) ----
   const commentBtn = createButton({
@@ -95,7 +55,7 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
   commentBtn.addEventListener('mousedown', preventStop)
 
   const view = createLineSelect({
-    refFile: () => files[activeIdx]?.path ?? null,
+    refFile: () => files[nav.activeIdx()]?.path ?? null,
     sendRef: (ref) => sendRef(opts.targetPaneId, ref),
     onRowSelect: () => paneActions.select(id),
     extraActions: [commentBtn],
@@ -106,8 +66,8 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
     anchorRect: () => commentBtn.getBoundingClientRect(),
     getRange: () => {
       const r = view.currentRange()
-      if (!r || activeIdx >= files.length) return null
-      return { path: files[activeIdx].path, a: r.a, b: r.b }
+      if (!r || nav.activeIdx() >= files.length) return null
+      return { path: files[nav.activeIdx()].path, a: r.a, b: r.b }
     },
     submit: (range, text) =>
       prService.comment(opts.cwd, opts.prNumber, range.path, range.a, range.b, text),
@@ -119,12 +79,12 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
 
   const fileSearch = createFileSearch({
     getFiles: () => files,
-    getActiveIdx: () => activeIdx,
-    onPick: (idx) => showFile(idx)
+    getActiveIdx: () => nav.activeIdx(),
+    onPick: (idx) => nav.showFile(idx)
   })
 
-  el.append(header, fileSearch.el, view.body)
-  setupPaneDnd(el, header, id)
+  el.append(header.el, fileSearch.el, view.body)
+  setupPaneDnd(el, header.el, id)
   el.addEventListener('mousedown', () => paneActions.select(id))
 
   // ---- render one file ----
@@ -133,36 +93,27 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
       view.setMessage('Empty diff.')
       return
     }
-    view.setRows(fileToLineRows(files[activeIdx]))
+    view.setRows(fileToLineRows(files[nav.activeIdx()]))
   }
 
-  function showFile(idx: number): void {
-    activeIdx = Math.max(0, Math.min(files.length - 1, idx))
-    htitle.textContent = files.length ? files[activeIdx].path : ''
-    htitle.title = htitle.textContent
-    counter.textContent = files.length ? `${activeIdx + 1}/${files.length}` : ''
-    prev.disabled = activeIdx <= 0
-    next.disabled = activeIdx >= files.length - 1
-    renderFile()
-    view.body.scrollTop = 0
-  }
+  const nav = createDiffNavigation({
+    getFiles: () => files,
+    updateHeader: (path, oneBasedIndex, total) => header.update(path, oneBasedIndex, total),
+    renderActive: renderFile,
+    resetScroll: () => {
+      view.body.scrollTop = 0
+    }
+  })
 
-  // Cmd+←/→ steps prev/next while this diff pane is the active one. Capture phase
-  // so it wins before xterm or the global grid; the comment popover keeps its own
-  // typing focus, so skip while it's open.
-  const onKey = (e: KeyboardEvent): void => {
-    if (!e.metaKey || e.altKey || e.shiftKey || commentPopover.isOpen()) return
-    if (state.activePaneId !== id) return
-    if (e.key === 'ArrowLeft') showFile(activeIdx - 1)
-    else if (e.key === 'ArrowRight') showFile(activeIdx + 1)
-    else return
-    e.preventDefault()
-    e.stopPropagation()
-  }
-  window.addEventListener('keydown', onKey, true)
+  const teardownKeyboard = createDiffKeyboard({
+    paneId: id,
+    isPopoverOpen: () => commentPopover.isOpen(),
+    getActiveIdx: () => nav.activeIdx(),
+    showFile: (idx) => nav.showFile(idx)
+  })
   registerDiffCleanup(id, () => {
     view.destroy()
-    window.removeEventListener('keydown', onKey, true)
+    teardownKeyboard()
     commentPopover.close()
   })
 
@@ -176,7 +127,7 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
     }
     const patch = (res.patch ?? '').trim()
     files = patch ? parseDiff(patch) : []
-    showFile(0)
+    nav.showFile(0)
   }
 
   diffPanes.set(id, {

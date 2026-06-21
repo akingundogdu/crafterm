@@ -1,4 +1,5 @@
 import { makeCloseClick } from '../pane.state'
+import { createWebviewElement } from './webview-element'
 
 export interface BrowserPaneHeader {
   header: HTMLDivElement
@@ -48,9 +49,7 @@ export function createBrowserPaneHeader(
     </div>
   ) as HTMLDivElement
 
-  const webview = (
-    <webview class="pane-web" src={url} allowpopups="true" />
-  ) as unknown as HTMLElement
+  const webview = createWebviewElement(url)
 
   return { header, htitle, reload, ext, webview }
 }

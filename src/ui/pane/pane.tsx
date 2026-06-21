@@ -1,20 +1,14 @@
 import type { BrowserPane } from '@ui/types/types'
-import { renderMarkdown } from '@ui/markdown/markdown'
 import { browsers, docs, uid } from '@ui/state/state'
-import {
-  makePaneDragMousedown,
-  makeSelectPane,
-  makeBrowserReload,
-  makeBrowserExternal,
-  makeBrowserTitleUpdate,
-  makeSaveDoc,
-  readDoc,
-  makeDocMention
-} from './pane.state'
-import { createPaneGrip, createPaneDropOverlay } from './components/pane-drag'
+import { makeSelectPane, makeDocMention } from './pane.state'
 import { showPaneMenu } from './components/pane-menu'
 import { createBrowserPaneHeader } from './components/browser-pane'
 import { createDocPaneHeader, createDocSelectionMenu } from './components/doc-pane'
+import { setupPaneDnd } from './components/pane-drag.engine'
+import { createMarkdownPreview } from './components/markdown-preview'
+import { createDocEditor } from './components/doc-editor'
+import { setupEditorLifecycle } from './components/editor-lifecycle.engine'
+import { setupBrowserEvents } from './components/browser-events.engine'
 
 export type { PaneMenuEntry } from './pane.types'
 export { buildPaneMenu } from './pane.state'
@@ -42,22 +36,7 @@ export {
   resetActivePaneFontSize
 } from '../terminal/terminal'
 
-// Drag-to-rearrange: the header is the handle. Uses pointer events (NOT HTML5
-// drag-and-drop, which is unreliable over xterm canvases) and hit-tests the
-// pane-box under the cursor each move; dropping re-lays-out the active tab.
-export function setupPaneDnd(box: HTMLElement, header: HTMLElement, id: string): void {
-  const grip = createPaneGrip()
-  // Sit the grip just after the daily-task chip (when present) so the issue key
-  // shows to the LEFT of the drag handle; otherwise right after the title.
-  const anchor = header.querySelector('.pane-daily-chip') ?? header.querySelector('.pane-title')
-  if (anchor) anchor.insertAdjacentElement('afterend', grip)
-  else header.prepend(grip)
-
-  const overlay = createPaneDropOverlay()
-  box.appendChild(overlay)
-
-  header.addEventListener('mousedown', makePaneDragMousedown(id))
-}
+export { setupPaneDnd } from './components/pane-drag.engine'
 
 // An embedded browser pane that loads `url` in a <webview>.
 export function createBrowserPane(url: string): string {
@@ -77,9 +56,7 @@ export function createBrowserPane(url: string): string {
   el.addEventListener('mousedown', makeSelectPane(id))
 
   const bp: BrowserPane = { id, el, webview, url }
-  reload.addEventListener('click', makeBrowserReload(webview))
-  ext.addEventListener('click', makeBrowserExternal(bp))
-  webview.addEventListener('page-title-updated', makeBrowserTitleUpdate(htitle))
+  setupBrowserEvents({ bp, webview, htitle, reload, ext })
 
   browsers.set(id, bp)
   return id
@@ -97,16 +74,8 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
 
   const { header, refreshBtn, editBtn } = createDocPaneHeader(id, source, absolute)
 
-  const preview = (<div class="doc-preview" />) as HTMLDivElement
-  const editor = (
-    <textarea
-      class="doc-editor"
-      style={{ display: 'none' }}
-      ref={(el: HTMLTextAreaElement) => {
-        el.spellcheck = false
-      }}
-    />
-  ) as HTMLTextAreaElement
+  const preview = createMarkdownPreview()
+  const editor = createDocEditor()
 
   const el = (
     <div class="pane-box doc-pane" dataset={{ paneId: id }}>
@@ -118,47 +87,7 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
   setupPaneDnd(el, header, id)
   el.addEventListener('mousedown', makeSelectPane(id))
 
-  let editing = false
-  let raw = ''
-  const saveDoc = makeSaveDoc(source, absolute)
-  // Re-read the file from disk and re-render (skips re-render while editing so
-  // unsaved edits aren't clobbered). Used for initial load and the ⟳ button.
-  const reload = async (): Promise<void> => {
-    const content = await readDoc(source, absolute)
-    raw = content
-    if (!editing) {
-      editor.value = content
-      preview.innerHTML = renderMarkdown(content)
-    }
-  }
-  void reload()
-  refreshBtn.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void reload()
-  })
-  editBtn.addEventListener('click', (e) => {
-    e.stopPropagation()
-    if (editing) {
-      // leaving edit mode -> save + re-render
-      raw = editor.value
-      saveDoc(raw)
-      preview.innerHTML = renderMarkdown(raw)
-    }
-    editing = !editing
-    editBtn.textContent = editing ? 'Preview' : 'Edit'
-    preview.style.display = editing ? 'none' : 'block'
-    editor.style.display = editing ? 'block' : 'none'
-    if (editing) editor.focus()
-  })
-  // Cmd+S saves while editing
-  editor.addEventListener('keydown', (e) => {
-    e.stopPropagation()
-    if (e.metaKey && e.key.toLowerCase() === 's') {
-      e.preventDefault()
-      raw = editor.value
-      saveDoc(raw)
-    }
-  })
+  setupEditorLifecycle({ source, absolute, preview, editor, refreshBtn, editBtn })
 
   // ---- floating selection actions (Cursor-style): select text in the preview,
   // then Copy / Add to Chat send an `@path:start-end` reference. Mirrors the code

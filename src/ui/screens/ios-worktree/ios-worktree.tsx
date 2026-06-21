@@ -1,6 +1,7 @@
-import { UITexts } from '@texts'
 import type { SidebarNode } from '@ui/types/types'
-import { iosOwner, dotInfo, makeRerunClick, makeMoreClick } from './ios-worktree.state'
+import { iosOwner } from './ios-worktree.state'
+import { createIosWorktreeDot } from './components/ios-worktree-dot'
+import { createIosWorktreeActions } from './components/ios-worktree-actions'
 
 export type { RunTarget } from './ios-worktree.types'
 export { iosWorktreeEnvFor, startIosWorktreePoll, iosWorktreeMenuItems } from './ios-worktree.state'
@@ -14,35 +15,11 @@ export { iosWorktreeEnvFor, startIosWorktreePoll, iosWorktreeMenuItems } from '.
 export function iosWorktreeDot(node: SidebarNode): HTMLElement | null {
   const own = iosOwner(node)
   if (!own) return null
-  const st = dotInfo(own.wt.worktreePath)
-  return (<span class={`ios-wt-dot ios-wt-dot-${st.cls}`} title={st.title} />) as HTMLSpanElement
+  return createIosWorktreeDot(own.wt.worktreePath)
 }
 
 export function iosWorktreeTrailing(node: SidebarNode): HTMLElement | null {
   const own = iosOwner(node)
   if (!own) return null
-  const { p, wt } = own
-
-  const run = (<button class="ios-wt-act">▶</button>) as HTMLButtonElement
-  if (!wt.lastRun) {
-    // Disabled until the worktree has been run at least once (todo22).
-    run.disabled = true
-    run.title = 'Pick a target from the ⋯ menu first'
-  } else {
-    run.title = `Re-run: ${wt.lastRun.name}`
-    run.addEventListener('click', makeRerunClick(wt, p, wt.lastRun))
-  }
-
-  const more = (
-    <button class="ios-wt-act" title={UITexts.IosWorktree.iosActions} onClick={makeMoreClick(node)}>
-      ⋯
-    </button>
-  ) as HTMLButtonElement
-
-  return (
-    <span class="ios-wt-actions">
-      {run}
-      {more}
-    </span>
-  ) as HTMLSpanElement
+  return createIosWorktreeActions(node, own.p, own.wt)
 }
