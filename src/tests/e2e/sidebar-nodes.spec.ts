@@ -92,6 +92,16 @@ test('sidebar: node render, inline rename, context-menu pin/unpin', async () => 
       await menu.getByRole('button', { name: 'Unpin', exact: true }).click()
       await expect(projRow.locator('.pin-badge')).toHaveCount(0)
     })
+
+    await test.step('right-click → Delete folder removes it (no confirm)', async () => {
+      const folderRow = win.locator('.tab-item', { hasText: RENAMED }).first()
+      await folderRow.click({ button: 'right' })
+      const menu = win.locator('.context-menu')
+      await expect(menu).toBeVisible()
+      await menu.getByRole('button', { name: 'Delete folder', exact: true }).click()
+      await expect(win.locator('#tab-list')).not.toContainText(RENAMED)
+      await expect.poll(() => !findNode(readState(dir)?.tree, RENAMED), { timeout: 5_000 }).toBe(true)
+    })
   } finally {
     await app.close()
     rmSync(dir, { recursive: true, force: true })
