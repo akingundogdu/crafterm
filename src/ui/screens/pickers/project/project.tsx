@@ -1,170 +1,29 @@
 import type { ProjectNode, Application } from '@ui/types/types'
-import { settings, state } from '@ui/state/state'
+import { state } from '@ui/state/state'
 import { UITexts } from '@texts'
-import { runApplications, createFeature, resolveAppPath } from '@ui/commands/commands'
 import { flattenProjects } from '@ui/catalog/catalog'
 import { overlayModal, makeSearchInput } from '../shared'
-import {
-  sanitizeBranch,
-  disableSpellcheck,
-  buildProjectEntries,
-  filterEntries,
-  filterAppProjects,
-  stepSelection,
-  makeChoose,
-  makeRunSplit,
-  makeRunTab
-} from './project.state'
+import { filterAppProjects, stepSelection } from './project.state'
 import { projectRow } from './components/project-row'
-import { environmentChips } from './components/environment-chips'
-import { applicationCheckboxRow } from './components/application-checkbox-row'
-import { runCommandRow } from './components/run-command-row'
-import { runAppRow } from './components/run-app-row'
+import {
+  ProjectPickerController,
+  RunAppsController,
+  RunCommandController,
+  RunAppController,
+  FeatureSetupController
+} from './project.controller'
 
 // ---- Project picker: open a saved project (or a blank terminal) ----
 
 export function showProjectPicker(parentFolderId: string | null, opts?: { split?: boolean }): void {
-  const splitMode = !!opts?.split
-  const { modal, close } = overlayModal('picker-modal')
-
-  const h = (
-    <h2>{splitMode ? UITexts.Pickers.project.split : UITexts.Pickers.project.open}</h2>
-  ) as HTMLHeadingElement
-  const input = (
-    <input
-      class="search-box-input"
-      type="text"
-      placeholder={
-        splitMode
-          ? UITexts.Pickers.project.splitPlaceholder
-          : UITexts.Pickers.project.openPlaceholder
-      }
-      ref={disableSpellcheck}
-    />
-  ) as HTMLInputElement
-  const list = (<div class="pick-list picker-list" />) as HTMLDivElement
-  modal.append(h, input, list)
-
-  const entries = buildProjectEntries(parentFolderId, showRunApps)
-  let sel = 0
-
-  const filtered = (): typeof entries => filterEntries(entries, input.value)
-  const choose = makeChoose(close, splitMode)
-
-  const render = (): void => {
-    const items = filtered()
-    if (sel >= items.length) sel = Math.max(0, items.length - 1)
-    list.replaceChildren()
-    items.forEach((e, i) => {
-      list.appendChild(
-        projectRow({
-          label: e.label,
-          sub: e.sub,
-          active: i === sel,
-          onClick: (split) => choose(e, split),
-          onHover: () => {
-            sel = i
-            highlight()
-          }
-        })
-      )
-    })
-  }
-  const highlight = (): void => {
-    list.querySelectorAll<HTMLElement>('.project-row').forEach((el, i) => {
-      el.classList.toggle('active', i === sel)
-    })
-  }
-
-  input.addEventListener('input', () => {
-    sel = 0
-    render()
-  })
-  input.addEventListener('keydown', (e) => {
-    e.stopPropagation()
-    const items = filtered()
-    if (e.key === 'Escape') close()
-    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      sel = stepSelection(e.key, sel, items.length)
-      highlight()
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (items[sel]) choose(items[sel], e.metaKey || e.ctrlKey)
-    }
-  })
-  render()
-  input.focus()
+  new ProjectPickerController(parentFolderId, opts).open()
 }
 
 // ---- Run applications: pick environment + apps, open a tiled tab ----
 
 // Modal for one project: choose an environment, tick apps, run them together.
 export function showRunApps(project: ProjectNode): void {
-  const apps = project.apps ?? []
-  const { modal, close } = overlayModal('picker-modal')
-  const h = (<h2>{`Run — ${project.name}`}</h2>) as HTMLHeadingElement
-  modal.append(h)
-
-  if (!apps.length || !settings.environments.length) {
-    modal.insertAdjacentHTML(
-      'beforeend',
-      `<div class="empty-hint">${
-        apps.length ? UITexts.Pickers.project.noEnvironments : UITexts.Pickers.project.noApplications
-      } Add them in Settings → Projects.</div>`
-    )
-    return
-  }
-
-  let env = settings.environments[0]
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
-  modal.append(
-    environmentChips({
-      environments: settings.environments,
-      selected: env,
-      onSelect: (name) => {
-        env = name
-        renderApps()
-      }
-    })
-  )
-
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Applications</div>')
-  const list = (<div class="run-app-list" />) as HTMLDivElement
-  modal.append(list)
-  const checks = new Map<Application, HTMLInputElement>()
-  const renderApps = (): void => {
-    list.replaceChildren()
-    checks.clear()
-    apps.forEach((app) => {
-      const cmd = (app.commands?.[env] ?? '').trim()
-      const { row, checkbox } = applicationCheckboxRow({ name: app.name, cmd, env })
-      checks.set(app, checkbox)
-      list.appendChild(row)
-    })
-  }
-  renderApps()
-
-  const cancel = (<button onClick={close}>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
-  const run = (
-    <button
-      class="button-primary"
-      onClick={() => {
-        const selected = apps.filter((a) => checks.get(a)?.checked)
-        if (selected.length) void runApplications(project, env, selected)
-        close()
-      }}
-    >
-      Run
-    </button>
-  ) as HTMLButtonElement
-  const actions = (
-    <div class="modal-actions">
-      {cancel}
-      {run}
-    </div>
-  ) as HTMLDivElement
-  modal.append(actions)
+  new RunAppsController(project).open()
 }
 
 // Pick a project that has applications, then open its run modal.
@@ -244,36 +103,7 @@ export function showFeaturePicker(): void {
 // "Split" (drop into a split beside the active pane) and "New tab" (open as
 // its own terminal under the project). Both spawn at the project's path.
 export function showRunCommand(project: ProjectNode): void {
-  const cmds = project.runCommands ?? []
-  const { modal, close } = overlayModal('picker-modal')
-  const h = (<h2>{`Run command — ${project.name}`}</h2>) as HTMLHeadingElement
-  modal.append(h)
-  if (!cmds.length) {
-    modal.insertAdjacentHTML(
-      'beforeend',
-      '<div class="empty-hint">No run commands. Add them in Settings → Projects.</div>'
-    )
-    return
-  }
-  const list = (<div class="pick-list picker-list" />) as HTMLDivElement
-  modal.append(list)
-  for (const rc of cmds) {
-    const target = {
-      name: rc.name,
-      path: project.path,
-      command: rc.command,
-      env: project.env,
-      shell: project.shell
-    }
-    list.appendChild(
-      runCommandRow({
-        name: rc.name,
-        command: rc.command,
-        onSplit: makeRunSplit(target, close),
-        onTab: makeRunTab(target, project.id, close)
-      })
-    )
-  }
+  new RunCommandController(project).open()
 }
 
 // Launch a single application (from the pane ⋯ menu). Lists each environment the
@@ -281,145 +111,11 @@ export function showRunCommand(project: ProjectNode): void {
 // a fresh tab under the project. The project's startup is chained before the dev
 // command, matching runApplications().
 export function showRunApp(project: ProjectNode, app: Application): void {
-  const envs = settings.environments.filter((e) => (app.commands?.[e] ?? '').trim())
-  const { modal, close } = overlayModal('picker-modal')
-  const h = (<h2>{`Run ${app.name} — ${project.name}`}</h2>) as HTMLHeadingElement
-  modal.append(h)
-  if (!envs.length) {
-    modal.insertAdjacentHTML(
-      'beforeend',
-      '<div class="empty-hint">No commands configured for this application. Add them in Settings → Projects.</div>'
-    )
-    return
-  }
-  const appPath = resolveAppPath(project.path, app.path)
-  const startup = project.startup?.trim()
-  const list = (<div class="pick-list picker-list" />) as HTMLDivElement
-  modal.append(list)
-  for (const env of envs) {
-    const dev = (app.commands[env] ?? '').trim()
-    const command = startup ? `${startup} && ${dev}` : dev
-    const target = { name: `${app.name} · ${env}`, path: appPath, command, env: project.env, shell: project.shell }
-    list.appendChild(
-      runAppRow({
-        env,
-        command: dev,
-        onSplit: makeRunSplit(target, close),
-        onTab: makeRunTab(target, project.id, close)
-      })
-    )
-  }
+  new RunAppController(project, app).open()
 }
 
 // ---- Feature setup: feature name + branch + env + apps (+ per-app worktree) ----
 
 export function showFeatureSetup(project: ProjectNode): void {
-  const apps = project.apps ?? []
-  const hasApps = apps.length > 0 && settings.environments.length > 0
-  const { modal, close } = overlayModal('picker-modal')
-  const h = (<h2>{`New feature — ${project.name}`}</h2>) as HTMLHeadingElement
-  modal.append(h)
-  if (!hasApps) {
-    modal.insertAdjacentHTML(
-      'beforeend',
-      `<div class="empty-hint">${
-        apps.length ? UITexts.Pickers.project.noEnvironmentsConfigured : UITexts.Pickers.project.noApplicationsDefined
-      } The feature folder will be created without any auto-spawned terminals. Define apps in Settings → Projects to launch them automatically.</div>`
-    )
-  }
-
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Feature name</div>')
-  const nameInput = (<input class="reminder-input" placeholder="maxi onboarding" />) as HTMLInputElement
-  modal.append(nameInput)
-
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Branch</div>')
-  const branchInput = (<input class="reminder-input" placeholder="maxi-onboarding" />) as HTMLInputElement
-  modal.append(branchInput)
-  let branchEdited = false
-  branchInput.addEventListener('input', () => {
-    branchEdited = true
-  })
-  nameInput.addEventListener('input', () => {
-    if (!branchEdited) branchInput.value = sanitizeBranch(nameInput.value)
-  })
-
-  modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Base branch</div>')
-  const baseInput = (
-    <input
-      class="reminder-input"
-      ref={(el: HTMLInputElement) => {
-        el.value = 'main'
-      }}
-    />
-  ) as HTMLInputElement
-  modal.append(baseInput)
-
-  let env = settings.environments[0] ?? ''
-  const incl = new Map<Application, HTMLInputElement>()
-  const wt = new Map<Application, HTMLInputElement>()
-  if (hasApps) {
-    modal.insertAdjacentHTML('beforeend', '<div class="reminder-label">Environment</div>')
-    modal.append(
-      environmentChips({
-        environments: settings.environments,
-        selected: env,
-        onSelect: (name) => {
-          env = name
-          renderApps()
-        }
-      })
-    )
-
-    modal.insertAdjacentHTML(
-      'beforeend',
-      '<div class="reminder-label">Applications (✓ include · ⑂ worktree)</div>'
-    )
-    const list = (<div class="run-app-list" />) as HTMLDivElement
-    modal.append(list)
-    const renderApps = (): void => {
-      list.replaceChildren()
-      incl.clear()
-      wt.clear()
-      apps.forEach((app) => {
-        const cmd = (app.commands?.[env] ?? '').trim()
-        const { row, checkbox, worktreeCheckbox } = applicationCheckboxRow({
-          name: app.name,
-          cmd,
-          env,
-          withWorktree: true
-        })
-        incl.set(app, checkbox)
-        if (worktreeCheckbox) wt.set(app, worktreeCheckbox)
-        list.appendChild(row)
-      })
-    }
-    renderApps()
-  }
-
-  const cancel = (<button onClick={close}>{UITexts.Pickers.project.cancel}</button>) as HTMLButtonElement
-  const create = (
-    <button
-      class="button-primary"
-      onClick={() => {
-        const branch = sanitizeBranch(branchInput.value || nameInput.value)
-        if (!branch) return
-        const chosen = apps
-          .filter((a) => incl.get(a)?.checked)
-          .map((app) => ({ app, worktree: !!wt.get(app)?.checked }))
-        if (!chosen.length) return
-        void createFeature(project, { branch, base: baseInput.value, env, apps: chosen })
-        close()
-      }}
-    >
-      Create
-    </button>
-  ) as HTMLButtonElement
-  const actions = (
-    <div class="modal-actions">
-      {cancel}
-      {create}
-    </div>
-  ) as HTMLDivElement
-  modal.append(actions)
-  nameInput.focus()
+  new FeatureSetupController(project).open()
 }

@@ -7,12 +7,12 @@ import type {
 import type { DailyRange } from './daily-plan.types'
 import { state, panes } from '@ui/state/state'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
-import { makeCloseButton, promptConfirm } from '@ui/components/dialog/dialog'
+import { promptConfirm } from '@ui/components/dialog/dialog'
 import { findProjectById } from '@ui/catalog/catalog'
 import { openClaudeWithPrompt } from '@ui/commands/commands'
 import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from '@services/worktrees'
 import { refreshPaneDailyTask } from '@ui/pane/pane'
-import { createDateField, createOverlay } from '@ui/components'
+import { createDateField } from '@ui/components'
 import { boardColumnOf, shiftDays } from './task-helpers'
 import {
   STATUSES,
@@ -32,6 +32,7 @@ import { showManageTagsModal as buildManageTagsModal } from './components/manage
 import { showChangelogModal } from './components/changelog-modal'
 import { openTagFilterPopover as buildTagFilterPopover } from './components/tag-filter-popover'
 import { assignPaneToTask as buildAssignPaneToTask } from './components/assign-task-modal'
+import { DailyPlanModalController, DailyCompactController } from './daily-plan.controller'
 
 let selectedRange: DailyRange = 'day'
 // Board project filter (todo4): null = all projects, else only this project's tasks.
@@ -246,51 +247,14 @@ export function assignPaneToTask(paneId: string): void {
 let selectedDate = todayKey()
 
 export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): void {
-  selectedDate = initialDate ?? todayKey()
-
-  const { overlay, mount, close, onClose } = createOverlay()
-
-  const onKey = (e: KeyboardEvent): void => {
-    // Defer to a child form modal or an open tag-filter popover (they handle Esc).
-    if (document.querySelector('.daily-plan-form-overlay') || document.querySelector('.daily-tagfilter-pop')) return
-    e.stopPropagation()
-    if (e.key === 'Escape') {
-      close()
-    } else if (e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
-      // Cmd+N opens the new-task form while the board modal is up (todo8 — the
-      // global handler surrenders to open modals, so the modal owns this).
-      e.preventDefault()
-      showTaskForm(null, render)
-    }
-  }
-  onClose(() => document.removeEventListener('keydown', onKey, true))
-  document.addEventListener('keydown', onKey, true)
-
-  const header = (<div class="daily-plan-header" />) as HTMLDivElement
-  const board = (<div class="daily-plan-board" />) as HTMLDivElement
-
-  const modal = (
-    <div class="modal daily-plan-modal">
-      {makeCloseButton(close)}
-      {header}
-      {board}
-    </div>
-  ) as HTMLDivElement
-  overlay.appendChild(modal)
-
-  const render = (): void => {
-    renderHeader(header, render)
-    renderBoard(board, render)
-  }
-  render()
-
-  mount()
-
-  // Deep-link: open the edit form for a specific task (e.g. from a reminder card).
-  if (focusTaskId) {
-    const task = dailyTaskRepo.getAll().find((t) => t.id === focusTaskId)
-    if (task) showTaskForm(task, render)
-  }
+  new DailyPlanModalController({
+    setSelectedDate: (date) => {
+      selectedDate = date
+    },
+    showTaskForm,
+    renderHeader,
+    renderBoard
+  }).open(initialDate, focusTaskId)
 }
 
 // Last in-place re-render of the docked daily panel (right panel or Notebook
@@ -306,116 +270,28 @@ let compactStatus: DailyPlanStatus = 'todo'
 let compactSearch = ''
 
 export function renderDailyCompact(host: HTMLElement): void {
-  host.innerHTML = ''
-  host.classList.add('daily-compact')
-  const render = (): void => renderDailyCompact(host)
-  activeDailyRerender = render
-
-  const tasks = tasksForScope()
-
-  // --- Toolbar: title · fullscreen · range · new task --------------------
-  const rangeSel = (
-    <select
-      class="settings-select daily-compact-range"
-      onChange={() => {
-        selectedRange = rangeSel.value as DailyRange
-        render()
-      }}
-    >
-      {(
-        [
-          ['day', UITexts.DailyPlan.range.today],
-          ['3d', UITexts.DailyPlan.range.last3],
-          ['7d', UITexts.DailyPlan.range.last7]
-        ] as const
-      ).map(([val, label]) => (
-        <option value={val} selected={val === selectedRange}>
-          {label}
-        </option>
-      ))}
-    </select>
-  ) as HTMLSelectElement
-
-  const toolbar = (
-    <div class="daily-compact-toolbar">
-      <div class="daily-compact-title">Daily Plan</div>
-      <button
-        class="daily-compact-full"
-        title={UITexts.DailyPlan.openBoardTitle}
-        onClick={() => showDailyPlanModal(selectedDate)}
-      >
-        ⛶
-      </button>
-      {rangeSel}
-      <button
-        class="daily-plan-primary-btn daily-compact-new"
-        onClick={() => showTaskForm(null, render, compactStatus)}
-      >
-        + New
-      </button>
-    </div>
-  ) as HTMLDivElement
-  host.appendChild(toolbar)
-
-  // --- Status tab strip (counts per status, current scope) ---------------
-  const tabs = (
-    <div class="daily-compact-tabs">
-      {STATUSES.map((status) => {
-        const count = tasks.filter((t) => boardColumnOf(t.status) === status.id).length
-        return (
-          <button
-            class={'daily-compact-tab' + (compactStatus === status.id ? ' active' : '')}
-            onClick={() => {
-              compactStatus = status.id
-              render()
-            }}
-          >
-            <span>{status.label}</span>
-            <span class="daily-compact-tab-count">{String(count)}</span>
-          </button>
-        )
-      })}
-    </div>
-  ) as HTMLDivElement
-  host.appendChild(tabs)
-
-  // --- Search ------------------------------------------------------------
-  const search = (
-    <input
-      type="text"
-      class="nb-subtab-search"
-      placeholder={UITexts.DailyPlan.searchTasks}
-      onKeydown={(e: KeyboardEvent) => e.stopPropagation()}
-      onInput={() => {
-        compactSearch = search.value
-        fillList()
-      }}
-    />
-  ) as HTMLInputElement
-  search.value = compactSearch
-  host.appendChild(search)
-
-  // --- Card list (selected status, filtered by search) -------------------
-  const listHost = (<div class="daily-compact-list" />) as HTMLDivElement
-  host.appendChild(listHost)
-
-  const fillList = (): void => {
-    listHost.replaceChildren()
-    const q = compactSearch.trim().toLowerCase()
-    const items = tasks
-      .filter((t) => boardColumnOf(t.status) === compactStatus)
-      .filter((t) => !q || `${t.title} ${t.description ?? ''} ${t.issueKey ?? ''}`.toLowerCase().includes(q))
-      .sort((a, b) => a.order - b.order)
-    if (!items.length) {
-      const empty = (
-        <div class="daily-compact-empty">{q ? 'No matching tasks' : 'No tasks here'}</div>
-      ) as HTMLDivElement
-      listHost.appendChild(empty)
-      return
-    }
-    for (const task of items) listHost.appendChild(renderCard(task, render))
-  }
-  fillList()
+  new DailyCompactController(host, {
+    getSelectedRange: () => selectedRange,
+    setSelectedRange: (range) => {
+      selectedRange = range
+    },
+    getCompactStatus: () => compactStatus,
+    setCompactStatus: (status) => {
+      compactStatus = status
+    },
+    getCompactSearch: () => compactSearch,
+    setCompactSearch: (search) => {
+      compactSearch = search
+    },
+    setActiveDailyRerender: (render) => {
+      activeDailyRerender = render
+    },
+    getSelectedDate: () => selectedDate,
+    tasksForScope,
+    showDailyPlanModal,
+    showTaskForm,
+    renderCard
+  }).render()
 }
 
 // Cmd+N entry point while the Daily Plan view is shown: open the new-task form
