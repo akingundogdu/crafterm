@@ -29,11 +29,16 @@ async function launch(dir: string): Promise<{ app: ElectronApplication; win: Pag
   await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
   return { app, win }
 }
-// Cmd+Shift+L can miss the first keypress before focus settles; retry until open.
+// Cmd+Shift+L is a TOGGLE and can miss the first keypress before focus settles.
+// Press only when the modal isn't already open, so a slow-to-open modal (under
+// full-suite load) isn't toggled shut by a retry press — which previously left it
+// open-but-unloaded and the items never rendered.
 async function openImprove(win: Page): Promise<void> {
   await expect(async () => {
-    await win.keyboard.press('Meta+Shift+l')
-    await expect(win.locator('.modal.improve-modal')).toBeVisible({ timeout: 1500 })
+    if (!(await win.locator('.modal.improve-modal').isVisible())) {
+      await win.keyboard.press('Meta+Shift+l')
+    }
+    await expect(win.locator('.modal.improve-modal')).toBeVisible({ timeout: 2500 })
   }).toPass({ timeout: 15_000 })
 }
 
