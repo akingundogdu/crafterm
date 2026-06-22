@@ -18,13 +18,20 @@ async function launch(dir: string): Promise<{ app: ElectronApplication; win: Pag
   await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
   return { app, win }
 }
+// Cmd+P can miss the very first keypress if the window hasn't taken focus yet;
+// retry until the modal opens (a 2nd Cmd+P is a no-op once the modal is active).
+async function openSpotlight(win: Page): Promise<void> {
+  await expect(async () => {
+    await win.keyboard.press('Meta+p')
+    await expect(win.locator('.spotlight-modal')).toBeVisible({ timeout: 1500 })
+  }).toPass({ timeout: 15_000 })
+}
 
 test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async () => {
   const dir = freshStateDir()
   const { app, win } = await launch(dir)
   try {
-    await win.keyboard.press('Meta+p')
-    await expect(win.locator('.spotlight-modal')).toBeVisible()
+    await openSpotlight(win)
     await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('All')
 
     await test.step('Tab / Shift+Tab cycle the tab strip', async () => {
@@ -59,8 +66,7 @@ test('spotlight: Enter runs the selected shortcut (toggle sidebar) and closes', 
   const { app, win } = await launch(dir)
   try {
     await expect(win.locator('#app')).not.toHaveClass(/sidebar-collapsed/)
-    await win.keyboard.press('Meta+p')
-    await expect(win.locator('.spotlight-modal')).toBeVisible()
+    await openSpotlight(win)
     await win.locator('button.spot-tab', { hasText: 'Shortcuts' }).click()
     await win.locator('input.search-box-input').fill('Toggle sidebar')
     await expect(win.locator('.spot-row.active', { hasText: 'Toggle sidebar' })).toBeVisible({ timeout: 5_000 })
