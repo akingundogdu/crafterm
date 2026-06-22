@@ -24,11 +24,14 @@ export async function paneCwd(pid: number): Promise<string | null> {
 export const gitBin = (): string =>
   resolveBin(['/opt/homebrew/bin/git', '/usr/local/bin/git', '/usr/bin/git'], 'git')
 
+// `CRAFTERM_DOCKER_BIN` / `CRAFTERM_GH_BIN` override the resolved binary for test
+// isolation (a stub script emitting canned output) — `resolveBin` probes absolute
+// install paths first, so a bare PATH stub is unreliable; the env override is not.
 export const dockerBin = (): string =>
-  resolveBin(['/usr/local/bin/docker', '/opt/homebrew/bin/docker', '/usr/bin/docker'], 'docker')
+  process.env.CRAFTERM_DOCKER_BIN || resolveBin(['/usr/local/bin/docker', '/opt/homebrew/bin/docker', '/usr/bin/docker'], 'docker')
 
 export const ghBin = (): string =>
-  resolveBin(['/opt/homebrew/bin/gh', '/usr/local/bin/gh', '/usr/bin/gh'], 'gh')
+  process.env.CRAFTERM_GH_BIN || resolveBin(['/opt/homebrew/bin/gh', '/usr/local/bin/gh', '/usr/bin/gh'], 'gh')
 
 // Single-quote a string for safe interpolation into a `/bin/zsh -lic '<script>'`
 // command line (escapes embedded single quotes).
