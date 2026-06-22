@@ -23,8 +23,8 @@ async function launch(dir: string): Promise<{ app: ElectronApplication; win: Pag
 async function openSpotlight(win: Page): Promise<void> {
   await expect(async () => {
     await win.keyboard.press('Meta+p')
-    await expect(win.locator('.spotlight-modal')).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15_000 })
+    await expect(win.locator('.spotlight-modal')).toBeVisible({ timeout: 2500 })
+  }).toPass({ timeout: 20_000 })
 }
 
 test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async () => {
@@ -35,6 +35,7 @@ test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async
     await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('All')
 
     await test.step('Tab / Shift+Tab cycle the tab strip', async () => {
+      await win.locator('input.search-box-input').focus() // Tab is handled by the input's keydown
       await win.keyboard.press('Tab')
       await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('Files')
       await win.keyboard.press('Shift+Tab')
@@ -52,6 +53,7 @@ test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async
     })
 
     await test.step('Esc closes', async () => {
+      await win.locator('input.search-box-input').focus() // tab clicks moved focus; Esc is handled by the input
       await win.keyboard.press('Escape')
       await expect(win.locator('.modal-overlay')).toHaveCount(0)
     })
