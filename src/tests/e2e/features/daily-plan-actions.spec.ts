@@ -239,3 +239,42 @@ test('daily-plan: pane ⋯ menu "View ticket detail" opens the task form', async
     rmSync(container, { recursive: true, force: true })
   }
 })
+
+test('daily-plan: pane ⋯ Mark done while in the task worktree offers to remove it → folder deleted', async () => {
+  const { container, repo } = makeRepo()
+  // a real worktree whose branch == the task's issue key (offerDeleteTaskWorktree
+  // matches the worktree to the task by issueKey -> branch).
+  const wtPath = join(container, 'worktrees', 'CRF-1')
+  mkdirSync(join(container, 'worktrees'), { recursive: true })
+  execSync(`git worktree add "${wtPath}" -b CRF-1 main`, { cwd: repo, env: gitEnv() })
+  const dir = freshStateDir()
+  const tab = boundTab('seed-1')
+  tab.root.cwd = wtPath // the pane lives inside the worktree
+  seedState(dir, repo, [task({ id: 'seed-1', title: 'WT done task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], {
+    tab,
+    supportWorktree: true
+  })
+  const { app, win } = await launch(dir)
+  try {
+    // wait for the worktree node to reconcile so offerDeleteTaskWorktree can find it
+    await expect.poll(() => worktreeNodes(dir).some((w) => w.branch === 'CRF-1'), { timeout: 30_000 }).toBe(true)
+    await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 10_000 })
+
+    await (await openPaneMenu(win)).getByRole('button', { name: 'Mark as done', exact: true }).click()
+    // the task is marked done...
+    await expect.poll(() => taskOnDisk(dir, 'seed-1')?.status === 'done', { timeout: 10_000 }).toBe(true)
+    // ...and a "Remove worktree" confirm is offered; confirming deletes the folder + archives the node.
+    const confirm = win.locator('.modal-overlay')
+    await expect(confirm).toBeVisible({ timeout: 10_000 })
+    await expect(confirm).toContainText('Remove worktree')
+    await confirm.getByRole('button', { name: 'Remove', exact: true }).click()
+    await expect.poll(() => !existsSync(wtPath), { timeout: 30_000 }).toBe(true)
+    await expect
+      .poll(() => worktreeNodes(dir).find((w) => w.branch === 'CRF-1')?.status === 'archived', { timeout: 30_000 })
+      .toBe(true)
+  } finally {
+    await app.close()
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(container, { recursive: true, force: true })
+  }
+})
