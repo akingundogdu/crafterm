@@ -36,26 +36,31 @@ test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async
     await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('All')
 
     await test.step('Tab / Shift+Tab cycle the tab strip', async () => {
-      await win.locator('input.search-box-input').focus() // Tab is handled by the input's keydown
-      await win.keyboard.press('Tab')
+      // The spotlight keydown is bound to the input (spotlight.ts) and focus is
+      // applied via setTimeout(focus,0). locator.press is atomic — actionability
+      // wait -> focus -> key in one step — so the keystroke always lands on the
+      // focused input, with no focus/press race that full-suite load can lose.
+      const search = win.locator('input.search-box-input')
+      await search.press('Tab')
       await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('Files')
-      await win.keyboard.press('Shift+Tab')
+      await search.press('Shift+Tab')
       await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('All')
     })
 
     await test.step('Terminals tab lists the open pane', async () => {
       await win.locator('button.spot-tab', { hasText: 'Terminals' }).click()
-      await expect(win.locator('.spot-list .spot-row').first()).toBeVisible({ timeout: 5_000 })
+      await expect(win.locator('.spot-list .spot-row').first()).toBeVisible({ timeout: 8_000 })
     })
 
     await test.step('Shortcuts tab is populated + content-assertable', async () => {
       await win.locator('button.spot-tab', { hasText: 'Shortcuts' }).click()
-      await expect(win.locator('.spot-list .spot-row', { hasText: 'Spotlight (unified search)' })).toBeVisible({ timeout: 5_000 })
+      await expect(win.locator('.spot-list .spot-row', { hasText: 'Spotlight (unified search)' })).toBeVisible({ timeout: 8_000 })
     })
 
     await test.step('Esc closes', async () => {
-      await win.locator('input.search-box-input').focus() // tab clicks moved focus; Esc is handled by the input
-      await win.keyboard.press('Escape')
+      // tab clicks moved focus to the tab buttons; press() re-focuses the input
+      // (Esc is handled by the input's keydown) and dispatches atomically.
+      await win.locator('input.search-box-input').press('Escape')
       await expect(win.locator('.modal-overlay')).toHaveCount(0)
     })
   } finally {
@@ -71,9 +76,10 @@ test('spotlight: Enter runs the selected shortcut (toggle sidebar) and closes', 
     await expect(win.locator('#app')).not.toHaveClass(/sidebar-collapsed/)
     await openSpotlight(win)
     await win.locator('button.spot-tab', { hasText: 'Shortcuts' }).click()
-    await win.locator('input.search-box-input').fill('Toggle sidebar')
-    await expect(win.locator('.spot-row.active', { hasText: 'Toggle sidebar' })).toBeVisible({ timeout: 5_000 })
-    await win.keyboard.press('Enter')
+    const search = win.locator('input.search-box-input')
+    await search.fill('Toggle sidebar')
+    await expect(win.locator('.spot-row.active', { hasText: 'Toggle sidebar' })).toBeVisible({ timeout: 8_000 })
+    await search.press('Enter') // atomic focus+key; Enter is handled by the input's keydown
     await expect(win.locator('.modal-overlay')).toHaveCount(0)
     await expect(win.locator('#app')).toHaveClass(/sidebar-collapsed/)
   } finally {

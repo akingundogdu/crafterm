@@ -13,6 +13,10 @@ export default defineConfig({
   // still fails both attempts.
   retries: 1,
   reporter: 'list',
+  // Keep a Playwright trace whenever a test still fails after its retry, so an
+  // inherent real-window timing flake is fully diagnosable (exact step + DOM +
+  // screenshots) instead of a bare summary line.
+  use: { trace: 'retain-on-failure' },
   // Visual-regression guard for the Phase 8 CSS split: screenshots must stay
   // pixel-identical across the move. Animations/caret are killed for determinism;
   // a tiny diff ratio absorbs sub-pixel font AA noise.
