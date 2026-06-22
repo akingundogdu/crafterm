@@ -9,7 +9,11 @@ export function encodeClaudeCwd(cwd: string): string {
   return cwd.replace(/[/.]/g, '-')
 }
 
-export const claudeProjectsDir = (): string => join(homedir(), '.claude', 'projects')
+// `~/.claude/projects` by default. `CRAFTERM_CLAUDE_DIR` overrides the root for
+// test isolation (mirrors the CRAFTERM_STATE_DIR hook) so e2e never reads or
+// writes the user's real Claude session data.
+export const claudeProjectsDir = (): string =>
+  process.env.CRAFTERM_CLAUDE_DIR || join(homedir(), '.claude', 'projects')
 
 // Read just the head of a file (session prompts/cwd live near the top).
 export function readHead(path: string, bytes = 16384): string {
