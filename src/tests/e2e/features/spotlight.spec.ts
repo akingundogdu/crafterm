@@ -31,6 +31,7 @@ test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async
   const dir = freshStateDir()
   const { app, win } = await launch(dir)
   try {
+    await expect(win.locator('.pane-box')).toHaveCount(1) // starter terminal must be registered for the Terminals tab
     await openSpotlight(win)
     await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('All')
 
