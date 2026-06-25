@@ -1,7 +1,5 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type ElectronApplication } from '@playwright/test'
+import { freshStateDir, launchApp, closeApp } from './_harness.js'
 
 // terminal.manager end-to-end through the real Electron main process: the generic
 // renderer bridge (window.crafterm.invoke/send/on over the pty:* channels) → pty:*
@@ -19,24 +17,11 @@ declare global {
   }
 }
 
-function freshDir(): string {
-  const d = mkdtempSync(join(tmpdir(), 'crafterm-e2e-terminal-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(d)) throw new Error('HR-5 violated: refusing real state dir')
-  return d
-}
-
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
-
 test('terminal: spawn a real pty, echo a token round-trips, kill tears it down', async () => {
-  const dir = freshDir()
+  const dir = freshStateDir('crafterm-e2e-terminal-')
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
 
@@ -87,7 +72,6 @@ test('terminal: spawn a real pty, echo a token round-trips, kill tears it down',
         .toBe(true)
     })
   } finally {
-    if (app) await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

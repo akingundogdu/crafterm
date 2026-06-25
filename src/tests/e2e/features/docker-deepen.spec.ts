@@ -1,7 +1,8 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Deeper Docker coverage (§7.8–§7.12) on top of docker.spec: the volumes/networks/
 // compose sub-tabs, container restart + remove actions, and the inspect detail
@@ -53,22 +54,11 @@ case "$1" in
 esac
 `
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dkd-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeStub(): { bin: string; state: string; container: string } {
   const container = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dkdstub-'))
   const bin = join(container, 'docker')
   writeFileSync(bin, STUB, { mode: 0o755 })
   return { bin, state: join(container, 'state'), container }
-}
-async function launch(dir: string, env: Record<string, string>): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir, ...env } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
 }
 function stubEnv(bin: string, state: string): Record<string, string> {
   return { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state }
@@ -76,8 +66,8 @@ function stubEnv(bin: string, state: string): Record<string, string> {
 
 test('docker-deepen: Volumes / Networks / Compose sub-tabs each list a seeded row', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dkd-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     await win.locator('.docker-subtab', { hasText: 'Volumes' }).click()
@@ -89,16 +79,14 @@ test('docker-deepen: Volumes / Networks / Compose sub-tabs each list a seeded ro
     await win.locator('.docker-subtab', { hasText: 'Compose' }).click()
     await expect(win.locator('#tab-list .docker-row', { hasText: 'myapp' })).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker-deepen: restarting a running container keeps it running (no error)', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dkd-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     const row = win.locator('#tab-list .docker-row', { hasText: 'web' })
@@ -110,16 +98,14 @@ test('docker-deepen: restarting a running container keeps it running (no error)'
       win.locator('#tab-list .docker-row', { hasText: 'web' }).getByRole('button', { name: 'Stop', exact: true })
     ).toBeVisible({ timeout: 10_000 }) // still running
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker-deepen: removing a container (confirm) makes the row disappear', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dkd-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     const row = win.locator('#tab-list .docker-row', { hasText: 'web' })
@@ -134,16 +120,14 @@ test('docker-deepen: removing a container (confirm) makes the row disappear', as
     await expect(win.locator('#tab-list .docker-row', { hasText: 'web' })).toHaveCount(0, { timeout: 10_000 })
     await expect(win.locator('#tab-list .docker-empty-row')).toBeVisible()
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker-deepen: the inspect modal shows the structured table + Raw JSON toggle + Logs/Terminal tabs', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dkd-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     const row = win.locator('#tab-list .docker-row', { hasText: 'web' })
@@ -167,8 +151,6 @@ test('docker-deepen: the inspect modal shows the structured table + Raw JSON tog
       await expect(modal.locator('.docker-detail-tab', { hasText: 'Terminal' })).toBeVisible()
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

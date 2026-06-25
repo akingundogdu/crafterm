@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { test, expect, type ElectronApplication } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // State persistence + load-validation, end to end, in ONE real-app session.
 // For every persisted entity we seed a VALID and a MALFORMED row, launch once
@@ -14,17 +14,8 @@ import { join } from 'node:path'
 const SCHEMA_VERSION = 4
 const NOW = Date.now()
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-ent-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> {
-  return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-}
-
 test('every persisted entity survives load-validation and round-trips to disk', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-ent-')
   const seed = {
     schemaVersion: SCHEMA_VERSION,
     // application + ios-config live nested in a ProjectNode; db-connection in dbTree.
@@ -95,10 +86,10 @@ test('every persisted entity survives load-validation and round-trips to disk', 
 
   let app: ElectronApplication | null = null
   try {
-    app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-    const win: Page = await app.firstWindow()
-    // The malformed rows must not crash the load: the shell still boots.
-    await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
+    // The malformed rows must not crash the load: launchApp asserts the shell boots.
+    const launched = await launchApp(dir)
+    app = launched.app
+    const win = launched.win
 
     // Flush the whole (validated) state to disk by adding a bookmark through the UI.
     const open = await win.locator('#app').evaluate((el) => el.classList.contains('notif-open'))
@@ -113,7 +104,7 @@ test('every persisted entity survives load-validation and round-trips to disk', 
 
     let st: Record<string, any> = {}
     await expect.poll(() => {
-      st = readState(dir)
+      st = readState(dir) ?? {}
       return Array.isArray(st.bookmarks) && st.bookmarks.some((b: any) => b.title === `FLUSH-${NOW}`)
     }, { timeout: 5_000 }).toBe(true)
 
@@ -157,7 +148,6 @@ test('every persisted entity survives load-validation and round-trips to disk', 
       expect(flattenConns(st.dbTree).some((c) => c.id === 'c-valid')).toBe(true)
     })
   } finally {
-    if (app) await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

@@ -1,8 +1,9 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // The user's end-to-end daily-task worktree story (§8.7 / §8.8 / §2 Claude resume):
 // (1) create a NEW task from the board, pick its project + a WORKTREE SLUG, and run
@@ -34,18 +35,6 @@ function makeRepo(): { container: string; repo: string } {
   execSync('git commit --allow-empty -m init', { cwd: repo, env: gitEnv() })
   return { container, repo }
 }
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dtwss-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
 function task(over: Record<string, any>): Record<string, any> {
   return { id: 'x', title: 'T', date: TODAY, status: 'todo', priority: 'medium', tagIds: [], order: 0, createdAt: 0, updatedAt: 0, ...over }
 }
@@ -73,14 +62,6 @@ function writeFixture(claudeDir: string, cwd: string, sessionId: string, lines: 
   mkdirSync(join(claudeDir, encodeCwd(cwd)), { recursive: true })
   writeFileSync(join(claudeDir, encodeCwd(cwd), sessionId + '.jsonl'), lines.map((l) => JSON.stringify(l)).join('\n') + '\n')
 }
-async function launch(dir: string, claudeDir?: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const env: Record<string, string> = { ...(process.env as Record<string, string>), CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir }
-  if (claudeDir) env.CRAFTERM_CLAUDE_DIR = claudeDir
-  const app = await electron.launch({ args: ['.'], env })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function openBoard(win: Page): Promise<ReturnType<Page['locator']>> {
   await win.locator('#sidebar-actions').click()
   await win.locator('.context-menu').getByRole('button', { name: /Daily plan/i }).click()
@@ -97,7 +78,7 @@ async function openPaneMenu(win: Page): Promise<ReturnType<Page['locator']>> {
 
 test('daily-task: new task from the board → project + worktree slug → Run in worktree creates CRF-N-slug + Claude session', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dtwss-')
   // seed ONLY the project; the task is created in the form so the new-task path
   // (commit() + assignIssueKey + slug) is exercised end-to-end.
   writeFileSync(
@@ -110,7 +91,7 @@ test('daily-task: new task from the board → project + worktree slug → Run in
       dailyPlan: { tasks: [], tags: [] }
     })
   )
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const board = await openBoard(win)
     await board.getByRole('button', { name: '+ New task' }).click()
@@ -145,15 +126,13 @@ test('daily-task: new task from the board → project + worktree slug → Run in
     await expect(win.locator('.pane-box.active .xterm-rows')).toContainText('ultrathink', { timeout: 15_000 })
     await expect.poll(() => leaves(dir).some((l) => l.tickets?.length === 1), { timeout: 10_000 }).toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('daily-task: after review→test, close+reopen resumes the session and keeps the test status + chip', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dtwss-')
   const claudeDir = join(dir, 'claude')
   const SID = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000050'
   const TASK_ID = 'resume-task-1'
@@ -176,7 +155,7 @@ test('daily-task: after review→test, close+reopen resumes the session and keep
 
   let app: ElectronApplication
   let win: Page
-  ;({ app, win } = await launch(dir, claudeDir))
+  ;({ app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir }))
   try {
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 12_000 })
 
@@ -188,7 +167,7 @@ test('daily-task: after review→test, close+reopen resumes the session and keep
 
     // close + reopen the same state dir
     await app.close()
-    ;({ app, win } = await launch(dir, claudeDir))
+    ;({ app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir }))
 
     // the session resumes where it left off (claude --resume <id> echoed into the xterm)
     await expect(win.locator('.pane-box .xterm-rows')).toContainText(`claude --resume ${SID}`, { timeout: 15_000 })
@@ -197,8 +176,6 @@ test('daily-task: after review→test, close+reopen resumes the session and keep
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 12_000 })
     await expect.poll(() => leaves(dir).some((l) => l.tickets?.[0] === TASK_ID), { timeout: 10_000 }).toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

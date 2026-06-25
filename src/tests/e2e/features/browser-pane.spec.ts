@@ -1,7 +1,5 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect } from '@playwright/test'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Browser pane (§2): the Electron <webview>. Browser panes are runtime-only (no
 // seedable leaf), so we open one via the pane ⋯ menu → "Open URL in browser…".
@@ -9,22 +7,10 @@ import { join } from 'node:path'
 // out-of-process guest frame — cross-context + network-dependent, not asserted).
 // HR-5: throwaway state dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-web-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
-
 test('browser pane: opening a URL mounts a <webview> with controls', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-web-')
   const URL = 'https://example.com/'
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     // a starter terminal exists; open its ⋯ menu → "Open URL in browser…"
     await expect(win.locator('.pane-box')).toHaveCount(1)
@@ -43,7 +29,6 @@ test('browser pane: opening a URL mounts a <webview> with controls', async () =>
     await expect(pane.locator('.pane-btn[title="Open in external browser"]')).toBeVisible()
     await expect(pane.locator('.pane-title')).toContainText('example.com')
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

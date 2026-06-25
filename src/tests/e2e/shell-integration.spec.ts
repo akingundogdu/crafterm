@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs'
+import { test, expect, type ElectronApplication } from '@playwright/test'
+import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from './_harness.js'
 
 // Phase 3 end-to-end: the ZDOTDIR shim (features.md §9 "ZDOTDIR shim + zsh
 // preexec last-cmd capture") is generated from script templates at startup. The
@@ -12,14 +12,11 @@ import { join } from 'node:path'
 // capture would stop working — this spec catches that. HR-5: throwaway dir.
 
 test('startup writes the ZDOTDIR shim from templates into the state dir', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-shim-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
+  const dir = freshStateDir('crafterm-e2e-shim-')
 
   let app: ElectronApplication | null = null
   try {
-    app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-    const win = await app.firstWindow()
-    await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
+    app = (await launchApp(dir)).app
 
     const zdot = join(dir, 'zdotdir')
     // shim setup runs at module init; poll briefly in case it lands just after boot
@@ -38,7 +35,6 @@ test('startup writes the ZDOTDIR shim from templates into the state dir', async 
     expect(zshenv).toContain('CRAFTERM_ZDOTDIR="$ZDOTDIR"')
     expect(zprofile).toContain('source "${USER_ZDOTDIR:-$HOME}/.zprofile"')
   } finally {
-    if (app) await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

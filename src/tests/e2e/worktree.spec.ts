@@ -1,8 +1,9 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Git worktree management (§3): create via the New-worktree modal (hidden
 // `git worktree add` → reconcile materializes the node), remove → archived; plus
@@ -26,30 +27,10 @@ function makeRepo(): { container: string; repo: string } {
   execSync('git commit --allow-empty -m init', { cwd: repo, env: gitEnv() })
   return { container, repo }
 }
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-wts-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
 function worktreeNodes(dir: string): any[] {
   const walk = (nodes: any[]): any[] =>
     (nodes ?? []).flatMap((n) => (n.kind === 'worktree' ? [n, ...walk(n.children)] : walk(n.children)))
   return walk(readState(dir)?.tree ?? [])
-}
-async function launch(dir: string, claudeDir?: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const env: Record<string, string> = { ...process.env as Record<string, string>, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir }
-  if (claudeDir) env.CRAFTERM_CLAUDE_DIR = claudeDir
-  const app = await electron.launch({ args: ['.'], env })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
 }
 function seedProject(stateDir: string, repo: string): void {
   const seed = {
@@ -97,9 +78,9 @@ function writeFixture(claudeDir: string, cwd: string, sessionId: string, lines: 
 
 test('worktree: create via the New-worktree modal, then remove archives it', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-wts-')
   seedProject(dir, repo)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     // the seeded project reconciles on load and auto-creates the "worktrees" container
     const wtContainer = win.locator('#tab-list .tab-item', { hasText: 'worktrees' }).first()
@@ -127,9 +108,7 @@ test('worktree: create via the New-worktree modal, then remove archives it', asy
         .toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
@@ -142,7 +121,7 @@ test('worktree: a claude session + the worktree status segment work in a worktre
   // cwd, so encode the realpath to match the JSONL fixture dir.
   const wtReal = realpathSync(wtPath)
 
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-wts-')
   const claudeDir = join(dir, 'claude')
   const U = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000010'
   seedClaudeLeaf(dir, wtReal, U)
@@ -150,7 +129,7 @@ test('worktree: a claude session + the worktree status segment work in a worktre
     { type: 'user', message: { role: 'user', content: 'hi' } },
     { type: 'custom-title', customTitle: 'WT Claude' }
   ])
-  const { app, win } = await launch(dir, claudeDir)
+  const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     await test.step('claude title binds at the worktree cwd', async () => {
@@ -160,8 +139,6 @@ test('worktree: a claude session + the worktree status segment work in a worktre
       await expect(win.locator('.pane-box.active .pane-status-seg.worktree')).toBeVisible({ timeout: 15_000 })
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

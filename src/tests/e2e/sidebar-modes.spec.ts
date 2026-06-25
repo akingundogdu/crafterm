@@ -1,7 +1,5 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type Page } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Left sidebar (§3): mode switching, the shared search filter, and collapse —
 // none of which sidebar-hierarchy.spec touches. The active MODE is intentionally
@@ -10,24 +8,6 @@ import { join } from 'node:path'
 // relaunch. HR-5: throwaway state dir only. Harness inlined per the repo's
 // self-contained-spec convention.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-sb-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function fillModal(win: Page, fills: string[], submit: string): Promise<void> {
   const modal = win.locator('.modal-overlay')
   await expect(modal).toBeVisible()
@@ -39,8 +19,8 @@ async function fillModal(win: Page, fills: string[], submit: string): Promise<vo
 const PROJECT = `E2E SearchTarget ${Date.now()}`
 
 test('sidebar: switch modes, filter with search, toggle + persist collapse', async () => {
-  const dir = freshStateDir()
-  let { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-sb-')
+  let { app, win } = await launchApp(dir)
   try {
     const appEl = win.locator('#app')
 
@@ -91,11 +71,10 @@ test('sidebar: switch modes, filter with search, toggle + persist collapse', asy
         .poll(() => readState(dir)?.sidebar?.collapsed === true, { timeout: 5_000 })
         .toBe(true)
       await app.close()
-      ;({ app, win } = await launch(dir))
+      ;({ app, win } = await launchApp(dir))
       await expect(win.locator('#app')).toHaveClass(/sidebar-collapsed/)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

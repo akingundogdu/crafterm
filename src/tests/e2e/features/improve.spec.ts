@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { test, expect, type Page } from '@playwright/test'
+import { writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Improve / Todo screen (§8): loads the todo JSON into 3 tabs + persists a new
 // feature request. The todo file is the top-level `todoFile` setting — pointed at
@@ -18,17 +18,6 @@ const TODO_SEED = {
   ]
 }
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-imp-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 // Cmd+Shift+L is a TOGGLE and can miss the first keypress before focus settles.
 // Press only when the modal isn't already open, so a slow-to-open modal (under
 // full-suite load) isn't toggled shut by a retry press — which previously left it
@@ -43,11 +32,11 @@ async function openImprove(win: Page): Promise<void> {
 }
 
 test('improve: loads the todo JSON into 3 tabs + a feature request persists', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-imp-')
   const todoPath = join(dir, 'todo-list.json')
   writeFileSync(todoPath, JSON.stringify(TODO_SEED))
   writeFileSync(join(dir, 'crafterm-state.json'), JSON.stringify({ schemaVersion: 4, tree: [], todoFile: todoPath }))
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await openImprove(win)
     const modal = win.locator('.modal.improve-modal')
@@ -86,7 +75,6 @@ test('improve: loads the todo JSON into 3 tabs + a feature request persists', as
         .toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

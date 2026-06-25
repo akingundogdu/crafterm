@@ -1,7 +1,5 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Terminal-session persistence (§2 + §9): a tab's pane LAYOUT serializes onto the
 // tab node as `root` (split/leaf tree). We create a split, set a per-pane bg +
@@ -10,24 +8,6 @@ import { join } from 'node:path'
 // the archive lifecycle: close → archived + hidden → show-archived → restore.
 // HR-5: throwaway state dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-sess-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 function collectLeaves(node: any): any[] {
   if (!node) return []
   if (node.type === 'leaf') return [node]
@@ -40,8 +20,8 @@ function tabs(dir: string): any[] {
 }
 
 test('session: split layout + per-pane bg + rename restore on relaunch', async () => {
-  const dir = freshStateDir()
-  let { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-sess-')
+  let { app, win } = await launchApp(dir)
   const RENAMED = 'My Split Pane'
   try {
     await test.step('split the starter terminal', async () => {
@@ -83,20 +63,19 @@ test('session: split layout + per-pane bg + rename restore on relaunch', async (
 
     await test.step('restore on relaunch', async () => {
       await app.close()
-      ;({ app, win } = await launch(dir))
+      ;({ app, win } = await launchApp(dir))
       await expect(win.locator('.pane-box')).toHaveCount(2)
       await expect(win.locator('.pane-title', { hasText: RENAMED })).toBeVisible()
       expect(tabs(dir).some((t) => t.root?.type === 'split')).toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('session: close archives, show-archived reveals, restore rebuilds', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-sess-')
+  const { app, win } = await launchApp(dir)
   try {
     await test.step('create a second session (starter + one more)', async () => {
       await expect(win.locator('#tab-list .tab-item')).toHaveCount(1) // starter
@@ -130,7 +109,6 @@ test('session: close archives, show-archived reveals, restore rebuilds', async (
         .toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

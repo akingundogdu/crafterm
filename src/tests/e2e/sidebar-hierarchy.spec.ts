@@ -1,7 +1,5 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // A single real-app session that builds a sidebar hierarchy the way a user would
 // — project -> nested folder -> bookmark — entirely through the UI, then verifies
@@ -13,24 +11,6 @@ const PROJECT = 'E2E Hierarchy'
 const FOLDER = 'E2E Sub Folder'
 const BOOKMARK = `E2E Bookmark ${Date.now()}`
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-wf-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null // not written yet on a fresh dir
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function dialogConfirm(win: Page, fills: string[]): Promise<void> {
   const modal = win.locator('.modal-overlay')
   await expect(modal).toBeVisible()
@@ -41,12 +21,12 @@ async function dialogConfirm(win: Page, fills: string[]): Promise<void> {
 }
 
 test('build project -> nested folder -> bookmark in one session and restore on relaunch', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-wf-')
 
   // ---- Session 1: build the hierarchy through the real UI ----
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
 
@@ -86,20 +66,19 @@ test('build project -> nested folder -> bookmark in one session and restore on r
       expect(folder, 'folder nested under project').toBeTruthy()
     })
   } finally {
-    if (app) await app.close()
+    await closeApp(app)
   }
 
   // ---- Session 2: relaunch the same dir; the hierarchy is restored ----
   let app2: ElectronApplication | null = null
   try {
-    const s2 = await launch(dir)
+    const s2 = await launchApp(dir)
     app2 = s2.app
     await expect(s2.win.locator('#tab-list')).toContainText(PROJECT)
     await expect(s2.win.locator('#tab-list')).toContainText(FOLDER)
     await s2.win.locator('#notif-tab-bm').click()
     await expect(s2.win.locator('#notif-bm-view')).toContainText(BOOKMARK)
   } finally {
-    if (app2) await app2.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app2, dir)
   }
 })

@@ -1,7 +1,8 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Remaining Docker actions (§7.11 volume/network remove + prune; §7.12 compose
 // restart/down) on top of docker-deepen.spec. Driven by an extended stateful STUB
@@ -60,22 +61,11 @@ case "$1" in
 esac
 `
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dka-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeStub(): { bin: string; state: string; container: string } {
   const container = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dkastub-'))
   const bin = join(container, 'docker')
   writeFileSync(bin, STUB, { mode: 0o755 })
   return { bin, state: join(container, 'state'), container }
-}
-async function launch(dir: string, env: Record<string, string>): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir, ...env } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
 }
 function stubEnv(bin: string, state: string): Record<string, string> {
   return { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state }
@@ -83,8 +73,8 @@ function stubEnv(bin: string, state: string): Record<string, string> {
 
 test('docker-actions: removing a volume (confirm) makes the row disappear', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dka-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     await win.locator('.docker-subtab', { hasText: 'Volumes' }).click()
@@ -99,16 +89,14 @@ test('docker-actions: removing a volume (confirm) makes the row disappear', asyn
     await expect(win.locator('#tab-list .docker-row', { hasText: 'pgdata' })).toHaveCount(0, { timeout: 10_000 })
     await expect(win.locator('#tab-list .docker-empty-row')).toBeVisible()
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker-actions: removing a network (confirm) makes the row disappear', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dka-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     await win.locator('.docker-subtab', { hasText: 'Networks' }).click()
@@ -123,16 +111,14 @@ test('docker-actions: removing a network (confirm) makes the row disappear', asy
     await expect(win.locator('#tab-list .docker-row', { hasText: 'myapp_net' })).toHaveCount(0, { timeout: 10_000 })
     await expect(win.locator('#tab-list .docker-empty-row')).toBeVisible()
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker-actions: pruning unused images (confirm) runs without error', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dka-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     await win.locator('.docker-subtab', { hasText: 'Images' }).click()
@@ -147,16 +133,14 @@ test('docker-actions: pruning unused images (confirm) runs without error', async
     await expect(win.locator('.docker-text-modal')).toHaveCount(0)
     await expect(win.locator('#tab-list .docker-row', { hasText: 'nginx' })).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker-actions: restarting a compose project runs without error', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dka-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     await win.locator('.docker-subtab', { hasText: 'Compose' }).click()
@@ -169,16 +153,14 @@ test('docker-actions: restarting a compose project runs without error', async ()
       win.locator('#tab-list .docker-row', { hasText: 'myapp' }).getByRole('button', { name: 'Stop', exact: true })
     ).toBeVisible({ timeout: 10_000 }) // still running
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker-actions: taking a compose project down (confirm) flips it to offer Start', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, stubEnv(bin, state))
+  const dir = freshStateDir('crafterm-e2e-dka-')
+  const { app, win } = await launchApp(dir, stubEnv(bin, state))
   try {
     await win.locator('#tab-docker').click()
     await win.locator('.docker-subtab', { hasText: 'Compose' }).click()
@@ -196,8 +178,6 @@ test('docker-actions: taking a compose project down (confirm) flips it to offer 
       win.locator('#tab-list .docker-row', { hasText: 'myapp' }).getByRole('button', { name: 'Start', exact: true })
     ).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

@@ -1,31 +1,11 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type ElectronApplication } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // Project sub-entities through the real Settings UI: applications (nested in
 // ProjectNode.apps, via applicationRepo) and the per-project iOS config (via
 // iosConfigRepo). Create a project in the sidebar, then add an app + enable iOS
 // in Settings → Projects, asserting render + persist + relaunch restore.
 
-function freshDir(): string {
-  const d = mkdtempSync(join(tmpdir(), 'crafterm-e2e-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(d)) throw new Error('HR-5 violated: refusing real state dir')
-  return d
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function waitForState(dir: string, pred: (st: Record<string, any>) => boolean): Promise<void> {
   await expect.poll(() => { const st = readState(dir); return !!st && pred(st) }, { timeout: 5_000 }).toBe(true)
 }
@@ -40,11 +20,11 @@ const PROJECT = `E2E Proj ${Date.now()}`
 const APP = `e2e-app-${Date.now()}`
 
 test('settings/projects: add an application and enable iOS; restore on relaunch', async () => {
-  const dir = freshDir()
+  const dir = freshStateDir()
 
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
 
@@ -88,7 +68,7 @@ test('settings/projects: add an application and enable iOS; restore on relaunch'
 
   let app2: ElectronApplication | null = null
   try {
-    const s2 = await launch(dir)
+    const s2 = await launchApp(dir)
     app2 = s2.app
     const st = readState(dir)!
     const proj = findProject(st.tree, PROJECT)
@@ -96,7 +76,6 @@ test('settings/projects: add an application and enable iOS; restore on relaunch'
     expect(!!proj?.iosConfig, 'iosConfig restored').toBe(true)
     await expect(s2.win.locator('#tab-list')).toContainText(PROJECT)
   } finally {
-    if (app2) await app2.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app2, dir)
   }
 })

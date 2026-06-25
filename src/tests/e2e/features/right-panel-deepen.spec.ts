@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { test, expect } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // Right panel §6 deepen: the remind-me/snooze popover on a notification card creates
 // a reminder, and a fired reminder carrying a payload target shows an Open action
@@ -13,26 +13,8 @@ const TODAY = (() => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })()
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-rpd-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
 function writeState(dir: string, state: Record<string, any>): void {
   writeFileSync(join(dir, 'crafterm-state.json'), JSON.stringify({ schemaVersion: 4, notifSound: '', ...state }))
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
 }
 
 test('right-panel: the remind-me popover on a card creates a reminder', async () => {
@@ -41,7 +23,7 @@ test('right-panel: the remind-me popover on a card creates a reminder', async ()
     tree: [],
     notifications: [{ id: 'n-pane', paneId: 'pane-xyz', title: 'E2E Pane Card', group: 'proj', message: 'needs you', event: 'question', time: Date.now() }]
   })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await win.locator('#notif-tab-notifs').click()
     const card = win.locator('.notif-card', { hasText: 'E2E Pane Card' })
@@ -60,8 +42,7 @@ test('right-panel: the remind-me popover on a card creates a reminder', async ()
       )
       .toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
@@ -77,7 +58,7 @@ test('right-panel: a fired reminder with a payload target shows an Open action t
     },
     reminders: [{ id: 'rem-payload', text: 'E2E Payload Fire', time: past, repeat: 'none', enabled: true, payload: { kind: 'dailyTask', taskId: 'task-e2e' } }]
   })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const card = win.locator('#notif-list .notif-card', { hasText: 'E2E Payload Fire' })
     await expect(card).toBeVisible({ timeout: 10_000 }) // fired on the launch tick
@@ -88,7 +69,6 @@ test('right-panel: a fired reminder with a payload target shows an Open action t
     // payload kind 'dailyTask' → showDailyPlanModal opens the board (in-app, no side effects)
     await expect(win.locator('.modal.daily-plan-modal')).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

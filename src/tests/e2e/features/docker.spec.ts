@@ -1,7 +1,8 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Docker sidebar mode (§7), driven by a STUB `docker` binary (via the
 // CRAFTERM_DOCKER_BIN override) emitting canned `{{json .}}` lines — deterministic,
@@ -31,28 +32,17 @@ case "$1" in
 esac
 `
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dk-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeStub(): { bin: string; state: string; container: string } {
   const container = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dkstub-'))
   const bin = join(container, 'docker')
   writeFileSync(bin, STUB, { mode: 0o755 })
   return { bin, state: join(container, 'state'), container }
 }
-async function launch(dir: string, env: Record<string, string>): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir, ...env } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 test('docker: lists containers from the stub; switch to Images', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state })
+  const dir = freshStateDir('crafterm-e2e-dk-')
+  const { app, win } = await launchApp(dir, { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state })
   try {
     await win.locator('#tab-docker').click() // default sub-tab "containers" → available() + ps run automatically
     await expect(win.locator('#tab-list .docker-row', { hasText: 'web' })).toBeVisible({ timeout: 10_000 })
@@ -62,16 +52,14 @@ test('docker: lists containers from the stub; switch to Images', async () => {
       await expect(win.locator('#tab-list .docker-row', { hasText: 'nginx' })).toBeVisible({ timeout: 10_000 })
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker: stopping a running container flips it to stopped (action → reload)', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state })
+  const dir = freshStateDir('crafterm-e2e-dk-')
+  const { app, win } = await launchApp(dir, { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state })
   try {
     await win.locator('#tab-docker').click()
     const row = win.locator('#tab-list .docker-row', { hasText: 'web' })
@@ -84,24 +72,20 @@ test('docker: stopping a running container flips it to stopped (action → reloa
       win.locator('#tab-list .docker-row', { hasText: 'web' }).getByRole('button', { name: 'Start', exact: true })
     ).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('docker: an unavailable daemon shows the empty state + Retry', async () => {
   const { bin, state, container } = makeStub()
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir, { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state, CRAFTERM_DOCKER_UNAVAIL: '1' })
+  const dir = freshStateDir('crafterm-e2e-dk-')
+  const { app, win } = await launchApp(dir, { CRAFTERM_DOCKER_BIN: bin, CRAFTERM_DOCKER_STATE: state, CRAFTERM_DOCKER_UNAVAIL: '1' })
   try {
     await win.locator('#tab-docker').click()
     await expect(win.locator('#tab-list .docker-empty-title')).toBeVisible({ timeout: 10_000 })
     await expect(win.locator('#tab-list .docker-empty')).toContainText('not available')
     await expect(win.locator('#tab-list button.settings-inline-btn', { hasText: 'Retry' })).toBeVisible()
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

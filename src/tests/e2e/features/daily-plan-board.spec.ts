@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { test, expect, type Page } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // Daily-plan board interactions (§8), deeper than the CRUD in daily-plan.spec:
 // drag a card between columns (status persists), tag filtering, and the changelog
@@ -13,29 +13,11 @@ const TODAY = (() => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })()
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dp-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
 function task(over: Record<string, any>): Record<string, any> {
   return { id: 'x', title: 'T', date: TODAY, status: 'todo', priority: 'medium', tagIds: [], order: 0, createdAt: 0, updatedAt: 0, ...over }
 }
 function seedDailyPlan(dir: string, tasks: Record<string, any>[], tags: Record<string, any>[] = []): void {
   writeFileSync(join(dir, 'crafterm-state.json'), JSON.stringify({ schemaVersion: 4, tree: [], dailyPlan: { tasks, tags } }))
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
 }
 async function openBoard(win: Page): Promise<Page['locator'] extends never ? never : ReturnType<Page['locator']>> {
   await win.locator('#sidebar-actions').click()
@@ -46,9 +28,9 @@ async function openBoard(win: Page): Promise<Page['locator'] extends never ? nev
 }
 
 test('daily-plan: drag a card to another column persists its status', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dp-')
   seedDailyPlan(dir, [task({ id: 'seed-1', title: 'Seed Task A', status: 'todo' })])
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const board = await openBoard(win)
     const card = board.locator('.daily-plan-card', { hasText: 'Seed Task A' })
@@ -59,19 +41,18 @@ test('daily-plan: drag a card to another column persists its status', async () =
       .poll(() => readState(dir)?.dailyPlan?.tasks?.find((t: any) => t.id === 'seed-1')?.status === 'done', { timeout: 5_000 })
       .toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('daily-plan: a tag filter narrows the board', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dp-')
   seedDailyPlan(
     dir,
     [task({ id: 't-tag', title: 'Tagged Task', tagIds: ['tag-1'] }), task({ id: 't-plain', title: 'Plain Task', order: 1 })],
     [{ id: 'tag-1', name: 'backend', color: '#3b82f6' }]
   )
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const board = await openBoard(win)
     await expect(board).toContainText('Tagged Task')
@@ -81,15 +62,14 @@ test('daily-plan: a tag filter narrows the board', async () => {
     await expect(board.locator('.daily-plan-board')).toContainText('Tagged Task')
     await expect(board.locator('.daily-plan-board')).not.toContainText('Plain Task')
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('daily-plan: the changelog report lists done tasks', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dp-')
   seedDailyPlan(dir, [task({ id: 'd-1', title: 'Seed Done Task', status: 'done' })])
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const board = await openBoard(win)
     await board.getByRole('button', { name: 'Changelog' }).click()
@@ -99,7 +79,6 @@ test('daily-plan: the changelog report lists done tasks', async () => {
     await expect(modal.locator('.changelog-output')).toHaveValue(/# Changelog/)
     await expect(modal.locator('.changelog-output')).toHaveValue(/Seed Done Task/)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

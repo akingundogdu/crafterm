@@ -1,7 +1,5 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Phase 6: the file explorer moved to screens/explorer/ (createTreeView + the
 // extracted file-icons). Drive it through the real UI — open a terminal so a
@@ -13,16 +11,14 @@ let app: ElectronApplication | null = null
 let win: Page
 
 test.beforeAll(async () => {
-  stateDir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-explorer-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(stateDir)) throw new Error('HR-5 violated: refusing real state dir')
-  app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: stateDir } })
-  win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
+  stateDir = freshStateDir('crafterm-e2e-explorer-')
+  const launched = await launchApp(stateDir)
+  app = launched.app
+  win = launched.win
 })
 
 test.afterAll(async () => {
-  if (app) await app.close()
-  if (stateDir) rmSync(stateDir, { recursive: true, force: true })
+  await closeApp(app, stateDir)
 })
 
 test('Files tab renders the explorer tree for the active terminal root', async () => {

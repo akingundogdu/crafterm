@@ -1,7 +1,5 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { freshStateDir, launchApp, closeApp } from './_harness.js'
 
 // Phase 5: drives the extracted renderer terminal modules through the REAL UI,
 // not the bridge. Creating a terminal pane runs createPane -> the per-tick
@@ -15,16 +13,12 @@ let app: ElectronApplication | null = null
 let win: Page
 
 test.beforeAll(async () => {
-  stateDir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-pane-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(stateDir)) throw new Error('HR-5 violated: refusing real state dir')
-  app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: stateDir } })
-  win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
+  stateDir = freshStateDir('crafterm-e2e-pane-')
+  ;({ app, win } = await launchApp(stateDir))
 })
 
 test.afterAll(async () => {
-  if (app) await app.close()
-  if (stateDir) rmSync(stateDir, { recursive: true, force: true })
+  await closeApp(app, stateDir)
 })
 
 test('new terminal renders a status bar with its cwd (pane-info + status-bar)', async () => {

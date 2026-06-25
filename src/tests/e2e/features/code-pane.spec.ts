@@ -1,17 +1,13 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Monaco code editor pane (§2), seeded deterministically via a `codePane` leaf
 // pointing at a real temp file. Covers open→edit→dirty→Cmd+S(disk) and Cmd+click
 // import resolution into the reused pane. HR-5: throwaway state dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-code-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeFiles(files: Record<string, string>): string {
   const container = mkdtempSync(join(tmpdir(), 'crafterm-e2e-src-'))
   for (const [name, content] of Object.entries(files)) {
@@ -39,19 +35,13 @@ function seedCodePane(stateDir: string, filePath: string, explorerRoot?: string)
   if (explorerRoot) seed.explorerRoot = explorerRoot
   writeFileSync(join(stateDir, 'crafterm-state.json'), JSON.stringify(seed))
 }
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 test('code-pane: open a file → Monaco mounts; edit → dirty; Cmd+S writes to disk', async () => {
   const src = makeFiles({ 'a.ts': 'const x = 1\n' })
   const file = join(src, 'a.ts')
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-code-')
   seedCodePane(dir, file)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const pane = win.locator('.pane-box.code-pane')
     await expect(pane).toBeVisible({ timeout: 15_000 })
@@ -70,19 +60,17 @@ test('code-pane: open a file → Monaco mounts; edit → dirty; Cmd+S writes to 
       await expect.poll(() => readFileSync(file, 'utf8').includes('EDIT_TOKEN'), { timeout: 5_000 }).toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(src, { recursive: true, force: true })
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, src, dir)
   }
 })
 
 test('code-pane: opening another file from the explorer reuses the same pane', async () => {
   const src = makeFiles({ 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\n' })
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-code-')
   // seed the code pane on a.ts + root the explorer at the temp src dir (no terminal
   // pane exists, so explorerRoot() falls through to settings.explorerRoot).
   seedCodePane(dir, join(src, 'a.ts'), src)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const pane = win.locator('.pane-box.code-pane')
     await expect(pane.locator('.diff-path')).toHaveAttribute('title', /a\.ts$/, { timeout: 15_000 })
@@ -95,8 +83,6 @@ test('code-pane: opening another file from the explorer reuses the same pane', a
       await expect(win.locator('.pane-box.code-pane')).toHaveCount(1) // reused, not a new pane
     })
   } finally {
-    await app.close()
-    rmSync(src, { recursive: true, force: true })
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, src, dir)
   }
 })

@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { test, expect, type Page } from '@playwright/test'
+import { writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Deeper Database coverage (§7.3/§7.5/§7.6) on top of db-pane.spec: object
 // introspection (expand a connection → tables), saved queries (.sql save/open/
@@ -10,17 +10,6 @@ import { join } from 'node:path'
 
 const CONFIG = { id: 'dbc-test', engine: 'sqlite' as const, file: '' }
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dbd-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 function seedDbTree(stateDir: string, sqlitePath: string): void {
   const seed = {
     schemaVersion: 4,
@@ -66,11 +55,11 @@ async function rowCount(win: Page, config: object): Promise<number> {
 }
 
 test('db-deepen: expanding a connection introspects its tables', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dbd-')
   const sqlite = join(dir, 'test.sqlite')
   const config = { ...CONFIG, file: sqlite }
   seedDbTree(dir, sqlite)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await seedUsers(win, config)
     await win.locator('#tab-database').click()
@@ -86,17 +75,16 @@ test('db-deepen: expanding a connection introspects its tables', async () => {
     await tablesRow.locator('.treeview-chevron').click()
     await expect(win.locator('#tab-list .db-obj-row .tab-title', { hasText: /^users$/ })).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('db-deepen: save a query → lists under Queries → delete removes it', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dbd-')
   const sqlite = join(dir, 'test.sqlite')
   const config = { ...CONFIG, file: sqlite }
   seedDbTree(dir, sqlite)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await seedUsers(win, config)
     await openSqlPane(win)
@@ -128,17 +116,16 @@ test('db-deepen: save a query → lists under Queries → delete removes it', as
     await expect(win.locator('#tab-list .db-obj-row', { hasText: 'daily-report' })).toHaveCount(0, { timeout: 10_000 })
     await expect.poll(() => existsSync(file), { timeout: 10_000 }).toBe(false)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('db-deepen: editing a row via the grid modal runs UPDATE + re-fetches', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dbd-')
   const sqlite = join(dir, 'test.sqlite')
   const config = { ...CONFIG, file: sqlite }
   seedDbTree(dir, sqlite)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await seedUsers(win, config)
     await openSqlPane(win)
@@ -158,17 +145,16 @@ test('db-deepen: editing a row via the grid modal runs UPDATE + re-fetches', asy
     const r = await dbQuery(win, config, 'SELECT name FROM users WHERE id = 1')
     expect(r.rows[0][0]).toBe('Alicia')
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('db-deepen: deleting a row via the grid runs DELETE + drops the row', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dbd-')
   const sqlite = join(dir, 'test.sqlite')
   const config = { ...CONFIG, file: sqlite }
   seedDbTree(dir, sqlite)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await seedUsers(win, config)
     await openSqlPane(win)
@@ -186,7 +172,6 @@ test('db-deepen: deleting a row via the grid runs DELETE + drops the row', async
     await expect(pane.locator('.db-grid')).not.toContainText('Alice')
     expect(await rowCount(win, config)).toBe(1)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

@@ -1,8 +1,9 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page, type Locator } from '@playwright/test'
+import { test, expect, type Page, type Locator } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Close-actions modal + worktree delete (§3.19 / §4.5): closing a terminal pane
 // that lives inside a managed git worktree shows the close-actions modal. The
@@ -34,18 +35,6 @@ function makeRepoWithWorktree(branch: string): { container: string; repo: string
   execSync(`git worktree add "${wtPath}" -b ${branch} main`, { cwd: repo, env: gitEnv() })
   return { container, repo, wtPath }
 }
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-wcas-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
 function worktreeNodes(dir: string): any[] {
   const walk = (nodes: any[]): any[] =>
     (nodes ?? []).flatMap((n) => (n.kind === 'worktree' ? [n, ...walk(n.children)] : walk(n.children)))
@@ -53,15 +42,6 @@ function worktreeNodes(dir: string): any[] {
 }
 function tasks(dir: string): any[] {
   return readState(dir)?.dailyPlan?.tasks ?? []
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({
-    args: ['.'],
-    env: { ...(process.env as Record<string, string>), CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir }
-  })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
 }
 
 // Seed a project (supportWorktree → reconcile materializes the worktree node) plus a
@@ -94,9 +74,9 @@ async function openCloseModal(win: Page, dir: string, branch: string): Promise<L
 
 test('close-actions: Delete-worktree ON removes the folder from disk + archives the node', async () => {
   const { container, repo, wtPath } = makeRepoWithWorktree('wt-del')
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-wcas-')
   seed(dir, repo, wtPath)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const modal = await openCloseModal(win, dir, 'wt-del')
     const wtRow = modal.locator('.close-action-row', { hasText: 'Delete worktree' })
@@ -115,17 +95,15 @@ test('close-actions: Delete-worktree ON removes the folder from disk + archives 
       .poll(() => worktreeNodes(dir).find((w) => w.branch === 'wt-del')?.status === 'archived', { timeout: 30_000 })
       .toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('close-actions: Delete-worktree OFF keeps the folder, still closes the pane', async () => {
   const { container, repo, wtPath } = makeRepoWithWorktree('wt-keep')
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-wcas-')
   seed(dir, repo, wtPath)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const modal = await openCloseModal(win, dir, 'wt-keep')
     const wtRow = modal.locator('.close-action-row', { hasText: 'Delete worktree' })
@@ -150,15 +128,13 @@ test('close-actions: Delete-worktree OFF keeps the folder, still closes the pane
       )
       .toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('close-actions: a daily-task pane shows the Mark-done switch; confirm marks it done + deletes the worktree', async () => {
   const { container, repo, wtPath } = makeRepoWithWorktree('wt-task')
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-wcas-')
   const TASK_ID = 'task-close-1'
   seed(dir, repo, wtPath, {
     ticket: TASK_ID,
@@ -175,7 +151,7 @@ test('close-actions: a daily-task pane shows the Mark-done switch; confirm marks
       updatedAt: 1
     }
   })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const modal = await openCloseModal(win, dir, 'wt-task')
     const taskRow = modal.locator('.close-action-row', { hasText: 'Mark task as done' })
@@ -189,17 +165,15 @@ test('close-actions: a daily-task pane shows the Mark-done switch; confirm marks
     await expect.poll(() => tasks(dir).find((t) => t.id === TASK_ID)?.status === 'done', { timeout: 10_000 }).toBe(true)
     await expect.poll(() => !existsSync(wtPath), { timeout: 30_000 }).toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('close-actions: Cancel keeps the terminal open and the worktree on disk', async () => {
   const { container, repo, wtPath } = makeRepoWithWorktree('wt-cancel')
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-wcas-')
   seed(dir, repo, wtPath)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const modal = await openCloseModal(win, dir, 'wt-cancel')
     await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -208,8 +182,6 @@ test('close-actions: Cancel keeps the terminal open and the worktree on disk', a
     expect(existsSync(wtPath)).toBe(true)
     await expect.poll(() => worktreeNodes(dir).find((w) => w.branch === 'wt-cancel')?.status).toBe('idle')
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { test, expect, type Page } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // SQL pane + result grid (§7), backed by a temp SQLite file. The connection is
 // seeded into dbTree; the schema/rows are seeded through the app's own db:query
@@ -10,17 +10,6 @@ import { join } from 'node:path'
 
 const CONFIG = { id: 'dbc-test', engine: 'sqlite' as const, file: '' }
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-db-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 function seedDbTree(stateDir: string, sqlitePath: string): void {
   const seed = {
     schemaVersion: 4,
@@ -61,11 +50,11 @@ async function seedUsers(win: Page, config: object): Promise<void> {
 }
 
 test('db-pane: run a query → result grid (rows + timing) + sort cycle', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-db-')
   const sqlite = join(dir, 'test.sqlite')
   const config = { ...CONFIG, file: sqlite }
   seedDbTree(dir, sqlite)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await seedUsers(win, config)
     await openSqlPane(win)
@@ -85,17 +74,16 @@ test('db-pane: run a query → result grid (rows + timing) + sort cycle', async 
       await expect(pane.locator('.db-grid tbody tr')).toHaveCount(2)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('db-pane: inserting a row via the grid modal re-fetches with the new row', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-db-')
   const sqlite = join(dir, 'test.sqlite')
   const config = { ...CONFIG, file: sqlite }
   seedDbTree(dir, sqlite)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await seedUsers(win, config)
     await openSqlPane(win)
@@ -116,7 +104,6 @@ test('db-pane: inserting a row via the grid modal re-fetches with the new row', 
       await expect(pane.locator('.db-grid')).toContainText('Carol')
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

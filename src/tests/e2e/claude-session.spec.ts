@@ -1,7 +1,8 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir, homedir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs'
+import { test, expect } from '@playwright/test'
+import { homedir } from 'node:os'
+import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Claude-session binding lifecycle (§2), Layer A only — Crafterm's handoff, NOT
 // the model's context continuity. We drive it WITHOUT the real claude CLI by
@@ -9,30 +10,9 @@ import { join } from 'node:path'
 // (Claude's own record shapes). HR-5: throwaway state dir only; the real
 // ~/.claude is never touched.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-cl-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
 function rootLeaf(dir: string): any {
   const tab = (readState(dir)?.tree ?? []).find((n: any) => n.kind === 'tab')
   return tab?.root?.type === 'leaf' ? tab.root : null
-}
-async function launch(dir: string, claudeDir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({
-    args: ['.'],
-    env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir, CRAFTERM_CLAUDE_DIR: claudeDir }
-  })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
 }
 // Claude encodes a cwd into its project-dir name by replacing "/" and "." with "-".
 function encodeCwd(cwd: string): string {
@@ -74,10 +54,10 @@ function seedClaudeSession(stateDir: string, cwd: string, sessionId: string): vo
 }
 
 test('claude: typing `claude` flips detection and the session id binds + persists', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-cl-')
   const claudeDir = join(dir, 'claude')
   const U = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000001'
-  const { app, win } = await launch(dir, claudeDir)
+  const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     await win.locator('.pane-term').first().click()
@@ -94,30 +74,28 @@ test('claude: typing `claude` flips detection and the session id binds + persist
       await expect.poll(() => rootLeaf(dir)?.claudeSessionId === U, { timeout: 15_000 }).toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('claude: a restored session injects `claude --resume <id>` on launch', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-cl-')
   const claudeDir = join(dir, 'claude')
   const U = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000002'
   seedClaudeSession(dir, homedir(), U)
-  const { app, win } = await launch(dir, claudeDir)
+  const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     // buildLayout injects `claude --resume <id>\r` 500ms after restore; the shell
     // echoes the injected command into the rendered xterm.
     await expect(win.locator('.pane-term .xterm-rows')).toContainText(`claude --resume ${U}`, { timeout: 12_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('claude: /rename custom-title syncs to the pane header + sidebar label', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-cl-')
   const claudeDir = join(dir, 'claude')
   const U = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000003'
   const cwd = homedir()
@@ -126,7 +104,7 @@ test('claude: /rename custom-title syncs to the pane header + sidebar label', as
     { type: 'user', message: { role: 'user', content: 'hi' } },
     { type: 'custom-title', customTitle: 'Renamed One' }
   ])
-  const { app, win } = await launch(dir, claudeDir)
+  const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
     await test.step('initial custom-title reflects in both places', async () => {
       await expect(win.locator('.pane-box .pane-title', { hasText: 'Renamed One' })).toBeVisible({ timeout: 12_000 })
@@ -138,13 +116,12 @@ test('claude: /rename custom-title syncs to the pane header + sidebar label', as
       await expect(win.locator('#tab-list .tab-item .tab-title', { hasText: 'Renamed Two' })).toBeVisible({ timeout: 12_000 })
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('claude: the sidebar status pill reflects the session JSONL state', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-cl-')
   const claudeDir = join(dir, 'claude')
   const U = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000004'
   const cwd = homedir()
@@ -152,7 +129,7 @@ test('claude: the sidebar status pill reflects the session JSONL state', async (
   writeFixture(claudeDir, cwd, U, [
     { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Done.' }] } }
   ])
-  const { app, win } = await launch(dir, claudeDir)
+  const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
     await expect(win.locator('#tab-list .tab-item .claude-status.claude-idle')).toBeVisible({ timeout: 12_000 })
     await test.step('flips to "question" when the assistant ends on a ?', async () => {
@@ -162,7 +139,6 @@ test('claude: the sidebar status pill reflects the session JSONL state', async (
       await expect(win.locator('#tab-list .tab-item .claude-status.claude-question')).toBeVisible({ timeout: 12_000 })
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

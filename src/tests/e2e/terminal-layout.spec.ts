@@ -1,31 +1,11 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Terminal split layout (§2): nested splits build the LayoutNode tree, the active
 // highlight follows the focused pane, and the resizer drag changes the split
 // ratio (persisted). Live-layout behaviors that session-persistence.spec (which
 // covers split round-trip) doesn't. HR-5: throwaway state dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-lay-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 function splitTab(dir: string): any {
   const walk = (nodes: any[]): any[] =>
     (nodes ?? []).flatMap((n) => (n.kind === 'tab' ? [n] : walk(n.children)))
@@ -33,8 +13,8 @@ function splitTab(dir: string): any {
 }
 
 test('terminal: nested splits build the tree; active highlight follows focus', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-lay-')
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1) // starter
     await win.keyboard.press('Meta+d') // split row -> 2
@@ -63,14 +43,13 @@ test('terminal: nested splits build the tree; active highlight follows focus', a
       await expect(win.locator('.pane-box.active')).toHaveCount(1)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('terminal: resizer drag changes the split ratio (persisted)', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-lay-')
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     await win.keyboard.press('Meta+d')
@@ -91,7 +70,6 @@ test('terminal: resizer drag changes the split ratio (persisted)', async () => {
       }, { timeout: 5_000 })
       .toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

@@ -1,8 +1,9 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from './_harness.js'
 
 // Drives the service extractions end-to-end through the real main process bridge:
 // notebook, fs, git, and app-info. Each proves the IPC → service path works in the
@@ -26,18 +27,15 @@ let app: ElectronApplication | null = null
 let win: Page
 
 test.beforeAll(async () => {
-  stateDir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-svc-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(stateDir)) throw new Error('HR-5 violated: refusing real state dir')
+  stateDir = freshStateDir('crafterm-e2e-svc-')
   work = realpathSync(mkdtempSync(join(tmpdir(), 'crafterm-e2e-work-')))
-  app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: stateDir } })
-  win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
+  const launched = await launchApp(stateDir)
+  app = launched.app
+  win = launched.win
 })
 
 test.afterAll(async () => {
-  if (app) await app.close()
-  if (stateDir) rmSync(stateDir, { recursive: true, force: true })
-  if (work) rmSync(work, { recursive: true, force: true })
+  await closeApp(app, stateDir, work)
 })
 
 test('notebook: full CRUD + tree through the bridge', async () => {

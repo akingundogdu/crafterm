@@ -1,8 +1,9 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Background-process panes (§2): a worktree's "Run in background…" starts a hidden
 // PTY; clicking its sidebar sub-row opens a view whose xterm is seeded by the
@@ -20,11 +21,6 @@ function makeRepo(): { container: string; repo: string } {
   execSync('git commit --allow-empty -m init', { cwd: repo, env: gitEnv() })
   return { container, repo }
 }
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-bg-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function seedProject(stateDir: string, repo: string): void {
   writeFileSync(
     join(stateDir, 'crafterm-state.json'),
@@ -34,18 +30,12 @@ function seedProject(stateDir: string, repo: string): void {
     })
   )
 }
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 test('background process: run-in-background → view replays the buffer → close keeps it', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-bg-')
   seedProject(dir, repo)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     // create a worktree via the modal (the proven worktree.spec path)
     const wtContainer = win.locator('#tab-list .tab-item', { hasText: 'worktrees' }).first()
@@ -79,8 +69,6 @@ test('background process: run-in-background → view replays the buffer → clos
       await expect(win.locator('#tab-list .tab-pane-row', { hasText: 'BGTOKEN' })).toBeVisible()
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

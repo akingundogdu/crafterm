@@ -1,8 +1,9 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // Daily-plan task actions (§8.7 / §8.8): Open in Claude (▶ card → seeded terminal,
 // task → In Progress, pane bound), Run in worktree (real git worktree + terminal at
@@ -32,18 +33,6 @@ function makeRepo(): { container: string; repo: string } {
   execSync('git init -b main', { cwd: repo, env: gitEnv() })
   execSync('git commit --allow-empty -m init', { cwd: repo, env: gitEnv() })
   return { container, repo }
-}
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-dpas-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
 }
 function task(over: Record<string, any>): Record<string, any> {
   return { id: 'x', title: 'T', date: TODAY, status: 'todo', priority: 'medium', tagIds: [], order: 0, createdAt: 0, updatedAt: 0, ...over }
@@ -85,15 +74,6 @@ function boundTab(taskId: string): Record<string, any> {
     }
   }
 }
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({
-    args: ['.'],
-    env: { ...(process.env as Record<string, string>), CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir }
-  })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function openBoard(win: Page): Promise<ReturnType<Page['locator']>> {
   await win.locator('#sidebar-actions').click()
   await win.locator('.context-menu').getByRole('button', { name: /Daily plan/i }).click()
@@ -110,11 +90,11 @@ async function openPaneMenu(win: Page): Promise<ReturnType<Page['locator']>> {
 
 test('daily-plan: Open in Claude spawns a bound terminal, moves the task to In Progress, seeds the prompt', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dpas-')
   seedState(dir, repo, [
     task({ id: 'seed-1', title: 'Open in Claude task', description: 'do the thing', projectId: 'p-test', issueKey: 'CRF-1', status: 'todo' })
   ])
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const board = await openBoard(win)
     const card = board.locator('.daily-plan-card', { hasText: 'Open in Claude task' })
@@ -134,19 +114,17 @@ test('daily-plan: Open in Claude spawns a bound terminal, moves the task to In P
     await expect(win.locator('.pane-box.active .xterm-rows')).toContainText('ultrathink', { timeout: 15_000 })
     await expect(win.locator('.pane-box.active .xterm-rows')).toContainText('CRF-1')
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('daily-plan: Run in worktree creates the git worktree + opens a terminal at its cwd', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dpas-')
   seedState(dir, repo, [task({ id: 'wt-1', title: 'WT task', projectId: 'p-test', issueKey: 'CRF-1', status: 'todo' })], {
     supportWorktree: true
   })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     const board = await openBoard(win)
     const card = board.locator('.daily-plan-card', { hasText: 'WT task' })
@@ -162,19 +140,17 @@ test('daily-plan: Run in worktree creates the git worktree + opens a terminal at
     // ...and a terminal opens at the worktree cwd (worktree status segment present).
     await expect(win.locator('.pane-box.active .pane-status-seg.worktree')).toBeVisible({ timeout: 20_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('daily-plan: pane ⋯ menu marks the bound task review → test → done', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dpas-')
   const tab = boundTab('seed-1')
   tab.root.cwd = repo
   seedState(dir, repo, [task({ id: 'seed-1', title: 'Pane task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], { tab })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 10_000 })
@@ -188,22 +164,20 @@ test('daily-plan: pane ⋯ menu marks the bound task review → test → done', 
     await (await openPaneMenu(win)).getByRole('button', { name: 'Mark as done', exact: true }).click()
     await expect.poll(() => taskOnDisk(dir, 'seed-1')?.status === 'done', { timeout: 10_000 }).toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('daily-plan: pane ⋯ menu assigns an unbound pane to a task', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dpas-')
   // an unbound terminal pane (no tickets) + a task to assign it to.
   const tab = {
     kind: 'tab', title: 'Term', titleLocked: false, color: null, pinned: false, status: 'idle',
     root: { type: 'leaf', stableId: 'aaaaaaaa-bbbb-4ccc-8ddd-000000000032', cwd: repo, claude: true, claudeSessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-000000000032' }
   }
   seedState(dir, repo, [task({ id: 'seed-1', title: 'Assignable task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], { tab })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     await (await openPaneMenu(win)).getByRole('button', { name: /Assign to daily task/ }).click()
@@ -214,19 +188,17 @@ test('daily-plan: pane ⋯ menu assigns an unbound pane to a task', async () => 
     await expect.poll(() => leaves(dir).some((l) => l.tickets?.[0] === 'seed-1'), { timeout: 10_000 }).toBe(true)
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
 test('daily-plan: pane ⋯ menu "View ticket detail" opens the task form', async () => {
   const { container, repo } = makeRepo()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dpas-')
   const tab = boundTab('seed-1')
   tab.root.cwd = repo
   seedState(dir, repo, [task({ id: 'seed-1', title: 'Detail task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], { tab })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 10_000 })
     await (await openPaneMenu(win)).getByRole('button', { name: /View ticket detail/ }).click()
@@ -234,9 +206,7 @@ test('daily-plan: pane ⋯ menu "View ticket detail" opens the task form', async
     await expect(form).toBeVisible({ timeout: 10_000 })
     await expect(form.locator('.daily-plan-title-input')).toHaveValue('Detail task')
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })
 
@@ -247,14 +217,14 @@ test('daily-plan: pane ⋯ Mark done while in the task worktree offers to remove
   const wtPath = join(container, 'worktrees', 'CRF-1')
   mkdirSync(join(container, 'worktrees'), { recursive: true })
   execSync(`git worktree add "${wtPath}" -b CRF-1 main`, { cwd: repo, env: gitEnv() })
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-dpas-')
   const tab = boundTab('seed-1')
   tab.root.cwd = wtPath // the pane lives inside the worktree
   seedState(dir, repo, [task({ id: 'seed-1', title: 'WT done task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], {
     tab,
     supportWorktree: true
   })
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     // wait for the worktree node to reconcile so offerDeleteTaskWorktree can find it
     await expect.poll(() => worktreeNodes(dir).some((w) => w.branch === 'CRF-1'), { timeout: 30_000 }).toBe(true)
@@ -273,8 +243,6 @@ test('daily-plan: pane ⋯ Mark done while in the task worktree offers to remove
       .poll(() => worktreeNodes(dir).find((w) => w.branch === 'CRF-1')?.status === 'archived', { timeout: 30_000 })
       .toBe(true)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, container)
   }
 })

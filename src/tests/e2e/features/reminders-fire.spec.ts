@@ -1,31 +1,12 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { test, expect } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // Reminder timer firing (§6) — the behavior the existing reminders.spec (add/
 // delete/restore) never exercises. A past-due reminder fires on the immediate
 // launch tick (no 20s wait): a notification card appears, a one-shot disables +
 // stamps firedAt, and a repeat advances its time. HR-5: throwaway dir only.
-
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-rem-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 test('reminders: a past-due reminder fires on launch (card + state change)', async () => {
   const dir = freshStateDir()
@@ -43,7 +24,7 @@ test('reminders: a past-due reminder fires on launch (card + state change)', asy
       ]
     })
   )
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await test.step('the one-shot reminder pushes a notification card', async () => {
       await expect(win.locator('#notif-list .notif-card', { hasText: 'E2E OneShot Fire' })).toBeVisible({ timeout: 10_000 })
@@ -58,7 +39,6 @@ test('reminders: a past-due reminder fires on launch (card + state change)', asy
         .toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

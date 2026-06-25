@@ -1,17 +1,13 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Doc pane (§2): open a markdown file from the Files tab → it renders; Edit shows
 // a textarea with the raw markdown; Cmd+S writes back to disk (stays in edit).
 // Opened via the explorer (no seedable doc leaf). HR-5: throwaway dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-doc-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeDocDir(): { dir: string; file: string } {
   const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-docsrc-'))
   const file = join(dir, 'note.md')
@@ -21,18 +17,11 @@ function makeDocDir(): { dir: string; file: string } {
 function seedExplorerRoot(stateDir: string, root: string): void {
   writeFileSync(join(stateDir, 'crafterm-state.json'), JSON.stringify({ schemaVersion: 4, tree: [], explorerRoot: root }))
 }
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
-
 test('doc-pane: markdown renders → Edit shows the textarea → Cmd+S writes to disk', async () => {
   const { dir: src, file } = makeDocDir()
-  const stateDir = freshStateDir()
+  const stateDir = freshStateDir('crafterm-e2e-doc-')
   seedExplorerRoot(stateDir, src)
-  const { app, win } = await launch(stateDir)
+  const { app, win } = await launchApp(stateDir)
   try {
     await win.locator('#notif-tab-files').click()
     await win.locator('#explorer-tree').getByText('note.md', { exact: true }).click()
@@ -59,8 +48,6 @@ test('doc-pane: markdown renders → Edit shows the textarea → Cmd+S writes to
       await expect(pane.getByRole('button', { name: 'Preview', exact: true })).toBeVisible() // still editing
     })
   } finally {
-    await app.close()
-    rmSync(src, { recursive: true, force: true })
-    rmSync(stateDir, { recursive: true, force: true })
+    await closeApp(app, src, stateDir)
   }
 })

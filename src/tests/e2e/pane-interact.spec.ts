@@ -1,38 +1,18 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Live terminal-pane interactions (§2.37/§2.41–44): per-pane font zoom (Cmd+=/-/0,
 // active pane only) and pane drag-to-rearrange (pointer-event grip drag → movePane
 // restructures the layout). HR-5: throwaway state dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-pint-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
 function splitTab(dir: string): any {
   const walk = (nodes: any[]): any[] => (nodes ?? []).flatMap((n) => (n.kind === 'tab' ? [n] : walk(n.children)))
   return walk(readState(dir)?.tree ?? []).find((t) => t.root?.type === 'split')
 }
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 test('pane: Cmd+= / Cmd+0 zoom the active pane font only (per-pane)', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-pint-')
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     await win.keyboard.press('Meta+d') // split → 2 panes, to prove "active pane only"
@@ -53,14 +33,13 @@ test('pane: Cmd+= / Cmd+0 zoom the active pane font only (per-pane)', async () =
     await win.keyboard.press('Meta+0')
     await expect(rows0).toHaveCSS('font-size', `${base}px`) // reset clears the per-pane override
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('pane: dragging the pane grip onto another pane rearranges the layout (row → col)', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-pint-')
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1)
     await win.keyboard.press('Meta+d') // flat row split
@@ -96,7 +75,6 @@ test('pane: dragging the pane grip onto another pane rearranges the layout (row 
     await expect.poll(() => splitTab(dir)?.root?.dir, { timeout: 5_000 }).toBe('col') // restructured row → col
     await expect(win.locator('.pane-box')).toHaveCount(2) // only the structure changed, not the count
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

@@ -1,18 +1,13 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { test, expect, type Page } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Time tracking deepen (§6): the report modal aggregates seeded entries
 // (project→feature breakdown + total), and starting a pomodoro shows a running
 // countdown. Pomodoro/auto FINISH needs minutes (no test hook) → deferred.
 // HR-5: throwaway state dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-time-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function seedTime(dir: string): void {
   const now = Date.now()
   writeFileSync(
@@ -32,12 +27,6 @@ function seedTime(dir: string): void {
     })
   )
 }
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function openTime(win: Page): Promise<void> {
   const open = await win.locator('#app').evaluate((el) => el.classList.contains('notif-open'))
   if (!open) await win.locator('#statusbar-notif-toggle').click()
@@ -45,9 +34,9 @@ async function openTime(win: Page): Promise<void> {
 }
 
 test('time: the report modal aggregates seeded entries (project → feature → total)', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-time-')
   seedTime(dir)
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await openTime(win)
     await win.locator('#time-report-btn').click()
@@ -58,15 +47,14 @@ test('time: the report modal aggregates seeded entries (project → feature → 
     await expect(modal.locator('.time-report-proj', { hasText: 'Beta' })).toContainText('1h 0m')
     await expect(modal.locator('.time-report-total')).toContainText('1h 55m') // 115m
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('time: starting a pomodoro shows a running countdown', async () => {
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-time-')
   seedTime(dir) // provides the projects for #time-project
-  const { app, win } = await launch(dir)
+  const { app, win } = await launchApp(dir)
   try {
     await openTime(win)
     await win.locator('#time-project').selectOption({ label: 'Alpha' })
@@ -76,7 +64,6 @@ test('time: starting a pomodoro shows a running countdown', async () => {
     await expect(win.locator('#time-elapsed')).toHaveText(/^00:2[45]:\d\d$/) // counting down from 25:00
     await win.locator('#time-toggle').click() // stop early (logs a short pomodoro entry)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

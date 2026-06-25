@@ -1,31 +1,11 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type Page } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
 
 // Left sidebar (§3) node behaviors: type-specific row render, inline rename
 // (double-click), and the per-node context menu (pin/unpin) — with on-disk
 // `tree` assertions, not just rendered text. HR-5: throwaway state dir only.
 // Harness inlined per the repo's self-contained-spec convention.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-sbn-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function fillModal(win: Page, fills: string[], submit: string): Promise<void> {
   const modal = win.locator('.modal-overlay')
   await expect(modal).toBeVisible()
@@ -47,8 +27,8 @@ const FOLDER = 'E2E Nodes Folder'
 const RENAMED = 'E2E Renamed Folder'
 
 test('sidebar: node render, inline rename, context-menu pin/unpin', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-sbn-')
+  const { app, win } = await launchApp(dir)
   try {
     await test.step('create a project + nested folder', async () => {
       await win.locator('#new-project').click()
@@ -103,7 +83,6 @@ test('sidebar: node render, inline rename, context-menu pin/unpin', async () => 
       await expect.poll(() => !findNode(readState(dir)?.tree, RENAMED), { timeout: 5_000 }).toBe(true)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

@@ -1,7 +1,8 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Diff pane (§2/§7): open a PR diff via the stub `gh` (pr:diff → unified diff →
 // parse → render), assert the file + changed lines render, and a line selection
@@ -23,11 +24,6 @@ case "$1 $2" in
 esac
 `
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-diff-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeRepo(): string {
   const repo = mkdtempSync(join(tmpdir(), 'crafterm-e2e-diffrepo-'))
   mkdirSync(join(repo, '.git'))
@@ -45,19 +41,12 @@ function seedPrProjects(stateDir: string, repo: string): void {
     JSON.stringify({ schemaVersion: 4, tree: [], notifications: [], codeRoot: tmpdir(), prProjects: [repo] })
   )
 }
-async function launch(dir: string, env: Record<string, string>): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir, ...env } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
-
 test('diff-pane: a PR diff renders the file + changed lines; selection sends a ref', async () => {
   const repo = makeRepo()
   const { bin, container } = makeGhStub()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-diff-')
   seedPrProjects(dir, repo)
-  const { app, win } = await launch(dir, { CRAFTERM_GH_BIN: bin })
+  const { app, win } = await launchApp(dir, { CRAFTERM_GH_BIN: bin })
   try {
     await win.locator('#notif-tab-pr').click()
     await win.locator('.pr-scopetabs .pr-subtab', { hasText: /all/i }).click()
@@ -82,9 +71,6 @@ test('diff-pane: a PR diff renders the file + changed lines; selection sends a r
       await expect(win.locator('.pane-box .pane-term .xterm-rows')).toContainText('hello.txt:2', { timeout: 8_000 })
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(repo, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, repo, container)
   }
 })

@@ -1,29 +1,9 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // Bookmarks through the real UI: the form writes via bookmarkRepo, the panel
 // reads via bookmarkRepo.getAll(). Add, delete, and confirm restore on relaunch.
 
-function freshDir(): string {
-  const d = mkdtempSync(join(tmpdir(), 'crafterm-e2e-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(d)) throw new Error('HR-5 violated: refusing real state dir')
-  return d
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function waitForState(dir: string, pred: (st: Record<string, any>) => boolean): Promise<void> {
   await expect.poll(() => { const st = readState(dir); return !!st && pred(st) }, { timeout: 5_000 }).toBe(true)
 }
@@ -45,11 +25,11 @@ const B1 = `E2E Bookmark Keep ${Date.now()}`
 const B2 = `E2E Bookmark Drop ${Date.now()}`
 
 test('bookmarks: add, delete, and restore on relaunch', async () => {
-  const dir = freshDir()
+  const dir = freshStateDir()
 
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
     await openBookmarks(win)
@@ -72,18 +52,17 @@ test('bookmarks: add, delete, and restore on relaunch', async () => {
       await waitForState(dir, (st) => !(st.bookmarks ?? []).some((b: any) => b.title === B2))
     })
   } finally {
-    if (app) await app.close()
+    await closeApp(app)
   }
 
   let app2: ElectronApplication | null = null
   try {
-    const s2 = await launch(dir)
+    const s2 = await launchApp(dir)
     app2 = s2.app
     await openBookmarks(s2.win)
     await expect(s2.win.locator('#notif-bm-view')).toContainText(B1)
     await expect(s2.win.locator('#notif-bm-view')).not.toContainText(B2)
   } finally {
-    if (app2) await app2.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app2, dir)
   }
 })

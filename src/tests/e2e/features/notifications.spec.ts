@@ -1,30 +1,18 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { test, expect, type ElectronApplication } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Notification panel through the real UI. Cards are an in-memory, capped feed
 // read via notificationRepo; dismiss/clear mutate it. They're created by app
 // events, so we seed a couple recent ones, then exercise dismiss + clear-all.
-
-function freshDir(): string {
-  const d = mkdtempSync(join(tmpdir(), 'crafterm-e2e-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(d)) throw new Error('HR-5 violated: refusing real state dir')
-  return d
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 const NOW = Date.now()
 const N1 = `E2E Notif One ${NOW}`
 const N2 = `E2E Notif Two ${NOW}`
 
 test('notifications: dismiss a card and clear all', async () => {
-  const dir = freshDir()
+  const dir = freshStateDir()
   writeFileSync(
     join(dir, 'crafterm-state.json'),
     JSON.stringify({
@@ -39,7 +27,7 @@ test('notifications: dismiss a card and clear all', async () => {
 
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
     await win.locator('#notif-tab-notifs').click()
@@ -61,7 +49,6 @@ test('notifications: dismiss a card and clear all', async () => {
       await expect(win.locator('#notif-list')).toContainText('No notifications')
     })
   } finally {
-    if (app) await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

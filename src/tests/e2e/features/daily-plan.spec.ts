@@ -1,31 +1,11 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page, type Locator } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type ElectronApplication, type Page, type Locator } from '@playwright/test'
+import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
 
 // Daily Plan board through the real UI: the task form writes via dailyTaskRepo,
 // the board reads via dailyTaskRepo.getAll(). A task requires a project (issue
 // key), so we create one in the sidebar first. Add a task, delete it, and
 // confirm restore on relaunch.
 
-function freshDir(): string {
-  const d = mkdtempSync(join(tmpdir(), 'crafterm-e2e-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(d)) throw new Error('HR-5 violated: refusing real state dir')
-  return d
-}
-function readState(dir: string): Record<string, any> | null {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'crafterm-state.json'), 'utf8'))
-  } catch {
-    return null
-  }
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 async function waitForState(dir: string, pred: (st: Record<string, any>) => boolean): Promise<void> {
   await expect.poll(() => { const st = readState(dir); return !!st && pred(st) }, { timeout: 5_000 }).toBe(true)
 }
@@ -63,11 +43,11 @@ async function addTask(win: Page, board: Locator, title: string): Promise<void> 
 }
 
 test('daily plan: add a task, delete one, and restore on relaunch', async () => {
-  const dir = freshDir()
+  const dir = freshStateDir()
 
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
     await createProject(win, PROJECT)
@@ -91,29 +71,28 @@ test('daily plan: add a task, delete one, and restore on relaunch', async () => 
       await waitForState(dir, (st) => !(st.dailyPlan?.tasks ?? []).some((t: any) => t.title === T2))
     })
   } finally {
-    if (app) await app.close()
+    await closeApp(app)
   }
 
   let app2: ElectronApplication | null = null
   try {
-    const s2 = await launch(dir)
+    const s2 = await launchApp(dir)
     app2 = s2.app
     const board = await openDailyPlan(s2.win)
     await expect(board.locator('.daily-plan-board')).toContainText(T1)
     await expect(board.locator('.daily-plan-board')).not.toContainText(T2)
   } finally {
-    if (app2) await app2.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app2, dir)
   }
 })
 
 const TAG = `e2e-tag-${Date.now()}`
 
 test('daily plan: create a tag in the task form and persist it (daily-tag)', async () => {
-  const dir = freshDir()
+  const dir = freshStateDir()
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
     await createProject(win, PROJECT)
@@ -138,7 +117,6 @@ test('daily plan: create a tag in the task form and persist it (daily-tag)', asy
     expect(tag, 'tag persisted').toBeTruthy()
     expect(task?.tagIds, 'tag assigned to the task').toContain(tag.id)
   } finally {
-    if (app) await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

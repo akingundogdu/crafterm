@@ -1,7 +1,8 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // PR panel (§7), driven by a STUB `gh` binary (via CRAFTERM_GH_BIN) emitting canned
 // JSON — no GitHub, no network. The "All" scope avoids needing a terminal/cwd: it
@@ -26,11 +27,6 @@ case "$1 $2" in
 esac
 `
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-pr-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeRepo(): string {
   const repo = mkdtempSync(join(tmpdir(), 'crafterm-e2e-prrepo-'))
   mkdirSync(join(repo, '.git')) // listAll only requires a .git dir (gh is stubbed)
@@ -48,19 +44,13 @@ function seedPrProjects(stateDir: string, repo: string): void {
     JSON.stringify({ schemaVersion: 4, tree: [], notifications: [], codeRoot: tmpdir(), prProjects: [repo] })
   )
 }
-async function launch(dir: string, env: Record<string, string>): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir, ...env } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 test('pr: the All-scope panel lists PRs from the stub gh', async () => {
   const repo = makeRepo()
   const { bin, state, container } = makeGhStub()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-pr-')
   seedPrProjects(dir, repo)
-  const { app, win } = await launch(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
+  const { app, win } = await launchApp(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
   try {
     await win.locator('#notif-tab-pr').click() // right panel is open by default; this fetches
     await win.locator('.pr-scopetabs .pr-subtab', { hasText: /all/i }).click()
@@ -71,19 +61,16 @@ test('pr: the All-scope panel lists PRs from the stub gh', async () => {
     await expect(card.locator('.pr-branch-ref.head')).toContainText('feature/dark')
     await expect(card.locator('.pr-tags .pr-status-tag').first()).toBeVisible()
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(repo, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, repo, container)
   }
 })
 
 test('pr: merging a PR runs gh + drops it from the re-fetched list', async () => {
   const repo = makeRepo()
   const { bin, state, container } = makeGhStub()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-pr-')
   seedPrProjects(dir, repo)
-  const { app, win } = await launch(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
+  const { app, win } = await launchApp(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
   try {
     await win.locator('#notif-tab-pr').click()
     await win.locator('.pr-scopetabs .pr-subtab', { hasText: /all/i }).click()
@@ -95,9 +82,6 @@ test('pr: merging a PR runs gh + drops it from the re-fetched list', async () =>
     // stub wrote the sentinel → re-render re-runs `pr list` → [] → the card is gone
     await expect(win.locator('#notif-pr-view .pr-card', { hasText: '#42' })).toHaveCount(0, { timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(repo, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, repo, container)
   }
 })

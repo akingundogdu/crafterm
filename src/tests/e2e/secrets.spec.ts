@@ -1,7 +1,7 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
+import { test, expect, type ElectronApplication } from '@playwright/test'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from './_harness.js'
 
 // secrets.service end-to-end through the real Electron main process: the generic
 // renderer bridge (window.crafterm.invoke over the secrets:* channels) → secrets:*
@@ -18,28 +18,15 @@ declare global {
   }
 }
 
-function freshDir(): string {
-  const d = mkdtempSync(join(tmpdir(), 'crafterm-e2e-secrets-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(d)) throw new Error('HR-5 violated: refusing real state dir')
-  return d
-}
-
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
-
 const ENTRY = 'e2e-entry'
 const KEY = 'password'
 const VALUE = 'sup3r-s3cret-VALUE-token'
 
 test('secrets: round-trip via the bridge, encrypted on disk, deletable', async () => {
-  const dir = freshDir()
+  const dir = freshStateDir('crafterm-e2e-secrets-')
   let app: ElectronApplication | null = null
   try {
-    const s = await launch(dir)
+    const s = await launchApp(dir)
     app = s.app
     const win = s.win
 
@@ -82,7 +69,6 @@ test('secrets: round-trip via the bridge, encrypted on disk, deletable', async (
       expect(existsSync(join(dir, 'secrets', ENTRY, KEY + '.bin'))).toBe(false)
     })
   } finally {
-    if (app) await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })

@@ -1,7 +1,8 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Deeper PR coverage (§7.20 Deployments sub-tab + §7.16 project picker) on top of
 // pr.spec. Driven by a STUB `gh` binary (CRAFTERM_GH_BIN) — no GitHub/network. The
@@ -31,11 +32,6 @@ case "$1 $2" in
 esac
 `
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-prd-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
 function makeRepo(): string {
   const repo = mkdtempSync(join(tmpdir(), 'crafterm-e2e-prdrepo-'))
   mkdirSync(join(repo, '.git')) // listAll/deploysAll only require a .git dir (gh is stubbed)
@@ -71,19 +67,13 @@ function seedEmptyPrProjects(stateDir: string, codeRoot: string): void {
     JSON.stringify({ schemaVersion: 4, tree: [], notifications: [], codeRoot, prProjects: [] })
   )
 }
-async function launch(dir: string, env: Record<string, string>): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir, ...env } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 
 test('pr: the Deployments All-scope tab renders deployment + workflow-run cards with badges', async () => {
   const repo = makeRepo()
   const { bin, state, container } = makeGhStub()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-prd-')
   seedPrProjects(dir, repo)
-  const { app, win } = await launch(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
+  const { app, win } = await launchApp(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
   try {
     await win.locator('#notif-tab-pr').click()
     await win.locator('.pr-subtab', { hasText: 'Deployments' }).click() // view strip (unique label)
@@ -99,19 +89,16 @@ test('pr: the Deployments All-scope tab renders deployment + workflow-run cards 
     await expect(run.locator('.pr-status-tag')).toContainText('success')
     await expect(run.locator('.pr-act.primary')).toBeVisible() // open-on-GitHub (don't click)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(repo, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, repo, container)
   }
 })
 
 test('pr: the project picker scopes the All-projects PR list to the saved repos', async () => {
   const { root } = makeCodeRoot(['alpha', 'beta'])
   const { bin, state, container } = makeGhStub()
-  const dir = freshStateDir()
+  const dir = freshStateDir('crafterm-e2e-prd-')
   seedEmptyPrProjects(dir, root) // empty → the "+ Add projects" bar shows
-  const { app, win } = await launch(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
+  const { app, win } = await launchApp(dir, { CRAFTERM_GH_BIN: bin, CRAFTERM_GH_STATE: state })
   try {
     await win.locator('#notif-tab-pr').click()
     await win.locator('.pr-scopetabs .pr-subtab', { hasText: /all/i }).click()
@@ -129,9 +116,6 @@ test('pr: the project picker scopes the All-projects PR list to the saved repos'
     await expect(win.locator('#notif-pr-view .pr-section-head')).toContainText('alpha')
     await expect(win.locator('#notif-pr-view .pr-card', { hasText: '#42' })).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(root, { recursive: true, force: true })
-    rmSync(container, { recursive: true, force: true })
+    await closeApp(app, dir, root, container)
   }
 })

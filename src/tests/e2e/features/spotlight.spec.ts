@@ -1,23 +1,10 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { test, expect, type Page } from '@playwright/test'
+import { freshStateDir, launchApp, closeApp } from '../_harness.js'
 
 // Spotlight (Cmd+P) palette (§4): open, Tab/Shift+Tab tab cycling, deterministic
 // tab population (Terminals from the starter pane, Shortcuts from KEYBINDINGS),
 // Enter runs the selected result, Esc closes. HR-5: throwaway state dir only.
 
-function freshStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'crafterm-e2e-spot-'))
-  if (/\.crafterm(-dev)?(\/|$)/.test(dir)) throw new Error('HR-5 violated: refusing real state dir')
-  return dir
-}
-async function launch(dir: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, CRAFTERM_E2E: '1', CRAFTERM_STATE_DIR: dir } })
-  const win = await app.firstWindow()
-  await expect(win.locator('#app')).toBeVisible({ timeout: 30_000 })
-  return { app, win }
-}
 // Cmd+P can miss the very first keypress if the window hasn't taken focus yet;
 // retry until the modal opens (a 2nd Cmd+P is a no-op once the modal is active).
 async function openSpotlight(win: Page): Promise<void> {
@@ -28,8 +15,8 @@ async function openSpotlight(win: Page): Promise<void> {
 }
 
 test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-spot-')
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('.pane-box')).toHaveCount(1) // starter terminal must be registered for the Terminals tab
     await openSpotlight(win)
@@ -64,14 +51,13 @@ test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async
       await expect(win.locator('.modal-overlay')).toHaveCount(0)
     })
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
 
 test('spotlight: Enter runs the selected shortcut (toggle sidebar) and closes', async () => {
-  const dir = freshStateDir()
-  const { app, win } = await launch(dir)
+  const dir = freshStateDir('crafterm-e2e-spot-')
+  const { app, win } = await launchApp(dir)
   try {
     await expect(win.locator('#app')).not.toHaveClass(/sidebar-collapsed/)
     await openSpotlight(win)
@@ -83,7 +69,6 @@ test('spotlight: Enter runs the selected shortcut (toggle sidebar) and closes', 
     await expect(win.locator('.modal-overlay')).toHaveCount(0)
     await expect(win.locator('#app')).toHaveClass(/sidebar-collapsed/)
   } finally {
-    await app.close()
-    rmSync(dir, { recursive: true, force: true })
+    await closeApp(app, dir)
   }
 })
