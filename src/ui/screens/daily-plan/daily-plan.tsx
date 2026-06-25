@@ -7,12 +7,12 @@ import type {
 import type { DailyRange } from './daily-plan.types'
 import { state, panes } from '@ui/state/state'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
-import { promptConfirm } from '@ui/components/dialog/dialog'
+import { promptConfirm, makeCloseButton } from '@ui/components/dialog/dialog'
 import { findProjectById } from '@ui/catalog/catalog'
 import { openClaudeWithPrompt } from '@ui/commands/commands'
 import { ensureWorktreeForBranch, worktreeNodeForBranch, removeWorktree } from '@services/worktrees'
 import { refreshPaneDailyTask } from '@ui/pane/pane'
-import { createDateField } from '@ui/components'
+import { createDateField, createOverlay } from '@ui/components'
 import { boardColumnOf, shiftDays } from './task-helpers'
 import {
   STATUSES,
@@ -33,6 +33,8 @@ import { showChangelogModal } from './components/changelog-modal'
 import { openTagFilterPopover as buildTagFilterPopover } from './components/tag-filter-popover'
 import { assignPaneToTask as buildAssignPaneToTask } from './components/assign-task-modal'
 import { DailyPlanModalController, DailyCompactController } from './daily-plan.controller'
+import DailyPlanBoard from '@views/screens/daily-plan/daily-plan'
+import store from '@views/screens/daily-plan/daily-plan.store'
 
 let selectedRange: DailyRange = 'day'
 // Board project filter (todo4): null = all projects, else only this project's tasks.
@@ -40,7 +42,7 @@ let projectFilter: string | null = null
 
 // Active tag filter (tag ids). Empty = no filter. A task matches when it carries
 // ANY of the selected tags (OR semantics).
-const tagFilter = new Set<string>()
+export const tagFilter = new Set<string>()
 
 function matchesTagFilter(task: DailyPlanTask): boolean {
   if (!tagFilter.size) return true
@@ -67,7 +69,7 @@ function tasksForScope(): DailyPlanTask[] {
 // Open the create/edit task form, wiring the board's live selected date + the
 // terminal-launch action into the extracted form component. Keeps the historic
 // (existing, onSaved, defaultStatus) signature so every call site is unchanged.
-function showTaskForm(
+export function showTaskForm(
   existing: DailyPlanTask | null,
   onSaved: () => void,
   defaultStatus: DailyPlanStatus = 'todo'
@@ -95,7 +97,7 @@ function renderCard(task: DailyPlanTask, rerender: () => void): HTMLElement {
 
 // Open a Claude terminal in the task's project, seeded with title + description
 // and titled by the issue key. Warns (and aborts) when no project / prefix is set.
-async function openTaskInTerminal(
+export async function openTaskInTerminal(
   task: DailyPlanTask,
   onChange: () => void,
   useWorktree = false
@@ -247,14 +249,38 @@ export function assignPaneToTask(paneId: string): void {
 let selectedDate = todayKey()
 
 export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): void {
-  new DailyPlanModalController({
-    setSelectedDate: (date) => {
-      selectedDate = date
-    },
-    showTaskForm,
-    renderHeader,
-    renderBoard
-  }).open(initialDate, focusTaskId)
+  store.setSelectedDate(initialDate ?? todayKey())
+  store.reload()
+
+  const { overlay, mount, close, onClose } = createOverlay()
+
+  const onKey = (e: KeyboardEvent): void => {
+    // Defer to a child form modal or an open tag-filter popover (they handle Esc).
+    if (document.querySelector('.daily-plan-form-overlay') || document.querySelector('.daily-tagfilter-pop')) return
+    e.stopPropagation()
+    if (e.key === 'Escape') {
+      close()
+    } else if (e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
+      e.preventDefault()
+      showTaskForm(null, () => store.reload())
+    }
+  }
+  onClose(() => document.removeEventListener('keydown', onKey, true))
+  document.addEventListener('keydown', onKey, true)
+
+  const modal = (<div class="modal daily-plan-modal" />) as HTMLDivElement
+  modal.appendChild(makeCloseButton(close))
+  // Mount the gea board (header + reactive columns) into the legacy modal shell.
+  new DailyPlanBoard().render(modal)
+  overlay.appendChild(modal)
+
+  mount()
+
+  // Deep-link: open the edit form for a specific task (e.g. from a reminder card).
+  if (focusTaskId) {
+    const task = dailyTaskRepo.getAll().find((t) => t.id === focusTaskId)
+    if (task) showTaskForm(task, () => store.reload())
+  }
 }
 
 // Last in-place re-render of the docked daily panel (right panel or Notebook
@@ -453,7 +479,7 @@ function showManageTagsModal(rerender: () => void): void {
 
 // Open the tag-filter popover anchored under its button, wiring the active tag
 // filter + board re-render into the extracted component.
-function openTagFilterPopover(anchor: HTMLElement, rerender: () => void): void {
+export function openTagFilterPopover(anchor: HTMLElement, rerender: () => void): void {
   buildTagFilterPopover({ anchor, tagFilter, rerender })
 }
 
