@@ -1,4 +1,5 @@
-import { settings, uid } from '@ui/state/state'
+import { uid } from '@ui/state/state'
+import { dbTree } from '@ui/state/collections/db-tree'
 import { persistence } from '@repositories/persistence.service'
 import type { DbGroup, DbConnNode, DbConnection } from '@ui/types/types'
 import type { DbObjects } from '@services/db/db.types'
@@ -284,7 +285,7 @@ let treeview: TreeView<DbTreeNode> | null = null
 
 async function refresh(): Promise<void> {
   if (!container) return
-  if (!settings.dbTree.length) {
+  if (!dbTree.length) {
     container.replaceChildren()
     container.appendChild(
       (<div class="empty-hint">No connections. Add a project, then a connection.</div>) as HTMLDivElement
@@ -292,7 +293,7 @@ async function refresh(): Promise<void> {
     return
   }
   if (!treeview) treeview = createTreeView<DbTreeNode>(container, adapter)
-  treeview.render(settings.dbTree.map(wrap))
+  treeview.render(dbTree.map(wrap))
 }
 
 // Reload a connection's saved-query list and re-render (after save/delete).
@@ -315,7 +316,7 @@ async function addGroup(parentId: string | null): Promise<void> {
     findGroup(parentId)?.children.push(group)
     expanded.add(parentId)
   } else {
-    settings.dbTree.push(group)
+    dbTree.push(group)
   }
   persistence.save()
   await refresh()
@@ -348,7 +349,7 @@ function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void
           findGroup(parentGroupId)?.children.push(node)
           expanded.add(parentGroupId)
         } else {
-          settings.dbTree.push(node)
+          dbTree.push(node)
         }
       }
       persistence.save()

@@ -24,6 +24,7 @@ import { setReminders } from '@ui/state/collections/reminders'
 import { setTimeEntries } from '@ui/state/collections/time-entries'
 import { setMeetingNotes } from '@ui/state/collections/meeting-notes'
 import { setDailyPlan } from '@ui/state/collections/daily-plan'
+import { setDbTree } from '@ui/state/collections/db-tree'
 import { persistence } from './persistence.service'
 import { reminderSchema } from '@models/reminder'
 import { bookmarkSchema } from '@models/bookmark'
@@ -197,7 +198,7 @@ export function loadSettings(saved: SavedState): void {
   if (Array.isArray(saved.linkedFiles)) settings.linkedFiles = saved.linkedFiles
   if (saved.notebookColors && typeof saved.notebookColors === 'object')
     settings.notebookColors = saved.notebookColors
-  if (Array.isArray(saved.dbTree)) settings.dbTree = saved.dbTree as DbNode[]
+  if (Array.isArray(saved.dbTree)) setDbTree(saved.dbTree as DbNode[])
   if (Array.isArray(saved.timeEntries))
     setTimeEntries(validateRows(saved.timeEntries, timeEntrySchema, 'time-entry'))
   if (saved.dailyPlan && typeof saved.dailyPlan === 'object') {

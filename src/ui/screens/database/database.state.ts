@@ -1,4 +1,4 @@
-import { settings } from '@ui/state/state'
+import { dbTree } from '@ui/state/collections/db-tree'
 import type { DbNode, DbGroup, DbEngine } from '@ui/types/types'
 import type { DbSectionKind, DbTreeNode } from './database.types'
 
@@ -31,9 +31,9 @@ export function sectionGlyph(k: DbSectionKind): string {
 
 export const wrap = (n: DbNode): DbTreeNode => (n.kind === 'group' ? { t: 'group', g: n } : { t: 'conn', c: n })
 
-// ---- tree helpers (operate on settings.dbTree) ----
+// ---- tree helpers (operate on dbTree) ----
 
-export function findGroup(id: string, nodes: DbNode[] = settings.dbTree): DbGroup | null {
+export function findGroup(id: string, nodes: DbNode[] = dbTree): DbGroup | null {
   for (const n of nodes) {
     if (n.kind === 'group') {
       if (n.id === id) return n
@@ -44,7 +44,7 @@ export function findGroup(id: string, nodes: DbNode[] = settings.dbTree): DbGrou
   return null
 }
 
-export function removeNode(id: string, nodes: DbNode[] = settings.dbTree): boolean {
+export function removeNode(id: string, nodes: DbNode[] = dbTree): boolean {
   const i = nodes.findIndex((n) => n.id === id)
   if (i >= 0) {
     nodes.splice(i, 1)
@@ -56,11 +56,11 @@ export function removeNode(id: string, nodes: DbNode[] = settings.dbTree): boole
   return false
 }
 
-// ---- drag-drop reorder/nesting over settings.dbTree ----
+// ---- drag-drop reorder/nesting over dbTree ----
 
 export function locate(
   id: string,
-  arr: DbNode[] = settings.dbTree
+  arr: DbNode[] = dbTree
 ): { arr: DbNode[]; i: number; node: DbNode } | null {
   for (let i = 0; i < arr.length; i++) {
     if (arr[i].id === id) return { arr, i, node: arr[i] }

@@ -1,9 +1,9 @@
 import type { DbNode, DbConnNode, DbConnection } from '@ui/types/types'
-import { settings } from '@ui/state/state'
+import { dbTree } from '@ui/state/collections/db-tree'
 import { persistence } from './persistence.service'
 
 // Saved DB connections live as `conn` nodes inside the recursive Database tree
-// (settings.dbTree: DbGroup | DbConnNode). This repo exposes connection-level
+// (dbTree: DbGroup | DbConnNode). This repo exposes connection-level
 // access by walking that tree. The tree's STRUCTURE (groups, nesting, drag-drop
 // reorder) is a separate node-tree concern (§3.12) handled in database.ts; this
 // repo covers the DbConnection entity: read / query / update-in-place.
@@ -19,7 +19,7 @@ export const dbConnectionRepo = {
   // All connection nodes (wrappers), in tree order — for tree rendering.
   nodes(): DbConnNode[] {
     const out: DbConnNode[] = []
-    walk(settings.dbTree, (n) => out.push(n))
+    walk(dbTree, (n) => out.push(n))
     return out
   },
   getAll(): DbConnection[] {
@@ -34,7 +34,7 @@ export const dbConnectionRepo = {
   // Replace a connection's data in place (wherever its node sits in the tree).
   update(conn: DbConnection): void {
     let found = false
-    walk(settings.dbTree, (n) => {
+    walk(dbTree, (n) => {
       if (n.conn.id === conn.id) {
         n.conn = conn
         found = true
