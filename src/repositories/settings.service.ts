@@ -23,6 +23,7 @@ import { setAccounts } from '@ui/state/collections/accounts'
 import { setReminders } from '@ui/state/collections/reminders'
 import { setTimeEntries } from '@ui/state/collections/time-entries'
 import { setMeetingNotes } from '@ui/state/collections/meeting-notes'
+import { setDailyPlan } from '@ui/state/collections/daily-plan'
 import { persistence } from './persistence.service'
 import { reminderSchema } from '@models/reminder'
 import { bookmarkSchema } from '@models/bookmark'
@@ -201,10 +202,10 @@ export function loadSettings(saved: SavedState): void {
     setTimeEntries(validateRows(saved.timeEntries, timeEntrySchema, 'time-entry'))
   if (saved.dailyPlan && typeof saved.dailyPlan === 'object') {
     const dp = saved.dailyPlan
-    settings.dailyPlan = {
+    setDailyPlan({
       tasks: validateRows(dp.tasks, dailyTaskSchema, 'daily-task'),
       tags: validateRows(dp.tags, dailyTagSchema, 'daily-tag')
-    }
+    })
   }
   if (Array.isArray(saved.meetingNotes))
     setMeetingNotes(validateRows(saved.meetingNotes, meetingNoteSchema, 'meeting-note'))

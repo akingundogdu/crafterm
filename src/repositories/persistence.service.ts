@@ -17,6 +17,7 @@ import { accounts } from '@ui/state/collections/accounts'
 import { reminders } from '@ui/state/collections/reminders'
 import { timeEntries } from '@ui/state/collections/time-entries'
 import { meetingNotes } from '@ui/state/collections/meeting-notes'
+import { dailyPlan } from '@ui/state/collections/daily-plan'
 import { storeService } from '@services'
 
 // Renderer persistence/data layer. Owns the debounced save, the serialize
@@ -222,7 +223,7 @@ function persist(): void {
     notebookColors: settings.notebookColors,
     dbTree: settings.dbTree,
     timeEntries,
-    dailyPlan: settings.dailyPlan,
+    dailyPlan,
     meetingNotes,
     askProjectOnNew: settings.askProjectOnNew,
     tabDisplay: settings.tabDisplay,

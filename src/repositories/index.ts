@@ -16,6 +16,7 @@ import { accounts } from '@ui/state/collections/accounts'
 import { reminders } from '@ui/state/collections/reminders'
 import { timeEntries } from '@ui/state/collections/time-entries'
 import { meetingNotes } from '@ui/state/collections/meeting-notes'
+import { dailyPlan } from '@ui/state/collections/daily-plan'
 import { persistence } from './persistence.service'
 import { createArrayRepository, validated } from './repository'
 import { bookmarkSchema } from '@models/bookmark'
@@ -86,13 +87,13 @@ export const meetingNoteRepo = createArrayRepository<MeetingNote>(
 )
 
 export const dailyTaskRepo = createArrayRepository<DailyPlanTask>(
-  () => settings.dailyPlan.tasks,
+  () => dailyPlan.tasks,
   save,
   { validate: validated(dailyTaskSchema, 'daily-task') }
 )
 
 export const dailyTagRepo = createArrayRepository<DailyPlanTag>(
-  () => settings.dailyPlan.tags,
+  () => dailyPlan.tags,
   save,
   { validate: validated(dailyTagSchema, 'daily-tag') }
 )

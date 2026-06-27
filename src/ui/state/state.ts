@@ -114,7 +114,6 @@ export const settings = {
   linkedFiles: [] as { path: string; name: string }[],
   notebookColors: {} as Record<string, string>, // notebook node path -> color tag
   dbTree: [] as DbNode[], // Database tool: project/folder/connection tree
-  dailyPlan: { tasks: [], tags: [] } as DailyPlanData, // Kanban-style daily task tracker
   askProjectOnNew: true, // ask which project to open on a new terminal
   // Sidebar + right-panel tab strips: icon-only / text-only / both, plus per-tab
   // hide lists keyed by strip. Configured in Settings → Tabs.
