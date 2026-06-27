@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadSettings } from '@repositories/settings.service'
 import { settings } from '@ui/state/state'
+import { bookmarks, setBookmarks } from '@ui/state/collections/bookmarks'
 import type { SavedState } from '@repositories/state.types'
 
 // Minimal SavedState; only the fields under test are populated. Everything else
@@ -9,7 +10,7 @@ import type { SavedState } from '@repositories/state.types'
 const saved = (patch: Partial<SavedState>): SavedState => patch as SavedState
 
 beforeEach(() => {
-  settings.bookmarks = []
+  setBookmarks([])
   settings.reminders = []
   settings.timeEntries = []
   vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -26,7 +27,7 @@ describe('loadSettings validation boundary (Phase 2 / F)', () => {
         ] as unknown as SavedState['bookmarks']
       })
     )
-    expect(settings.bookmarks.map((b) => b.id)).toEqual(['b1', 'b2'])
+    expect(bookmarks.map((b) => b.id)).toEqual(['b1', 'b2'])
   })
 
   it('drops malformed reminders without crashing', () => {
@@ -42,11 +43,11 @@ describe('loadSettings validation boundary (Phase 2 / F)', () => {
   })
 
   it('a non-array entity field leaves the default untouched (no crash)', () => {
-    settings.bookmarks = [
+    setBookmarks([
       { id: 'keep', type: 'link', title: 'x', content: 'y', tags: [], createdAt: 0 }
-    ]
+    ])
     loadSettings(saved({ bookmarks: 'corrupt' as unknown as SavedState['bookmarks'] }))
-    expect(settings.bookmarks.map((b) => b.id)).toEqual(['keep'])
+    expect(bookmarks.map((b) => b.id)).toEqual(['keep'])
   })
 
   it('an entirely malformed state loads without throwing', () => {

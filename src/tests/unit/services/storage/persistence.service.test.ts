@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { persistence, serializeLayout, recordCommand } from '@repositories/persistence.service'
 import { settings, state, notifications, commandHistory } from '@ui/state/state'
+import { bookmarks, setBookmarks } from '@ui/state/collections/bookmarks'
 import type { LayoutNode } from '@ui/types/types'
 
 // persistence.service owns the renderer's serialize pipeline + debounced save.
@@ -16,7 +17,7 @@ beforeEach(() => {
     send: saveState
   } as never
   state.tree = []
-  settings.bookmarks = []
+  setBookmarks([])
   notifications.length = 0
   commandHistory.length = 0
 })
@@ -24,14 +25,14 @@ afterEach(() => vi.useRealTimers())
 
 describe('serialize / persist', () => {
   it('flush() serializes the live state into a SavedState and writes it', () => {
-    settings.bookmarks = [{ id: 'b1', type: 'link', title: 'T', content: 'c', tags: [], createdAt: 1 }]
+    setBookmarks([{ id: 'b1', type: 'link', title: 'T', content: 'c', tags: [], createdAt: 1 }])
     persistence.flush()
     expect(saveState).toHaveBeenCalledTimes(1)
     expect(saveState.mock.calls[0][0]).toBe('store:save') // channel
     const payload = saveState.mock.calls[0][1] // data is the send payload
     expect(payload.schemaVersion).toBe(4)
     expect(payload.tree).toEqual([])
-    expect(payload.bookmarks).toEqual(settings.bookmarks)
+    expect(payload.bookmarks).toEqual(bookmarks)
   })
 
   it('serializeLayout maps a leaf with no live pane to a bare leaf, and recurses splits', () => {

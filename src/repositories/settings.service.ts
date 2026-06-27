@@ -18,6 +18,7 @@ import {
   NOTIF_PERSIST_CAP,
   uid
 } from '@ui/state/state'
+import { setBookmarks } from '@ui/state/collections/bookmarks'
 import { persistence } from './persistence.service'
 import { reminderSchema } from '@models/reminder'
 import { bookmarkSchema } from '@models/bookmark'
@@ -143,7 +144,7 @@ export function loadSettings(saved: SavedState): void {
     }
   }
   if (Array.isArray(saved.bookmarks))
-    settings.bookmarks = validateRows(saved.bookmarks, bookmarkSchema, 'bookmark')
+    setBookmarks(validateRows(saved.bookmarks, bookmarkSchema, 'bookmark'))
   if (Array.isArray(saved.accounts))
     settings.accounts = validateRows(saved.accounts, accountEntrySchema, 'account')
   if (saved.claudePlanCaps && typeof saved.claudePlanCaps === 'object') {

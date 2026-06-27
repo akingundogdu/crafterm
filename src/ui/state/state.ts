@@ -87,7 +87,6 @@ export const settings = {
   reminders: [] as Reminder[], // scheduled reminders (right panel → Reminders tab)
   // Default hour + quick-time chips for the reminder form (Settings → Reminders).
   reminderDefaults: { defaultHour: 11, presets: DEFAULT_REMINDER_PRESETS.map((p) => ({ ...p })) } as ReminderDefaults,
-  bookmarks: [] as Bookmark[], // saved bookmarks (right panel → Bookmarks tab)
   accounts: [] as AccountEntry[], // sidebar Accounts mode: credential ledger + secrets
   // Per-period token caps used to compute the % chip in the top status bar.
   // Defaults sized for a Max-tier subscription; user can adjust in Settings.

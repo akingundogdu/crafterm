@@ -11,6 +11,7 @@ import type {
   DailyPlanTag
 } from '@ui/types/types'
 import { settings } from '@ui/state/state'
+import { bookmarks } from '@ui/state/collections/bookmarks'
 import { persistence } from './persistence.service'
 import { createArrayRepository, validated } from './repository'
 import { bookmarkSchema } from '@models/bookmark'
@@ -38,7 +39,7 @@ export { dbConnectionRepo } from './db-connection.repository'
 
 const save = (): void => persistence.save()
 
-export const bookmarkRepo = createArrayRepository<Bookmark>(() => settings.bookmarks, save, {
+export const bookmarkRepo = createArrayRepository<Bookmark>(() => bookmarks, save, {
   validate: validated(bookmarkSchema, 'bookmark'),
   prepend: true
 })

@@ -12,6 +12,7 @@ import {
   NOTIF_PERSIST_WINDOW_MS,
   NOTIF_PERSIST_CAP
 } from '@ui/state/state'
+import { bookmarks } from '@ui/state/collections/bookmarks'
 import { storeService } from '@services'
 
 // Renderer persistence/data layer. Owns the debounced save, the serialize
@@ -206,7 +207,7 @@ function persist(): void {
     notifSound: settings.notifSound,
     reminders: settings.reminders,
     reminderDefaults: settings.reminderDefaults,
-    bookmarks: settings.bookmarks,
+    bookmarks,
     accounts: settings.accounts,
     claudePlanCaps: settings.claudePlanCaps,
     claudeUsageAuth: settings.claudeUsageAuth,
