@@ -12,6 +12,10 @@ import type {
 } from '@ui/types/types'
 import { settings } from '@ui/state/state'
 import { bookmarks } from '@ui/state/collections/bookmarks'
+import { accounts } from '@ui/state/collections/accounts'
+import { reminders } from '@ui/state/collections/reminders'
+import { timeEntries } from '@ui/state/collections/time-entries'
+import { meetingNotes } from '@ui/state/collections/meeting-notes'
 import { persistence } from './persistence.service'
 import { createArrayRepository, validated } from './repository'
 import { bookmarkSchema } from '@models/bookmark'
@@ -44,16 +48,16 @@ export const bookmarkRepo = createArrayRepository<Bookmark>(() => bookmarks, sav
   prepend: true
 })
 
-export const accountRepo = createArrayRepository<AccountEntry>(() => settings.accounts, save, {
+export const accountRepo = createArrayRepository<AccountEntry>(() => accounts, save, {
   validate: validated(accountEntrySchema, 'account'),
   prepend: true
 })
 
-export const reminderRepo = createArrayRepository<Reminder>(() => settings.reminders, save, {
+export const reminderRepo = createArrayRepository<Reminder>(() => reminders, save, {
   validate: validated(reminderSchema, 'reminder')
 })
 
-export const timeEntryRepo = createArrayRepository<TimeEntry>(() => settings.timeEntries, save, {
+export const timeEntryRepo = createArrayRepository<TimeEntry>(() => timeEntries, save, {
   validate: validated(timeEntrySchema, 'time-entry')
 })
 
@@ -76,7 +80,7 @@ export const actionMenuRepo = createArrayRepository<ActionMenuItem>(
 )
 
 export const meetingNoteRepo = createArrayRepository<MeetingNote>(
-  () => settings.meetingNotes,
+  () => meetingNotes,
   save,
   { validate: validated(meetingNoteSchema, 'meeting-note') }
 )

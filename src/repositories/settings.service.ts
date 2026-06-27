@@ -19,6 +19,10 @@ import {
   uid
 } from '@ui/state/state'
 import { setBookmarks } from '@ui/state/collections/bookmarks'
+import { setAccounts } from '@ui/state/collections/accounts'
+import { setReminders } from '@ui/state/collections/reminders'
+import { setTimeEntries } from '@ui/state/collections/time-entries'
+import { setMeetingNotes } from '@ui/state/collections/meeting-notes'
 import { persistence } from './persistence.service'
 import { reminderSchema } from '@models/reminder'
 import { bookmarkSchema } from '@models/bookmark'
@@ -125,7 +129,7 @@ export function loadSettings(saved: SavedState): void {
   if (typeof saved.notifPanelSize === 'number') settings.notifPanelSize = saved.notifPanelSize
   if (typeof saved.notifSound === 'string') settings.notifSound = saved.notifSound
   if (Array.isArray(saved.reminders))
-    settings.reminders = validateRows(saved.reminders, reminderSchema, 'reminder')
+    setReminders(validateRows(saved.reminders, reminderSchema, 'reminder'))
   if (saved.reminderDefaults && typeof saved.reminderDefaults === 'object') {
     const rd = saved.reminderDefaults
     const hour = Number(rd.defaultHour)
@@ -146,7 +150,7 @@ export function loadSettings(saved: SavedState): void {
   if (Array.isArray(saved.bookmarks))
     setBookmarks(validateRows(saved.bookmarks, bookmarkSchema, 'bookmark'))
   if (Array.isArray(saved.accounts))
-    settings.accounts = validateRows(saved.accounts, accountEntrySchema, 'account')
+    setAccounts(validateRows(saved.accounts, accountEntrySchema, 'account'))
   if (saved.claudePlanCaps && typeof saved.claudePlanCaps === 'object') {
     settings.claudePlanCaps = {
       daily: Number(saved.claudePlanCaps.daily) || settings.claudePlanCaps.daily,
@@ -194,7 +198,7 @@ export function loadSettings(saved: SavedState): void {
     settings.notebookColors = saved.notebookColors
   if (Array.isArray(saved.dbTree)) settings.dbTree = saved.dbTree as DbNode[]
   if (Array.isArray(saved.timeEntries))
-    settings.timeEntries = validateRows(saved.timeEntries, timeEntrySchema, 'time-entry')
+    setTimeEntries(validateRows(saved.timeEntries, timeEntrySchema, 'time-entry'))
   if (saved.dailyPlan && typeof saved.dailyPlan === 'object') {
     const dp = saved.dailyPlan
     settings.dailyPlan = {
@@ -203,7 +207,7 @@ export function loadSettings(saved: SavedState): void {
     }
   }
   if (Array.isArray(saved.meetingNotes))
-    settings.meetingNotes = validateRows(saved.meetingNotes, meetingNoteSchema, 'meeting-note')
+    setMeetingNotes(validateRows(saved.meetingNotes, meetingNoteSchema, 'meeting-note'))
   if (typeof saved.askProjectOnNew === 'boolean') settings.askProjectOnNew = saved.askProjectOnNew
   if (saved.tabDisplay && typeof saved.tabDisplay === 'object') {
     const td = saved.tabDisplay

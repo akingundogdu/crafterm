@@ -84,10 +84,8 @@ export const settings = {
   paletteCommands: PALETTE_SEED.map((c) => ({ ...c })) as PaletteCommand[],
   notifPanelSize: 290, // right notification panel width (px), resizable
   notifSound: 'Glass', // macOS system sound played on notification ('' = off)
-  reminders: [] as Reminder[], // scheduled reminders (right panel → Reminders tab)
   // Default hour + quick-time chips for the reminder form (Settings → Reminders).
   reminderDefaults: { defaultHour: 11, presets: DEFAULT_REMINDER_PRESETS.map((p) => ({ ...p })) } as ReminderDefaults,
-  accounts: [] as AccountEntry[], // sidebar Accounts mode: credential ledger + secrets
   // Per-period token caps used to compute the % chip in the top status bar.
   // Defaults sized for a Max-tier subscription; user can adjust in Settings.
   claudePlanCaps: {
@@ -116,9 +114,7 @@ export const settings = {
   linkedFiles: [] as { path: string; name: string }[],
   notebookColors: {} as Record<string, string>, // notebook node path -> color tag
   dbTree: [] as DbNode[], // Database tool: project/folder/connection tree
-  timeEntries: [] as TimeEntry[], // logged work intervals
   dailyPlan: { tasks: [], tags: [] } as DailyPlanData, // Kanban-style daily task tracker
-  meetingNotes: [] as MeetingNote[], // structured meeting notes (Notebook → Meeting Notes)
   askProjectOnNew: true, // ask which project to open on a new terminal
   // Sidebar + right-panel tab strips: icon-only / text-only / both, plus per-tab
   // hide lists keyed by strip. Configured in Settings → Tabs.

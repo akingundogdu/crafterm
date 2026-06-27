@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadSettings } from '@repositories/settings.service'
 import { settings } from '@ui/state/state'
 import { bookmarks, setBookmarks } from '@ui/state/collections/bookmarks'
+import { reminders, setReminders } from '@ui/state/collections/reminders'
+import { setTimeEntries } from '@ui/state/collections/time-entries'
 import type { SavedState } from '@repositories/state.types'
 
 // Minimal SavedState; only the fields under test are populated. Everything else
@@ -11,8 +13,8 @@ const saved = (patch: Partial<SavedState>): SavedState => patch as SavedState
 
 beforeEach(() => {
   setBookmarks([])
-  settings.reminders = []
-  settings.timeEntries = []
+  setReminders([])
+  setTimeEntries([])
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
@@ -39,7 +41,7 @@ describe('loadSettings validation boundary (Phase 2 / F)', () => {
         ] as unknown as SavedState['reminders']
       })
     )
-    expect(settings.reminders.map((r) => r.id)).toEqual(['r1'])
+    expect(reminders.map((r) => r.id)).toEqual(['r1'])
   })
 
   it('a non-array entity field leaves the default untouched (no crash)', () => {
@@ -59,6 +61,6 @@ describe('loadSettings validation boundary (Phase 2 / F)', () => {
         })
       )
     ).not.toThrow()
-    expect(settings.reminders).toEqual([])
+    expect(reminders).toEqual([])
   })
 })
