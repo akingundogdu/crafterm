@@ -40,3 +40,12 @@ export function makeAccountEntry(
     ...p
   })
 }
+
+// Live collection (the credential ledger). Persisted into the single
+// crafterm-state.json; accountRepo operates on this array (stable reference).
+export const accounts: AccountEntry[] = []
+
+export function setAccounts(next: AccountEntry[]): void {
+  accounts.length = 0
+  accounts.push(...next)
+}

@@ -1,5 +1,5 @@
 import type { DbNode, DbConnNode, DbConnection } from '@ui/types/types'
-import { dbTree } from '@ui/state/collections/db-tree'
+import { dbTree } from '@models/db-tree'
 import { persistence } from './persistence.service'
 
 // Saved DB connections live as `conn` nodes inside the recursive Database tree

@@ -35,3 +35,12 @@ export function makeReminder(
 ): Reminder {
   return reminderSchema.parse({ id: crypto.randomUUID(), repeat: 'none', enabled: true, ...p })
 }
+
+// Live collection (scheduled reminders). Persisted into the single
+// crafterm-state.json; reminderRepo operates on this array (stable reference).
+export const reminders: Reminder[] = []
+
+export function setReminders(next: Reminder[]): void {
+  reminders.length = 0
+  reminders.push(...next)
+}

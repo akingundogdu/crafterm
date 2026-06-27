@@ -12,13 +12,13 @@ import {
   NOTIF_PERSIST_WINDOW_MS,
   NOTIF_PERSIST_CAP
 } from '@ui/state/state'
-import { bookmarks } from '@ui/state/collections/bookmarks'
-import { accounts } from '@ui/state/collections/accounts'
-import { reminders } from '@ui/state/collections/reminders'
-import { timeEntries } from '@ui/state/collections/time-entries'
-import { meetingNotes } from '@ui/state/collections/meeting-notes'
-import { dailyPlan } from '@ui/state/collections/daily-plan'
-import { dbTree } from '@ui/state/collections/db-tree'
+import { bookmarks } from '@models/bookmark'
+import { accounts } from '@models/account'
+import { reminders } from '@models/reminder'
+import { timeEntries } from '@models/time-entry'
+import { meetingNotes } from '@models/meeting-note'
+import { dailyPlan } from '@models/daily-plan'
+import { dbTree } from '@models/db-tree'
 import { storeService } from '@services'
 
 // Renderer persistence/data layer. Owns the debounced save, the serialize

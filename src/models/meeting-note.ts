@@ -29,3 +29,12 @@ export function makeMeetingNote(
     ...p
   })
 }
+
+// Live collection (structured meeting notes). Persisted into the single
+// crafterm-state.json; meetingNoteRepo operates on this array (stable reference).
+export const meetingNotes: MeetingNote[] = []
+
+export function setMeetingNotes(next: MeetingNote[]): void {
+  meetingNotes.length = 0
+  meetingNotes.push(...next)
+}

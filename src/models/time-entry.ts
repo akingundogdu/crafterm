@@ -19,3 +19,12 @@ export function makeTimeEntry(
 ): TimeEntry {
   return timeEntrySchema.parse({ id: crypto.randomUUID(), ...p })
 }
+
+// Live collection (logged work intervals). Persisted into the single
+// crafterm-state.json; timeEntryRepo operates on this array (stable reference).
+export const timeEntries: TimeEntry[] = []
+
+export function setTimeEntries(next: TimeEntry[]): void {
+  timeEntries.length = 0
+  timeEntries.push(...next)
+}

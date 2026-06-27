@@ -2,9 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadSettings } from '@repositories/settings.service'
 import { settings } from '@ui/state/state'
-import { bookmarks, setBookmarks } from '@ui/state/collections/bookmarks'
-import { reminders, setReminders } from '@ui/state/collections/reminders'
-import { setTimeEntries } from '@ui/state/collections/time-entries'
+import { bookmarks, setBookmarks } from '@models/bookmark'
+import { reminders, setReminders } from '@models/reminder'
+import { setTimeEntries } from '@models/time-entry'
 import type { SavedState } from '@repositories/state.types'
 
 // Minimal SavedState; only the fields under test are populated. Everything else

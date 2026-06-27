@@ -1,4 +1,4 @@
-import { dbTree } from '@ui/state/collections/db-tree'
+import { dbTree } from '@models/db-tree'
 import type { DbNode, DbGroup, DbEngine } from '@ui/types/types'
 import type { DbSectionKind, DbTreeNode } from './database.types'
 

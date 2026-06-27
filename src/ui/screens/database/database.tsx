@@ -1,5 +1,5 @@
 import { uid } from '@ui/state/state'
-import { dbTree } from '@ui/state/collections/db-tree'
+import { dbTree } from '@models/db-tree'
 import { persistence } from '@repositories/persistence.service'
 import type { DbGroup, DbConnNode, DbConnection } from '@ui/types/types'
 import type { DbObjects } from '@services/db/db.types'

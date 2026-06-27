@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { persistence, serializeLayout, recordCommand } from '@repositories/persistence.service'
 import { settings, state, notifications, commandHistory } from '@ui/state/state'
-import { bookmarks, setBookmarks } from '@ui/state/collections/bookmarks'
+import { bookmarks, setBookmarks } from '@models/bookmark'
 import type { LayoutNode } from '@ui/types/types'
 
 // persistence.service owns the renderer's serialize pipeline + debounced save.
