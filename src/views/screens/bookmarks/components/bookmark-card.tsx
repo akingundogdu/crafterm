@@ -4,7 +4,7 @@ import { UITexts } from '@texts'
 import { bookmarkRepo } from '@repositories'
 import { openLink } from '@ui/commands/commands'
 import { promptConfirm } from '@views/components/dialog/confirm'
-import { showBookmarkForm } from '@ui/screens/bookmarks/components/bookmark-form'
+import { openBookmarkForm } from './bookmark-form.open'
 import { showRemindPicker } from '@ui/screens/bookmarks/components/remind-picker'
 import { TYPE_LABEL } from '@views/screens/bookmarks/bookmark-meta'
 import { bookmarkReminder, formatReminderTime, bodyClass } from '@ui/screens/bookmarks/components/bookmark-card.state'
@@ -80,7 +80,7 @@ export default class BookmarkCard extends Component {
           <button class="bookmarks-action" onClick={() => showRemindPicker(this.raw())}>
             Remind
           </button>
-          <button class="bookmarks-action" onClick={() => showBookmarkForm(this.raw(), () => store.reload())}>
+          <button class="bookmarks-action" onClick={() => openBookmarkForm(this.raw(), () => store.reload())}>
             {UITexts.Bookmarks.card.edit}
           </button>
           <button class="bookmarks-action danger" onClick={this.onDelete}>

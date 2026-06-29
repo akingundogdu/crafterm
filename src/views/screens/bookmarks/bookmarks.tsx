@@ -4,7 +4,7 @@ import { UITexts } from '@texts'
 import { bookmarkRepo } from '@repositories'
 import { TYPE_FILTERS } from '@ui/screens/bookmarks/bookmarks.state'
 import { TYPE_LABEL } from '@views/screens/bookmarks/bookmark-meta'
-import { showBookmarkForm } from '@ui/screens/bookmarks/components/bookmark-form'
+import { openBookmarkForm } from './components/bookmark-form.open'
 import BookmarkCard from './components/bookmark-card'
 import store from './bookmarks.store'
 
@@ -23,7 +23,7 @@ export default class Bookmarks extends Component {
     return (
       <div class="bookmarks-root" style={{ display: 'contents' }}>
         <div class="bookmarks-toolbar">
-          <button class="settings-inline-btn" onClick={() => showBookmarkForm(undefined, () => store.reload())}>
+          <button class="settings-inline-btn" onClick={() => openBookmarkForm(undefined, () => store.reload())}>
             + Bookmark
           </button>
           <input
