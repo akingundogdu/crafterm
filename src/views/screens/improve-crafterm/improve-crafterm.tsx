@@ -1,7 +1,7 @@
 import '@views/screens/improve-crafterm/improve-crafterm.css'
 import { Component } from '@geajs/core'
 import { appService } from '@services'
-import { promptConfirm } from '@ui/components/dialog/dialog'
+import { promptConfirm } from '@views/components/dialog/confirm'
 import { splitOrder } from '@views/screens/improve-crafterm/todo-doc'
 import type { RowAction } from '@views/screens/improve-crafterm/improve-crafterm.types'
 import { makePopoutClick, makeOpenSettingsClick } from '@ui/screens/improve-crafterm/improve-crafterm.state'

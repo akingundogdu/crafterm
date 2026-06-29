@@ -12,8 +12,14 @@ const ROOT = process.cwd()
 const SCAN_DIRS = ['src']
 const SKIP_DIRS = new Set(['node_modules', 'out', 'dist', '.git'])
 
-// The only place allowed to construct the overlay element directly.
-const ALLOWED = new Set([join('src', 'ui', 'components', 'overlay', 'overlay.ts')])
+// The only places allowed to construct the overlay element directly: the single
+// source of truth in each tree's component library. During the gea migration the
+// @views tree is self-contained (§2.7) and cannot import @ui, so it has its own
+// overlay primitive — the sole allowed constructor under src/views.
+const ALLOWED = new Set([
+  join('src', 'ui', 'components', 'overlay', 'overlay.ts'),
+  join('src', 'views', 'components', 'overlay', 'overlay.ts')
+])
 
 const ADHOC_OVERLAY =
   /(className\s*=\s*['"`][^'"`]*\bmodal-overlay\b|classList\.add\(\s*['"`]modal-overlay['"`])/
