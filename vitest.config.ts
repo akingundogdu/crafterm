@@ -14,6 +14,7 @@ export default defineConfig({
       '@texts': resolve(__dirname, 'src/ui-texts/ui-texts.ts'),
       '@services': resolve(__dirname, 'src/services'),
       '@ui': resolve(__dirname, 'src/ui'),
+      '@views': resolve(__dirname, 'src/views'),
       '@resources': resolve(__dirname, 'src/resources'),
       '@tests': resolve(__dirname, 'src/tests'),
       '@bridge': resolve(__dirname, 'src/core/bridge')

@@ -4,6 +4,10 @@ import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTIO
 import { PALETTE_SEED } from '@ui/palette-seed/palette-seed'
 import { allTabs } from '@ui/tree/tree'
 import { notificationRepo } from '@repositories/notification.repository'
+// Phase 1: gea mirror-store for the shell fields. Imported for its runtime
+// reload() at the render chokepoints below; the cross-tree cycle is runtime-only
+// (shell.store reads `state` only inside reload()), so module evaluation is safe.
+import shellStore from '@views/state/shell.store'
 
 // ---- Live state (mutated in place; modules import these singletons) ----
 
@@ -188,10 +192,12 @@ export function pushNotification(
 }
 
 export function updateActive(): void {
+  shellStore.reload()
   hooks.updateActive()
 }
 
 export function updatePaneActive(): void {
+  shellStore.reload()
   hooks.updatePaneHighlight()
 }
 
@@ -235,6 +241,7 @@ export function requestSidebar(): void {
   sbPending = true
   requestAnimationFrame(() => {
     sbPending = false
+    shellStore.reload()
     hooks.renderSidebar()
   })
 }
@@ -243,10 +250,12 @@ export function requestStatuses(): void {
   stPending = true
   requestAnimationFrame(() => {
     stPending = false
+    shellStore.reload()
     hooks.updateStatuses()
   })
 }
 export function renderContent(): void {
+  shellStore.reload()
   hooks.renderContent()
 }
 
