@@ -1,6 +1,6 @@
 import { Store } from '@geajs/core'
-import type { Bookmark } from '@ui/types/types'
-import type { TypeFilter } from '@ui/screens/bookmarks/bookmarks.types'
+import type { Bookmark } from '@views/types/types'
+import type { TypeFilter } from '@views/screens/bookmarks/bookmarks.types'
 import { bookmarkRepo } from '@repositories'
 
 // Reactive state for the gea Bookmarks panel. bookmarkRepo stays the persisted

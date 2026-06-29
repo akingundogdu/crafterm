@@ -1,5 +1,5 @@
 import { Store } from '@geajs/core'
-import type { AccountEntry } from '@ui/types/types'
+import type { AccountEntry } from '@views/types/types'
 import { accountRepo } from '@repositories'
 import { secretsService } from '@services'
 

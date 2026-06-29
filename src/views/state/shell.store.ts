@@ -1,5 +1,5 @@
 import { Store } from '@geajs/core'
-import type { SidebarNode } from '@ui/types/types'
+import type { SidebarNode } from '@views/types/types'
 import { state } from '@ui/state/state'
 
 // Phase 1 shell mirror-store. The legacy `state` singleton in @ui/state/state

@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
-import type { RowAction } from '@ui/screens/improve-crafterm/improve-crafterm.types'
-import { splitOrder } from '@ui/screens/improve-crafterm/todo-doc'
+import type { RowAction } from '@views/screens/improve-crafterm/improve-crafterm.types'
+import { splitOrder } from '@views/screens/improve-crafterm/todo-doc'
 import { showDetail } from '@ui/screens/improve-crafterm/improve-crafterm.state'
 import store, { type EntryView } from '../improve-crafterm.store'
 

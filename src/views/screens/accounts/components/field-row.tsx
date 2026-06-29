@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import type { AccountField } from '@ui/types/types'
+import type { AccountField } from '@views/types/types'
 import { UITexts } from '@texts'
 import { secretsService } from '@services'
 import { copyToClipboard } from '@ui/screens/accounts/accounts.state'

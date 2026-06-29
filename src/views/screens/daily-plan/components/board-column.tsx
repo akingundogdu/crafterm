@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import type { DailyPlanStatus } from '@ui/types/types'
+import type { DailyPlanStatus } from '@views/types/types'
 import store from '../daily-plan.store'
 import TaskCard from './task-card'
 

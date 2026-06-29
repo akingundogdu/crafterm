@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import type { Reminder } from '@ui/types/types'
+import type { Reminder } from '@views/types/types'
 import { UITexts } from '@texts'
 import { reminderRepo } from '@repositories'
 import { fmtWhen, relPast, repeatLabel } from '@ui/screens/reminders/reminders.state'

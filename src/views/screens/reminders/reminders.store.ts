@@ -1,5 +1,5 @@
 import { Store } from '@geajs/core'
-import type { Reminder } from '@ui/types/types'
+import type { Reminder } from '@views/types/types'
 import { reminderRepo } from '@repositories'
 
 // Reactive state for the gea Reminders panel. reminderRepo stays the persisted

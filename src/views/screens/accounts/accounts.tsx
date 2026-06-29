@@ -1,4 +1,4 @@
-import '@ui/screens/accounts/accounts.css'
+import '@views/screens/accounts/accounts.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { accountRepo } from '@repositories'

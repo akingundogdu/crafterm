@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import type { AccountEntry } from '@ui/types/types'
+import type { AccountEntry } from '@views/types/types'
 import { UITexts } from '@texts'
 import { accountRepo } from '@repositories'
 import { promptConfirm } from '@ui/components/dialog/dialog'

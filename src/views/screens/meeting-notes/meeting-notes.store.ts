@@ -1,5 +1,5 @@
 import { Store } from '@geajs/core'
-import type { MeetingNote } from '@ui/types/types'
+import type { MeetingNote } from '@views/types/types'
 import { meetingNoteRepo } from '@repositories'
 
 // Reactive state for the gea Meeting Notes panel. meetingNoteRepo stays the

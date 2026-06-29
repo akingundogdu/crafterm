@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import type { MeetingNote } from '@ui/types/types'
+import type { MeetingNote } from '@views/types/types'
 import { UITexts } from '@texts'
 import { meetingNoteRepo } from '@repositories'
 import { promptConfirm } from '@ui/components/dialog/dialog'

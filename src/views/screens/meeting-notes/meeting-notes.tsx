@@ -1,4 +1,4 @@
-import '@ui/screens/meeting-notes/meeting-notes.css'
+import '@views/screens/meeting-notes/meeting-notes.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { groupByProject, setActiveRerender } from '@ui/screens/meeting-notes/meeting-notes.state'

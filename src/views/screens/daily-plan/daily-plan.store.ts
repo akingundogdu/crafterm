@@ -1,8 +1,8 @@
 import { Store } from '@geajs/core'
-import type { DailyPlanTask, DailyPlanTag, DailyPlanStatus } from '@ui/types/types'
-import type { DailyRange } from '@ui/screens/daily-plan/daily-plan.types'
+import type { DailyPlanTask, DailyPlanTag, DailyPlanStatus } from '@views/types/types'
+import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
-import { boardColumnOf, shiftDays } from '@ui/screens/daily-plan/task-helpers'
+import { boardColumnOf, shiftDays } from '@views/screens/daily-plan/task-helpers'
 import { todayKey, reorderWithin, findInsertBefore } from '@ui/screens/daily-plan/daily-plan.state'
 // Tag filter is shared with the legacy compact view via this module-level Set;
 // the legacy tag-filter popover mutates it and calls reload() to refresh us.

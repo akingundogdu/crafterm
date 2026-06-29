@@ -10,7 +10,7 @@ import {
   parseTodo,
   sectionBy,
   ensureSection
-} from '@ui/screens/improve-crafterm/todo-doc'
+} from '@views/screens/improve-crafterm/todo-doc'
 import { todoJsonPath, docToJson } from '@ui/screens/improve-crafterm/improve-crafterm.state'
 
 export type ImproveTab = 'todo' | 'ready' | 'done'

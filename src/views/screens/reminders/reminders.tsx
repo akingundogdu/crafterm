@@ -1,4 +1,4 @@
-import '@ui/screens/reminders/reminders.css'
+import '@views/screens/reminders/reminders.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import ReminderCard from './components/reminder-card'
