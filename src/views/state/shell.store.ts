@@ -1,8 +1,8 @@
 import { Store } from '@geajs/core'
 import type { SidebarNode } from '@views/types/types'
-import { state } from '@ui/state/state'
+import { state } from '@views/state/spine'
 
-// Phase 1 shell mirror-store. The legacy `state` singleton in @ui/state/state
+// Phase 1 shell mirror-store. The legacy `state` singleton in @views/state/spine
 // stays the single source of truth — un-migrated src/ui code keeps reading and
 // mutating it directly. This store mirrors its shell fields into reactive
 // properties so the future gea sidebar/content (Phase 9) can read them and gea

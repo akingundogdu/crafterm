@@ -3,6 +3,10 @@ import type { Bookmark } from '@views/types/types'
 import type { TypeFilter } from '@views/screens/bookmarks/bookmarks.types'
 import { bookmarkRepo } from '@repositories'
 
+// The filter chips, in display order (was @ui/bookmarks.state TYPE_FILTERS; the gea
+// screen only needs this const, so it lives here — no @ui import, §2.7).
+export const TYPE_FILTERS: TypeFilter[] = ['all', 'link', 'text', 'code', 'snippet']
+
 // Reactive state for the gea Bookmarks panel. bookmarkRepo stays the persisted
 // source of truth; this store mirrors it into a reactive array so gea patches the
 // list on mutation, replacing the legacy renderBookmarks()/replaceChildren cycle.

@@ -1,5 +1,5 @@
 import { Store } from '@geajs/core'
-import { settings } from '@ui/state/state'
+import { settings } from '@views/state/spine'
 import { todoService } from '@services'
 import {
   type TodoDoc,
