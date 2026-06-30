@@ -16,7 +16,7 @@ import {
   autoNameTab,
   setNodeGroup
 } from '@views/commands/commands'
-import { showRunApps, showFeatureSetup, showRunCommand } from '@ui/screens/pickers/project/project'
+import { showRunApps, showFeatureSetup, showRunCommand } from '@views/screens/pickers/project/project'
 import { promptText } from '@views/components/dialog/prompt-text'
 import { promptSelect } from '@ui/components/dialog/dialog'
 import { type ContextMenuItem } from '@views/components/context-menu/context-menu'

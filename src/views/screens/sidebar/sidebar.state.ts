@@ -19,18 +19,18 @@ import {
   contextFolderId,
   runInSplit
 } from '@views/commands/commands'
-import { showProjectPicker } from '@ui/screens/pickers/project/project'
-import { runUpdate } from '@ui/screens/pickers/update/update'
-import { showCommandPalette, showCommandHistory } from '@ui/screens/pickers/command/command'
-import { showSshConnections } from '@ui/screens/pickers/ssh/ssh'
+import { showProjectPicker } from '@views/screens/pickers/project/project'
+import { runUpdate } from '@views/screens/pickers/update/update'
+import { showCommandPalette, showCommandHistory } from '@views/screens/pickers/command/command'
+import { showSshConnections } from '@views/screens/pickers/ssh/ssh'
 import {
   showClaudeDashboard,
   showClaudeAccountSwitcher,
   showClaudeSessionResume
-} from '@ui/screens/pickers/claude/claude'
-import { showPlansModal } from '@ui/screens/pickers/plans/plans'
-import { showWorktreeDashboard } from '@ui/screens/pickers/worktree/worktree'
-import { showRunningProcessesDashboard, showRunningDevicesDashboard } from '@ui/screens/pickers/processes/processes'
+} from '@views/screens/pickers/claude/claude'
+import { showPlansModal } from '@views/screens/pickers/plans/plans'
+import { showWorktreeDashboard } from '@views/screens/pickers/worktree/worktree'
+import { showRunningProcessesDashboard, showRunningDevicesDashboard } from '@views/screens/pickers/processes/processes'
 import { showImproveModal } from '@ui/screens/improve-crafterm/improve-crafterm'
 import { showDailyPlanModal } from '@ui/screens/daily-plan/daily-plan'
 import { newWorktree } from '@services/worktrees'

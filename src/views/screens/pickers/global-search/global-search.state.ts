@@ -14,7 +14,7 @@ import { bookmarkRepo, accountRepo } from '@repositories'
 // Unremovable @ui dependency: the sidebar screen is not yet migrated to @views,
 // so its action-menu search entries have no @views home. Repoint to the @views
 // sidebar when it lands.
-import { actionMenuSearchEntries } from '@ui/screens/sidebar/sidebar'
+import { actionMenuSearchEntries } from '@views/screens/sidebar/sidebar'
 import type { GsEntry } from './global-search.types'
 
 // ---- Spotlight: global search across every navigable surface ---------------
