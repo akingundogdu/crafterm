@@ -1,0 +1,103 @@
+/* ---- Self-update (Update Crafterm) ---- */
+.update-modal {
+  width: 420px;
+  max-width: 92vw;
+}
+.update-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.update-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-mute);
+}
+.update-step .update-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  box-sizing: border-box;
+}
+.update-step.active {
+  color: var(--text);
+}
+.update-step.active .update-dot {
+  border-color: var(--accent);
+  border-top-color: transparent;
+  animation: update-spin 0.7s linear infinite;
+}
+.update-step.done {
+  color: var(--text-dim);
+}
+.update-step.done .update-dot {
+  border-color: #3fb950;
+  background: #3fb950;
+}
+.update-step.failed {
+  color: #ff7b72;
+}
+.update-step.failed .update-dot {
+  border-color: #ff7b72;
+  background: #ff7b72;
+}
+.update-error {
+  margin-top: 12px;
+  font-family: var(--mono, Menlo, monospace);
+  font-size: 11px;
+  color: #ff7b72;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+
+#update-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, #0d1117);
+  transition: opacity 0.4s ease;
+}
+/* `hidden` attribute must win over the id selector's display:flex above. */
+#update-overlay[hidden] {
+  display: none;
+}
+.update-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.update-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: update-spin 0.7s linear infinite;
+}
+.update-overlay-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.update-overlay-sub {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+@keyframes update-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+

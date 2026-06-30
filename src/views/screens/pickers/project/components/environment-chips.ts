@@ -1,0 +1,35 @@
+import { el } from '@views/lib/dom'
+
+interface EnvironmentChipsProps {
+  environments: string[]
+  selected: string
+  onSelect: (name: string) => void
+}
+
+// Environment button bar: one chip per environment, the selected one marked
+// `active`. Clicking a chip updates the active class locally and reports the new
+// selection via `onSelect` so the owner can re-render dependent UI.
+export function environmentChips({
+  environments,
+  selected,
+  onSelect
+}: EnvironmentChipsProps): HTMLDivElement {
+  const envBar = el('div', { class: 'run-env-bar' })
+  const envBtns: HTMLButtonElement[] = []
+  environments.forEach((name) => {
+    const b = el(
+      'button',
+      {
+        class: 'run-env-chip' + (name === selected ? ' active' : ''),
+        onClick: () => {
+          envBtns.forEach((x) => x.classList.toggle('active', x === b))
+          onSelect(name)
+        }
+      },
+      name
+    )
+    envBtns.push(b)
+    envBar.appendChild(b)
+  })
+  return envBar
+}

@@ -1,13 +1,3 @@
-import { ShowStashManagerController, ShowBranchCheckoutController } from './git.controller'
-
-// ---- Git stash manager: list stashes, apply or drop, for a pane's repo ----
-
-export async function showStashManager(paneId: string): Promise<void> {
-  await new ShowStashManagerController(paneId).run()
-}
-
-// ---- Branch checkout: search the pane's repo branches, checkout the chosen one ----
-
-export async function showBranchCheckout(paneId: string): Promise<void> {
-  await new ShowBranchCheckoutController(paneId).run()
-}
+// Migrated to the gea @views tree. This legacy entry is a thin re-export
+// shim so the shell/spotlight imports keep resolving during migration.
+export * from '@views/screens/pickers/git/git'

@@ -1,0 +1,234 @@
+/* ---- Plans list + folder picker modals ---- */
+.list-modal {
+  width: 460px;
+}
+.picker-modal {
+  width: 640px;
+  max-width: 92vw;
+}
+/* wide variant — used by "Resume Claude session" to cut down on scrolling */
+.picker-modal-wide {
+  width: 1000px;
+  max-width: 94vw;
+}
+.picker-modal-wide .pick-list,
+.picker-modal-wide .picker-list {
+  max-height: 66vh;
+}
+.stash-row {
+  align-items: center;
+}
+.stash-row .claude-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.stash-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  margin-left: 10px;
+}
+.stash-actions .settings-inline-btn,
+.stash-actions .improve-cancel {
+  margin: 0;
+}
+.picker-path {
+  font-size: 11px;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  margin: 2px 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  max-height: 88px;
+  overflow-y: auto;
+}
+.picker-markdown-chip {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 3px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.picker-markdown-chip:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+.picker-markdown-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.picker-markdown-count {
+  font-size: 11px;
+  color: var(--text-mute);
+  margin: 0 0 6px 2px;
+  min-height: 14px;
+}
+.pick-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.picker-list {
+  max-height: 46vh;
+}
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.pick-row:hover,
+.pick-row.active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.picker-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-drill {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--text-mute);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+  border-radius: 5px;
+}
+.picker-drill:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+.worktree-row {
+  gap: 8px;
+}
+.worktree-row .claude-main {
+  flex: 1;
+}
+.worktree-action {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  border-radius: 5px;
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.worktree-action:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
+}
+.worktree-remove:hover {
+  color: #ff7b72;
+  background: rgba(248, 81, 73, 0.12);
+  border-color: rgba(248, 81, 73, 0.4);
+}
+.proc-status {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.06);
+}
+.proc-status-running {
+  color: #3fb950;
+  background: rgba(63, 185, 80, 0.14);
+}
+.proc-group-header {
+  padding: 8px 4px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.claude-row {
+  gap: 10px;
+}
+.claude-row .status-dot {
+  flex: 0 0 auto;
+}
+.claude-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.claude-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.claude-sub {
+  font-size: 11px;
+  color: var(--text-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-row {
+  gap: 10px;
+}
+.palette-name {
+  flex: 0 0 auto;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+.palette-val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-mute);
+  text-align: right;
+}
+.palette-cat {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.palette-chips {
+  margin-top: 2px;
+}
+
