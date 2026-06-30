@@ -2,7 +2,7 @@ import { el } from '@views/lib/dom'
 import { filePanes, uid } from '@views/state/spine'
 import { setupPaneDnd } from '@views/pane/pane'
 import { fsService } from '@services'
-import { createLineSelect } from '@ui/screens/diff/line-select'
+import { createLineSelect } from '@views/screens/diff/line-select'
 import { createFilePaneHeader } from './components/file-pane-header'
 import type { CreateFilePaneOptions } from './file-pane.types'
 import {

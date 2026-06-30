@@ -1,7 +1,7 @@
 import { filePanes, paneActions } from '@views/state/spine'
 import { shellService } from '@services'
-import { sendRef as sendPaneRef, targetCwd } from '@ui/screens/diff/pane-ref'
-import type { LineRow } from '@ui/screens/diff/line-select'
+import { sendRef as sendPaneRef, targetCwd } from '@views/screens/diff/pane-ref'
+import type { LineRow } from '@views/screens/diff/line-select'
 
 // Per-pane teardown for the line-select engine (run on close).
 const cleanups = new Map<string, () => void>()
