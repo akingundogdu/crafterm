@@ -2,8 +2,8 @@ import { Component } from '@geajs/core'
 import type { Reminder } from '@views/types/types'
 import { UITexts } from '@texts'
 import { reminderRepo } from '@repositories'
-import { fmtWhen, relPast, repeatLabel } from '@ui/screens/reminders/reminders.state'
-import { openReminderForm } from '@ui/screens/reminders/components/reminder-form'
+import { fmtWhen, relPast, repeatLabel } from '../reminders.engine'
+import { openReminderForm } from './reminder-form.open'
 import store from '../reminders.store'
 
 // gea port of a reminder row: when/repeat header, text, edit/delete. Edit reuses
