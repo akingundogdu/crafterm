@@ -1,0 +1,171 @@
+/* Custom themed date / datetime field (replaces native <input type=date/...>)
+   plus its calendar popover. */
+.datepicker-field {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.datepicker-field-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.datepicker-field-text.datepicker-field-empty {
+  color: var(--text-mute);
+}
+.datepicker-field-glyph {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+.datepicker-field:hover .datepicker-field-glyph {
+  color: var(--text);
+}
+/* In a .field row, mirror the look/size of the sibling selects/inputs. */
+.field .datepicker-field {
+  flex: 1;
+  max-width: 280px;
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 13px;
+}
+.field .datepicker-field:focus {
+  border-color: var(--accent);
+}
+
+/* Date picker popover. */
+.datepicker-pop {
+  position: fixed;
+  z-index: 1000;
+  width: 252px;
+  background: var(--elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  color: var(--text);
+  animation: menuIn 0.12s ease;
+}
+.datepicker-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.datepicker-pop-month {
+  font-weight: 600;
+  font-size: 13px;
+}
+.datepicker-pop-nav {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.datepicker-pop-nav:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.datepicker-pop-week,
+.datepicker-pop-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.datepicker-pop-week {
+  margin-bottom: 4px;
+}
+.datepicker-pop-week span {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-mute);
+  padding: 2px 0;
+}
+.datepicker-pop-cell {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 5px 0;
+  font-size: 12px;
+  text-align: center;
+}
+.datepicker-pop-cell:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.datepicker-pop-cell.datepicker-pop-cell-muted {
+  color: var(--text-mute);
+  opacity: 0.55;
+}
+.datepicker-pop-cell.datepicker-pop-cell-today {
+  border-color: var(--border-strong);
+}
+.datepicker-pop-cell.datepicker-pop-cell-selected {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.datepicker-pop-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.datepicker-pop-time span {
+  color: var(--text-dim);
+}
+.datepicker-pop-time-input {
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 4px 7px;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  color-scheme: dark;
+}
+.datepicker-pop-time-input:focus {
+  border-color: var(--accent);
+}
+.datepicker-pop-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.datepicker-pop-foot-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+.datepicker-pop-foot-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.datepicker-pop-foot-btn.datepicker-pop-foot-btn-accent {
+  color: var(--accent);
+}
