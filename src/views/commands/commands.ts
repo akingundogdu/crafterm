@@ -1,7 +1,25 @@
-// Commands bridge (§6 sanctioned exception, like state/spine). The SINGLE file
-// under src/views allowed to import the legacy command actions (openLink,
-// selectPane, openNote, openMarkdownFile, …); every other @views module imports
-// them from here, never from @ui. These actions touch the pane/browser subsystem
-// which stays in @ui until Phase 8/9; at teardown this re-export flips to the
-// migrated source and nothing else changes.
-export * from '@ui/commands/commands'
+import { settings } from '@views/state/state'
+
+// High-level command actions (create/split/close panes, open links/notes/SQL,
+// worktree/git flows, node editing, drag & drop). Migrated into @views: the action
+// logic lives in `commands.state.ts`; this thin layer owns the one piece of view —
+// the transient toast — and re-exports the module's public surface. Legacy @ui code
+// imports `@ui/commands/commands`, a shim re-exporting this.
+export * from './commands.state'
+export type { GitAction, DropMode } from './commands.types'
+export { settings }
+
+// ---- tiny transient toast ----
+let flashTimer: number | null = null
+export function flash(msg: string): void {
+  let el = document.getElementById('toast')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'toast'
+    document.body.appendChild(el)
+  }
+  el.textContent = msg
+  el.classList.add('show')
+  if (flashTimer) clearTimeout(flashTimer)
+  flashTimer = window.setTimeout(() => el?.classList.remove('show'), 1800)
+}
