@@ -4,7 +4,7 @@ import { UITexts } from '@texts'
 import { meetingNoteRepo } from '@repositories'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { showRemindModal } from '@ui/screens/reminders/reminders'
-import { showMeetingForm } from '@ui/screens/meeting-notes/components/meeting-form'
+import { openMeetingForm } from './meeting-form.open'
 import { ARCHIVE_SVG, formatDate, projectFor } from '@ui/screens/meeting-notes/meeting-notes.state'
 import store from '../meeting-notes.store'
 
@@ -35,7 +35,7 @@ export default class MeetingNoteCard extends Component {
   template({ note, showProject }: this['props']) {
     const project = projectFor(note, showProject)
     return (
-      <div class="meeting-note-card" onClick={() => showMeetingForm(this.raw(), () => store.reload())}>
+      <div class="meeting-note-card" onClick={() => openMeetingForm(this.raw(), () => store.reload())}>
         <div class="meeting-note-top">
           <span class="meeting-note-date">{formatDate(note.date)}</span>
           <div class="meeting-note-title">{note.title || UITexts.MeetingNotes.untitled}</div>

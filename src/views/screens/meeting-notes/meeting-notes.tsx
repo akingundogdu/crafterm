@@ -2,7 +2,7 @@ import '@views/screens/meeting-notes/meeting-notes.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { groupByProject, setActiveRerender } from '@ui/screens/meeting-notes/meeting-notes.state'
-import { showMeetingForm } from '@ui/screens/meeting-notes/components/meeting-form'
+import { openMeetingForm } from './components/meeting-form.open'
 import MeetingNoteCard from './components/meeting-note-card'
 import store from './meeting-notes.store'
 
@@ -26,7 +26,7 @@ export default class MeetingNotes extends Component {
       <div class="meeting-notes-root" style={{ display: 'contents' }}>
         <div class="meeting-notes-header">
           <div class="meeting-notes-title">{UITexts.MeetingNotes.title}</div>
-          <button class="daily-plan-primary-btn" onClick={() => showMeetingForm(null, () => store.reload())}>
+          <button class="daily-plan-primary-btn" onClick={() => openMeetingForm(null, () => store.reload())}>
             {UITexts.MeetingNotes.newMeeting}
           </button>
         </div>
