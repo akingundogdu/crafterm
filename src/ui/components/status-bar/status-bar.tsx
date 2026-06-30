@@ -1,16 +1,4 @@
-import './status-bar.css'
-import { mountStatusBarShell } from './components/status-bar-shell'
-import { initStatusbarUsage } from './components/usage-chip'
-import { initStatusbarVersion } from './components/version-chip'
-import { updateNotifBadge } from './components/notif-badge'
-import type { StatusBarDeps } from './status-bar.types'
-
-export { updateNotifBadge }
-
-// Build the status bar's DOM into `#content-statusbar` and wire its chips +
-// toggles. Mounted by the main-window bootstrap into the content column.
-export function mountStatusBar(contentCol: HTMLElement, deps: StatusBarDeps): void {
-  mountStatusBarShell(contentCol, deps)
-  initStatusbarUsage()
-  initStatusbarVersion()
-}
+// Status bar — migrated to gea tree (src/views/components/status-bar). This legacy
+// entry point is a thin re-export shim so existing @ui consumers (main.state, the
+// notifications shell) keep importing mountStatusBar / updateNotifBadge unchanged.
+export { mountStatusBar, updateNotifBadge } from '@views/components/status-bar/status-bar'
