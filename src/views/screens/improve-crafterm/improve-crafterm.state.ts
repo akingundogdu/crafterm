@@ -106,7 +106,7 @@ export function makeOnTopClick(btn: HTMLButtonElement): () => void {
 export function makeOpenSettingsClick(close: () => void): () => Promise<void> {
   return async () => {
     close()
-    const { openSettings } = await import('@ui/screens/settings/settings')
+    const { openSettings } = await import('@views/screens/settings/settings')
     openSettings()
   }
 }

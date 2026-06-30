@@ -3,8 +3,8 @@ import type { TreeView } from '@views/components/treeview/treeview'
 import type { SidebarMode } from '../sidebar.types'
 import { state } from '@views/state/spine'
 import { selectTab, selectNode, toggleCollapse } from '@views/commands/commands'
-import { databaseHandleKey } from '@ui/screens/database/database'
-import { dockerHandleKey } from '@ui/screens/docker/docker'
+import { databaseHandleKey } from '@views/screens/database/database'
+import { dockerHandleKey } from '@views/screens/docker/docker'
 import { handleNotebookKey } from '@views/notebook/notebook'
 
 export function focusList(tabListEl: HTMLElement): void {

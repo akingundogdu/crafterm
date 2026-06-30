@@ -15,11 +15,19 @@ import store from './meeting-form.store'
 // shell-store tree mirror (the sanctioned spine bridge), so no @ui (§2.7).
 export default class MeetingForm extends Component {
   private dateField: DateField | null = null
+  private dateHost: HTMLDivElement | null = null
 
   created(): void {
     const field = createDateField({ mode: 'date', value: store.date })
     field.addEventListener('change', () => store.setDate(field.value))
     this.dateField = field
+  }
+
+  // gea callback refs (`ref={(el)=>…}`) don't fire in @geajs/core 1.3.0 — embed the
+  // imperative DateField via a property ref + appendChild here (§5.11). Guarded so
+  // re-renders re-attach (move) the same widget rather than duplicating it.
+  onAfterRender(): void {
+    if (this.dateHost && this.dateField && !this.dateHost.firstChild) this.dateHost.appendChild(this.dateField)
   }
 
   template() {
@@ -53,7 +61,7 @@ export default class MeetingForm extends Component {
         </div>
         <div class="field">
           <label>{UITexts.MeetingNotes.form.fieldDate}</label>
-          <div ref={(host: HTMLElement) => this.dateField && host.appendChild(this.dateField)} />
+          <div ref={this.dateHost} />
         </div>
         <div class="field">
           <label>

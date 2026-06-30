@@ -1,7 +1,7 @@
 import '@views/screens/meeting-notes/meeting-notes.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { groupByProject, setActiveRerender } from '@ui/screens/meeting-notes/meeting-notes.state'
+import { groupByProject, setActiveRerender } from '@views/screens/meeting-notes/meeting-notes.state'
 import { openMeetingForm } from './components/meeting-form.open'
 import MeetingNoteCard from './components/meeting-note-card'
 import store from './meeting-notes.store'
@@ -57,4 +57,12 @@ export default class MeetingNotes extends Component {
       </div>
     )
   }
+}
+
+// Mount entry (was the legacy @ui renderMeetingNotes): mounts the gea panel into
+// the Notebook sub-tab host. Kept here so the @views tree owns it (no @ui).
+export function renderMeetingNotes(host: HTMLElement): void {
+  host.replaceChildren()
+  host.classList.add('meeting-notes')
+  new MeetingNotes().render(host)
 }

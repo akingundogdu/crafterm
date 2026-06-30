@@ -18,7 +18,7 @@ import {
 } from '@views/commands/commands'
 import { showRunApps, showFeatureSetup, showRunCommand } from '@views/screens/pickers/project/project'
 import { promptText } from '@views/components/dialog/prompt-text'
-import { promptSelect } from '@ui/components/dialog/dialog'
+import { promptSelect } from '@views/components/dialog/prompt-select'
 import { type ContextMenuItem } from '@views/components/context-menu/context-menu'
 import { iosWorktreeMenuItems } from '@views/screens/ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '@services/worktrees'

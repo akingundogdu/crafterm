@@ -10,8 +10,8 @@ import { UITexts } from '@texts'
 // the daily-plan modal / meeting opener, which still live in the un-migrated
 // daily-plan-modal and meeting-notes.state subsystems. They clear when those
 // subsystems migrate to @views.
-import { showDailyPlanModal } from '@ui/screens/daily-plan/daily-plan'
-import { openMeetingNote } from '@ui/screens/meeting-notes/meeting-notes'
+import { showDailyPlanModal } from '@views/screens/daily-plan/daily-plan.entry'
+import { openMeetingNote } from '@views/screens/meeting-notes/meeting-notes.state'
 import type { AppNotification, ReminderPayload } from '@views/types/types'
 import type { RealUsage, UsageWindow, NotifChip, PayloadOpener } from './notifications.types'
 

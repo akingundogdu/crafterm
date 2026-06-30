@@ -31,8 +31,8 @@ import {
 import { showPlansModal } from '@views/screens/pickers/plans/plans'
 import { showWorktreeDashboard } from '@views/screens/pickers/worktree/worktree'
 import { showRunningProcessesDashboard, showRunningDevicesDashboard } from '@views/screens/pickers/processes/processes'
-import { showImproveModal } from '@ui/screens/improve-crafterm/improve-crafterm'
-import { showDailyPlanModal } from '@ui/screens/daily-plan/daily-plan'
+import { showImproveModal } from '@views/screens/improve-crafterm/improve-crafterm.state'
+import { showDailyPlanModal } from '@views/screens/daily-plan/daily-plan.entry'
 import { newWorktree } from '@services/worktrees'
 import type { Crumb } from './sidebar.types'
 

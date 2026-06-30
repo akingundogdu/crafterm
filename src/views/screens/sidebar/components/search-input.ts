@@ -1,9 +1,9 @@
 import type { SidebarNode } from '@views/types/types'
 import type { TreeView } from '@views/components/treeview/treeview'
 import type { SidebarMode } from '../sidebar.types'
-import { dbApplyQuery } from '@ui/screens/database/database'
-import { dockerApplyQuery } from '@ui/screens/docker/docker'
-import { accountsApplyQuery } from '@ui/screens/accounts/accounts'
+import { dbApplyQuery } from '@views/screens/database/database'
+import { dockerApplyQuery } from '@views/screens/docker/docker'
+import { accountsApplyQuery } from '@views/screens/accounts/accounts'
 import { nbApplyQuery, notebookSelectFirst } from '@views/notebook/notebook'
 
 // Collaborators the search box needs from the shell.

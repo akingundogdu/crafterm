@@ -4,7 +4,7 @@ import { promptConfirm } from '@views/components/dialog/confirm'
 import { showRemindModal } from '@views/screens/reminders/components/remind-modal'
 import { parseYmd, shiftDays } from '@views/screens/daily-plan/task-helpers'
 import { todayKey, shortDue, dueInfo, tagById, sanitizeSlug, worktreeBranchForTask, taskById } from '@views/screens/daily-plan/daily-plan.state'
-import { showTaskForm, openTaskInTerminal } from '@ui/screens/daily-plan/daily-plan'
+import { showTaskForm, openTaskInTerminal } from '@views/screens/daily-plan/daily-plan.entry'
 import store from '../daily-plan.store'
 
 // gea port of the draggable task card. The legacy card is an imperative

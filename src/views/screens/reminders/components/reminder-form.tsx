@@ -12,6 +12,7 @@ import store, { quickPresets, toLocalInput } from './reminder-form.store'
 // Self-contained — no @ui (§2.7).
 export default class ReminderForm extends Component {
   private whenField: DateField | null = null
+  private whenHost: HTMLDivElement | null = null
 
   created(): void {
     this.whenField = createDateField({
@@ -19,6 +20,12 @@ export default class ReminderForm extends Component {
       value: store.initialWhen,
       className: 'reminder-input'
     })
+  }
+
+  // gea callback refs don't fire in @geajs/core 1.3.0 — embed the imperative
+  // DateField via a property ref + appendChild here (§5.11).
+  onAfterRender(): void {
+    if (this.whenHost && this.whenField && !this.whenHost.firstChild) this.whenHost.appendChild(this.whenField)
   }
 
   private save = (): void => {
@@ -53,7 +60,7 @@ export default class ReminderForm extends Component {
         <h2>{store.titleText}</h2>
 
         <div class="reminder-label">{t.labelWhen}</div>
-        <div ref={(host: HTMLElement) => this.whenField && host.appendChild(this.whenField)} />
+        <div ref={this.whenHost} />
         <div class="reminder-quick">
           {quickPresets().map((p) => (
             <button key={p.label} class="reminder-preset" onClick={() => this.applyPreset(p.at())}>
