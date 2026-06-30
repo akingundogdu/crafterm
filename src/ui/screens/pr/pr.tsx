@@ -1,14 +1,26 @@
-import './pr.css'
-import { prController } from './pr.controller'
+import Pr from '@views/screens/pr/pr'
+import store from '@views/screens/pr/pr.store'
 
-// The right-panel "Pull Requests / Deployments" tab. Polls GitHub (via gh) while
-// visible and surfaces CI/deploy completion as notifications. Cards, badges, the
-// repo picker, the text modal, and change-alert tracking live in sibling modules;
-// the PrController orchestrates rendering, scoping, merging, and the adaptive poll.
+// PR / Deployments panel — migrated to gea (src/views/screens/pr). This legacy
+// entry point mounts the gea component into the right-panel tab host once; the
+// store singleton owns the sub-tab/scope state, the reactive list, and the
+// adaptive background poll across remounts.
+let mounted = false
+
+function ensureMounted(): void {
+  if (mounted) return
+  const el = document.getElementById('notif-pr-view')!
+  el.replaceChildren()
+  new Pr().render(el)
+  mounted = true
+}
+
 export function renderPr(): Promise<void> {
-  return prController.renderPr()
+  ensureMounted()
+  return store.reload()
 }
 
 export function prTabVisible(visible: boolean): void {
-  prController.prTabVisible(visible)
+  if (visible) ensureMounted()
+  store.setTabVisible(visible)
 }
