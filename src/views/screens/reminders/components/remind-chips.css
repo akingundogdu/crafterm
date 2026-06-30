@@ -1,0 +1,24 @@
+/* Snooze-chip grid shared by the "Remind me about this" modal and the bookmark
+   remind picker (gea tree, §2.7 self-contained copy of the legacy .bookmarks-remind
+   classes; identical, harmless duplication while both trees co-exist). */
+.bookmarks-remind-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.bookmarks-remind-chip {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.bookmarks-remind-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border-color: var(--accent, #58a6ff);
+}
