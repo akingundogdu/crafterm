@@ -3,13 +3,13 @@ import type { AccountEntry } from '@views/types/types'
 import { UITexts } from '@texts'
 import { accountRepo } from '@repositories'
 import { promptConfirm } from '@views/components/dialog/confirm'
-import { copyToClipboard } from '@ui/screens/accounts/accounts.state'
-import { showAccountForm } from '@ui/screens/accounts/components/account-form'
+import { copyToClipboard } from '@views/screens/accounts/accounts.util'
+import { openAccountForm } from './account-form'
 import FieldRow from './field-row'
 import store from '../accounts.store'
 
-// gea port of the account/secret card. Edit reuses the legacy form with the RAW
-// repo object (it mutates the entry); delete goes through the store.
+// gea port of the account/secret card. Edit opens the gea account form with the
+// RAW repo object (the draft clones it); delete goes through the store.
 export default class AccountCard extends Component {
   declare props: { entry: AccountEntry }
 
@@ -84,7 +84,7 @@ export default class AccountCard extends Component {
           </div>
         )}
         <div class="accounts-actions">
-          <button class="accounts-action" onClick={() => showAccountForm(this.raw())}>
+          <button class="accounts-action" onClick={() => openAccountForm(this.raw(), undefined, () => store.reload())}>
             Edit
           </button>
           <button class="accounts-action button-danger" onClick={this.onDelete}>

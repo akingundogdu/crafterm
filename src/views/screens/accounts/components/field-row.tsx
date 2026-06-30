@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import type { AccountField } from '@views/types/types'
 import { UITexts } from '@texts'
 import { secretsService } from '@services'
-import { copyToClipboard } from '@ui/screens/accounts/accounts.state'
+import { copyToClipboard } from '@views/screens/accounts/accounts.util'
 
 // One field row on an account card. Secret values are masked and revealed on
 // demand via component-local reactive state (the legacy version toggled the DOM
