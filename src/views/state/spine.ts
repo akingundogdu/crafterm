@@ -5,5 +5,6 @@
 // this re-exports the live singletons (state, settings, uid, pushNotification, the
 // pane maps, hooks, …) — reads AND mutations go through to the one real store.
 // At teardown (Phase 9) state.ts physically moves into @views and this file's
-// `from '@ui/state/state'` becomes `from './state'`; nothing else changes.
-export * from '@ui/state/state'
+// state.ts now lives in @views/state/state (moved); this re-exports it so the
+// existing `@views/state/spine` import path keeps working tree-wide.
+export * from '@views/state/state'
