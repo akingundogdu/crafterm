@@ -4,9 +4,9 @@ import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
 import { boardColumnOf, shiftDays } from '@views/screens/daily-plan/task-helpers'
 import { todayKey, reorderWithin, findInsertBefore } from '@views/screens/daily-plan/daily-plan.state'
-// Tag filter is shared with the legacy compact view via this module-level Set;
-// the legacy tag-filter popover mutates it and calls reload() to refresh us.
-import { tagFilter } from '@ui/screens/daily-plan/daily-plan'
+// Tag filter is shared with the compact view via this module-level Set; the
+// tag-filter popover mutates it and calls reload() to refresh us.
+import { tagFilter } from './daily-plan.entry'
 
 // Reactive board state for the gea Daily Plan board. The repos remain the
 // persisted source of truth; this store mirrors them into reactive arrays so gea
