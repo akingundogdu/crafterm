@@ -54,7 +54,7 @@ function defineTheme(name: string, p: EditorThemePalette): void {
       { token: 'string', foreground: tok(p.string) },
       { token: 'number', foreground: tok(p.number) },
       { token: 'operator', foreground: tok(p.operator) },
-      { token: 'delimiter', foreground: tok(p.text) },
+      { token: 'delimiter', foreground: tok(text) },
       { token: 'type', foreground: tok(p.type) },
       { token: 'identifier', foreground: tok(p.identifier) },
       { token: 'function', foreground: tok(p.function) },
