@@ -1,4 +1,4 @@
-import type { GsEntry } from '@ui/screens/pickers/global-search/global-search'
+import type { GsEntry } from '@views/screens/pickers/global-search/global-search'
 
 // Spotlight result list types. GsEntry is sourced from the (un-migrated) global
 // search picker — the spine's "All" tab is built on that index, so the @ui import

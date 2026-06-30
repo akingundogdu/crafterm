@@ -1,8 +1,8 @@
 import { settings, panes, state, hooks } from '@views/state/spine'
 import { dailyTaskRepo, reminderRepo, paletteCommandRepo } from '@repositories'
-import { showRunApp } from '@ui/screens/pickers/project/project'
-import { loadZshCommands } from '@ui/screens/pickers/command/command'
-import { SOURCE_LABEL } from '@ui/screens/pickers/global-search/global-search'
+import { showRunApp } from '@views/screens/pickers/project/project'
+import { loadZshCommands } from '@views/screens/pickers/command/command'
+import { SOURCE_LABEL } from '@views/screens/pickers/global-search/global-search'
 import {
   openMarkdownFile,
   selectPane,
@@ -13,8 +13,8 @@ import {
   newClaudeTab
 } from '@views/commands/commands'
 import { flattenProjects } from '@views/catalog/catalog'
-import { allTabs, panesInLayout, ancestorFolders } from '@ui/tree/tree'
-import { KEYBINDINGS, effectiveCombo, comboLabel, comboFromEvent } from '@ui/keybindings/keybindings'
+import { allTabs, panesInLayout, ancestorFolders } from '@views/tree/tree'
+import { KEYBINDINGS, effectiveCombo, comboLabel, comboFromEvent } from '@views/keybindings/keybindings'
 import { showDailyPlanModal } from '@ui/screens/daily-plan/daily-plan'
 import { openReminderForm } from '@views/screens/reminders/components/reminder-form.open'
 import { paneStatus } from '@views/pane/pane'
