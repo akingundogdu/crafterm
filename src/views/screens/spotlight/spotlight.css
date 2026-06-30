@@ -1,0 +1,145 @@
+/* Spotlight (unified tabbed search) */
+.spotlight-source-badge.gs-file { background: rgba(88, 166, 255, 0.18); color: #79c0ff; }
+.spotlight-source-badge.gs-command { background: rgba(57, 197, 187, 0.18); color: #56d4cb; }
+.spotlight-source-badge.gs-claude { background: rgba(199, 116, 230, 0.18); color: #d2a8ff; }
+.spotlight-source-badge.gs-shortcut { background: rgba(110, 118, 129, 0.22); color: #adbac7; }
+.spotlight-source-badge.gs-app { background: rgba(63, 185, 80, 0.18); color: #56d364; }
+.spotlight-source-badge.gs-task { background: rgba(240, 198, 118, 0.18); color: #f0c674; }
+.spotlight-source-badge.gs-reminder { background: rgba(248, 178, 73, 0.18); color: #f0c674; }
+.spotlight-source-badge.gs-backlog { background: rgba(248, 81, 73, 0.18); color: #ff7b72; }
+
+.spot-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.spot-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+.spot-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.spot-tab.active {
+  background: rgba(88, 166, 255, 0.16);
+  color: var(--accent);
+  border-color: rgba(88, 166, 255, 0.3);
+}
+.spot-tab-combo {
+  font-size: 10px;
+  opacity: 0.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.spot-list {
+  max-height: 56vh;
+}
+.spot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+}
+.spot-row .spotlight-source-badge {
+  flex: 0 0 70px;
+}
+.spot-row .spotlight-detail {
+  margin-left: auto;
+}
+/* ---- Spotlight: compact, translucent near-black, blurred modern theme ---- */
+.modal-overlay:has(.spotlight-modal) {
+  align-items: flex-start;
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+}
+.modal.spotlight-modal {
+  width: 860px;
+  max-width: 92vw;
+  margin-top: 11vh;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  background: rgba(12, 12, 14, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.62), inset 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+}
+.spotlight-modal .modal-close {
+  display: none;
+}
+.spotlight-modal .search-box-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  padding: 4px 4px 10px;
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.spotlight-modal .search-box-input::placeholder {
+  color: var(--text-mute);
+}
+.spotlight-modal .search-box-input:focus {
+  border-bottom-color: rgba(120, 170, 255, 0.5);
+}
+.spotlight-modal .spot-tabs {
+  gap: 3px;
+  padding: 0 0 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.spotlight-modal .spot-tab {
+  padding: 3px 9px;
+  font-size: 11.5px;
+  border-radius: 7px;
+}
+.spotlight-modal .spot-tab.active {
+  background: rgba(88, 166, 255, 0.18);
+  color: var(--accent);
+  border-color: rgba(88, 166, 255, 0.32);
+}
+.spotlight-modal .spot-list,
+.spotlight-modal.picker-modal-wide .picker-list {
+  max-height: 52vh;
+}
+.spotlight-modal .spot-row {
+  padding: 6px 8px;
+  gap: 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  color: var(--text-dim);
+}
+.spotlight-modal .spot-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.spotlight-modal .spot-row.active {
+  background: rgba(88, 166, 255, 0.16);
+  color: var(--text);
+}
+.spotlight-modal .spotlight-label {
+  font-size: 12.5px;
+}
+.spotlight-modal .spotlight-detail {
+  font-size: 10.5px;
+  max-width: 440px;
+}
+.spotlight-modal .empty-hint {
+  padding: 18px 8px;
+  color: var(--text-mute);
+  font-size: 12px;
+}
