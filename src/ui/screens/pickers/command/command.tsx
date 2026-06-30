@@ -1,26 +1,3 @@
-import {
-  CommandPaletteController,
-  TerminalSwitcherController,
-  CommandHistoryController
-} from './command.controller'
-
-export type { PaletteCommand, OpenTerminal, ZshCommand } from './command.types'
-export { loadZshCommands } from './command.state'
-
-// ---- Command palette: zsh + user categories (predefined / cheatsheets) ----
-
-export async function showCommandPalette(): Promise<void> {
-  return new CommandPaletteController().open()
-}
-
-// ---- Terminal switcher: list every open terminal/pane, search, jump to one ----
-
-export function showTerminalSwitcher(): void {
-  new TerminalSwitcherController().open()
-}
-
-// ---- Command history: filter all app-tracked commands, copy one ----
-
-export function showCommandHistory(): void {
-  new CommandHistoryController().open()
-}
+// Migrated to the gea @views tree. This legacy entry is a thin re-export
+// shim so the shell/spotlight imports keep resolving during migration.
+export * from '@views/screens/pickers/command/command'
