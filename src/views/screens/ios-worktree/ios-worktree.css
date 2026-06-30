@@ -1,0 +1,94 @@
+/* ---- iOS worktree manager (inline under an iOS-app project) ---- */
+.ios-wt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0 4px 14px;
+}
+.ios-wt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.ios-wt-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ios-wt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: #555;
+}
+.ios-wt-dot-running {
+  background: #35c759;
+}
+.ios-wt-dot-installed {
+  background: #5e9eff;
+}
+.ios-wt-dot-built {
+  background: var(--amber, #e0a44a);
+}
+.ios-wt-dot-building {
+  background: #d6b34a;
+  animation: ios-wt-pulse 1s ease-in-out infinite;
+}
+.ios-wt-dot-none {
+  background: #555;
+}
+@keyframes ios-wt-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.ios-wt-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ios-wt-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.ios-wt-act {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.ios-wt-act:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+.ios-wt-new,
+.ios-wt-cta {
+  padding: 3px 6px;
+  font-size: 11px;
+  color: var(--amber, #e0a44a);
+  cursor: pointer;
+  opacity: 0.85;
+}
+.ios-wt-new:hover,
+.ios-wt-cta:hover {
+  opacity: 1;
+}
+.ios-wt-empty {
+  padding: 3px 6px;
+  font-size: 11px;
+  opacity: 0.5;
+}
