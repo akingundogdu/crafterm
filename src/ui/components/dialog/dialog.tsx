@@ -7,7 +7,7 @@ export { makeCloseButton } from './components/dialog-close-button'
 export { promptText } from './components/prompt-text'
 export { promptConfirm } from './components/prompt-confirm'
 export { promptCloseActions } from './components/prompt-close-actions'
-export { promptSelect } from './components/prompt-select'
+export { promptSelect } from '@views/components/dialog/prompt-select'
 export { promptForm } from './components/prompt-form'
 
 export type {

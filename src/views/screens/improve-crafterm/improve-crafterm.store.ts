@@ -11,7 +11,7 @@ import {
   sectionBy,
   ensureSection
 } from '@views/screens/improve-crafterm/todo-doc'
-import { todoJsonPath, docToJson } from '@ui/screens/improve-crafterm/improve-crafterm.state'
+import { todoJsonPath, docToJson } from './improve-crafterm.state'
 
 export type ImproveTab = 'todo' | 'ready' | 'done'
 
