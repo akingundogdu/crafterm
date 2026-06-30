@@ -1,40 +1,25 @@
-import './time.css'
-import { renderProjects, projectSel } from './components/project-selector'
-import { featureSel } from './components/feature-selector'
-import { renderSummary as renderSummaryView } from './components/time-summary'
-import {
-  wireTimerEngine,
-  getActiveTimer,
-  tickElapsed,
-  updateToggle
-} from './time.engine'
-import {
-  wireAutoTracking,
-  getAutoSession,
-  startAutoTracker
-} from './auto-tracking.engine'
-import { initTime } from './time-events.engine'
+import Time from '@views/screens/time/time'
+import timeStore from '@views/screens/time/time.store'
 
-// Re-exported for main.ts, which still imports openTrackModal from the time module.
-export { openTrackModal } from './components/track-modal'
-export { startAutoTracker, initTime }
+// Time panel — migrated to gea (src/views/screens/time). This legacy entry point
+// mounts the gea component into the right-panel Time tab host; the store singleton
+// keeps the timer / selection / auto-session state across remounts. The static
+// markup left in index.html is replaced on the first render.
 
-// Bridge the two engines' live state into the shared summary render.
-function renderSummary(): void {
-  renderSummaryView({ getActive: getActiveTimer, getAutoSession })
+// Re-exported for main.state.ts, which imports openTrackModal from the time module.
+export { openTrackModal } from '@views/screens/time/components/track-modal.open'
+
+// Mount (or remount) the gea Time panel into its tab host.
+export function renderTime(): void {
+  const host = document.getElementById('notif-time-view')!
+  host.replaceChildren()
+  new Time().render(host)
 }
 
-// Thread the selectors + summary refresh into the timer/auto engines (once).
-wireTimerEngine({
-  getProjectPath: () => projectSel().value,
-  getFeatureId: () => featureSel().value || null,
-  renderSummary
-})
-wireAutoTracking({ renderSummary })
+// Listener wiring now lives inline in the gea component; nothing to do at startup.
+export function initTime(): void {}
 
-export function renderTime(): void {
-  renderProjects()
-  updateToggle()
-  tickElapsed()
-  renderSummary()
+// Start the global activity listeners + the auto-tracking loop (once).
+export function startAutoTracker(): void {
+  timeStore.startAutoTracker()
 }
