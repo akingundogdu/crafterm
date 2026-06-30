@@ -51,3 +51,18 @@ export default class Accounts extends Component {
     )
   }
 }
+
+// Legacy sidebar entry wrappers (re-exported by the @ui shim so existing
+// consumers keep their imports). The gea panel mounts into the #tab-list host;
+// the shared sidebar search bridges into the reactive store filter.
+export function renderAccounts(): void {
+  const el = document.getElementById('tab-list')!
+  el.replaceChildren()
+  el.className = 'tab-list accounts-list-wrap'
+  new Accounts().render(el)
+}
+
+export function accountsApplyQuery(q: string): void {
+  store.setQuery(q)
+  renderAccounts()
+}
