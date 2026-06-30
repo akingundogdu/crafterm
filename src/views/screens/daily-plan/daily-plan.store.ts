@@ -3,7 +3,7 @@ import type { DailyPlanTask, DailyPlanTag, DailyPlanStatus } from '@views/types/
 import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
 import { boardColumnOf, shiftDays } from '@views/screens/daily-plan/task-helpers'
-import { todayKey, reorderWithin, findInsertBefore } from '@ui/screens/daily-plan/daily-plan.state'
+import { todayKey, reorderWithin, findInsertBefore } from '@views/screens/daily-plan/daily-plan.state'
 // Tag filter is shared with the legacy compact view via this module-level Set;
 // the legacy tag-filter popover mutates it and calls reload() to refresh us.
 import { tagFilter } from '@ui/screens/daily-plan/daily-plan'
