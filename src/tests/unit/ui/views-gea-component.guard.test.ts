@@ -2,30 +2,35 @@ import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// HARD RULE (§views): under src/views, apart from the build-infra shims, every
-// folder that builds DOM MUST express its view as a gea `.tsx` Component. No
-// plain-DOM `el(...)` / `createElement` container factories in a `.ts` view. This
-// keeps the renderer uniformly gea instead of drifting into ad-hoc structures.
+// HARD RULE (§views): under src/views, apart from the build-infra shims, NO plain-
+// DOM view code — no `el(...)` / `createElement` container factories in a `.ts`.
+// Every folder's view is a gea `.tsx` Component; imperative widgets (Monaco,
+// xterm, <webview>, datepicker) get a thin gea `.tsx` shell that mounts them via a
+// property `ref` + `onAfterRender` (§5.11). This keeps the renderer uniformly gea.
 //
-// This guard is a RATCHET: a folder that builds DOM (matches DOM_PATTERN in a
-// `.ts` file) but has no `.tsx` is a violation. The set of CURRENT violations is
-// frozen in GRANDFATHERED below. The guard fails if that set changes in EITHER
-// direction — a NEW violator appears (add nothing; fix it), or a listed folder
-// was converted to gea (remove it from the list). The migration to full gea is
-// done when GRANDFATHERED is empty.
+// This guard is a RATCHET: a folder is a violation while ANY non-infra `.ts` in it
+// still uses `el(` / `createElement` (having a `.tsx` in the folder does NOT
+// exempt it — every plain-DOM view must go). The frozen set of CURRENT violations
+// is GRANDFATHERED. The guard fails if that set changes either way — a NEW
+// violator appears, or a folder was cleaned but not removed from the list. The
+// migration is done when GRANDFATHERED is empty (then drop the `lib` INFRA entry +
+// delete `lib/dom.ts`).
 const VIEWS = join(process.cwd(), 'src', 'views')
-const DOM_PATTERN = /\bel\(|createElement|\.appendChild\(|innerHTML\s*=/
+// Plain-DOM VIEW building only (the `el()` helper + raw createElement). Note:
+// `appendChild` / `innerHTML=` are NOT flagged — they legitimately appear inside
+// gea `onAfterRender` when mounting an imperative widget into a host div.
+const DOM_PATTERN = /\bel\(|\bcreateElement\b/
 
-// Build-infra shims that are allowed to touch the DOM imperatively:
+// Build-infra shims allowed to build DOM imperatively:
 //  - '.'   → jsx-runtime.ts / jsx-dev-runtime.ts (the JSX runtime itself)
-//  - 'lib' → dom.ts (the `el()` helper; removed once every folder is converted)
+//  - 'lib' → dom.ts (the `el()` helper; deleted once every folder is converted)
 const INFRA = new Set(['.', 'lib'])
 
-// Folders still building DOM in plain `.ts` (no `.tsx`). SHRINK this as batches
-// convert to gea Components; when empty, drop it + the INFRA `lib` entry.
+// Folders still containing plain-DOM (`el()`/`createElement`) `.ts` view code.
+// SHRINK this as batches convert to gea; when empty, drop it + the INFRA `lib`
+// entry + delete `lib/dom.ts`.
 const GRANDFATHERED = [
   'commands',
-  'components/context-menu',
   'components/context-menu/components',
   'components/datepicker/components',
   'components/dialog',
@@ -37,10 +42,14 @@ const GRANDFATHERED = [
   'notebook/components',
   'pane',
   'pane/components',
+  'screens/accounts/components',
+  'screens/bookmarks/components',
   'screens/code-pane',
   'screens/code-pane/components',
   'screens/content',
   'screens/content/components',
+  'screens/daily-plan',
+  'screens/daily-plan/components',
   'screens/database',
   'screens/db-pane',
   'screens/db-pane/components',
@@ -48,11 +57,14 @@ const GRANDFATHERED = [
   'screens/diff-pane',
   'screens/diff-pane/components',
   'screens/diff/components',
+  'screens/docker/components',
   'screens/explorer',
   'screens/explorer/components',
   'screens/file-pane',
   'screens/file-pane/components',
+  'screens/improve-crafterm',
   'screens/ios-worktree/components',
+  'screens/notifications/components',
   'screens/pickers/claude',
   'screens/pickers/claude/components',
   'screens/pickers/command',
@@ -79,6 +91,8 @@ const GRANDFATHERED = [
   'screens/pickers/update/components',
   'screens/pickers/worktree',
   'screens/pickers/worktree/components',
+  'screens/pr/components',
+  'screens/reminders/components',
   'screens/settings',
   'screens/settings/components',
   'screens/settings/lib',
@@ -102,7 +116,6 @@ function collectViolators(dir: string, acc: string[]): void {
 
   if (INFRA.has(rel(dir))) return
   const files = entries.filter((e) => e.isFile()).map((e) => e.name)
-  if (files.some((f) => f.endsWith('.tsx'))) return
   const buildsDom = files.some(
     (f) => f.endsWith('.ts') && !f.endsWith('.d.ts') && DOM_PATTERN.test(readFileSync(join(dir, f), 'utf8'))
   )
@@ -110,21 +123,21 @@ function collectViolators(dir: string, acc: string[]): void {
 }
 
 describe('views gea-Component guard', () => {
-  it('every DOM-building folder under src/views is a gea .tsx Component (ratchet)', () => {
+  it('no plain-DOM el()/createElement view code under src/views (ratchet)', () => {
     const violators: string[] = []
     collectViolators(VIEWS, violators)
     violators.sort()
 
     const newOnes = violators.filter((v) => !GRANDFATHERED.includes(v))
-    const converted = GRANDFATHERED.filter((v) => !violators.includes(v))
+    const cleaned = GRANDFATHERED.filter((v) => !violators.includes(v))
 
     expect(
       newOnes,
-      `NEW plain-DOM .ts view(s) under src/views (must be a gea .tsx Component): ${newOnes.join(', ')}`
+      `NEW plain-DOM el()/createElement view(s) under src/views — make it a gea .tsx Component: ${newOnes.join(', ')}`
     ).toEqual([])
     expect(
-      converted,
-      `converted folder(s) still listed in GRANDFATHERED — remove them: ${converted.join(', ')}`
+      cleaned,
+      `folder(s) cleaned of plain-DOM but still listed in GRANDFATHERED — remove them: ${cleaned.join(', ')}`
     ).toEqual([])
   })
 })
