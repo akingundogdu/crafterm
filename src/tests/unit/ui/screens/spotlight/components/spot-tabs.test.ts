@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { createSpotTabs, TABS } from '@ui/screens/spotlight/components/spot-tabs'
+import { createSpotTabs, TABS } from '@views/screens/spotlight/components/spot-tabs'
 
 afterEach(() => {
   document.body.innerHTML = ''

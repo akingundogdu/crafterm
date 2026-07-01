@@ -8,7 +8,7 @@ import {
   reportByProject,
   type Range
 } from '@services/domain/time'
-import type { TimeEntry } from '@ui/types/types'
+import type { TimeEntry } from '@views/types/types'
 
 const entry = (p: Partial<TimeEntry> & { start: number; end: number }): TimeEntry => ({
   id: 'e',

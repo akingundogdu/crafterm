@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { WorkflowRun, DeploymentStatus } from '@services/pr/pr.types'
-import { createAlertTracker, type CheckItem } from '@ui/screens/pr/alerts'
+import { createAlertTracker, type CheckItem } from '@views/screens/pr/alerts'
 
 const check = (state: string, over: Partial<CheckItem> = {}): CheckItem => ({
   key: 'repo#1',

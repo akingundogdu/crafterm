@@ -7,7 +7,7 @@ import {
   splitOrder,
   emptyDoc,
   type TodoFileJson
-} from '@ui/screens/improve-crafterm/todo-doc'
+} from '@views/screens/improve-crafterm/todo-doc'
 
 const item = (text: string, status: string, priority = 0) => ({
   id: text,

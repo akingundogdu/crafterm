@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { renderMarkdown } from '@ui/markdown/markdown'
+import { renderMarkdown } from '@views/markdown/markdown'
 
 // Pure string → HTML renderer (no DOM). Asserts stable substrings (whitespace may
 // vary) + the HTML-escaping / XSS-safety contract.

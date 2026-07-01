@@ -1,4 +1,4 @@
-import type { DbNode, DbConnNode, DbConnection } from '@ui/types/types'
+import type { DbNode, DbConnNode, DbConnection } from '@views/types/types'
 import { dbTree } from '@models/db-tree'
 import { persistence } from './persistence.service'
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { field, fmtPorts, inspectFields } from '@ui/screens/docker/inspect'
+import { field, fmtPorts, inspectFields } from '@views/screens/docker/inspect'
 
 describe('field', () => {
   it('returns the first non-empty key, tolerant of capitalisation variants', () => {

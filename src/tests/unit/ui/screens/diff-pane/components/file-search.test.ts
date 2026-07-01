@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { createFileSearch } from '@ui/screens/diff-pane/components/file-search'
-import type { FileDiff } from '@ui/screens/diff-pane/parse-diff'
+import { createFileSearch } from '@views/screens/diff-pane/components/file-search'
+import type { FileDiff } from '@views/screens/diff-pane/parse-diff'
 
 afterEach(() => {
   document.body.innerHTML = ''

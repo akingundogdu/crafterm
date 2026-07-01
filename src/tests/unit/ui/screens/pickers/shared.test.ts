@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { overlayModal, makeSearchInput } from '@ui/screens/pickers/shared'
+import { overlayModal, makeSearchInput } from '@views/screens/pickers/shared'
 
 afterEach(() => {
   document.body.innerHTML = ''

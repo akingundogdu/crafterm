@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { PullRequest, WorkflowRun, DeploymentStatus } from '@services/pr/pr.types'
-import { overallState, runState, deployState, stepMark, ago } from '@ui/screens/pr/pr-status'
+import { overallState, runState, deployState, stepMark, ago } from '@views/screens/pr/pr-status'
 
 const pr = (over: Partial<PullRequest> = {}): PullRequest => ({
   number: 1,

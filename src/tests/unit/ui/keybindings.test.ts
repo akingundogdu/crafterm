@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { comboFromEvent, comboLabel, effectiveCombo, KEYBINDINGS } from '@ui/keybindings/keybindings'
-import { settings } from '@ui/state/state'
+import { comboFromEvent, comboLabel, effectiveCombo, KEYBINDINGS } from '@views/keybindings/keybindings'
+import { settings } from '@views/state/state'
 
 const ev = (o: Partial<KeyboardEvent>): KeyboardEvent => o as unknown as KeyboardEvent
 

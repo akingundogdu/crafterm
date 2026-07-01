@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { createResultList, type SpotEntry } from '@ui/screens/spotlight/components/result-list'
+import { createResultList, type SpotEntry } from '@views/screens/spotlight/components/result-list'
 
 afterEach(() => {
   document.body.innerHTML = ''

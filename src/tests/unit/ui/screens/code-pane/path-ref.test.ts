@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { shortPath, breadcrumb, refPath } from '@ui/screens/code-pane/path-ref'
+import { shortPath, breadcrumb, refPath } from '@views/screens/code-pane/path-ref'
 
 describe('shortPath', () => {
   it('collapses the macOS and linux home prefixes to ~', () => {

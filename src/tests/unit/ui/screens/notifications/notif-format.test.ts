@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { relTime, pathTail, shortModel } from '@ui/screens/notifications/notif-format'
+import { relTime, pathTail, shortModel } from '@views/screens/notifications/notif-format'
 
 describe('relTime', () => {
   const now = 1_000_000_000_000

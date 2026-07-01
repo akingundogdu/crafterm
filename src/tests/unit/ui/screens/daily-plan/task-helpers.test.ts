@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { boardColumnOf, ymd, parseYmd, shiftDays } from '@ui/screens/daily-plan/task-helpers'
+import { boardColumnOf, ymd, parseYmd, shiftDays } from '@views/screens/daily-plan/task-helpers'
 
 describe('boardColumnOf', () => {
   it('folds review and test into the wip column', () => {

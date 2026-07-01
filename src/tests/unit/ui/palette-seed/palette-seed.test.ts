@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PALETTE_SEED } from '@ui/palette-seed/palette-seed'
+import { PALETTE_SEED } from '@views/palette-seed/palette-seed'
 
 describe('PALETTE_SEED', () => {
   it('is a non-empty list of {id,category,name,command} non-empty strings', () => {

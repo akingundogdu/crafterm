@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { createLineSelect, type LineRow, type LineSelectOptions } from '@ui/screens/diff/line-select'
+import { createLineSelect, type LineRow, type LineSelectOptions } from '@views/screens/diff/line-select'
 
 afterEach(() => {
   document.body.innerHTML = ''

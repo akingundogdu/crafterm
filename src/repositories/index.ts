@@ -9,8 +9,8 @@ import type {
   MeetingNote,
   DailyPlanTask,
   DailyPlanTag
-} from '@ui/types/types'
-import { settings } from '@ui/state/state'
+} from '@views/types/types'
+import { settings } from '@views/state/state'
 import { bookmarks } from '@models/bookmark'
 import { accounts } from '@models/account'
 import { reminders } from '@models/reminder'

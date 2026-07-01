@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { iconCategory, iconFor, FOLDER_SVG } from '@ui/screens/explorer/file-icons'
+import { iconCategory, iconFor, FOLDER_SVG } from '@views/screens/explorer/file-icons'
 
 describe('iconCategory', () => {
   it('maps known extensions to their category', () => {

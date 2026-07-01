@@ -1,6 +1,6 @@
-import type { LayoutNode, NodeStatus, SidebarNode, AppNotification } from '@ui/types/types'
+import type { LayoutNode, NodeStatus, SidebarNode, AppNotification } from '@views/types/types'
 import type { SavedState, SavedSidebarNode, SavedNode } from '@repositories/state.types'
-import { panesInLayout } from '@ui/tree/tree'
+import { panesInLayout } from '@views/tree/tree'
 import {
   panes,
   sqlPanes,
@@ -11,7 +11,7 @@ import {
   commandHistory,
   NOTIF_PERSIST_WINDOW_MS,
   NOTIF_PERSIST_CAP
-} from '@ui/state/state'
+} from '@views/state/state'
 import { bookmarks } from '@models/bookmark'
 import { accounts } from '@models/account'
 import { reminders } from '@models/reminder'

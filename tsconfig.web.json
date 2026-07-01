@@ -6,7 +6,7 @@
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "jsxImportSource": "@ui",
+    "jsxImportSource": "@views",
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
@@ -20,12 +20,11 @@
       "@texts/*": ["src/ui-texts/*"],
       "@services": ["src/services/index.ts"],
       "@services/*": ["src/services/*"],
-      "@ui/*": ["src/ui/*"],
       "@views/*": ["src/views/*"],
       "@resources/*": ["src/resources/*"],
       "@tests/*": ["src/tests/*"]
     }
   },
-  "include": ["src/ui/**/*", "src/views/**/*", "src/services/**/*", "src/models/**/*", "src/repositories/**/*", "src/ui-texts/**/*"],
+  "include": ["src/views/**/*", "src/services/**/*", "src/models/**/*", "src/repositories/**/*", "src/ui-texts/**/*"],
   "exclude": ["src/services/**/*.main.ts", "src/services/**/*.utils.ts", "src/services/**/*.service.ts"]
 }

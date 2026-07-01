@@ -3,8 +3,8 @@ import {
   firstPaneOf, panesInLayout, layoutContains, splitInLayout, movePaneInLayout, removePaneFromLayout,
   isContainer, findById, findTab, allTabs, findTabByPane, isDescendant, depthOfFolder, projectOf,
   collectPinnedRoots, makeFolder, makeProject
-} from '@ui/tree/tree'
-import type { LayoutNode, Dir, TabNode, SidebarNode } from '@ui/types/types'
+} from '@views/tree/tree'
+import type { LayoutNode, Dir, TabNode, SidebarNode } from '@views/types/types'
 
 const leaf = (paneId: string): LayoutNode => ({ type: 'leaf', paneId })
 const split = (dir: Dir, ...children: LayoutNode[]): LayoutNode => ({ type: 'split', dir, sizes: children.map(() => 1 / children.length), children })

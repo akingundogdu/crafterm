@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { layoutSig } from '@ui/screens/content/content.state'
-import type { LayoutNode, Dir } from '@ui/types/types'
+import { layoutSig } from '@views/screens/content/content.state'
+import type { LayoutNode, Dir } from '@views/types/types'
 
 const leaf = (paneId: string): LayoutNode => ({ type: 'leaf', paneId })
 const split = (dir: Dir, ...children: LayoutNode[]): LayoutNode => ({ type: 'split', dir, sizes: children.map(() => 0.5), children })

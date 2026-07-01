@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { createCommentPopover, type CommentRange } from '@ui/screens/diff-pane/components/comment-popover'
+import { createCommentPopover, type CommentRange } from '@views/screens/diff-pane/components/comment-popover'
 
 afterEach(() => {
   document.body.innerHTML = ''

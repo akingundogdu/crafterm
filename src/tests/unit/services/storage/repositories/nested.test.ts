@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from 'vitest'
-import { state, settings } from '@ui/state/state'
+import { state, settings } from '@views/state/state'
 import { setDbTree } from '@models/db-tree'
-import type { ProjectNode, DbNode, AppNotification } from '@ui/types/types'
+import type { ProjectNode, DbNode, AppNotification } from '@views/types/types'
 import { notificationRepo } from '@repositories/notification.repository'
 import { applicationRepo } from '@repositories/application.repository'
 import { iosConfigRepo } from '@repositories/ios-config.repository'

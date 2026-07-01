@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDiff } from '@ui/screens/diff-pane/parse-diff'
+import { parseDiff } from '@views/screens/diff-pane/parse-diff'
 
 const patch = `diff --git a/src/a.ts b/src/a.ts
 index 111..222 100644

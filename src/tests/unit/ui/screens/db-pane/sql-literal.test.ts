@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { escSingle, quoteIdent, literalOf } from '@ui/screens/db-pane/sql-literal'
+import { escSingle, quoteIdent, literalOf } from '@views/screens/db-pane/sql-literal'
 
 describe('escSingle', () => {
   it('doubles single quotes', () => {

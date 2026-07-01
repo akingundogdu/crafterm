@@ -5,10 +5,10 @@ import type {
   SidebarNode,
   Project,
   AppNotification
-} from '@ui/types/types'
-import { BUILTIN_ACTIONS } from '@ui/types/types'
+} from '@views/types/types'
+import { BUILTIN_ACTIONS } from '@views/types/types'
 import type { SavedState } from '@repositories/state.types'
-import { themes } from '@ui/themes/themes'
+import { themes } from '@views/themes/themes'
 import {
   settings,
   state,
@@ -17,7 +17,7 @@ import {
   NOTIF_PERSIST_WINDOW_MS,
   NOTIF_PERSIST_CAP,
   uid
-} from '@ui/state/state'
+} from '@views/state/state'
 import { setBookmarks } from '@models/bookmark'
 import { setAccounts } from '@models/account'
 import { setReminders } from '@models/reminder'

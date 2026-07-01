@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from '@ui/themes/themes'
+import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from '@views/themes/themes'
 
 const ANSI = [
   'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',

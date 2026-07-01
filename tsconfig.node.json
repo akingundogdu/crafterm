@@ -21,7 +21,7 @@
       "@texts/*": ["src/ui-texts/*"],
       "@services": ["src/services/index.ts"],
       "@services/*": ["src/services/*"],
-      "@ui/*": ["src/ui/*"],
+      "@views/*": ["src/views/*"],
       "@resources/*": ["src/resources/*"],
       "@tests/*": ["src/tests/*"]
     }
