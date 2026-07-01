@@ -103,8 +103,22 @@ stopped, ask first and wait for an explicit OK.
 
 ### Module structure convention
 
-Every module under `src/ui/` follows a consistent decomposition. **New work MUST
-conform; this is the structural rule set.**
+The renderer lives under `src/views/` (`@views`) — the sole, gea-based renderer
+tree (the legacy `src/ui` tree was deleted at the end of the migration). Every
+module follows a consistent decomposition. **New work MUST conform; this is the
+structural rule set.**
+
+- **HARD RULE — every DOM-building folder is a gea `.tsx` Component.** Under
+  `src/views/`, apart from the build-infra shims (`jsx-runtime.ts`,
+  `jsx-dev-runtime.ts`, `vite-env.d.ts`, `lib/dom.ts`), any folder that builds DOM
+  **MUST** express its view as a gea `.tsx` Component (`export default class extends
+  Component`). **No plain-DOM `el(...)` / `createElement` container factories in a
+  `.ts` view** — that drift is forbidden. To embed an inherently imperative widget
+  (Monaco, xterm, `<webview>`, datepicker) the `.tsx` is a thin gea shell that
+  mounts it via a property `ref` + `onAfterRender` (§gea gotcha 5.11). A ratchet
+  guard (`tests/.../views-gea-component.guard.test.ts`) enforces this: it fails on
+  any NEW plain-DOM `.ts` view; the `GRANDFATHERED` list holds the not-yet-converted
+  folders and shrinks to empty as they migrate.
 
 - **types / state / view split.** Each feature/screen/component is a folder split
   into: `<name>.types.ts` (module-local TS types; global types stay in
