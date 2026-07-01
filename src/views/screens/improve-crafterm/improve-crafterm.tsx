@@ -18,12 +18,13 @@ const show = (on: boolean, display = 'block'): { display: string } => ({ display
 // keeping a single `.improve-list` in the DOM.
 const listClass = (active: boolean): string => (active ? 'improve-list improve-panel' : 'improve-panel')
 
-// gea port of the Improve Crafterm panel content: progress stats, a new-feature
-// form, and the Todo / Ready / Done tabs (plus a stacked search view). The legacy
-// modal chrome (overlay, close button, keyboard shortcuts, window-mode) stays in
-// the @ui entry, which mounts this component into the modal shell. The root is
-// display:contents so head/stats/form/cols/foot lay out as direct flex children
-// of `.improve-modal`.
+// gea port of the Improve Crafterm panel: the `.modal.improve-modal` shell
+// (inline close button, progress stats, a new-feature form, and the Todo / Ready
+// / Done tabs plus a stacked search view). The overlay backdrop, keyboard
+// shortcuts, and window-mode wiring stay in the showImproveModal entry, which
+// mounts this component into the overlay. The close button is rendered inline
+// (byte-identical to the legacy makeCloseButton) so it stays a direct child of
+// `.improve-modal` and survives the store's reactive re-renders.
 export default class ImprovePanel extends Component {
   ta: HTMLTextAreaElement | null = null
 
@@ -66,7 +67,16 @@ export default class ImprovePanel extends Component {
     const noFile = store.loaded && !store.hasTodoFile
 
     return (
-      <div class="improve-panel-root" style={{ display: 'contents' }}>
+      <div class="modal improve-modal">
+        <button
+          class="modal-close"
+          type="button"
+          aria-label="Close"
+          title="Close (Esc)"
+          onClick={() => store.close()}
+        >
+          ×
+        </button>
         <div class="improve-head">
           <h2>Improve Crafterm</h2>
           <input

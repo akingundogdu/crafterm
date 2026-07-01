@@ -1,15 +1,17 @@
 import { settings, uid } from '@views/state/spine'
 import { appService } from '@services'
 import { createOverlay } from '@views/components/overlay/overlay'
-import { makeCloseButton } from '@views/components/dialog/close-button'
 import { type TodoDoc, type TodoItemJson, type TodoFileJson } from './todo-doc'
 import store, { type ImproveTab } from './improve-crafterm.store'
 import ImprovePanel from './improve-crafterm'
+import DetailModal from './components/detail-modal'
 
-// Pure logic + modal chrome for the Improve Crafterm panel (self-contained port
-// of the legacy @ui improve-crafterm state + the showImproveModal shell). The
-// reactive content lives in the gea ImprovePanel; this builds the overlay shell
-// around it. Self-contained — no @ui (§2.7).
+// Pure logic + overlay-mounting entries for the Improve Crafterm panel
+// (self-contained port of the legacy @ui improve-crafterm state). All DOM lives
+// in the gea components (ImprovePanel renders the `.modal.improve-modal` shell;
+// DetailModal renders the read-only detail body); these entries only own the
+// overlay backdrop + keyboard/window lifecycle around them. Self-contained — no
+// @ui (§2.7).
 
 // ---- todo store ---------------------------------------------------------
 // The backing store is JSON (todo-list.json): a flat list of items, each with
@@ -58,22 +60,12 @@ export function docToJson(doc: TodoDoc, prev: TodoItemJson[]): TodoFileJson {
 // read the whole thing.
 export function showDetail(fullText: string): void {
   const { overlay, mount, close, onClose } = createOverlay()
-  const modal = document.createElement('div')
-  modal.className = 'modal improve-detail-modal'
-  overlay.appendChild(modal)
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') close()
   }
   onClose(() => document.removeEventListener('keydown', onKey, true))
   document.addEventListener('keydown', onKey, true)
-  modal.appendChild(makeCloseButton(close))
-  const h = document.createElement('h2')
-  h.textContent = 'Item detail'
-  modal.appendChild(h)
-  const body = document.createElement('div')
-  body.className = 'improve-detail-body'
-  body.textContent = fullText
-  modal.appendChild(body)
+  new DetailModal({ fullText, close }).render(overlay)
   mount()
 }
 
@@ -85,17 +77,6 @@ export function makePopoutClick(close: () => void): () => void {
   return () => {
     void appService.openImproveWindow()
     close()
-  }
-}
-
-// Always-on-top toggle (window mode only): flips the state, reflects it on the
-// button, and forwards the new value to the host window.
-export function makeOnTopClick(btn: HTMLButtonElement): () => void {
-  let onTop = false
-  return () => {
-    onTop = !onTop
-    btn.classList.toggle('active', onTop)
-    void appService.improveWindowSetAlwaysOnTop(onTop)
   }
 }
 
@@ -112,10 +93,11 @@ export function makeOpenSettingsClick(close: () => void): () => Promise<void> {
 }
 
 // ---- Improve Crafterm panel -----------------------------------------
-// Modal chrome (overlay, close button, keyboard shortcuts, window mode) for the
-// gea Improve panel. The reactive content — stats, the new-feature form, and the
-// Todo / Ready / Done tabs — lives in the gea ImprovePanel component, mounted
-// into this modal shell. In window mode the panel fills a standalone window.
+// Overlay-mounting entry for the gea Improve panel: owns the overlay backdrop,
+// keyboard shortcuts, and window-mode wiring. The `.modal.improve-modal` shell +
+// its reactive content — stats, the new-feature form, and the Todo / Ready / Done
+// tabs — is rendered by the gea ImprovePanel component, mounted into the overlay.
+// In window mode the panel fills a standalone window.
 export function showImproveModal(opts: { windowMode?: boolean } = {}): Promise<void> {
   const windowMode = !!opts.windowMode
   const { overlay, mount, close, onClose } = createOverlay({ closeOnBackdrop: !windowMode })
@@ -152,13 +134,8 @@ export function showImproveModal(opts: { windowMode?: boolean } = {}): Promise<v
   })
   document.addEventListener('keydown', onKey, true)
 
-  const modal = document.createElement('div')
-  modal.className = 'modal improve-modal'
-  modal.appendChild(makeCloseButton(close))
-  overlay.appendChild(modal)
-
   store.reset(windowMode, close)
-  new ImprovePanel().render(modal)
+  new ImprovePanel().render(overlay)
   mount()
 
   // Async load resolves the modal promise (window bootstrap awaits it) once the
