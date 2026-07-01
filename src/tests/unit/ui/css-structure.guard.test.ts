@@ -11,7 +11,10 @@ import { join, relative, sep } from 'node:path'
 const ROOT = process.cwd()
 const SCAN_DIRS = ['src']
 const SKIP_DIRS = new Set(['node_modules', 'out', 'dist', '.git'])
-const TOKENS_FILE = join('src', 'ui', 'styles', 'tokens.css')
+// tokens.css is the single design-token source; it lives under a `styles/` dir
+// in whichever renderer tree is active (legacy `src/ui` and/or gea `src/views`
+// during the migration co-existence).
+const TOKENS_SUFFIX = join('styles', 'tokens.css')
 
 function collectCss(dir: string, acc: string[]): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -35,7 +38,7 @@ describe('Phase 8 CSS structure guard', () => {
 
     const offenders = files
       .map((abs) => relative(ROOT, abs))
-      .filter((rel) => rel.split('/').join(sep) !== TOKENS_FILE)
+      .filter((rel) => !rel.split('/').join(sep).endsWith(TOKENS_SUFFIX))
       .filter((rel) => /:root\b/.test(readFileSync(join(ROOT, rel), 'utf8')))
 
     expect(offenders, `:root tokens must live only in tokens.css: ${offenders.join(', ')}`).toEqual([])

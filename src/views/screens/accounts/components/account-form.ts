@@ -37,6 +37,7 @@ export function openAccountForm(
         })
       : el('input', {
           value: val,
+          type: 'text',
           placeholder,
           onInput: (e: Event) => onChange((e.target as HTMLInputElement).value),
           onKeydown: (e: Event) => e.stopPropagation()

@@ -16,6 +16,7 @@ export function fieldItem(opts: {
   const p = opts.pending
   const keyI = el('input', {
     value: p.key,
+    type: 'text',
     placeholder: UITexts.Accounts.form.keyPlaceholder,
     onInput: (e: Event) => opts.onKeyInput((e.target as HTMLInputElement).value),
     onKeydown: (e: Event) => e.stopPropagation()

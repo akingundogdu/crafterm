@@ -1,0 +1,76 @@
+/* App shell chrome: content column + status bar container + content/pane area
+   layout. The status bar's chips/toggles/popover live in components/status-bar.
+   Imported once by the main window entry. */
+/* Middle column: stacks a slim top status bar above the actual pane layout.
+   The status bar lives ONLY in the content column (between sidebar and notif
+   panel) so it visually aligns with the sidebar tabs (left) and notif tabs
+   (right) at the same Y row, without spanning across the panel chrome. */
+#content-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+#content-statusbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+#content-statusbar > button {
+  -webkit-app-region: no-drag;
+}
+#content-statusbar-drag {
+  flex: 1;
+  height: 100%;
+}
+
+/* floating "distribute panes evenly" button over the content area */
+#equalize-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  z-index: 50;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(20, 22, 28, 0.72);
+  backdrop-filter: blur(4px);
+  color: var(--text-mute);
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.13s ease, color 0.13s ease, border-color 0.13s ease;
+}
+#equalize-btn:hover {
+  opacity: 1;
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+#app.orient-left {
+  flex-direction: row;
+}
+#app.orient-top {
+  flex-direction: column;
+}
+
+/* =========================================================================
+   Content / panes
+   ========================================================================= */
+#content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding: 6px;
+  background: var(--bg);
+}

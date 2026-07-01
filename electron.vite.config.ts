@@ -60,7 +60,7 @@ export default defineConfig({
     }
   },
   renderer: {
-    root: resolve(__dirname, 'src/ui'),
+    root: resolve(__dirname, 'src/views'),
     // Co-existence: gea compiles only `*.gea.*` files; legacy files are left to
     // esbuild's custom `@ui` JSX runtime below (see scopedGeaPlugin).
     plugins: [scopedGeaPlugin()],
@@ -69,9 +69,9 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/ui/index.html'),
-          popout: resolve(__dirname, 'src/ui/popout/popout.html'),
-          improveWindow: resolve(__dirname, 'src/ui/improveWindow/improve-window.html')
+          index: resolve(__dirname, 'src/views/index.html'),
+          popout: resolve(__dirname, 'src/views/popout/popout.html'),
+          improveWindow: resolve(__dirname, 'src/views/improveWindow/improve-window.html')
         }
       }
     }
