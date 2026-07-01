@@ -4,7 +4,7 @@ import { UITexts } from '@texts'
 import { accountRepo } from '@repositories'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { copyToClipboard } from '@views/screens/accounts/accounts.util'
-import { openAccountForm } from './account-form'
+import { openAccountForm } from './account-form.open'
 import FieldRow from './field-row'
 import store from '../accounts.store'
 

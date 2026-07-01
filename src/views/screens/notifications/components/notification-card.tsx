@@ -7,7 +7,7 @@ import { terminalService } from '@services'
 import { snoozeOptions, snoozeReminder } from '@views/screens/reminders/reminders.engine'
 import { relTime } from '../notif-format'
 import { CHEVRON_SVG, toneOf, statusIconFor, buildNotifChips, resolvePayloadOpener } from '../notifications.state'
-import { showPaneRemindPicker } from './remind-popover'
+import { showPaneRemindPicker } from './remind-popover.open'
 import store from '../notifications.store'
 
 // gea port of a single notification card: collapsible header (chevron + status

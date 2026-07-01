@@ -1,5 +1,5 @@
 import store from './accounts.store'
-import { openAccountForm } from './components/account-form'
+import { openAccountForm } from './components/account-form.open'
 
 // Static-header wiring for the Accounts sidebar mode: the new-account / new-secret
 // / settings buttons (built by the sidebar footer bar) open the gea account form
