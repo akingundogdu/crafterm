@@ -42,7 +42,6 @@ const GRANDFATHERED = [
   'screens/content',
   'screens/content/components',
   'screens/database',
-  'screens/database/components',
   'screens/db-pane',
   'screens/db-pane/components',
   'screens/diff',

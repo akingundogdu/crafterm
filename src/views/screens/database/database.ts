@@ -9,7 +9,7 @@ import { openSqlInSplit } from '@views/commands/commands'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@views/components/treeview/treeview'
 import './database.css'
 import { dbService, dbqService } from '@services'
-import { buildConnectionForm } from './components/connection-form'
+import { openConnectionForm } from './components/connection-form.open'
 import { dbConnectionRepo } from '@repositories'
 import { UITexts } from '@texts'
 import type { DbSectionKind, DbTreeNode } from './database.types'
@@ -338,7 +338,7 @@ async function renameGroup(node: DbGroup): Promise<void> {
 // ---- connection form ----
 
 function openConnForm(parentGroupId: string | null, existing?: DbConnNode): void {
-  buildConnectionForm({
+  openConnectionForm({
     existing,
     onSave: (conn) => {
       if (existing) {
