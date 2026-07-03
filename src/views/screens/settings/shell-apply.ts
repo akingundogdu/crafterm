@@ -1,5 +1,6 @@
 import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
+import { fillTabButton } from './components/tab-button-content'
 
 // Settings-local copy of the shell's live-apply leaves used by the Sidebar + Tabs
 // panels (§2.7 self-contained; vanishes at teardown when the sidebar shell
@@ -82,14 +83,7 @@ export function applyTabDisplay(): void {
     if (!btn) continue
     if (!btn.querySelector('.tab-label')) {
       const label = (btn.textContent || t.label).trim()
-      btn.textContent = ''
-      const icon = document.createElement('span')
-      icon.className = 'tab-icon'
-      icon.innerHTML = TAB_ICON[t.id] ?? ''
-      const lab = document.createElement('span')
-      lab.className = 'tab-label'
-      lab.textContent = label
-      btn.append(icon, lab)
+      fillTabButton(btn, TAB_ICON[t.id] ?? '', label)
     }
     btn.title = t.shortcut ? `${t.label} · ${t.shortcut}` : t.label
     btn.style.display = hidden[t.strip].includes(t.id) ? 'none' : ''
