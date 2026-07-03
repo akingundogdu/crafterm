@@ -34,7 +34,6 @@ const GRANDFATHERED = [
   'components/dialog',
   'components/overlay',
   'components/treeview/components',
-  'editor/code-editor/components',
   'notebook',
   'pane',
   'pane/components',
@@ -56,7 +55,6 @@ const GRANDFATHERED = [
   'screens/pickers/lib',
   'screens/sidebar/components',
   'terminal',
-  'terminal/components'
 ].sort()
 
 function rel(dir: string): string {
