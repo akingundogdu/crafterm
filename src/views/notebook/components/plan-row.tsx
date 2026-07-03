@@ -16,6 +16,7 @@ interface PlanRowActions {
 class PlanRow extends Component {
   private readonly plan: PlanItem
   private readonly actions: PlanRowActions
+  iconEl: HTMLElement | null = null
 
   // Data via the constructor into plain fields — a gea Component only populates
   // `this.props` when rendered from a parent template, not from a manual `new X()`.
@@ -25,13 +26,17 @@ class PlanRow extends Component {
     this.actions = actions
   }
 
+  onAfterRender(): void {
+    if (this.iconEl) this.iconEl.innerHTML = NOTE_SVG
+  }
+
   template() {
     const p = this.plan
     const a = this.actions
     return (
       <div class="tab-item nb-linked-row" title={p.path} onClick={() => a.onOpen(p.path)}>
         <div class="tab-row">
-          <span class="folder-icon" innerHTML={NOTE_SVG} />
+          <span class="folder-icon" ref={this.iconEl} />
           <span class="tab-title">{p.name.replace(MD_RE, '')}</span>
           <span class="nb-actions">
             <button class="notebook-action" title="Remind me" onClick={stopAnd(() => a.onRemind(p))}>

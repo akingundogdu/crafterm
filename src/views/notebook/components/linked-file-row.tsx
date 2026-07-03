@@ -20,6 +20,7 @@ interface LinkedFileRowActions {
 class LinkedFileRow extends Component {
   private readonly file: LinkedFile
   private readonly actions: LinkedFileRowActions
+  iconEl: HTMLElement | null = null
 
   // Data via the constructor into plain fields — a gea Component only populates
   // `this.props` when rendered from a parent template, not from a manual `new X()`.
@@ -29,13 +30,17 @@ class LinkedFileRow extends Component {
     this.actions = actions
   }
 
+  onAfterRender(): void {
+    if (this.iconEl) this.iconEl.innerHTML = LINK_SVG
+  }
+
   template() {
     const f = this.file
     const a = this.actions
     return (
       <div class="tab-item nb-linked-row" title={f.path} onClick={() => a.onOpen(f.path)}>
         <div class="tab-row">
-          <span class="folder-icon" innerHTML={LINK_SVG} />
+          <span class="folder-icon" ref={this.iconEl} />
           <span class="tab-title">{MD_RE.test(f.name) ? f.name.replace(MD_RE, '') : f.name}</span>
           <span class="nb-actions">
             <button

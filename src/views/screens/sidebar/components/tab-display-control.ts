@@ -1,6 +1,7 @@
 import { settings } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
 import { TAB_ICON, TAB_META, tabOrder } from '../sidebar.state'
+import { fillTabButton } from './tab-button-content'
 
 export function tabMeta(): typeof TAB_META {
   return TAB_META
@@ -26,14 +27,7 @@ export function applyTabDisplay(): void {
     if (!btn) continue
     if (!btn.querySelector('.tab-label')) {
       const label = (btn.textContent || t.label).trim()
-      btn.textContent = ''
-      const icon = document.createElement('span')
-      icon.className = 'tab-icon'
-      icon.innerHTML = TAB_ICON[t.id] ?? ''
-      const lab = document.createElement('span')
-      lab.className = 'tab-label'
-      lab.textContent = label
-      btn.append(icon, lab)
+      fillTabButton(btn, TAB_ICON[t.id] ?? '', label)
     }
     btn.title = t.shortcut ? `${t.label} · ${t.shortcut}` : t.label
     btn.style.display = hidden[t.strip].includes(t.id) ? 'none' : ''
