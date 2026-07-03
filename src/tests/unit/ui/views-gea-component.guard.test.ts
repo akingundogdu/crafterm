@@ -46,8 +46,6 @@ const GRANDFATHERED = [
   'screens/code-pane/components',
   'screens/content',
   'screens/content/components',
-  'screens/daily-plan',
-  'screens/daily-plan/components',
   'screens/database',
   'screens/db-pane',
   'screens/db-pane/components',

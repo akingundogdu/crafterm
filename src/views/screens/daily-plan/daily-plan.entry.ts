@@ -9,7 +9,6 @@ import { findProjectById } from '@views/catalog/catalog'
 import { openClaudeWithPrompt } from '@views/commands/commands'
 import { ensureWorktreeForBranch } from '@services/worktrees'
 import { createOverlay } from '@views/components/overlay/overlay'
-import { makeCloseButton } from '@views/components/dialog/close-button'
 import { shiftDays } from '@views/screens/daily-plan/task-helpers'
 import {
   todayKey,
@@ -18,10 +17,10 @@ import {
   worktreeBranchForTask
 } from '@views/screens/daily-plan/daily-plan.state'
 import { openTaskForm } from './components/task-form.open'
-import { renderCard as buildCard } from './components/compact-card'
 import { openTagFilterPopover as buildTagFilterPopover } from './components/tag-filter-popover'
 import { renderDailyCompactView } from './components/daily-compact'
-import DailyPlanBoard from './daily-plan'
+import compactStore from './components/daily-compact.store'
+import DailyPlanModal from './components/daily-plan-modal'
 import store from './daily-plan.store'
 
 // Modal + compact + terminal entries for the Daily Plan, migrated out of the
@@ -32,7 +31,9 @@ import store from './daily-plan.store'
 // pane-assignment helpers stay in @ui (they touch the pane Maps / pane menu).
 // Self-contained — no @ui (§2.7).
 
-let selectedRange: DailyRange = 'day'
+// The compact view's status / search / range now live in the reactive compact
+// store (source of truth, read directly in the view's template); these getters
+// delegate to it so external readers (Cmd+N) stay in sync.
 // Board project filter (todo4): null = all projects, else only this project's tasks.
 let projectFilter: string | null = null
 
@@ -50,10 +51,10 @@ function matchesTagFilter(task: DailyPlanTask): boolean {
 // lexicographically, so string range checks are correct.
 function tasksForScope(): DailyPlanTask[] {
   const inScope =
-    selectedRange === 'day'
+    compactStore.range === 'day'
       ? tasksFor(selectedDate)
       : (() => {
-          const span = selectedRange === '3d' ? 3 : 7
+          const span = compactStore.range === '3d' ? 3 : 7
           const today = todayKey()
           const start = shiftDays(today, -(span - 1))
           return dailyTaskRepo.getAll().filter((t) => t.date >= start && t.date <= today)
@@ -75,18 +76,6 @@ export function showTaskForm(
     defaultStatus,
     getSelectedDate: () => selectedDate,
     openTaskInTerminal: (task, onChange, useWorktree) => void openTaskInTerminal(task, onChange, useWorktree)
-  })
-}
-
-// Build a compact-view task card, wiring the live range + actions into the
-// extracted card builder.
-function renderCard(task: DailyPlanTask, rerender: () => void): HTMLElement {
-  return buildCard({
-    task,
-    rerender,
-    getSelectedRange: () => selectedRange,
-    openTaskInTerminal: (t, onChange, useWorktree) => void openTaskInTerminal(t, onChange, useWorktree),
-    showTaskForm: (existing, onSaved) => showTaskForm(existing, onSaved)
   })
 }
 
@@ -174,12 +163,8 @@ export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): 
   onClose(() => document.removeEventListener('keydown', onKey, true))
   document.addEventListener('keydown', onKey, true)
 
-  const modal = document.createElement('div')
-  modal.className = 'modal daily-plan-modal'
-  modal.appendChild(makeCloseButton(close))
-  // Mount the gea board (header + reactive columns) into the overlay modal shell.
-  new DailyPlanBoard().render(modal)
-  overlay.appendChild(modal)
+  // Mount the gea modal shell (inline close button + reactive board) into the overlay.
+  new DailyPlanModal({ close }).render(overlay)
 
   mount()
 
@@ -195,25 +180,14 @@ export function showDailyPlanModal(initialDate?: string, focusTaskId?: string): 
 // even though it has no direct handle to the panel's render closure.
 let activeDailyRerender: (() => void) | null = null
 
-// Compact Daily Plan view for the narrow Notebook sub-tab. Module-mutable compact
-// state (status + search) persists across re-renders.
-let compactStatus: DailyPlanStatus = 'todo'
-let compactSearch = ''
-
 export function renderDailyCompact(host: HTMLElement): void {
   renderDailyCompactView(host, {
-    getSelectedRange: () => selectedRange,
-    setSelectedRange: (range) => {
-      selectedRange = range
-    },
-    getCompactStatus: () => compactStatus,
-    setCompactStatus: (status) => {
-      compactStatus = status
-    },
-    getCompactSearch: () => compactSearch,
-    setCompactSearch: (search) => {
-      compactSearch = search
-    },
+    getSelectedRange: () => compactStore.range,
+    setSelectedRange: (range) => compactStore.setRange(range),
+    getCompactStatus: () => compactStore.status,
+    setCompactStatus: (status) => compactStore.setStatus(status),
+    getCompactSearch: () => compactStore.search,
+    setCompactSearch: (search) => compactStore.setSearch(search),
     setActiveDailyRerender: (render) => {
       activeDailyRerender = render
     },
@@ -221,7 +195,7 @@ export function renderDailyCompact(host: HTMLElement): void {
     tasksForScope,
     showDailyPlanModal,
     showTaskForm,
-    renderCard
+    openTaskInTerminal: (t, onChange, useWorktree) => void openTaskInTerminal(t, onChange, useWorktree)
   })
 }
 
@@ -234,7 +208,7 @@ export function triggerActiveDailyRerender(): void {
 // Current compact status — used by the @ui Cmd+N entry (openNewDailyTask) so a new
 // task lands in the column the compact view is showing.
 export function getCompactStatus(): DailyPlanStatus {
-  return compactStatus
+  return compactStore.status
 }
 
 // Open the tag-filter popover anchored under its button, wiring the active tag
