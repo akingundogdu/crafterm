@@ -54,8 +54,6 @@ const GRANDFATHERED = [
   'screens/file-pane/components',
   'screens/pickers/components',
   'screens/pickers/lib',
-  'screens/settings/tabs',
-  'screens/settings/tabs/components',
   'screens/sidebar/components',
   'terminal',
   'terminal/components'
