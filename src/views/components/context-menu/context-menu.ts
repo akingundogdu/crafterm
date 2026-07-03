@@ -27,10 +27,10 @@ function renderMenu(
   const menu = createContextMenuContainer(x, y)
 
   for (const item of items) {
-    menu.appendChild(createContextMenuItem(item, menu, depth, renderMenu, reopen))
+    createContextMenuItem(item, menu, depth, renderMenu, reopen)
   }
 
-  if (depth === 0 && color) menu.appendChild(createColorSwatches(color))
+  if (depth === 0 && color) createColorSwatches(color, menu)
 
   mountContextMenu(menu, depth, x)
 }

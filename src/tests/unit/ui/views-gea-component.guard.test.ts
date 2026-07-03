@@ -31,7 +31,6 @@ const INFRA = new Set(['.', 'lib'])
 // entry + delete `lib/dom.ts`.
 const GRANDFATHERED = [
   'commands',
-  'components/context-menu/components',
   'components/datepicker/components',
   'components/dialog',
   'components/overlay',
@@ -39,7 +38,6 @@ const GRANDFATHERED = [
   'components/treeview/components',
   'editor/code-editor/components',
   'notebook',
-  'notebook/components',
   'pane',
   'pane/components',
   'screens/code-pane',
@@ -54,10 +52,8 @@ const GRANDFATHERED = [
   'screens/diff-pane/components',
   'screens/diff/components',
   'screens/explorer',
-  'screens/explorer/components',
   'screens/file-pane',
   'screens/file-pane/components',
-  'screens/ios-worktree/components',
   'screens/pickers/claude',
   'screens/pickers/claude/components',
   'screens/pickers/command',
