@@ -1,232 +1,134 @@
-import { el } from '@views/lib/dom'
 import { commandHistory, state } from '@views/state/spine'
 import { selectPane } from '@views/commands/commands'
 import { terminalService } from '@services'
 import { overlayModal } from '../shared'
-import { UITexts } from '@texts'
 import type { OpenTerminal, PaletteCommand } from './command.types'
 import {
   buildOpenTerminals,
   filterTerminals,
-  filterHistory,
   loadZshCommands,
   buildPaletteCommands,
   filterPaletteCommands
 } from './command.state'
-import { terminalRow } from './components/terminal-row'
-import { commandHistoryRow } from './components/command-history-row'
-import { paletteRow } from './components/palette-row'
-import { renderCategoryChips } from './components/category-chips'
+import {
+  terminalSwitcherStore,
+  commandHistoryStore,
+  commandPaletteStore
+} from './command.store'
+import TerminalSwitcherView, { type TerminalSwitcherDeps } from './components/terminal-switcher-view'
+import CommandHistoryView, { type CommandHistoryDeps } from './components/command-history-view'
+import CommandPaletteView, { type CommandPaletteDeps } from './components/command-palette-view'
+
+// The picker DOM lives in the gea view Components (…-view.tsx) reading command.store;
+// each controller stays el-free and owns the overlay, the async load, the selection
+// index, and the keyboard navigation, pushing state into the store which the reactive
+// views patch on. Public APIs (constructor + open()) are unchanged.
 
 // ---- Terminal switcher: list every open terminal/pane, search, jump to one ----
 
 export class TerminalSwitcherController {
+  private readonly modal: HTMLElement
   private readonly close: () => void
-  private readonly input: HTMLInputElement
-  private readonly list: HTMLDivElement
-  private readonly all: OpenTerminal[]
-  private sel = 0
 
   constructor() {
     const { modal, close } = overlayModal('picker-modal picker-modal-wide')
+    this.modal = modal
     this.close = close
+    terminalSwitcherStore.reset(buildOpenTerminals())
 
-    const h = el('h2', null, UITexts.Pickers.command.terminalsHeading)
-    this.input = el('input', {
-      class: 'search-box-input',
-      type: 'text',
-      placeholder: UITexts.Pickers.command.terminalsPlaceholder
-    })
-    this.input.spellcheck = false
-    this.list = el('div', { class: 'pick-list picker-list' })
-    modal.append(h, this.input, this.list)
-
-    this.all = buildOpenTerminals()
-
-    this.input.addEventListener('input', () => {
-      this.sel = 0
-      this.render()
-    })
-    this.input.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      const items = this.filtered()
-      if (e.key === 'Escape') this.close()
-      else if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        this.sel = Math.min(items.length - 1, this.sel + 1)
-        this.highlight()
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        this.sel = Math.max(0, this.sel - 1)
-        this.highlight()
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        if (items[this.sel]) this.focusTerm(items[this.sel])
-      }
-    })
+    const deps: TerminalSwitcherDeps = {
+      onKeyDown: this.onKey,
+      onSelect: this.focusTerm,
+      onHover: (i) => terminalSwitcherStore.setSel(i)
+    }
+    new TerminalSwitcherView(deps).render(modal)
   }
 
   open(): void {
-    this.render()
-    this.input.focus()
+    ;(this.modal.querySelector('.search-box-input') as HTMLInputElement | null)?.focus()
   }
 
-  private filtered = (): OpenTerminal[] => filterTerminals(this.all, this.input.value)
+  private filtered = (): OpenTerminal[] =>
+    filterTerminals(terminalSwitcherStore.all, terminalSwitcherStore.search)
 
   private focusTerm = (t: OpenTerminal): void => {
     selectPane(t.paneId)
     this.close()
   }
 
-  private highlight = (): void => {
-    this.list.querySelectorAll<HTMLElement>('.pick-row').forEach((el, i) => {
-      el.classList.toggle('active', i === this.sel)
-    })
-  }
-
-  private render = (): void => {
+  private onKey = (e: KeyboardEvent): void => {
+    e.stopPropagation()
     const items = this.filtered()
-    if (this.sel >= items.length) this.sel = Math.max(0, items.length - 1)
-    this.list.replaceChildren()
-    if (!items.length) {
-      this.list.insertAdjacentHTML(
-        'beforeend',
-        `<div class="empty-hint">${this.all.length ? UITexts.Pickers.common.noMatches : UITexts.Pickers.command.noTerminals}</div>`
-      )
-      return
+    if (e.key === 'Escape') this.close()
+    else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      terminalSwitcherStore.setSel(Math.min(items.length - 1, terminalSwitcherStore.sel + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      terminalSwitcherStore.setSel(Math.max(0, terminalSwitcherStore.sel - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const t = items[terminalSwitcherStore.sel]
+      if (t) this.focusTerm(t)
     }
-    items.forEach((t, i) => {
-      this.list.appendChild(
-        terminalRow({
-          terminal: t,
-          active: i === this.sel,
-          onClick: () => this.focusTerm(t),
-          onHover: () => {
-            this.sel = i
-            this.highlight()
-          }
-        })
-      )
-    })
   }
 }
 
 // ---- Command history: filter all app-tracked commands, copy one ----
 
 export class CommandHistoryController {
+  private readonly modal: HTMLElement
   private readonly close: () => void
-  private readonly input: HTMLInputElement
-  private readonly list: HTMLDivElement
-  private readonly all: string[]
 
   constructor() {
     const { modal, close } = overlayModal('picker-modal')
+    this.modal = modal
     this.close = close
+    commandHistoryStore.reset([...commandHistory].reverse()) // most recent first
 
-    const h = el('h2', null, UITexts.Pickers.command.historyHeading)
-    this.input = el('input', {
-      class: 'search-box-input',
-      type: 'text',
-      placeholder: UITexts.Pickers.command.filterPlaceholder
-    })
-    this.input.spellcheck = false
-    this.list = el('div', { class: 'pick-list picker-list' })
-    modal.append(h, this.input, this.list)
-
-    this.all = [...commandHistory].reverse() // most recent first
-
-    this.input.addEventListener('input', this.render)
-    this.input.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      if (e.key === 'Escape') this.close()
-    })
+    const deps: CommandHistoryDeps = { onKeyDown: this.onKey }
+    new CommandHistoryView(deps).render(modal)
   }
 
   open(): void {
-    this.render()
-    this.input.focus()
+    ;(this.modal.querySelector('.search-box-input') as HTMLInputElement | null)?.focus()
   }
 
-  private render = (): void => {
-    const items = filterHistory(this.all, this.input.value)
-    this.list.replaceChildren()
-    if (!items.length) {
-      const hint = el(
-        'div',
-        { class: 'empty-hint' },
-        commandHistory.length ? UITexts.Pickers.common.noMatches : UITexts.Pickers.command.noCommands
-      )
-      this.list.appendChild(hint)
-      return
-    }
-    items.slice(0, 500).forEach((cmd) => {
-      this.list.appendChild(commandHistoryRow({ command: cmd }))
-    })
+  private onKey = (e: KeyboardEvent): void => {
+    e.stopPropagation()
+    if (e.key === 'Escape') this.close()
   }
 }
 
 // ---- Command palette: zsh + user categories (predefined / cheatsheets) ----
 
 export class CommandPaletteController {
+  private readonly modal: HTMLElement
   private readonly close: () => void
-  private readonly input: HTMLInputElement
-  private readonly chips: HTMLDivElement
-  private readonly list: HTMLDivElement
-  private readonly active = new Set<string>(['zsh']) // multi-select chips; zsh is the default
-
-  private all: PaletteCommand[] = []
-  private categories: ReturnType<typeof buildPaletteCommands>['categories'] = []
-  private sel = 0
 
   constructor() {
     const { modal, close } = overlayModal('picker-modal picker-modal-wide')
+    this.modal = modal
     this.close = close
+    commandPaletteStore.reset()
 
-    const h = el('h2', null, UITexts.Pickers.command.heading)
-    this.input = el('input', {
-      class: 'search-box-input',
-      type: 'text',
-      placeholder: UITexts.Pickers.command.placeholder
-    })
-    this.input.spellcheck = false
-    this.chips = el('div', { class: 'md-filters palette-chips' })
-    this.list = el('div', { class: 'pick-list picker-list' })
-    modal.append(h, this.input, this.chips, this.list)
-
-    this.input.addEventListener('input', () => {
-      this.sel = 0
-      this.render()
-    })
-    this.input.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      const items = this.filtered()
-      if (e.key === 'Escape') this.close()
-      else if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        this.sel = Math.min(items.length - 1, this.sel + 1)
-        this.highlight()
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        this.sel = Math.max(0, this.sel - 1)
-        this.highlight()
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        if (items[this.sel]) this.insert(items[this.sel])
-      }
-    })
+    const deps: CommandPaletteDeps = {
+      onKeyDown: this.onKey,
+      onSelect: this.insert,
+      onHover: (i) => commandPaletteStore.setSel(i),
+      onToggle: (cat) => commandPaletteStore.toggle(cat)
+    }
+    new CommandPaletteView(deps).render(modal)
   }
 
   async open(): Promise<void> {
     const built = buildPaletteCommands(await loadZshCommands())
-    this.all = built.all
-    this.categories = built.categories
-
-    this.renderChips()
-    this.render()
-    this.input.focus()
+    commandPaletteStore.setData(built.all, built.categories)
+    ;(this.modal.querySelector('.search-box-input') as HTMLInputElement | null)?.focus()
   }
 
-  private filtered = (): PaletteCommand[] => filterPaletteCommands(this.all, this.active, this.input.value)
+  private filtered = (): PaletteCommand[] =>
+    filterPaletteCommands(commandPaletteStore.all, commandPaletteStore.active, commandPaletteStore.search)
 
   // Insert (don't run) the command into the active terminal so the user can edit it.
   private insert = (c: PaletteCommand): void => {
@@ -238,50 +140,20 @@ export class CommandPaletteController {
     this.close()
   }
 
-  private highlight = (): void => {
-    this.list.querySelectorAll<HTMLElement>('.palette-row').forEach((el, i) => {
-      el.classList.toggle('active', i === this.sel)
-    })
-  }
-
-  private render = (): void => {
+  private onKey = (e: KeyboardEvent): void => {
+    e.stopPropagation()
     const items = this.filtered()
-    if (this.sel >= items.length) this.sel = Math.max(0, items.length - 1)
-    this.list.replaceChildren()
-    if (!items.length) {
-      this.list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
-      return
+    if (e.key === 'Escape') this.close()
+    else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      commandPaletteStore.setSel(Math.min(items.length - 1, commandPaletteStore.sel + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      commandPaletteStore.setSel(Math.max(0, commandPaletteStore.sel - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const c = items[commandPaletteStore.sel]
+      if (c) this.insert(c)
     }
-    items.slice(0, 500).forEach((c, i) => {
-      this.list.appendChild(
-        paletteRow({
-          command: c,
-          active: i === this.sel,
-          onClick: () => this.insert(c),
-          onHover: () => {
-            this.sel = i
-            this.highlight()
-          }
-        })
-      )
-    })
-  }
-
-  private renderChips = (): void => {
-    renderCategoryChips({
-      container: this.chips,
-      categories: this.categories,
-      active: this.active,
-      onToggle: (cat) => {
-        if (this.active.has(cat)) {
-          if (this.active.size > 1) this.active.delete(cat) // keep at least one category active
-        } else {
-          this.active.add(cat)
-        }
-        this.sel = 0
-        this.renderChips()
-        this.render()
-      }
-    })
   }
 }

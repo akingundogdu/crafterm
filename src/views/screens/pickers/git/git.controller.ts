@@ -1,39 +1,31 @@
-import { el } from '@views/lib/dom'
-import { overlayModal, makeSearchInput } from '../shared'
-import { UITexts } from '@texts'
-import type { Stash } from './git.types'
-import { stashRow } from './components/stash-row'
-import { gitQuickActionChips } from './components/git-quick-action-chips'
+import { overlayModal } from '../shared'
+import stashStore from './stash.store'
+import branchStore from './branch.store'
+import StashManagerView from './components/stash-manager-view'
+import BranchCheckoutView, { type BranchPickerDeps } from './components/branch-checkout-view'
 import {
   loadStashes,
-  filterStashes,
-  makeStashApplyClick,
-  makeStashDropClick,
   loadBranches,
   filterBranches,
   checkoutBranch,
-  makeQuickRun,
-  disableSpellcheck
+  makeQuickRun
 } from './git.state'
 
 // ---- Git stash manager: list stashes, apply or drop, for a pane's repo ----
-
+// Owns the stash overlay: mounts the gea StashManagerView, loads the stash list into
+// the reactive store and reloads it after a drop. The reactive DOM lives in
+// StashManagerView / StashList reading stash.store; this controller owns the async
+// load + close plumbing and pushes the result into the store.
 export class ShowStashManagerController {
   private readonly paneId: string
   private readonly close: () => void
-  private readonly search: HTMLInputElement
-  private readonly list: HTMLDivElement
-  private allStashes: Stash[] = []
 
   constructor(paneId: string) {
     this.paneId = paneId
     const { modal, close } = overlayModal('picker-modal')
     this.close = close
-
-    const h = el('h2', null, UITexts.Pickers.git.stashesHeading)
-    this.search = makeSearchInput('Search stashes…', () => this.renderList())
-    this.list = el('div', { class: 'pick-list picker-list' })
-    modal.append(h, this.search, this.list)
+    stashStore.reset()
+    new StashManagerView({ paneId, close, reload: this.reload }).render(modal)
   }
 
   async run(): Promise<void> {
@@ -41,133 +33,59 @@ export class ShowStashManagerController {
   }
 
   private reload = async (): Promise<void> => {
-    this.allStashes = await loadStashes(this.paneId)
-    this.renderList()
-  }
-
-  private renderList = (): void => {
-    const stashes = filterStashes(this.allStashes, this.search.value)
-    this.list.replaceChildren()
-    if (!stashes.length) {
-      this.list.insertAdjacentHTML(
-        'beforeend',
-        `<div class="empty-hint">${this.allStashes.length ? UITexts.Pickers.common.noMatches : UITexts.Pickers.git.noStashes}</div>`
-      )
-      return
-    }
-    stashes.forEach((s) => {
-      this.list.appendChild(
-        stashRow({
-          stash: s,
-          onApply: makeStashApplyClick(this.paneId, s.ref, this.close),
-          onDrop: makeStashDropClick(this.paneId, s.ref, this.reload)
-        })
-      )
-    })
+    stashStore.setStashes(await loadStashes(this.paneId))
   }
 }
 
 // ---- Branch checkout: search the pane's repo branches, checkout the chosen one ----
-
+// Owns the branch overlay: mounts the gea BranchCheckoutView, loads the branch list
+// into the reactive store and drives keyboard navigation via the store's selection
+// index. The reactive DOM lives in BranchCheckoutView / BranchList reading
+// branch.store; this controller owns the async load, selection index and checkout.
 export class ShowBranchCheckoutController {
   private readonly paneId: string
   private close!: () => void
-  private input!: HTMLInputElement
-  private list!: HTMLDivElement
-  private branches: string[] = []
-  private sel = 0
 
   constructor(paneId: string) {
     this.paneId = paneId
   }
 
   async run(): Promise<void> {
-    this.branches = await loadBranches(this.paneId)
+    const branches = await loadBranches(this.paneId)
     const { modal, close } = overlayModal('picker-modal')
     this.close = close
+    branchStore.reset()
+    branchStore.setBranches(branches)
 
-    const h = el('h2', null, UITexts.Pickers.git.branchHeading)
-    modal.append(h)
-
-    // Quick chips: fire common git commands into the pane without leaving the modal.
-    const actions = gitQuickActionChips({
-      onFetch: makeQuickRun(this.paneId, 'git fetch --all --prune', this.close),
-      onPull: makeQuickRun(this.paneId, 'git pull', this.close),
-      onStatus: makeQuickRun(this.paneId, 'git status', this.close)
-    })
-    modal.append(actions)
-
-    const sub = el('div', { class: 'git-quick-sub' }, 'Checkout')
-    modal.append(sub)
-
-    this.input = el('input', {
-      class: 'search-box-input',
-      type: 'text',
-      placeholder: UITexts.Pickers.git.branchPlaceholder
-    })
-    disableSpellcheck(this.input)
-    this.list = el('div', { class: 'pick-list picker-list' })
-    modal.append(this.input, this.list)
-
-    if (!this.branches.length) {
-      this.list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No branches (not a git repo?)</div>')
-      return
+    const deps: BranchPickerDeps = {
+      onFetch: makeQuickRun(this.paneId, 'git fetch --all --prune', close),
+      onPull: makeQuickRun(this.paneId, 'git pull', close),
+      onStatus: makeQuickRun(this.paneId, 'git status', close),
+      onSelect: this.checkout,
+      onHover: (i) => branchStore.setSel(i),
+      onKeyDown: this.onKey
     }
-
-    this.input.addEventListener('input', () => {
-      this.sel = 0
-      this.render()
-    })
-    this.input.addEventListener('keydown', (e) => {
-      e.stopPropagation()
-      const items = this.filtered()
-      if (e.key === 'Escape') this.close()
-      else if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        this.sel = Math.min(items.length - 1, this.sel + 1)
-        this.highlight()
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        this.sel = Math.max(0, this.sel - 1)
-        this.highlight()
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        if (items[this.sel]) this.checkout(items[this.sel])
-      }
-    })
-    this.render()
-    this.input.focus()
+    new BranchCheckoutView(deps).render(modal)
+    ;(modal.querySelector('.search-box-input') as HTMLInputElement | null)?.focus()
   }
 
-  private filtered = (): string[] => filterBranches(this.branches, this.input.value)
+  private filtered = (): string[] => filterBranches(branchStore.branches, branchStore.search)
 
   private checkout = (branch: string): void => checkoutBranch(this.paneId, branch, this.close)
 
-  private highlight = (): void => {
-    this.list.querySelectorAll<HTMLElement>('.pick-row').forEach((node, i) => {
-      node.classList.toggle('active', i === this.sel)
-    })
-  }
-
-  private render = (): void => {
+  private onKey = (e: KeyboardEvent): void => {
+    e.stopPropagation()
     const items = this.filtered()
-    if (this.sel >= items.length) this.sel = Math.max(0, items.length - 1)
-    this.list.replaceChildren()
-    if (!items.length) {
-      this.list.insertAdjacentHTML('beforeend', '<div class="empty-hint">No matches</div>')
-      return
+    if (e.key === 'Escape') this.close()
+    else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      branchStore.setSel(Math.min(items.length - 1, branchStore.sel + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      branchStore.setSel(Math.max(0, branchStore.sel - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (items[branchStore.sel]) this.checkout(items[branchStore.sel])
     }
-    items.forEach((b, i) => {
-      const row = el(
-        'div',
-        { class: 'pick-row' + (i === this.sel ? ' active' : ''), onClick: () => this.checkout(b) },
-        el('span', { class: 'picker-name' }, b)
-      )
-      row.addEventListener('mouseenter', () => {
-        this.sel = i
-        this.highlight()
-      })
-      this.list.appendChild(row)
-    })
   }
 }

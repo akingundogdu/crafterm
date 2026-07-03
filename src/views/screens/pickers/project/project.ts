@@ -2,10 +2,10 @@ import type { ProjectNode, Application } from '@views/types/types'
 import { state } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { flattenProjects } from '@views/catalog/catalog'
-import { el } from '@views/lib/dom'
-import { overlayModal, makeSearchInput } from '../shared'
-import { filterAppProjects, stepSelection } from './project.state'
-import { projectRow } from './components/project-row'
+import { overlayModal } from '../shared'
+import { stepSelection } from './project.state'
+import projectStore, { type ProjectPickRow } from './project.store'
+import ProjectPickerView, { type ProjectPickerDeps } from './components/project-picker-view'
 import {
   ProjectPickerController,
   RunAppsController,
@@ -28,68 +28,50 @@ export function showRunApps(project: ProjectNode): void {
 }
 
 // Pick a project that has applications, then open its run modal.
-// Shared: pick a project that has applications, then run `onPick`.
+// Shared: pick a project that has applications, then run `onPick`. Mounts the gea
+// project-list view over project.store; the reactive search + list live there, this
+// owns the row construction + keyboard navigation.
 function pickProjectWithApps(title: string, onPick: (p: ProjectNode) => void): void {
   const projects = flattenProjects(state.tree).filter((p) => p.apps?.length)
   const { modal, close } = overlayModal('picker-modal')
-  const h = el('h2', null, title)
-  if (!projects.length) {
-    modal.append(h)
-    modal.insertAdjacentHTML(
-      'beforeend',
-      '<div class="empty-hint">No projects with applications. Add apps in Settings → Projects.</div>'
-    )
-    return
-  }
-  const input = makeSearchInput('Filter projects…  (↑↓ move · ⏎ select)', () => render())
-  const list = el('div', { class: 'pick-list picker-list' })
-  modal.append(h, input, list)
-  let sel = 0
-  const filtered = (): ProjectNode[] => filterAppProjects(projects, input.value)
-  const choose = (p: ProjectNode): void => {
-    close()
-    onPick(p)
-  }
-  const highlight = (): void => {
-    list.querySelectorAll<HTMLElement>('.project-row').forEach((el, i) => {
-      el.classList.toggle('active', i === sel)
-    })
-  }
-  const render = (): void => {
-    const items = filtered()
-    if (sel >= items.length) sel = Math.max(0, items.length - 1)
-    list.replaceChildren()
-    items.forEach((p, i) => {
-      const n = p.apps?.length ?? 0
-      list.appendChild(
-        projectRow({
-          label: p.name,
-          sub: `${p.path} · ${n} app${n === 1 ? '' : 's'}`,
-          active: i === sel,
-          onClick: () => choose(p),
-          onHover: () => {
-            sel = i
-            highlight()
-          }
-        })
-      )
-    })
-  }
-  input.addEventListener('keydown', (e) => {
+
+  const rows: ProjectPickRow[] = projects.map((p) => {
+    const n = p.apps?.length ?? 0
+    return {
+      label: p.name,
+      sub: `${p.path} · ${n} app${n === 1 ? '' : 's'}`,
+      filterText: `${p.name} ${p.path}`,
+      onChoose: () => {
+        close()
+        onPick(p)
+      }
+    }
+  })
+  projectStore.set(rows)
+
+  const onKey = (e: KeyboardEvent): void => {
     e.stopPropagation()
-    const items = filtered()
+    const items = projectStore.visible()
     if (e.key === 'Escape') close()
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
-      sel = stepSelection(e.key, sel, items.length)
-      highlight()
+      projectStore.setSel(stepSelection(e.key, projectStore.sel, items.length))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (items[sel]) choose(items[sel])
+      const row = items[projectStore.sel]
+      if (row) row.onChoose(false)
     }
-  })
-  render()
-  input.focus()
+  }
+
+  const deps: ProjectPickerDeps = {
+    title,
+    placeholder: 'Filter projects…  (↑↓ move · ⏎ select)',
+    emptyHint: 'No projects with applications. Add apps in Settings → Projects.',
+    onHover: (i) => projectStore.setSel(i),
+    onKeyDown: onKey
+  }
+  new ProjectPickerView(deps).render(modal)
+  ;(modal.querySelector('.search-box-input') as HTMLInputElement | null)?.focus()
 }
 
 export function showRunAppsPicker(): void {
