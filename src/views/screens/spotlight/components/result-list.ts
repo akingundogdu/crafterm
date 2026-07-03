@@ -1,11 +1,4 @@
-import type { SpotSource, SpotEntry, ResultListHandle } from './result-list.types'
-import { ResultListController } from './result-list.controller'
-
+// Barrel for the spotlight result list types. The list itself is composed in
+// spotlight.view.tsx (the reactive `.spot-list`) from the gea `ResultRow` Component
+// in result-row.tsx; the entry/source/handle shapes live in result-list.types.
 export type { SpotSource, SpotEntry, ResultListHandle } from './result-list.types'
-
-export function createResultList(opts: {
-  onChoose: (e: SpotEntry) => void
-  badgeFor: (source: SpotSource) => string
-}): ResultListHandle {
-  return new ResultListController(opts).build()
-}

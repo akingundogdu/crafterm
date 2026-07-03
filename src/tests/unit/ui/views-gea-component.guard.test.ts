@@ -31,10 +31,8 @@ const INFRA = new Set(['.', 'lib'])
 // entry + delete `lib/dom.ts`.
 const GRANDFATHERED = [
   'commands',
-  'components/datepicker/components',
   'components/dialog',
   'components/overlay',
-  'components/status-bar/components',
   'components/treeview/components',
   'editor/code-editor/components',
   'notebook',
@@ -62,8 +60,6 @@ const GRANDFATHERED = [
   'screens/settings/tabs',
   'screens/settings/tabs/components',
   'screens/sidebar/components',
-  'screens/spotlight',
-  'screens/spotlight/components',
   'terminal',
   'terminal/components'
 ].sort()

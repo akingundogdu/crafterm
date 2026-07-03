@@ -1,10 +1,9 @@
-import { el } from '@views/lib/dom'
 import { settings } from '@views/state/spine'
 import { usageErrorShort, usageErrorLong } from '@services/domain/usage'
 import { shortModel } from '@views/screens/notifications/notif-format'
 import { fetchRealUsage, evaluateUsageThresholds } from '@views/screens/notifications/notifications.state'
 import type { RealUsage } from '@views/screens/notifications/notifications.types'
-import { renderUsagePopover } from './usage-popover'
+import { createUsagePopover, renderUsagePopover } from './usage-popover'
 import { USAGE_POLL_MS } from '../status-bar.state'
 
 // Status bar Claude usage chip: polls hourly. Compact display shows the active
@@ -55,7 +54,7 @@ export function initStatusbarUsage(): void {
       existing.remove()
       return
     }
-    const pop = el('div', { class: 'usage-popover' })
+    const pop = createUsagePopover()
     document.body.append(pop)
     renderUsagePopover(pop, lastUsage)
     const rect = chip.getBoundingClientRect()
