@@ -36,7 +36,6 @@ const GRANDFATHERED = [
   'components/treeview/components',
   'notebook',
   'pane',
-  'pane/components',
   'screens/code-pane',
   'screens/code-pane/components',
   'screens/content',
