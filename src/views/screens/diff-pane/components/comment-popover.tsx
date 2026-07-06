@@ -1,4 +1,4 @@
-import { el } from '@views/lib/dom'
+import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { CommentPopoverHandle, CommentPopoverOptions } from './comment-popover.types'
 import {
@@ -13,11 +13,40 @@ import { createCommentTextarea } from './comment-textarea'
 
 export type { CommentRange, CommentPopoverHandle } from './comment-popover.types'
 
+// The popover shell markup (label + footer with the error span and the Comment
+// button). A gea Component; the textarea (an imperatively built node) is inserted
+// between the label and footer by the factory. Data arrives via the constructor
+// into a plain field. Self-contained (§2.7).
+class CommentPopView extends Component {
+  errEl: HTMLSpanElement | null = null
+  sendBtnEl: HTMLButtonElement | null = null
+  footerEl: HTMLDivElement | null = null
+  private readonly label: string
+
+  constructor(opts: { label: string }) {
+    super()
+    this.label = opts.label
+  }
+
+  template() {
+    return (
+      <div class="diff-comment-pop" onMouseDown={stopMousedown}>
+        <div class="diff-comment-label">{this.label}</div>
+        <div class="diff-comment-footer" ref={this.footerEl}>
+          <span class="diff-comment-err" ref={this.errEl} />
+          <button class="diff-comment-send" ref={this.sendBtnEl}>
+            {UITexts.DiffPane.comment}
+          </button>
+        </div>
+      </div>
+    )
+  }
+}
+
 // Inline PR review-comment popover for the diff pane. Anchored under the comment
 // button, it posts a comment on the currently selected line range. The range
 // source, the submit action, and the success hook are injected so the popover
-// carries no IPC/state imports and is unit-testable. Plain-DOM (el()) port of the
-// legacy JSX factory (§2.7 self-contained, no @ui).
+// carries no IPC/state imports and is unit-testable.
 export function createCommentPopover(opts: CommentPopoverOptions): CommentPopoverHandle {
   let pop: HTMLElement | null = null
 
@@ -37,15 +66,13 @@ export function createCommentPopover(opts: CommentPopoverOptions): CommentPopove
     const range = opts.getRange()
     if (!range) return
     const ta = createCommentTextarea()
-    const err = el('span', { class: 'diff-comment-err' })
-    const sendBtn = el('button', { class: 'diff-comment-send' }, UITexts.DiffPane.comment)
-    pop = el(
-      'div',
-      { class: 'diff-comment-pop', onMouseDown: stopMousedown },
-      el('div', { class: 'diff-comment-label' }, `Comment on ${range.path} · ${locationLabel(range)}`),
-      ta,
-      el('div', { class: 'diff-comment-footer' }, err, sendBtn)
-    )
+    const view = new CommentPopView({ label: `Comment on ${range.path} · ${locationLabel(range)}` })
+    const host = document.createElement('div')
+    view.render(host)
+    pop = host.firstElementChild as HTMLElement
+    const err = view.errEl as HTMLSpanElement
+    const sendBtn = view.sendBtnEl as HTMLButtonElement
+    pop.insertBefore(ta, view.footerEl as HTMLDivElement)
 
     const submit = makeSubmit({ ta, sendBtn, err, range, submit: opts.submit, onSuccess: opts.onSuccess, close })
     sendBtn.addEventListener('click', makeSendClick(submit))

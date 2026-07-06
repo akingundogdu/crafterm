@@ -1,9 +1,23 @@
-import { el } from '@views/lib/dom'
+import { Component } from '@geajs/core'
 import type { LineRow, LineSelectOptions, LineSelectHandle } from './line-select.types'
 import { buildRef } from './line-select.state'
 import { createSelectionEngine } from './selection.engine'
 import { createDiffRow } from './components/diff-row'
 import { createActionCluster } from './components/action-cluster'
+
+// The scrollable `.diff-body` container, as a gea Component. The controller reads
+// the rendered node and drives the rows imperatively (replaceChildren / append).
+class DiffBodyView extends Component {
+  template() {
+    return <div class="diff-body" />
+  }
+}
+
+function createDiffBody(): HTMLDivElement {
+  const host = document.createElement('div')
+  new DiffBodyView().render(host)
+  return host.firstElementChild as HTMLDivElement
+}
 
 // Shared line-selection engine for the read-only file/diff viewer panes. Owns the
 // `.diff-body` element, the rendered rows, contiguous range selection
@@ -25,7 +39,7 @@ export class LineSelectController {
 
   constructor(opts: LineSelectOptions) {
     this.opts = opts
-    this.body = el('div', { class: 'diff-body' })
+    this.body = createDiffBody()
 
     this.cluster = createActionCluster({
       extraActions: opts.extraActions,

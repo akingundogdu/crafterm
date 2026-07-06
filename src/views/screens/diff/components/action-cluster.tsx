@@ -1,4 +1,3 @@
-import { el } from '@views/lib/dom'
 import { UITexts } from '@texts'
 import { preventAndStop } from '../line-select.state'
 
@@ -21,9 +20,22 @@ interface ActionClusterHandle {
 
 // Floating action cluster anchored to the first selected row (left side). Owns the
 // "+" button — its send action, the mousedown guard, and the warn/title state —
-// plus anchoring and visibility. Plain-DOM (el()) port of the legacy JSX factory
-// (§2.7 self-contained, no @ui).
+// plus anchoring and visibility. Built with plain DOM: the cluster is anchored,
+// moved (appended into the selected row) and toggled imperatively by the selection
+// engine, and gea's onClick binding does not survive an imperatively-rendered
+// component being extracted and re-parented, so a plain factory is the reliable
+// primitive for this inherently-imperative widget.
 export function createActionCluster(opts: ActionClusterOptions): ActionClusterHandle {
+  const clusterEl = document.createElement('div')
+  clusterEl.className = 'diff-actions'
+  clusterEl.style.display = 'none'
+
+  const plus = document.createElement('button')
+  plus.className = 'diff-act diff-act-term'
+  plus.title = UITexts.Diff.sendReferenceToTerminal
+  plus.textContent = '+'
+  clusterEl.appendChild(plus)
+
   const send = (): void => {
     const ref = opts.currentRef()
     if (!ref) return
@@ -32,20 +44,14 @@ export function createActionCluster(opts: ActionClusterOptions): ActionClusterHa
       plus.title = 'Open a terminal first'
     }
   }
-  const plus = el(
-    'button',
-    {
-      class: 'diff-act diff-act-term',
-      title: UITexts.Diff.sendReferenceToTerminal,
-      onMouseDown: preventAndStop,
-      onClick: (e: MouseEvent) => {
-        e.stopPropagation()
-        send()
-      }
-    },
-    '+'
-  )
-  const clusterEl = el('div', { class: 'diff-actions', style: 'display:none' }, plus, ...(opts.extraActions ?? []))
+
+  plus.addEventListener('mousedown', preventAndStop)
+  plus.addEventListener('click', (e) => {
+    e.stopPropagation()
+    send()
+  })
+
+  for (const a of opts.extraActions ?? []) clusterEl.appendChild(a)
 
   return {
     el: clusterEl,

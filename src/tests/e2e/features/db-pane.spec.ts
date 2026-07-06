@@ -84,12 +84,14 @@ test('db-pane: inserting a row via the grid modal re-fetches with the new row', 
   const config = { ...CONFIG, file: sqlite }
   seedDbTree(dir, sqlite)
   const { app, win } = await launchApp(dir)
+  win.on('console',(x)=>{const t=x.text(); if(t.includes('RRDBG'))console.log('PAGE>',t)})
   try {
     await seedUsers(win, config)
     await openSqlPane(win)
     await runSql(win, 'SELECT * FROM users')
     const pane = win.locator('.pane-box.sql-pane')
     await expect(pane.locator('.db-grid tbody tr')).toHaveCount(2, { timeout: 10_000 })
+    console.log('TBODYDUMP', await pane.locator('.db-grid tbody').first().innerHTML())
 
     await test.step('+ New row → fill the form → INSERT + re-fetch', async () => {
       await pane.locator('button.db-grid-action-btn').click() // "+ New row" (editable: SELECT * + PK)

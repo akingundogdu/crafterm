@@ -1,5 +1,5 @@
 import './diff-pane.css'
-import { el } from '@views/lib/dom'
+import { Component } from '@geajs/core'
 import { diffPanes, paneActions, uid, pushNotification } from '@views/state/spine'
 import { setupPaneDnd } from '@views/pane/pane'
 import { prService } from '@services'
@@ -17,17 +17,71 @@ import { COMMENT_SVG, registerDiffCleanup, fileToLineRows, stopAnd, preventStop 
 export type { CreateDiffPaneOptions } from './diff-pane.types'
 export { destroyDiffPane } from './diff-pane.state'
 
+// The pane-box shell for a diff pane. The header + file-search + line-select body
+// are pre-built nodes appended imperatively (a pre-built node embedded via a
+// `{expr}` child renders as an empty comment under gea).
+class DiffPaneBox extends Component {
+  private readonly paneId: string
+  private readonly onSelect: () => void
+
+  constructor(opts: { id: string; onSelect: () => void }) {
+    super()
+    this.paneId = opts.id
+    this.onSelect = opts.onSelect
+  }
+
+  template() {
+    return <div class="pane-box diff-pane" data-pane-id={this.paneId} onMouseDown={this.onSelect} />
+  }
+}
+
+// The comment button that lives inside the engine's floating action cluster. The
+// icon is injected via a ref in onAfterRender (gea does not honour an innerHTML
+// JSX prop); the mousedown guard is wired there too.
+class CommentBtnView extends Component {
+  btnEl: HTMLButtonElement | null = null
+  private readonly onClickFn: (e: Event) => void
+
+  constructor(opts: { onClick: (e: Event) => void }) {
+    super()
+    this.onClickFn = opts.onClick
+  }
+
+  onAfterRender(): void {
+    if (!this.btnEl) return
+    this.btnEl.innerHTML = COMMENT_SVG
+    this.btnEl.addEventListener('mousedown', preventStop)
+  }
+
+  template() {
+    return (
+      <button
+        class="diff-act diff-act-comment"
+        title="Comment on these lines in the GitHub PR"
+        onClick={this.onClickFn}
+        ref={this.btnEl}
+      />
+    )
+  }
+}
+
+function createCommentBtn(onClick: (e: Event) => void): HTMLButtonElement {
+  const host = document.createElement('div')
+  new CommentBtnView({ onClick }).render(host)
+  return host.firstElementChild as HTMLButtonElement
+}
+
 // A read-only PR diff pane. Shows one file at a time (prev/next + searchable file
 // list). Selection + the floating "+" ref live in the shared diff/line-select
 // engine; the comment popover and file-search dropdown are local children. The
 // inline "+" pastes a `path:line[-line]` reference into a terminal; the comment
 // button posts a GitHub PR review comment on the selected range. Transient.
-// Plain-DOM (el()) port of the legacy JSX factory (§2.7 self-contained, no @ui).
 export function createDiffPane(opts: CreateDiffPaneOptions): string {
   const id = uid('df')
 
-  const box = el('div', { class: 'pane-box diff-pane', onMouseDown: () => paneActions.select(id) })
-  box.dataset.paneId = id
+  const boxHost = document.createElement('div')
+  new DiffPaneBox({ id, onSelect: () => paneActions.select(id) }).render(boxHost)
+  const box = boxHost.firstElementChild as HTMLDivElement
 
   let files: FileDiff[] = []
 
@@ -41,13 +95,7 @@ export function createDiffPane(opts: CreateDiffPaneOptions): string {
   })
 
   // ---- comment button (lives inside the engine's floating action cluster) ----
-  const commentBtn = el('button', {
-    class: 'diff-act diff-act-comment',
-    title: 'Comment on these lines in the GitHub PR',
-    onClick: stopAnd(() => commentPopover.open())
-  })
-  commentBtn.innerHTML = COMMENT_SVG
-  commentBtn.addEventListener('mousedown', preventStop)
+  const commentBtn = createCommentBtn(stopAnd(() => commentPopover.open()))
 
   const view = createLineSelect({
     refFile: () => files[nav.activeIdx()]?.path ?? null,
