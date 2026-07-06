@@ -48,8 +48,6 @@ const GRANDFATHERED = [
   'screens/diff-pane/components',
   'screens/diff/components',
   'screens/explorer',
-  'screens/file-pane',
-  'screens/file-pane/components',
   'screens/pickers/components',
   'screens/pickers/lib',
   'screens/sidebar/components',

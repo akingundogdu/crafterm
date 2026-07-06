@@ -1,4 +1,4 @@
-import { el } from '@views/lib/dom'
+import { Component } from '@geajs/core'
 import { filePanes, uid } from '@views/state/spine'
 import { setupPaneDnd } from '@views/pane/pane'
 import { fsService } from '@services'
@@ -20,12 +20,30 @@ import {
 export type { CreateFilePaneOptions } from './file-pane.types'
 export { destroyFilePane } from './file-pane.state'
 
+// The pane-box shell for a file pane. The header + line-select view are pre-built
+// nodes appended imperatively (a pre-built node embedded via a `{expr}` child
+// renders as an empty comment under gea).
+class FilePaneBox extends Component {
+  private readonly paneId: string
+  private readonly onSelect: (e: MouseEvent) => void
+
+  constructor(opts: { id: string; onSelect: (e: MouseEvent) => void }) {
+    super()
+    this.paneId = opts.id
+    this.onSelect = opts.onSelect
+  }
+
+  template() {
+    return <div class="pane-box diff-pane" data-pane-id={this.paneId} onMouseDown={this.onSelect} />
+  }
+}
+
 // A read-only file viewer pane opened from the Files panel. Shows one plain file
 // with line numbers; click / click-drag / shift-click selects a contiguous line
 // range, and a floating "+" on the selection pastes a `path:line[-line]`
 // reference into a terminal so the user can ask Claude about that exact spot.
 // Selection + ref logic lives in the shared diff/line-select engine. Transient —
-// never persisted. Plain-DOM el() port (§2.7); reactivity buys nothing here.
+// never persisted.
 export function createFilePane(opts: CreateFilePaneOptions): string {
   const id = uid('fp')
 
@@ -44,12 +62,10 @@ export function createFilePane(opts: CreateFilePaneOptions): string {
     onRowSelect: makeSelectPane(id)
   })
 
-  const element = el(
-    'div',
-    { class: 'pane-box diff-pane', 'data-pane-id': id, onMousedown: makeSelectPane(id) },
-    header,
-    view.body
-  ) as HTMLDivElement
+  const boxHost = document.createElement('div')
+  new FilePaneBox({ id, onSelect: makeSelectPane(id) }).render(boxHost)
+  const element = boxHost.firstElementChild as HTMLDivElement
+  element.append(header, view.body)
   setupPaneDnd(element, header, id)
 
   // ---- load ----
