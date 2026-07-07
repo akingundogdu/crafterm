@@ -1,4 +1,3 @@
-import { el } from '@views/lib/dom'
 import type { DbColumn } from '@services/db/db.types'
 import { createOverlay } from '@views/components/overlay/overlay'
 import { UITexts } from '@texts'
@@ -17,7 +16,8 @@ export interface RowFormModalOptions {
 // Shared edit/insert modal: a field input per column (textarea for text-ish
 // types) with a NULL toggle. open() builds the modal and resolves to the
 // collected values or null on cancel. Pure — the host builds the SQL and runs it.
-// Plain-DOM (el()) port of the legacy JSX controller (§2.7 self-contained, no @ui).
+// Plain-DOM port — an imperative overlay widget whose fields are read back
+// synchronously by collectFieldValues (§2.7 self-contained, no @ui).
 export class RowFormModalController {
   private readonly opts: RowFormModalOptions
   private readonly inputs: Record<
@@ -38,25 +38,30 @@ export class RowFormModalController {
       const { overlay, mount, close: removeOverlay } = createOverlay({ closeOnBackdrop: false })
       this.removeOverlay = removeOverlay
 
-      const list = el('div', { class: 'db-row-modal-fields' })
+      const list = document.createElement('div')
+      list.className = 'db-row-modal-fields'
 
       for (const c of this.opts.columns) {
-        const lab = el('label', {
-          class: 'db-row-modal-field-label',
-          innerHTML:
-            `<span class="db-row-modal-col">${c.name}</span>` +
-            `<span class="db-row-modal-type">${c.type}` +
-            (c.isPrimary ? '<span class="db-row-modal-pk">PK</span>' : '') +
-            (c.isAutoIncrement ? '<span class="db-row-modal-auto">auto</span>' : '') +
-            (!c.nullable && !c.hasDefault && !c.isAutoIncrement ? '<span class="db-row-modal-req">required</span>' : '') +
-            '</span>'
-        })
+        const lab = document.createElement('label')
+        lab.className = 'db-row-modal-field-label'
+        lab.innerHTML =
+          `<span class="db-row-modal-col">${c.name}</span>` +
+          `<span class="db-row-modal-type">${c.type}` +
+          (c.isPrimary ? '<span class="db-row-modal-pk">PK</span>' : '') +
+          (c.isAutoIncrement ? '<span class="db-row-modal-auto">auto</span>' : '') +
+          (!c.nullable && !c.hasDefault && !c.isAutoIncrement ? '<span class="db-row-modal-req">required</span>' : '') +
+          '</span>'
 
-        const nullCb = el('input', { type: 'checkbox' })
+        const nullCb = document.createElement('input')
+        nullCb.type = 'checkbox'
         nullCb.checked = this.opts.initial[c.name].isNull
-        const nullWrap = el('label', { class: 'db-row-modal-null' }, nullCb, ' NULL')
+        const nullWrap = document.createElement('label')
+        nullWrap.className = 'db-row-modal-null'
+        nullWrap.append(nullCb, ' NULL')
 
-        const labelRow = el('div', { class: 'db-row-modal-field-label-row' }, lab, nullWrap)
+        const labelRow = document.createElement('div')
+        labelRow.className = 'db-row-modal-field-label-row'
+        labelRow.append(lab, nullWrap)
 
         // textarea for text-ish types, input otherwise.
         const isLong = /text|json|jsonb|character\s+varying|varchar|blob/i.test(c.type)
@@ -81,30 +86,29 @@ export class RowFormModalController {
           if (nullCb.checked) input.value = ''
         })
 
-        const field = el('div', { class: 'db-row-modal-field' }, labelRow, input)
+        const field = document.createElement('div')
+        field.className = 'db-row-modal-field'
+        field.append(labelRow, input)
         list.appendChild(field)
         this.inputs[c.name] = { input, nullCb }
       }
 
-      const cancel = el('button', { onClick: () => this.close(null) }, UITexts.DbPane.cancel)
-      const ok = el(
-        'button',
-        {
-          class: 'button-primary',
-          onClick: () => this.close(collectFieldValues(this.opts.columns, this.inputs))
-        },
-        this.opts.submitText
-      )
-      const actions = el('div', { class: 'modal-actions' }, cancel, ok)
+      const cancel = document.createElement('button')
+      cancel.textContent = UITexts.DbPane.cancel
+      cancel.addEventListener('click', () => this.close(null))
+      const ok = document.createElement('button')
+      ok.className = 'button-primary'
+      ok.textContent = this.opts.submitText
+      ok.addEventListener('click', () => this.close(collectFieldValues(this.opts.columns, this.inputs)))
+      const actions = document.createElement('div')
+      actions.className = 'modal-actions'
+      actions.append(cancel, ok)
 
-      const modal = el(
-        'div',
-        { class: 'modal db-row-modal' },
-        makeCloseButton(() => this.close(null)),
-        el('h2', null, this.opts.title),
-        list,
-        actions
-      )
+      const modal = document.createElement('div')
+      modal.className = 'modal db-row-modal'
+      const heading = document.createElement('h2')
+      heading.textContent = this.opts.title
+      modal.append(makeCloseButton(() => this.close(null)), heading, list, actions)
       overlay.appendChild(modal)
 
       overlay.addEventListener('mousedown', (e) => {

@@ -1,4 +1,3 @@
-import { el } from '@views/lib/dom'
 import { sqlPanes, paneActions, settings } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { persistence } from '@repositories/persistence.service'
@@ -22,7 +21,7 @@ import {
   emitOrderedSql
 } from './db-pane.state'
 
-// DOM nodes the controller drives. The view (db-pane.ts) builds the static
+// DOM nodes the controller drives. The view (db-pane.tsx) builds the static
 // skeleton and hands these refs over; the controller owns all state + behavior.
 export interface DbPaneRefs {
   el: HTMLDivElement
@@ -42,6 +41,14 @@ export interface DbPaneOptions {
   fileName?: string | null
   themeName?: string
   autoRun?: boolean
+}
+
+// Builds one `<option>` for the connection select.
+function makeOption(value: string, label: string): HTMLOptionElement {
+  const o = document.createElement('option')
+  o.value = value
+  o.textContent = label
+  return o
 }
 
 // Owns one SQL pane's mutable state, Monaco editor and result rendering. All
@@ -105,13 +112,11 @@ export class DbPaneController {
     const conns = flattenConns()
     connSel.replaceChildren()
     if (!conns.length) {
-      connSel.appendChild(el('option', { value: '' }, UITexts.DbPane.noConnections))
+      connSel.appendChild(makeOption('', UITexts.DbPane.noConnections))
       this.currentConnId = null
     } else {
       connSel.append(
-        ...conns.map((cn) =>
-          el('option', { value: cn.conn.id }, `${cn.conn.name}  ·  ${engineLabel(cn.conn.engine)}`)
-        )
+        ...conns.map((cn) => makeOption(cn.conn.id, `${cn.conn.name}  ·  ${engineLabel(cn.conn.engine)}`))
       )
       if (this.currentConnId && conns.some((c) => c.conn.id === this.currentConnId)) {
         connSel.value = this.currentConnId
@@ -198,17 +203,18 @@ export class DbPaneController {
 
     if (res.error) {
       result.replaceChildren()
-      result.appendChild(el('div', { class: 'db-error db-result-error' }, res.error))
+      const errDiv = document.createElement('div')
+      errDiv.className = 'db-error db-result-error'
+      errDiv.textContent = res.error
+      result.appendChild(errDiv)
       return
     }
     if (!res.columns.length) {
       result.replaceChildren()
-      result.appendChild(
-        el('div', {
-          class: 'db-result-empty',
-          innerHTML: `<span class="db-ok-badge">OK</span> ${res.rowCount} row(s) affected · ${ms}ms`
-        })
-      )
+      const okDiv = document.createElement('div')
+      okDiv.className = 'db-result-empty'
+      okDiv.innerHTML = `<span class="db-ok-badge">OK</span> ${res.rowCount} row(s) affected · ${ms}ms`
+      result.appendChild(okDiv)
       return
     }
 

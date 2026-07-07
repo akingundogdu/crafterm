@@ -1,12 +1,13 @@
 import './overlay.css'
 
-// Overlay primitive (gea tree, §2.7 self-contained). The single source of truth
-// for constructing the `.modal-overlay` backdrop in `src/views` — mirrors the
-// legacy @ui createOverlay (a transient body-mounted backdrop is static, so it is
-// plain DOM, not a gea Component). Owns the idempotent close lifecycle and
-// backdrop-click close. Callers append content into `overlay`, `mount()` to
-// attach to <body>, and register `onClose`. A gea modal body mounts inside via
-// `new X().render(handle.overlay)`.
+// Overlay primitive. The single source of truth for the `.modal-overlay` backdrop
+// in `src/views`, owning the idempotent close lifecycle + backdrop-click close.
+// Callers append content into `overlay`, `mount()` to attach to <body>, and
+// register `onClose`; a gea modal body mounts inside via
+// `new X().render(handle.overlay)`. The backdrop node is created synchronously
+// (document.createElement in this .tsx) because consumers — and happy-dom unit
+// tests — read/append to it in the same tick, which gea's deferred render cannot
+// guarantee.
 export interface OverlayOptions {
   closeOnBackdrop?: boolean
 }

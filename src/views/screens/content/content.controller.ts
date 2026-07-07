@@ -10,9 +10,9 @@ import {
   state,
   poppedOut
 } from '@views/state/spine'
+import { buildContentBox } from './content-nodes'
 import { findTab } from '@views/tree/tree'
 import { mountPanes } from '@views/pane/pane'
-import { el } from '@views/lib/dom'
 import { tabContainers, layoutSig, makePopoutFocus, persistResizedLayout } from './content.state'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 
@@ -50,7 +50,7 @@ class ContentController {
         filePanes.get(node.paneId)?.el ??
         codePanes.get(node.paneId)?.el
       if (!leafEl) {
-        leafEl = el('div', { class: 'pane-box' })
+        leafEl = buildContentBox('pane-box')
       }
       // clear stale flex sizing left over from a previous split; a split parent
       // re-applies it below, while a sole/root pane falls back to CSS flex:1.
@@ -59,7 +59,7 @@ class ContentController {
       leafEl.style.flexBasis = ''
       return leafEl
     }
-    const container = el('div', { class: 'split ' + node.dir })
+    const container = buildContentBox('split ' + node.dir)
     node.children.forEach((child, i) => {
       const childEl = this.buildNode(child)
       childEl.style.flexGrow = String(node.sizes[i] ?? 1)
@@ -67,7 +67,7 @@ class ContentController {
       childEl.style.flexBasis = '0'
       container.appendChild(childEl)
       if (i < node.children.length - 1) {
-        const rz = el('div', { class: 'resizer ' + node.dir })
+        const rz = buildContentBox('resizer ' + node.dir)
         this.attachResizer(rz, container, node, i)
         container.appendChild(rz)
       }
@@ -96,7 +96,7 @@ class ContentController {
       // browser pane the document stops receiving mousemove/mouseup and the drag
       // freezes. A full-screen transparent overlay above the webviews keeps the
       // events flowing to the document for the duration of the drag.
-      const overlay = el('div', { class: 'resize-overlay' })
+      const overlay = buildContentBox('resize-overlay')
       overlay.style.cursor = horizontal ? 'col-resize' : 'row-resize'
       document.body.appendChild(overlay)
 
@@ -143,7 +143,7 @@ class ContentController {
     }
     let entry = tabContainers.get(tab.id)
     if (!entry) {
-      const tabEl = el('div', { class: 'tab-content' })
+      const tabEl = buildContentBox('tab-content')
       contentEl.appendChild(tabEl)
       entry = { el: tabEl, sig: '' }
       tabContainers.set(tab.id, entry)

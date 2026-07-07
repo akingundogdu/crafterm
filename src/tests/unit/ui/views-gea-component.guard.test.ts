@@ -30,21 +30,10 @@ const INFRA = new Set(['.', 'lib'])
 // SHRINK this as batches convert to gea; when empty, drop it + the INFRA `lib`
 // entry + delete `lib/dom.ts`.
 const GRANDFATHERED = [
-  'commands',
-  'components/dialog',
-  'components/overlay',
-  'notebook',
-  'pane',
-  'screens/content',
-  'screens/content/components',
-  'screens/db-pane',
-  'screens/db-pane/components',
-  'screens/database',
-  'screens/explorer',
-  'screens/pickers/components',
-  'screens/pickers/lib',
+  // Only the sidebar's imperative el() slot builders remain (status pill /
+  // process sub-rows) — deliberately kept imperative: gea cannot render an
+  // adapter-provided component via a dynamic tag, so these stay plain-DOM.
   'screens/sidebar/components',
-  'terminal',
 ].sort()
 
 function rel(dir: string): string {

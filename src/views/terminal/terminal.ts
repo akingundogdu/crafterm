@@ -1,6 +1,6 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { el } from '@views/lib/dom'
+import { buildTermHost, buildTermBox, buildPaneStatus, buildRenameInput } from './terminal-nodes'
 import type { Pane } from '@views/types/types'
 import { panes, settings, resolveTheme, requestSidebar } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
@@ -62,10 +62,10 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
   })
 
   // The xterm mount target — kept imperative so xterm attaches to the exact node.
-  const host = document.createElement('div')
-  host.className = 'pane-term'
-  const statusEl = el('div', { class: 'pane-status', style: 'display: none' })
-  const box = el('div', { class: 'pane-box', 'data-pane-id': id }, header, host, statusEl)
+  const host = buildTermHost()
+  const statusEl = buildPaneStatus()
+  const box = buildTermBox(id, makeSelectPane(id))
+  box.append(header, host, statusEl)
   setupPaneDnd(box, header, id)
 
   const pane = createPaneState({ id, stableId, term, fit, el: box, host, statusEl, htitle, cwd, isProcessView: !!opts?.attachId })
@@ -75,7 +75,6 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
   term.onData(makeDataHandler(pane, id))
   term.onBell(() => onBell(pane))
   term.onTitleChange((t) => onPaneTitle(pane, t))
-  box.addEventListener('mousedown', makeSelectPane(id))
   header.addEventListener('dblclick', () => startPaneRename(pane))
 
   const ro = new ResizeObserver(() => {
@@ -112,15 +111,14 @@ export function startPaneRename(pane: Pane): void {
     persistence.save()
     requestSidebar()
   }
-  const input = el('input', {
-    class: 'pane-rename',
-    onKeydown: (e: KeyboardEvent) => {
+  const input = buildRenameInput(
+    (e: KeyboardEvent) => {
       e.stopPropagation()
       if (e.key === 'Enter') done(true)
       else if (e.key === 'Escape') done(false)
     },
-    onBlur: () => done(true)
-  })
+    () => done(true)
+  )
   input.value = pane.title
   header.replaceChild(input, pane.htitle)
   input.focus()

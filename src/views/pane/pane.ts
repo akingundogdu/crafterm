@@ -1,4 +1,4 @@
-import { el } from '@views/lib/dom'
+import { buildBrowserPaneBox, buildDocPaneBox } from './pane-box'
 import type { BrowserPane } from '@views/types/types'
 import { browsers, docs, uid } from '@views/state/spine'
 import { makeSelectPane, makeDocMention } from './pane.state'
@@ -47,9 +47,9 @@ export function createBrowserPane(url: string): string {
     showPaneMenu(menuAnchor, id, { worktree: false, bg: false })
   )
 
-  const box = el('div', { class: 'pane-box browser-pane', 'data-pane-id': id }, header, webview)
+  const box = buildBrowserPaneBox(id, makeSelectPane(id))
+  box.append(header, webview)
   setupPaneDnd(box, header, id)
-  box.addEventListener('mousedown', makeSelectPane(id))
 
   const bp: BrowserPane = { id, el: box, webview, url }
   setupBrowserEvents({ bp, webview, htitle, reload, ext })
@@ -73,9 +73,9 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
   const preview = createMarkdownPreview()
   const editor = createDocEditor()
 
-  const box = el('div', { class: 'pane-box doc-pane', 'data-pane-id': id }, header, preview, editor)
+  const box = buildDocPaneBox(id, makeSelectPane(id))
+  box.append(header, preview, editor)
   setupPaneDnd(box, header, id)
-  box.addEventListener('mousedown', makeSelectPane(id))
 
   setupEditorLifecycle({ source, absolute, preview, editor, refreshBtn, editBtn })
 

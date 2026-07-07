@@ -1,4 +1,5 @@
 import { settings } from '@views/state/state'
+import { createToastEl } from './toast'
 
 // High-level command actions (create/split/close panes, open links/notes/SQL,
 // worktree/git flows, node editing, drag & drop). Migrated into @views: the action
@@ -14,8 +15,7 @@ let flashTimer: number | null = null
 export function flash(msg: string): void {
   let el = document.getElementById('toast')
   if (!el) {
-    el = document.createElement('div')
-    el.id = 'toast'
+    el = createToastEl()
     document.body.appendChild(el)
   }
   el.textContent = msg

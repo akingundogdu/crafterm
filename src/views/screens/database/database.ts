@@ -1,5 +1,4 @@
 import { uid } from '@views/lib/uid'
-import { el } from '@views/lib/dom'
 import { dbTree } from '@models/db-tree'
 import { persistence } from '@repositories/persistence.service'
 import type { DbGroup, DbConnNode, DbConnection } from '@views/types/types'
@@ -8,6 +7,7 @@ import { promptText } from '@views/components/dialog/prompt-text'
 import { openSqlInSplit } from '@views/commands/commands'
 import { createTreeView, type TreeAdapter, type TreeView, type DropPos } from '@views/components/treeview/treeview'
 import './database.css'
+import { buildPill, buildDbEmpty } from './db-nodes'
 import { dbService, dbqService } from '@services'
 import { openConnectionForm } from './components/connection-form.open'
 import { dbConnectionRepo } from '@repositories'
@@ -64,7 +64,7 @@ function sectionCount(conn: DbConnection, kind: DbSectionKind): number {
 }
 
 function pill(cls: string, text: string): HTMLElement {
-  return el('span', { class: cls }, text)
+  return buildPill(cls, text)
 }
 
 // Load a connection's objects + saved queries the first time it's expanded.
@@ -290,7 +290,7 @@ async function refresh(): Promise<void> {
   if (!container) return
   if (!dbTree.length) {
     container.replaceChildren()
-    container.appendChild(el('div', { class: 'empty-hint' }, 'No connections. Add a project, then a connection.'))
+    container.appendChild(buildDbEmpty('No connections. Add a project, then a connection.'))
     return
   }
   if (!treeview) treeview = createTreeView<DbTreeNode>(container, adapter)

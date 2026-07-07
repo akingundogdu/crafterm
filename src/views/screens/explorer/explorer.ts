@@ -1,5 +1,4 @@
 import './explorer.css'
-import { el } from '@views/lib/dom'
 import {
   explorerRoot,
   shortPath,
@@ -15,6 +14,7 @@ import {
   stopPropagation
 } from './explorer.state'
 import { buildExplorerSearchRow } from './components/explorer-search-row'
+import { buildExplorerEmpty } from './components/explorer-empty'
 
 // File explorer screen (right panel → Files tab). Imperative widget — plain DOM
 // over the @views treeview port; gea reactivity buys nothing here (§2.7
@@ -41,7 +41,7 @@ async function renderSearch(root: string, query: string): Promise<void> {
   el2.replaceChildren()
   const matches = await searchMatches(root, query)
   if (!matches.length) {
-    el2.appendChild(el('div', { class: 'explorer-empty', style: 'padding-left:6px' }, 'no matches'))
+    el2.appendChild(buildExplorerEmpty('explorer-empty', 'no matches', true))
     return
   }
   for (const m of matches) {
@@ -65,7 +65,7 @@ export async function renderExplorer(): Promise<void> {
   if (!root) {
     el2.replaceChildren()
     el2.appendChild(
-      el('div', { class: 'notif-empty' }, 'No root yet. Set one in Settings → Workspace, or open a terminal.')
+      buildExplorerEmpty('notif-empty', 'No root yet. Set one in Settings → Workspace, or open a terminal.')
     )
     return
   }

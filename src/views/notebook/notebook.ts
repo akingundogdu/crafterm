@@ -1,5 +1,5 @@
 import type { NbNode } from '@services/notebook/notebook.types'
-import { el } from '@views/lib/dom'
+import { buildNbDiv, buildNbText, buildNbSpan, buildNbButton, buildNbInput } from './notebook-nodes'
 import { openNote, openMarkdownFile } from '@views/commands/commands'
 import { promptText } from '@views/components/dialog/prompt-text'
 import { showFileFinder } from '@views/screens/pickers/finders/finders'
@@ -97,7 +97,7 @@ function buildMenu(n: NbNode): ContextMenuItem[] {
 }
 
 function buildActions(n: NbNode): HTMLElement {
-  const actions = el('span', { class: 'nb-actions' })
+  const actions = buildNbSpan('nb-actions')
   if (n.kind === 'dir') {
     actions.append(
       actBtn('＋', 'New note', stopAnd(() => void addNote(n.path))),
@@ -113,7 +113,7 @@ function buildActions(n: NbNode): HTMLElement {
 }
 
 function actBtn(text: string, title: string, fn: (e: Event) => void): HTMLButtonElement {
-  return el('button', { class: 'notebook-action', title, onClick: fn }, text)
+  return buildNbButton('notebook-action', text, title, fn)
 }
 
 // ---- rendering --------------------------------------------------------------
@@ -142,7 +142,7 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
   })
   host.appendChild(subtabs)
 
-  const body = el('div', { class: 'nb-subtab-body' })
+  const body = buildNbDiv('nb-subtab-body')
   host.appendChild(body)
   applySubTabChrome()
 
@@ -160,11 +160,10 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
   }
 
   // Notes: in-page search (same position as the other sub-tabs) + scrollable tree.
-  const search = el('input', {
-    type: 'text',
-    class: 'nb-subtab-search',
+  const search = buildNbInput({
+    cls: 'nb-subtab-search',
     placeholder: 'Search notes…',
-    onKeydown: (e: KeyboardEvent) => {
+    onKeyDown: (e: KeyboardEvent) => {
       e.stopPropagation()
       if (e.key === 'Escape' && nbQuery) {
         search.value = ''
@@ -176,9 +175,10 @@ export async function renderNotebook(host: HTMLElement): Promise<void> {
   search.value = nbQuery
   body.appendChild(search)
 
-  linkedHost = el('div')
-  treeHost = el('div', { class: 'nb-tree' })
-  const scroll = el('div', { class: 'nb-notes-scroll' }, linkedHost, treeHost)
+  linkedHost = buildNbDiv()
+  treeHost = buildNbDiv('nb-tree')
+  const scroll = buildNbDiv('nb-notes-scroll')
+  scroll.append(linkedHost, treeHost)
   body.appendChild(scroll)
   treeview = createTreeView<NbNode>(treeHost, adapter)
   treeview.setFilter(nbQuery)
@@ -203,12 +203,11 @@ async function renderPlansTab(host: HTMLElement): Promise<void> {
   host.replaceChildren()
   host.classList.add('nb-plans-tab')
 
-  const listHost = el('div', { class: 'nb-plans-list' })
-  const search = el('input', {
-    type: 'text',
-    class: 'nb-subtab-search',
+  const listHost = buildNbDiv('nb-plans-list')
+  const search = buildNbInput({
+    cls: 'nb-subtab-search',
     placeholder: 'Search plans…',
-    onKeydown: (e: KeyboardEvent) => e.stopPropagation(),
+    onKeyDown: (e: KeyboardEvent) => e.stopPropagation(),
     onInput: () => {
       plansQuery = search.value
       renderPlansGroups(listHost)
@@ -237,16 +236,15 @@ function renderPlansGroups(host: HTMLElement): void {
   const items = filterPlans(planItems, plansQuery)
 
   if (!items.length) {
-    const empty = el('div', { class: 'nb-plans-empty' }, plansQuery.trim() ? 'No matching plans' : 'No plans yet')
+    const empty = buildNbText('nb-plans-empty', plansQuery.trim() ? 'No matching plans' : 'No plans yet')
     host.appendChild(empty)
     return
   }
 
   for (const [project, plans] of groupPlansByProject(items)) {
-    const section = el(
-      'div',
-      { class: 'nb-plans-group' },
-      el('div', { class: 'nb-linked-head' }, `${project} · ${plans.length}`),
+    const section = buildNbDiv('nb-plans-group')
+    section.append(
+      buildNbText('nb-linked-head', `${project} · ${plans.length}`),
       ...plans.map((p) =>
         buildPlanRow(p, {
           onOpen: (path) => openMarkdownFile(path),
@@ -295,7 +293,8 @@ function renderLinked(host: HTMLElement): void {
     ? settings.linkedFiles.filter((f) => f.name.toLowerCase().includes(q))
     : settings.linkedFiles
   if (!items.length) return
-  const section = el('div', { class: 'nb-linked' }, el('div', { class: 'nb-linked-head' }, 'Linked files'))
+  const section = buildNbDiv('nb-linked')
+  section.appendChild(buildNbText('nb-linked-head', 'Linked files'))
   for (const f of items) {
     section.appendChild(
       buildLinkedFileRow(f, {
