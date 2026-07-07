@@ -1,4 +1,5 @@
 import type { ContextMenuItem } from '../context-menu/context-menu.types'
+import type { TreeStore } from './treeview.store'
 
 // Reusable sidebar tree types.
 
@@ -56,25 +57,33 @@ export interface TreeView<T> {
 }
 
 // A rendered row, kept so keyboard nav + light refresh can find it without a
-// full rebuild. `slots` host the dynamic (leading/trailing/below) content.
+// full rebuild. Its DOM refs (`row` + slot hosts) start null and are filled by
+// the row's gea Component when it mounts (`onAfterRender`); the ordered `live`
+// list itself is pre-built from the flattened visible model so keyboard nav /
+// numbering see rows in visual order regardless of mount timing.
 export interface LiveRow<T> {
   node: T
   depth: number
-  row: HTMLElement
+  row: HTMLElement | null
   leadingHost: HTMLElement | null
-  trailingHost: HTMLElement
-  belowHost: HTMLElement
+  trailingHost: HTMLElement | null
+  belowHost: HTMLElement | null
   numEl: HTMLElement | null
 }
 
 // Shared mutable context handed to every extracted treeview piece. The state
-// itself stays inside `createTreeView`; this object only exposes typed
-// getters/setters + the cross-piece callbacks, so the closure remains the
+// itself stays inside the controller; this object only exposes typed
+// getters/setters + the cross-piece callbacks + the plain (non-reactive) lookup
+// maps the gea row/header Components read by id, so the controller remains the
 // single source of truth.
 export interface TreeContext<T> {
   host: HTMLElement
   a: TreeAdapter<T>
   view: TreeView<T>
+  // plain lookup maps (never reactive — DOM nodes/nodes kept off the gea store)
+  nodeById: Map<string, T>
+  headerById: Map<string, HTMLElement>
+  liveById: Map<string, LiveRow<T>>
   // mutable state accessors
   getDragId(): string | null
   setDragId(id: string | null): void
@@ -86,10 +95,18 @@ export interface TreeContext<T> {
   setLive(rows: LiveRow<T>[]): void
   getLastSections(): TreeSection<T>[]
   setLastSections(sections: TreeSection<T>[]): void
-  // cross-piece callbacks (wired in createTreeView)
+  // cross-piece callbacks (wired in the controller)
   select(id: string | null): void
   rerender(): void
-  rowOf(node: T, depth: number, guides: boolean[], isLast: boolean): HTMLElement
-  startRename(node: T, labelEl: HTMLElement): void
+  startRename(node: T): void
   clearDropMarks(): void
+}
+
+// Per-instance render runtime, looked up from the module registry by a string
+// `storeId` so a gea child Component can read the genuine reactive store proxy
+// (tracking fires on the proxy get regardless of how the reference was reached)
+// without a store/DOM node ever crossing a proxied prop.
+export interface TreeRuntime<T> {
+  store: TreeStore
+  ctx: TreeContext<T>
 }
