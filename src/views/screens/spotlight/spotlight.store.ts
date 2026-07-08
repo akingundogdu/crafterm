@@ -15,6 +15,16 @@ class SpotlightStore extends Store {
   sel = 0
   loading = false
 
+  // Seed for a fresh open: pin the initial tab and clear the reactive slice
+  // (no results yet, empty query, first row selected, loading spinner shown).
+  reset(initialTab: string): void {
+    this.activeTab = initialTab
+    this.current = []
+    this.query = ''
+    this.sel = 0
+    this.loading = true
+  }
+
   setActiveTab(tab: string): void {
     this.activeTab = tab
   }

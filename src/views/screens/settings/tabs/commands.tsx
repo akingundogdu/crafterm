@@ -1,3 +1,4 @@
+import { Component } from '@geajs/core'
 import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { buildSubTabs, labeledInput } from '../shared'
@@ -6,21 +7,20 @@ import PaletteCommandsControl from './components/palette-commands-control'
 import MarkdownFoldersControl from './components/markdown-folders-control'
 import { saveIdeCommand, saveOpenMyZsh } from './commands.state'
 
-// Commands settings tab. el-free: the static heading/hints and the General fields go
-// through gea helpers (labeledInput) + insertAdjacentHTML, while the two dynamic
-// sub-tabs (Markdown folders, Command palette) mount reactive gea controls whose lists
-// re-render off commands.store.
-export class CommandsPanelController {
-  private readonly panel: HTMLElement
+// Commands settings tab. A gea shell (no controller): the static heading is JSX and
+// the sub-tabs mount into an imperative host in onAfterRender (SubTabs panels are
+// imperative hosts by design). The two dynamic sub-tabs (Markdown folders, Command
+// palette) mount reactive gea controls whose lists re-render off commands.store.
+// The `display: contents` roots keep the h3 + sub-tab strip as direct flow children
+// of `.settings-panel`, so the DOM stays byte-faithful.
+class CommandsPanel extends Component {
+  host: HTMLDivElement | null = null
+  private started = false
 
-  constructor(panel: HTMLElement) {
-    this.panel = panel
-  }
-
-  build(): void {
-    const { panel } = this
-    panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.commands.heading}</h3>`)
-    buildSubTabs(panel, [
+  onAfterRender(): void {
+    if (this.started || !this.host) return
+    this.started = true
+    buildSubTabs(this.host, [
       {
         label: UITexts.Settings.commands.general,
         build: (el) => {
@@ -28,10 +28,7 @@ export class CommandsPanelController {
           ide.style.maxWidth = '280px'
           const zsh = labeledInput(el, UITexts.Settings.commands.updateZshConfig, 'text', settings.commands.openMyZsh, saveOpenMyZsh)
           zsh.style.maxWidth = '280px'
-          el.insertAdjacentHTML(
-            'beforeend',
-            '<div class="field-hint">Shell commands run in a new terminal.</div>'
-          )
+          el.insertAdjacentHTML('beforeend', '<div class="field-hint">Shell commands run in a new terminal.</div>')
         }
       },
       {
@@ -50,4 +47,17 @@ export class CommandsPanelController {
       }
     ])
   }
+
+  template() {
+    return (
+      <div style={{ display: 'contents' }}>
+        <h3>{UITexts.Settings.commands.heading}</h3>
+        <div style={{ display: 'contents' }} ref={this.host} />
+      </div>
+    )
+  }
+}
+
+export function buildCommandsPanel(panel: HTMLElement): void {
+  new CommandsPanel().render(panel)
 }

@@ -10,20 +10,15 @@ export interface ProjectTreeDeps {
 }
 
 // The left column of the Projects editor: an empty hint when there are no projects,
-// one ProjectTreeRow per (flattened, indented) project, and "+ Add project". Mounted
-// imperatively by the controller into the `.projects-md-list` host, so data arrives
-// via the constructor; the display:contents root keeps the rows as direct children of
-// the list column (§gea 5.8). Rebuilt one-shot on selection / structural change.
+// one ProjectTreeRow per (flattened, indented) project, and "+ Add project". Rendered
+// as a reactive JSX child (TreeCol), so data arrives via props; the display:contents
+// root keeps the rows as direct children of the list column (§gea 5.8). Rebuilt on
+// selection / structural change via the store re-render.
 export default class ProjectTree extends Component {
-  private readonly deps: ProjectTreeDeps
-
-  constructor(deps: ProjectTreeDeps) {
-    super()
-    this.deps = deps
-  }
+  declare props: ProjectTreeDeps
 
   template() {
-    const { rows, hasProjects, onSelect, onAdd } = this.deps
+    const { rows, hasProjects, onSelect, onAdd } = this.props
     return (
       <div style={{ display: 'contents' }}>
         {!hasProjects && <div class="field-hint">No projects yet.</div>}

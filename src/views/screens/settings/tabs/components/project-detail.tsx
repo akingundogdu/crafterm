@@ -14,29 +14,25 @@ export interface ProjectDetailDeps {
 // (General / Environment / Apps / Features / Run commands / iOS) over a `.proj-detail-
 // actions` footer. buildSubTabs is an imperative gea mount, so it runs in onAfterRender
 // against a host ref (§gea 5.11); the `!firstChild` guard keeps a re-render from double-
-// mounting. Mounted imperatively into `.projects-md-detail`, so deps arrive via the
-// constructor; the display:contents root keeps the sub-tabs + actions as direct detail
-// children (§gea 5.8).
+// mounting. Rendered as a JSX child (DetailCol) keyed by the selected project + detail
+// epoch, so a fresh instance (with a fresh SubTabs) mounts only when the detail must
+// truly rebuild; deps arrive via props. The display:contents root keeps the sub-tabs +
+// actions as direct detail children (§gea 5.8).
 export default class ProjectDetail extends Component {
-  private readonly deps: ProjectDetailDeps
+  declare props: ProjectDetailDeps
   private hostEl: HTMLDivElement | null = null
-
-  constructor(deps: ProjectDetailDeps) {
-    super()
-    this.deps = deps
-  }
 
   onAfterRender(): void {
     if (this.hostEl && !this.hostEl.firstChild) {
-      buildSubTabs(this.hostEl, this.deps.tabs, {
-        initialIndex: this.deps.initialIndex,
-        onTabChange: this.deps.onTabChange
+      buildSubTabs(this.hostEl, this.props.tabs, {
+        initialIndex: this.props.initialIndex,
+        onTabChange: this.props.onTabChange
       })
     }
   }
 
   template() {
-    const { onAddSub, onDelete } = this.deps
+    const { onAddSub, onDelete } = this.props
     return (
       <div style={{ display: 'contents' }}>
         <div ref={this.hostEl} />

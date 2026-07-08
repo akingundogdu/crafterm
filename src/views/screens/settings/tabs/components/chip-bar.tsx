@@ -10,20 +10,15 @@ export interface ChipBarDeps {
 }
 
 // The environment / group chip strip: one ChipRow per name plus a "+ …" add button.
-// Mounted imperatively by the controller into the `.env-bar` host, so its data arrives
-// via the constructor and its display:contents root lets the chips + button lay out as
-// direct children of the `.env-bar` (§gea 5.8), matching the legacy DOM. Rebuilt one-
-// shot on every change, so the keyed `.map()` re-materializes fresh each mount.
+// Rendered as a reactive JSX child (EnvChips / GroupChips), so its data arrives via
+// props; its display:contents root lets the chips + button lay out as direct children
+// of the `.env-bar` (§gea 5.8), matching the legacy DOM. Rebuilt on every parent
+// re-render, so the keyed `.map()` re-materializes fresh.
 export default class ChipBar extends Component {
-  private readonly deps: ChipBarDeps
-
-  constructor(deps: ChipBarDeps) {
-    super()
-    this.deps = deps
-  }
+  declare props: ChipBarDeps
 
   template() {
-    const { names, removeTitle, addLabel, onRemove, onAdd } = this.deps
+    const { names, removeTitle, addLabel, onRemove, onAdd } = this.props
     return (
       <div style={{ display: 'contents' }}>
         {names.map((name) => (

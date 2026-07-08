@@ -6,12 +6,15 @@ import type { DirEntry } from '@services/fs/fs.types'
 // open at a time). `path` / `search` / `dirs` / `sel` are the source of truth read
 // directly in the list view's template() so gea patches the list on every search
 // keystroke, directory load, or selection change (arrow-key nav / hover) — the
-// board pattern. `rev` is bumped alongside each mutation to force the refresh.
+// board pattern. `parent` holds the drill-up target for the current listing (read
+// by the entry fn's ArrowLeft nav). `rev` is bumped alongside each mutation to
+// force the refresh.
 class FolderStore extends Store {
   path = ''
   search = ''
   dirs: DirEntry[] = []
   sel = 0
+  parent: string | null = null
   rev = 0
 
   reset(): void {
@@ -19,12 +22,14 @@ class FolderStore extends Store {
     this.search = ''
     this.dirs = []
     this.sel = 0
+    this.parent = null
     this.rev++
   }
 
-  setListing(path: string, dirs: DirEntry[]): void {
+  setListing(path: string, dirs: DirEntry[], parent: string | null): void {
     this.path = path
     this.dirs = dirs
+    this.parent = parent
     this.search = ''
     this.sel = 0
     this.rev++

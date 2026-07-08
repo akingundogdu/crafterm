@@ -67,8 +67,9 @@ export default class SubTabs extends Component {
   }
 }
 
-// Render a horizontal sub-tab strip with one body panel shown at a time. Void
-// signature preserved so projects/commands controllers resolve unchanged.
+// Render a horizontal sub-tab strip with one body panel shown at a time. The
+// imperative wrapper over SubTabs, used where a host mounts sub-tabs into a div
+// (commands.tsx onAfterRender, project-detail).
 export function buildSubTabs(parent: HTMLElement, tabs: SubTab[], opts?: SubTabsOptions): void {
   new SubTabs(tabs, opts).render(parent)
 }
