@@ -33,7 +33,7 @@ class QueryToolbarView extends Component {
           <select class="settings-select" />
         </div>
         <button class="button-primary db-run-btn">
-          <span class="db-run-icon" ref={this.iconEl} />
+          <span class="db-run-icon" style={{ display: 'contents' }} ref={this.iconEl} />
           <span>{UITexts.DbPane.run}</span>
           <kbd>⌘↵</kbd>
         </button>

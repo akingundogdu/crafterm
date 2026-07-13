@@ -101,7 +101,13 @@ class RowFormView extends Component {
     const { opts } = this
     return (
       <div class="modal db-row-modal" tabIndex={-1} ref={this.modalEl} onKeyDown={this.onKey}>
-        <button class="modal-close" title="Close" onClick={() => this.done(null)}>
+        <button
+          class="modal-close"
+          type="button"
+          aria-label="Close"
+          title="Close (Esc)"
+          onClick={() => this.done(null)}
+        >
           ×
         </button>
         <h2>{opts.title}</h2>
