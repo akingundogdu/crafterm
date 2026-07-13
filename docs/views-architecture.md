@@ -112,6 +112,15 @@ filterFoo(...)`, `export async function loadFoo(...)` calling `@services`.
   (map-within-map) crashes → inline an intrinsic element or flatten. Single-child
   `key=` remount is unproven — force a remount with a single-element keyed `.map()`
   (`{[detailKey].map(k => <X key={k}/>)}`).
+- **`d` and `root` are RESERVED identifiers — never name a local/param either.** The
+  gea plugin emits its own `root` binding (the template's root element) and a `d`
+  binding inside compiled `.map()`s. A source `const root = …` fails with "Identifier
+  'root' has already been declared"; a `.map((d, …) => …)` param fails with "Argument
+  name clash". **The plugin then logs `[gea-plugin] Failed to transform <file>` and
+  SILENTLY drops that file out of the gea transform** — it still runs (via the plain
+  JSX runtime) so tests stay green and the failure hides in build output. Use
+  `repoRoot` / `dir` instead. (`i` is safe.) Grep the build log for
+  "Failed to transform" — it must be empty.
 - **Don't hand a proxied store object to IPC / a legacy mutator.** A `Store` field is a
   reactive Proxy; pass `{ ...obj }` (a fresh literal), not the proxy, across IPC
   ("object could not be cloned") or into an imperative widget.

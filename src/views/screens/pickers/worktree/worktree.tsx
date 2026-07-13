@@ -31,22 +31,25 @@ class WorktreeList extends Component {
     // keystroke (store.search) or post-mutation refresh (store.rev).
     void store.rev
     const search = store.search
-    const root = listing.root
-    const items = root ? listing.worktrees.filter((w) => worktreeMatches(w, search)) : []
+    // NOTE: not `root` — the gea plugin generates a `root` binding for the template's
+    // root element, and a local of that name collides ("Identifier 'root' has already
+    // been declared") and silently drops the file out of the gea transform.
+    const repoRoot = listing.root
+    const items = repoRoot ? listing.worktrees.filter((w) => worktreeMatches(w, search)) : []
 
     return (
       <div class="worktree-picker">
         <h2>{UITexts.Pickers.worktree.heading}</h2>
-        {!root ? (
+        {!repoRoot ? (
           <div class="empty-hint">Open a terminal inside a git repo first.</div>
         ) : null}
-        {root ? <div class="picker-path">{root}</div> : null}
-        {root ? (
+        {repoRoot ? <div class="picker-path">{repoRoot}</div> : null}
+        {repoRoot ? (
           <button class="settings-inline-btn" onClick={makeAddWorktree(close)}>
             + New worktree
           </button>
         ) : null}
-        {root ? (
+        {repoRoot ? (
           <input
             class="search-box-input"
             type="text"
@@ -56,14 +59,14 @@ class WorktreeList extends Component {
             onInput={(e: Event) => store.setSearch((e.target as HTMLInputElement).value)}
           />
         ) : null}
-        {root ? (
+        {repoRoot ? (
           <div class="pick-list picker-list">
             {items.map((w) => (
               <WorktreeRow
                 key={w.path}
                 worktree={w}
                 onOpenClaude={makeOpenClaude(w.path, close)}
-                onRemove={makeRemoveWorktree(root, w.path, close)}
+                onRemove={makeRemoveWorktree(repoRoot, w.path, close)}
                 onRowClick={makeOpenDir(w.path, close)}
               />
             ))}

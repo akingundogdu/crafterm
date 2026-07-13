@@ -51,14 +51,18 @@ class FolderList extends Component {
           onKeyDown={deps.onKeyDown}
         />
         <div class="pick-list picker-list">
-          {items.map((d, i) => (
+          {/* NOTE: the item param must not be named `d` — the gea plugin generates a
+              `d` binding in the compiled map, and a callback param of that name
+              collides ("Argument name clash") and silently drops the file out of the
+              gea transform. `i` is fine; `d` and `root` are the reserved names. */}
+          {items.map((dir, idx) => (
             <FolderRow
-              key={d.path}
-              name={d.name}
-              isActive={i === sel}
-              onSelect={() => deps.onSelect(d)}
-              onDrill={() => deps.onDrill(d)}
-              onHover={() => deps.onHover(i)}
+              key={dir.path}
+              name={dir.name}
+              isActive={idx === sel}
+              onSelect={() => deps.onSelect(dir)}
+              onDrill={() => deps.onDrill(dir)}
+              onHover={() => deps.onHover(idx)}
             />
           ))}
           {items.length === 0 && <div class="empty-hint">No folders</div>}
