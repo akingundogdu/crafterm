@@ -1,4 +1,7 @@
 import { Component } from '@geajs/core'
+// The deploy/run cards reuse the PR card's chrome (.pr-card, .pr-card-top) — its
+// styles live with the component that owns those classes.
+import './pr-card.css'
 import type { DeploymentStatus } from '@services/pr/pr.types'
 import { UITexts } from '@texts'
 import { openLink } from '@views/commands/commands'

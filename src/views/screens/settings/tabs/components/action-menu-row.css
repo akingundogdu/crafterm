@@ -1,0 +1,13 @@
+/* One action-menu admin row: reorder / visibility / edit / delete controls. */
+.action-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.action-menu-row.hidden {
+  opacity: 0.5;
+}

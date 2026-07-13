@@ -1,0 +1,9 @@
+/* Wide overlay shell that hosts the Daily Plan (kanban) board. */
+.daily-plan-modal {
+  width: min(1400px, 95vw);
+  height: min(780px, 88vh);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 22px 22px;
+  overflow: hidden;
+}

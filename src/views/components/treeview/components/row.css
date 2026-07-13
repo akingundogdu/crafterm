@@ -1,0 +1,7 @@
+/* One tree row: the absolutely-positioned overlay that hosts the depth guide lines
+   (the row's other visuals are shared TreeView classes and live in treeview.css). */
+.row-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}

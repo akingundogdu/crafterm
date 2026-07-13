@@ -188,9 +188,8 @@
   line-height: 1.7;
   letter-spacing: -0.003em;
 }
-/* yellow text selection inside the markdown viewer/editor */
-.doc-preview ::selection,
-.doc-editor::selection {
+/* yellow text selection inside the markdown viewer */
+.doc-preview ::selection {
   background: #ffd54a;
   color: #000;
 }
@@ -328,19 +327,5 @@
 .doc-preview li.task input {
   margin-right: 0.5em;
   vertical-align: middle;
-}
-.doc-editor {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  resize: none;
-  background: var(--bg-term);
-  color: var(--text);
-  border: none;
-  outline: none;
-  padding: 14px 18px;
-  font-family: "SF Mono", Menlo, monospace;
-  font-size: var(--doc-font, 15px);
-  line-height: 1.6;
 }
 

@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './doc-editor.css'
 
 // The raw-text editor (textarea) of a doc pane. Hidden until edit mode is
 // entered. Pure view; the caller wires keydown (Cmd+S) and value sync.

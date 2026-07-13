@@ -26,10 +26,9 @@ export const DailyPlan = {
     title: 'No issue key prefix',
     message: (name: string): string => `Set an issue key prefix for "${name}" in Settings → Projects first.`
   },
-  worktreeFailed: {
-    title: 'Worktree failed',
-    message: (branch: string): string => `Could not create a worktree for ${branch}.`
-  },
+  // The progress overlay names the branch; a failure prints git's own error under it,
+  // so there is no generic "worktree failed" message any more.
+  worktreeProgress: (branch: string): string => `Preparing worktree ${branch}`,
   searchTasks: 'Search tasks…',
   assignTitle: 'Assign daily task',
   range: {
@@ -40,6 +39,8 @@ export const DailyPlan = {
     last5: 'Last 5 days',
     last7: 'Last 7 days',
     last10: 'Last 10 days',
+    last14: 'Last 2 weeks',
+    last30: 'Last 1 month',
     all: 'All'
   },
   openBoardTitle: 'Open full board',

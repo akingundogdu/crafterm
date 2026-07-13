@@ -3,21 +3,7 @@
    Consumer-specific slot styles (status dots, sub-rows, badges, etc.) live in
    each consumer's own stylesheet (sidebar.css / notebook.css / database.css). */
 
-/* ---- Section labels / headers ---- */
-.section-label {
-  font-size: 0.77em;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  padding: 10px 14px 4px;
-}
-.section-label.group-header.drag-over {
-  background: var(--accent-soft);
-  color: var(--text);
-  border-radius: 6px;
-  outline: 1px dashed var(--accent);
-}
+/* ---- Section separators ---- */
 .section-sep {
   height: 1px;
   background: var(--border);
@@ -87,11 +73,6 @@
 }
 
 /* ---- Tree guide lines (parent → child) ---- */
-.row-guides {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
 /* continuing vertical line for an ancestor with siblings below */
 .guide-line {
   position: absolute;

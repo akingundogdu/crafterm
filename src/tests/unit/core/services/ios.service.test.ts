@@ -97,3 +97,52 @@ describe('ios.service.listSchemes', () => {
     expect(await ios.listSchemes('/repo')).toEqual([])
   })
 })
+
+describe('simulator maintenance (todomqz3j1009t)', () => {
+  const argsOf = (): string[][] => execFileMock.mock.calls.map((c) => c[1] as string[])
+
+  beforeEach(() => {
+    execImpl = () => ({ err: null, stdout: '' })
+  })
+
+  it('shuts every simulator down when no udid is given, and one when it is', async () => {
+    expect(await ios.simShutdown()).toEqual({ ok: true })
+    expect(await ios.simShutdown('UDID-1')).toEqual({ ok: true })
+    expect(argsOf()).toEqual([
+      ['simctl', 'shutdown', 'all'],
+      ['simctl', 'shutdown', 'UDID-1']
+    ])
+  })
+
+  it('shuts a simulator down before erasing it — simctl refuses a booted device', async () => {
+    await ios.simErase('UDID-1')
+    expect(argsOf()).toEqual([
+      ['simctl', 'shutdown', 'UDID-1'],
+      ['simctl', 'erase', 'UDID-1']
+    ])
+  })
+
+  it('erases every simulator', async () => {
+    await ios.simErase()
+    expect(argsOf()).toEqual([
+      ['simctl', 'shutdown', 'all'],
+      ['simctl', 'erase', 'all']
+    ])
+  })
+
+  it('reports a failure instead of swallowing it', async () => {
+    execImpl = () => ({ err: new Error('Invalid device: UDID-9'), stdout: '' })
+    const result = await ios.simShutdown('UDID-9')
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('UDID-9')
+  })
+
+  it('uninstalls an app from a simulator (simctl) and a device (devicectl)', async () => {
+    await ios.appUninstall('UDID-1', 'com.acme.app', 'simulator')
+    await ios.appUninstall('00008110-X', 'com.acme.app', 'device')
+    expect(argsOf()).toEqual([
+      ['simctl', 'uninstall', 'UDID-1', 'com.acme.app'],
+      ['devicectl', 'device', 'uninstall', 'app', '--device', '00008110-X', 'com.acme.app']
+    ])
+  })
+})

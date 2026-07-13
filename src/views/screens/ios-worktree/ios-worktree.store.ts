@@ -5,10 +5,11 @@
 
 import type { SidebarNode, ProjectNode, WorktreeNode } from '@views/types/types'
 import type { IosWorktreeStatus } from '@services/ios/ios.types'
-import { requestSidebar, state } from '@views/state/spine'
+import { requestSidebar, state, pushNotification } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
 import { flattenProjects } from '@views/catalog/catalog'
 import { showContextMenu, type ContextMenuItem } from '@views/components/context-menu/context-menu'
+import { promptConfirm } from '@views/components/dialog/confirm'
 import { isWorktreeFolder, worktreeProjectOf } from '@services/worktrees'
 import { startBackgroundProcess } from '@services/bgproc'
 import { findById, ancestorFolders } from './ios-tree'
@@ -250,6 +251,120 @@ export function dotInfo(wtPath: string): { cls: string; title: string } {
   return { cls: 'none', title: 'Not built' }
 }
 
+// Report an xcrun result as a notification — these run in the background with no
+// terminal to watch, so success and (especially) failure have to be said out loud.
+async function reportXcrun(
+  label: string,
+  call: Promise<{ ok: boolean; error?: string }>
+): Promise<void> {
+  const result = await call
+  if (result.ok) pushNotification('', label, 'iOS', `${label} — done.`)
+  else pushNotification('', label, 'iOS', result.error || `${label} failed.`)
+}
+
+// The bundle id of this worktree's variant, known once a report has come back.
+function bundleIdOf(wtPath: string): string | null {
+  return statusByPath.get(norm(wtPath))?.bundleId ?? null
+}
+
+// Simulator housekeeping (todomqz3j1009t): the two commands everyone types by hand
+// — `xcrun simctl shutdown all` / `erase all` — plus the same pair per simulator,
+// and removing this worktree's app from a simulator or a connected device.
+function simulatorMenu(wt: WorktreeNode): ContextMenuItem {
+  const wtPath = wt.worktreePath
+  return {
+    label: 'Simulators',
+    children: [
+      {
+        label: 'Shutdown all',
+        run: () => void reportXcrun('Shutdown all simulators', iosService.simShutdown())
+      },
+      {
+        label: 'Erase all…',
+        danger: true,
+        run: () =>
+          void promptConfirm({
+            title: 'Erase all simulators',
+            message: 'Every simulator is shut down and wiped back to a clean state. This cannot be undone.',
+            confirmText: 'Erase all'
+          }).then((ok) => {
+            if (ok) void reportXcrun('Erase all simulators', iosService.simErase())
+          })
+      },
+      {
+        label: 'One simulator',
+        children: async () => {
+          const targets = await loadTargets()
+          return [
+            ...targets.simulators.map((sim) => ({
+              label: sim.name,
+              children: [
+                {
+                  label: 'Shutdown',
+                  run: () => void reportXcrun(`Shutdown ${sim.name}`, iosService.simShutdown(sim.udid))
+                },
+                {
+                  label: 'Erase…',
+                  danger: true,
+                  run: () =>
+                    void promptConfirm({
+                      title: `Erase ${sim.name}`,
+                      message: `${sim.name} is shut down and wiped back to a clean state. This cannot be undone.`,
+                      confirmText: 'Erase'
+                    }).then((ok) => {
+                      if (ok) void reportXcrun(`Erase ${sim.name}`, iosService.simErase(sim.udid))
+                    })
+                },
+                uninstallItem(wtPath, sim, 'simulator')
+              ]
+            })),
+            { label: REFRESH_LABEL, keepOpen: true, run: () => void (targetsCache = null) }
+          ]
+        }
+      }
+    ]
+  }
+}
+
+// "Remove this app" for one target. Disabled until a status report has told us the
+// worktree variant's bundle id.
+function uninstallItem(
+  wtPath: string,
+  target: { name: string; udid: string },
+  kind: 'simulator' | 'device'
+): ContextMenuItem {
+  const bundleId = bundleIdOf(wtPath)
+  if (!bundleId) return { label: 'Remove app (run Status first)' }
+  return {
+    label: `Remove ${bundleId}`,
+    danger: true,
+    run: () =>
+      void reportXcrun(
+        `Remove ${bundleId} from ${target.name}`,
+        iosService.appUninstall(target.udid, bundleId, kind)
+      )
+  }
+}
+
+// Remove this worktree's app from a connected device (todomqz3j1009t).
+function uninstallFromDeviceMenu(wt: WorktreeNode): ContextMenuItem {
+  const wtPath = wt.worktreePath
+  return {
+    label: 'Remove app from device',
+    children: async () => {
+      const targets = await loadTargets()
+      if (!targets.devices.length) return [{ label: 'No device connected' }]
+      return [
+        ...targets.devices.map((device) => ({
+          label: device.name,
+          children: [uninstallItem(wtPath, device, 'device')]
+        })),
+        { label: REFRESH_LABEL, keepOpen: true, run: () => void (targetsCache = null) }
+      ]
+    }
+  }
+}
+
 export function iosWorktreeMenuItems(node: SidebarNode): ContextMenuItem[] {
   const own = iosOwner(node)
   if (!own) return []
@@ -265,7 +380,9 @@ export function iosWorktreeMenuItems(node: SidebarNode): ContextMenuItem[] {
     {
       label: 'Clean (uninstall + remove build)',
       run: () => void runScriptBg(wt, p, 'clean', 'Clean (uninstall + remove build)')
-    }
+    },
+    simulatorMenu(wt),
+    uninstallFromDeviceMenu(wt)
   ]
 }
 

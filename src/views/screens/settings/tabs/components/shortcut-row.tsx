@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './shortcut-row.css'
 import { UITexts } from '@texts'
 
 export interface ShortcutRowProps {

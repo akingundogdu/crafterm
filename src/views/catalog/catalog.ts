@@ -21,6 +21,25 @@ export function flattenProjects(nodes: SidebarNode[]): ProjectNode[] {
   return out
 }
 
+// Projects in tree order with their nesting depth (sub-projects indented), so a
+// project dropdown reads as a hierarchy (todo5). Folders/worktrees are descended
+// into without adding a level.
+export function projectTree(nodes: SidebarNode[]): { p: ProjectNode; depth: number }[] {
+  const out: { p: ProjectNode; depth: number }[] = []
+  const walk = (list: SidebarNode[], depth: number): void => {
+    for (const n of list) {
+      if (n.kind === 'project') {
+        out.push({ p: n, depth })
+        walk(n.children, depth + 1)
+      } else if (n.kind === 'folder' || n.kind === 'worktree') {
+        walk(n.children, depth)
+      }
+    }
+  }
+  walk(nodes, 0)
+  return out
+}
+
 // First ProjectNode whose path matches (depth-first), or null.
 export function findProjectByPath(nodes: SidebarNode[], path: string): ProjectNode | null {
   for (const p of flattenProjects(nodes)) {

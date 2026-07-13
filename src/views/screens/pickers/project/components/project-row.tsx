@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './project-row.css'
 
 export interface ProjectRowProps {
   label: string

@@ -1,0 +1,19 @@
+/* The terminal pane's header bar: title + daily-task chip + options menu + close. */
+.pane-header {
+  flex: 0 0 auto;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  background: linear-gradient(180deg, #181a21, #15171d);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+.pane-box.active .pane-header {
+  color: var(--text);
+}
+body.dragging-pane .pane-header {
+  cursor: grabbing;
+}

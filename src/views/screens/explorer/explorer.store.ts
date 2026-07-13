@@ -30,11 +30,14 @@ function worktreeRootFor(cwd: string): string | null {
   return best
 }
 
-// Root: follow the active terminal's worktree when it's in one (todo17), else
-// the Settings value, else the active terminal's cwd.
-export function explorerRoot(): string {
-  const id = state.activePaneId
-  const cwd = (id ? panes.get(id)?.cwd : null) ?? ''
+// The last root we resolved to a non-empty path. When no pane is active — or the
+// active one carries no cwd (a doc/browser pane) — the explorer stays on it
+// instead of blanking out (todomrbtiyo1me). Session-scoped, not persisted.
+let lastRoot = ''
+
+// Root for the active terminal: its worktree when it lives in one (todo17), else
+// the Settings value, else its cwd.
+function resolveRoot(cwd: string): string {
   if (cwd) {
     const wt = worktreeRootFor(cwd)
     if (wt) return wt
@@ -44,12 +47,35 @@ export function explorerRoot(): string {
   return cwd
 }
 
+export function explorerRoot(): string {
+  const id = state.activePaneId
+  const cwd = (id ? panes.get(id)?.cwd : null) ?? ''
+  const root = resolveRoot(cwd)
+  if (root) lastRoot = root
+  return root || lastRoot
+}
+
 function isExcluded(name: string): boolean {
   return settings.explorerExclude.includes(name)
 }
 
 export function shortPath(p: string): string {
   return p.replace(/^\/(Users|home)\/[^/]+/, '~')
+}
+
+// Longest dimmed parent path a search row may show before it starts crowding the
+// file name out of the row.
+const SEARCH_SUB_MAX = 24
+
+// The dimmed parent path next to a flat search hit. A full path is long enough to
+// squeeze the file name into an ellipsis, so we keep only the last directory —
+// or the last two when they still fit (todomrbtk0bemf). The full path stays
+// reachable through the row's tooltip.
+export function searchSubPath(path: string): string {
+  const segments = path.split('/').filter(Boolean).slice(0, -1)
+  if (!segments.length) return '/'
+  const lastTwo = segments.slice(-2).join('/')
+  return lastTwo.length <= SEARCH_SUB_MAX ? lastTwo : segments[segments.length - 1]
 }
 
 // markdown → in-app markdown viewer; everything else → the editable CodeMirror

@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './projects.css'
 import { settings, state, requestSidebar, uid } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { persistence } from '@repositories/persistence.service'

@@ -1,0 +1,21 @@
+/* Doc editor: the raw-text textarea of a doc pane (edit mode). */
+
+/* yellow text selection inside the markdown editor */
+.doc-editor::selection {
+  background: #ffd54a;
+  color: #000;
+}
+.doc-editor {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  background: var(--bg-term);
+  color: var(--text);
+  border: none;
+  outline: none;
+  padding: 14px 18px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: var(--doc-font, 15px);
+  line-height: 1.6;
+}

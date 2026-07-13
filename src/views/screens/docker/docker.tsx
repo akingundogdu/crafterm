@@ -1,5 +1,5 @@
-import '@views/screens/docker/docker.css'
 import { Component } from '@geajs/core'
+import './docker.css'
 import { UITexts } from '@texts'
 import { SUB_TABS } from './docker.store'
 import DockerRow from './components/docker-row'

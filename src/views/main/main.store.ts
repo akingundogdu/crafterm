@@ -16,7 +16,7 @@ import {
 import { persistence } from '@repositories/persistence.service'
 import { loadSettings, migrateLegacyState, seedActionMenu } from '@repositories/settings.service'
 import { actionMenuRepo } from '@repositories'
-import { firstPaneOf, allTabs, findById } from '@views/tree/tree'
+import { firstPaneOf, findById } from '@views/tree/tree'
 import { flattenProjects } from '@views/catalog/catalog'
 import {
   createPane,
@@ -101,6 +101,7 @@ import {
   newClaudeTabInContext,
   newFolder,
   newFolderInContext,
+  showStartScreen,
   createProject,
   splitActivePane,
   splitActivePaneWithClaude,
@@ -312,6 +313,7 @@ const KEY_HANDLERS: Record<string, () => void> = {
   'focus-search': () => focusSearch(),
   'toggle-sidebar': () => toggleSidebar(),
   'new-folder': () => void newFolderInContext(),
+  'start-screen': () => showStartScreen(),
   'split-right': () => {
     // Cmd+D is context-aware: in the Database sidebar mode it opens a SQL pane
     // (the workbench split), otherwise it splits the active terminal pane.
@@ -720,17 +722,15 @@ export async function init(): Promise<void> {
   // by path-based dedup.
   if (saved) migrateLegacyState(saved)
 
-  const first = allTabs(state.tree).find((t) => t.status !== 'archived')
-  if (first) {
-    state.activeTabId = first.id
-    state.activePaneId = firstPaneOf(first.root)
-    renderSidebar()
-    renderContent()
-    if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
-    persistence.save()
-  } else {
-    await newTab()
-  }
+  // Start with nothing selected: the restored terminals stay in the sidebar and the
+  // content area shows its empty state (New Terminal / New Worktree / Open Project)
+  // until the user picks one — no arbitrary first tab, no auto-spawned terminal
+  // (todomrjaau5qa4).
+  state.activeTabId = null
+  state.activePaneId = null
+  renderSidebar()
+  renderContent()
+  persistence.save()
 
   // Worktree manager: materialize git worktrees into sidebar nodes (generic) and
   // start the iOS build-status poll.

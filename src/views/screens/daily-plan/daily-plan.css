@@ -1,12 +1,4 @@
-/* ---- Daily Plan / Kanban modal ----------------------------------------- */
-.daily-plan-modal {
-  width: min(1400px, 95vw);
-  height: min(780px, 88vh);
-  display: flex;
-  flex-direction: column;
-  padding: 18px 22px 22px;
-  overflow: hidden;
-}
+/* ---- Daily Plan / Kanban board ------------------------------------------ */
 .daily-plan-header {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -101,9 +93,6 @@
 }
 
 /* Changelog report modal */
-.changelog-modal {
-  width: min(640px, 92vw);
-}
 .changelog-projects {
   max-height: 180px;
   overflow-y: auto;

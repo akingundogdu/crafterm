@@ -1,0 +1,4 @@
+/* One command palette row: name, optional value, and the category tag. */
+.palette-row {
+  gap: 10px;
+}

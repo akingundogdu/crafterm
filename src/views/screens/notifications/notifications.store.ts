@@ -15,7 +15,14 @@ import { UITexts } from '@texts'
 import { showDailyPlanModal } from '@views/screens/daily-plan/daily-plan.entry'
 import { openMeetingNote } from '@views/screens/meeting-notes/meeting-notes.store'
 import type { AppNotification, ReminderPayload } from '@views/types/types'
-import type { RealUsage, UsageWindow, NotifChip, PayloadOpener } from './notifications.types'
+import type {
+  RealUsage,
+  UsageWindow,
+  NotifChip,
+  PayloadOpener,
+  NotifGroup,
+  NotifKindFilter
+} from './notifications.types'
 
 // Down-chevron toggle on each card; rotates 180° via CSS when the card expands.
 export const CHEVRON_SVG =
@@ -159,6 +166,53 @@ export function resolvePayloadOpener(payload: ReminderPayload | undefined): Payl
   return null
 }
 
+// ---- Grouping + filtering --------------------------------------------------
+
+// Which filter chip a notification answers to: its status (reminder / question /
+// done) — the same reading `toneOf` gives the card's accent.
+export function kindOf(n: AppNotification): NotifKindFilter {
+  const tone = toneOf(n)
+  return tone === 'reminder' || tone === 'question' || tone === 'done' ? tone : 'all'
+}
+
+// Collapse notifications from the SAME terminal into one group, newest group first
+// (todomr5sckyaei). Pane-less notifications (Claude usage, app alerts) each stay on
+// their own. Order within a group is preserved — the repo hands them newest-first.
+export function groupNotifications(items: AppNotification[]): NotifGroup[] {
+  const byPane = new Map<string, AppNotification[]>()
+  const groups: NotifGroup[] = []
+  for (const n of items) {
+    if (!n.paneId) {
+      groups.push({
+        key: n.id,
+        paneId: '',
+        title: n.title,
+        project: n.group,
+        projectColor: n.projectColor,
+        items: [n],
+        latest: n.time
+      })
+      continue
+    }
+    const list = byPane.get(n.paneId)
+    if (list) list.push(n)
+    else byPane.set(n.paneId, [n])
+  }
+  for (const [paneId, list] of byPane) {
+    const newest = list.reduce((a, b) => (b.time > a.time ? b : a))
+    groups.push({
+      key: 'pane:' + paneId,
+      paneId,
+      title: newest.title,
+      project: newest.group,
+      projectColor: newest.projectColor,
+      items: list,
+      latest: newest.time
+    })
+  }
+  return groups.sort((a, b) => b.latest - a.latest)
+}
+
 // Reactive state for the gea Notifications (Alerts) panel. notificationRepo stays
 // the persisted source of truth; this store mirrors it into a reactive array so
 // gea patches the card list on mutation, replacing the legacy renderNotifications()
@@ -167,11 +221,49 @@ export function resolvePayloadOpener(payload: ReminderPayload | undefined): Payl
 class NotificationsStore extends Store {
   items: AppNotification[] = []
   expanded: Record<string, boolean> = {}
+  // Filter chips above the list (todomr9i30ytij): a project (folder/group name, ''
+  // = all) and a status kind.
+  projectFilter: string = ''
+  kindFilter: NotifKindFilter = 'all'
 
   // Mirror the repo into the reactive array and push the unread count to the badge.
   reload(): void {
     this.items = [...notificationRepo.getAll()]
     updateNotifBadge(notificationRepo.getAll().length)
+    // A filter whose last notification just went away would hide everything — drop it.
+    if (this.projectFilter && !this.items.some((n) => n.group === this.projectFilter)) {
+      this.projectFilter = ''
+    }
+  }
+
+  // Notifications passing both chips, collapsed per terminal.
+  get groups(): NotifGroup[] {
+    const visible = this.items
+      .filter((n) => !this.projectFilter || n.group === this.projectFilter)
+      .filter((n) => this.kindFilter === 'all' || kindOf(n) === this.kindFilter)
+    return groupNotifications(visible)
+  }
+
+  // Project chips (name + count), most notifications first. Counts respect the kind
+  // chip, so the two filters read together.
+  get projectChips(): { project: string; count: number }[] {
+    const counts = new Map<string, number>()
+    for (const n of this.items) {
+      if (!n.group) continue
+      if (this.kindFilter !== 'all' && kindOf(n) !== this.kindFilter) continue
+      counts.set(n.group, (counts.get(n.group) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .map(([project, count]) => ({ project, count }))
+      .sort((a, b) => b.count - a.count || a.project.localeCompare(b.project))
+  }
+
+  setProjectFilter(project: string): void {
+    this.projectFilter = project
+  }
+
+  setKindFilter(kind: NotifKindFilter): void {
+    this.kindFilter = kind
   }
 
   isExpanded(id: string): boolean {
@@ -187,6 +279,18 @@ class NotificationsStore extends Store {
     notificationRepo.remove(id)
     const next = { ...this.expanded }
     delete next[id]
+    this.expanded = next
+    this.reload()
+  }
+
+  // Dismiss every notification in a group at once (the group card's ×).
+  dismissGroup(group: NotifGroup): void {
+    const next = { ...this.expanded }
+    for (const n of group.items) {
+      notificationRepo.remove(n.id)
+      delete next[n.id]
+    }
+    delete next[group.key]
     this.expanded = next
     this.reload()
   }

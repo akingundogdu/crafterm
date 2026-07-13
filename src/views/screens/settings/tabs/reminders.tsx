@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './reminders.css'
 import '@views/components/form-field/form-field.css'
 import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'

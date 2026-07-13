@@ -1,5 +1,5 @@
-/* Reminders screen (right panel -> Reminders tab): add button, list, cards,
-   and the create/edit modal. */
+/* Reminders screen (right panel -> Reminders tab): add button, list, and the
+   create/edit modal. (Card styles live in components/reminder-card.css.) */
 #notif-add-reminder {
   border: 1px solid var(--border-strong);
   background: transparent;
@@ -25,46 +25,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-.reminder-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 9px 10px;
-}
-.reminder-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-.reminder-when {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
-}
-.reminder-repeat {
-  font-size: 10px;
-  color: var(--text-faint);
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 4px;
-  padding: 1px 6px;
-}
-.reminder-text {
-  font-size: 12px;
-  color: var(--text-dim);
-  word-break: break-word;
-  margin-bottom: 6px;
-}
-.reminder-actions {
-  display: flex;
-  gap: 6px;
-}
-.reminder-card.past {
-  opacity: 0.62;
-}
-.reminder-card.past .reminder-when {
-  color: var(--text-mute);
 }
 
 /* reminder create/edit modal */

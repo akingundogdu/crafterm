@@ -30,6 +30,11 @@ export class IosController extends BaseService {
     )
     this.handle(Channel.Ios.ListTargets, () => ios.listTargets())
     this.handle(Channel.Ios.ListSchemes, ({ repoRoot, cfg }) => ios.listSchemes(repoRoot, cfg))
+    this.handle(Channel.Ios.SimShutdown, ({ udid }) => ios.simShutdown(udid))
+    this.handle(Channel.Ios.SimErase, ({ udid }) => ios.simErase(udid))
+    this.handle(Channel.Ios.AppUninstall, ({ udid, bundleId, kind }) =>
+      ios.appUninstall(udid, bundleId, kind)
+    )
   }
 }
 

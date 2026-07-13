@@ -1,0 +1,7 @@
+/* One project-picker row: the project/entry name plus an optional sub-line.
+
+   The component has no styles of its own — its layout comes from the shared
+   .pick-row it also carries. A `.project-row { flex-direction: column; align-items:
+   flex-start; gap: 1px }` block used to sit in settings.css, but .pick-row was
+   emitted after it and overrode every one of those declarations, so the block never
+   rendered. It was dropped here rather than silently switched on by this move. */

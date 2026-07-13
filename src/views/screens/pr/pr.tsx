@@ -1,4 +1,4 @@
-import '@views/screens/pr/pr.css'
+import './pr.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { runInSplit } from '@views/commands/commands'

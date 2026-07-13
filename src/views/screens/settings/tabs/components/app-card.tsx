@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './app-card.css'
 import type { ProjectCommand } from '@views/types/types'
 import LabeledTextField from '../../components/labeled-text-field'
 import AppRunCommandRow from './app-run-command-row'

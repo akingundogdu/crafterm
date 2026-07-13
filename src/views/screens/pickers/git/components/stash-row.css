@@ -1,0 +1,4 @@
+/* One stash row: description + ref, plus the Apply / Drop actions. */
+.stash-row {
+  align-items: center;
+}

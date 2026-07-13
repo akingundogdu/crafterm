@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './worktree.css'
 import { state, panes } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { gitService } from '@services'

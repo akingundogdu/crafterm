@@ -2,6 +2,7 @@ import './explorer.css'
 import {
   explorerRoot,
   shortPath,
+  searchSubPath,
   rerenderTree,
   makeAdapter,
   ensureTreeview,
@@ -48,7 +49,8 @@ async function renderSearch(root: string, query: string): Promise<void> {
     el2.appendChild(
       buildExplorerSearchRow({
         name: m.name,
-        subPath: shortPath(m.path.replace(/\/[^/]+$/, '')),
+        subPath: searchSubPath(m.path),
+        fullPath: shortPath(m.path),
         onClick: makeSearchRowClick(m.path)
       })
     )

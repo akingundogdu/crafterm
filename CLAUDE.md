@@ -132,7 +132,15 @@ structural rule set.**
     constants (label lists, SVG icon strings), and its `@services` IPC client calls.
     A stateless/presentational component still gets a `.store.ts` — it holds that
     component's constants/helpers (its non-view home), keeping the `.tsx` a pure view.
-  - `<name>.css` — co-located styles (imported by the view).
+  - `<name>.css` — the component's OWN styles, imported by the view (`import
+    './<name>.css'`). **HARD RULE — CSS is co-located per component, not per screen.**
+    Every rule for a class the component puts in the DOM under its own prefix
+    (`.<name>`, `.<name>-*`) lives in `<name>.css`. Writing a child component's rules
+    into the screen's catch-all stylesheet (`<screen>.css`) is forbidden — a screen's
+    `.css` holds only the screen's own markup. A ratchet guard
+    (`tests/.../views-css-colocation.guard.test.ts`) enforces it: any NEW component
+    whose own-prefixed classes live in a foreign stylesheet fails; the `GRANDFATHERED`
+    list holds the components still styled from their screen and shrinks to empty.
   - `<name>.types.ts` — module-local TS types (global types stay in `types/types.ts`).
     Kept; optional (only when the module declares its own types).
 
@@ -161,8 +169,10 @@ structural rule set.**
   old way — migrate it to JSX + `.tsx`.
 - **Thin bootstraps.** Window entries (`main`, `popout`, `improveWindow`) are a
   thin `<name>.ts` (wiring only) over a `<name>.store.ts`.
-- **CSS co-location.** A CSS block lives in the folder of the module that owns the
-  DOM it styles. Global/shell CSS only in `styles/` and `app-shell/`.
+- **CSS co-location (HARD RULE, guarded).** A component's styles live in ITS OWN
+  `<name>.css` beside its `.tsx` — never in the parent screen's stylesheet. Global/
+  shell CSS only in `styles/` and `app-shell/`. See the `<name>.css` bullet above;
+  enforced by `tests/.../views-css-colocation.guard.test.ts`.
 - **Markup ownership.** New UI builds its markup in its own `.tsx`; nothing static
   is added to `index.html`. `index.html` holds only the shell skeleton, empty
   containers for dynamic content, and rare static overlays.

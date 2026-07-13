@@ -20,6 +20,14 @@ export class GitController extends BaseService {
       return git.branches(cwd)
     })
 
+    // Local branches for a repo path — for callers with no pane to resolve a cwd
+    // from (the content empty state's composer picks a base branch before any
+    // terminal exists).
+    this.handle(Channel.Git.BranchesAt, async ({ cwd }) => {
+      if (!cwd) return []
+      return git.branches(cwd)
+    })
+
     // List git stashes for the repo a pane is in: [{ ref: 'stash@{0}', description }].
     this.handle(Channel.Git.StashList, async ({ id }) => {
       const p = terminal.get(id)

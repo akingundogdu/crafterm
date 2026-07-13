@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './settings-nav.css'
 
 // gea shell for the `.settings-nav` category list: one `.settings-nav-item` button
 // per category, each wired to `show`. The active-item highlight is toggled

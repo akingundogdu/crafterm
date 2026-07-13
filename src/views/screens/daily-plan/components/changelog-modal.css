@@ -1,0 +1,4 @@
+/* Modal that generates a copyable markdown changelog of completed tasks. */
+.changelog-modal {
+  width: min(640px, 92vw);
+}

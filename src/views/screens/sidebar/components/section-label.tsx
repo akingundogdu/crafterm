@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './section-label.css'
 import { state } from '@views/state/spine'
 import { findById, isContainer } from '@views/tree/tree'
 import { setNodeGroup } from '@views/commands/commands'

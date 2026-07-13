@@ -8,13 +8,14 @@ import { promptConfirm } from '@views/components/dialog/confirm'
 import { findProjectById } from '@views/catalog/catalog'
 import { openClaudeWithPrompt } from '@views/commands/commands'
 import { ensureWorktreeForBranch } from '@services/worktrees'
+import { showWorktreeProgress } from '@views/components/worktree-progress/worktree-progress'
 import { createOverlay } from '@views/components/overlay/overlay'
-import { shiftDays } from '@views/screens/daily-plan/task-helpers'
 import {
   todayKey,
   tasksFor,
   assignIssueKey,
-  worktreeBranchForTask
+  worktreeBranchForTask,
+  rangeStartKey
 } from '@views/screens/daily-plan/daily-plan.store'
 import { openTaskForm } from './components/task-form.open'
 import { openTagFilterPopover as buildTagFilterPopover } from './components/tag-filter-popover'
@@ -56,9 +57,8 @@ function tasksForScope(): DailyPlanTask[] {
       : compactStore.range === 'day'
         ? tasksFor(selectedDate)
         : (() => {
-            const span = compactStore.range === '3d' ? 3 : 7
             const today = todayKey()
-            const start = shiftDays(today, -(span - 1))
+            const start = rangeStartKey(compactStore.range)
             return dailyTaskRepo.getAll().filter((t) => t.date >= start && t.date <= today)
           })()
   return inScope.filter(matchesTagFilter).filter((t) => !projectFilter || t.projectId === projectFilter)
@@ -86,7 +86,8 @@ export function showTaskForm(
 export async function openTaskInTerminal(
   task: DailyPlanTask,
   onChange: () => void,
-  useWorktree = false
+  useWorktree = false,
+  opts: { base?: string; isPlanMode?: boolean } = {}
 ): Promise<void> {
   const project = task.projectId ? findProjectById(state.tree, task.projectId) : null
   if (!project) {
@@ -106,39 +107,52 @@ export async function openTaskInTerminal(
     })
     return
   }
-  // Starting work on a task: move it to In Progress (unless already done).
+  const desc = task.description?.trim()
+  // Prefix "ultrathink " by default so the Claude session reasons deeply (todo12).
+  const prompt = `ultrathink ${key} ${task.title}${desc ? `\n\n${desc}` : ''}`
+  let parentId: string | null = project.id
+  let cwd = project.path
+
+  if (useWorktree) {
+    // Create (or reuse) a worktree whose branch == the issue key (optionally with
+    // the task's slug suffix), and run there (todo6). The terminal nests under that
+    // worktree node. The steps run behind a progress overlay: this used to happen
+    // silently after the modal closed, so a failure looked like nothing happening
+    // (todomr4q102cd9).
+    const branch = worktreeBranchForTask(task, key)
+    const progress = showWorktreeProgress(UITexts.DailyPlan.worktreeProgress(branch))
+    const wt = await ensureWorktreeForBranch(project, branch, opts.base, progress.setStep)
+    if (!wt.ok) {
+      // The worktree never came up, so no work started — leave the ticket's status
+      // alone. It used to be flipped to In Progress before this point, which left a
+      // ticket claiming work had begun when nothing had (todomr4q102cd9).
+      await progress.fail(wt.error)
+      return
+    }
+    cwd = wt.path
+    parentId = wt.nodeId ?? project.id
+    progress.setStep('opening')
+    startWork(task, onChange)
+    // Title the terminal by the work (renameable); the issue key is shown as a "(KEY)"
+    // suffix in the sidebar via the dailyTaskId link, not baked into the editable
+    // title (todo14). Auto-assign to this task (full match — see todo50).
+    await openClaudeWithPrompt(parentId, cwd, prompt, task.title, task.id, opts.isPlanMode)
+    progress.close()
+    return
+  }
+
+  startWork(task, onChange)
+  await openClaudeWithPrompt(parentId, cwd, prompt, task.title, task.id, opts.isPlanMode)
+}
+
+// Work is actually starting: move the ticket to In Progress (unless already done).
+function startWork(task: DailyPlanTask, onChange: () => void): void {
   if (task.status !== 'wip' && task.status !== 'done') {
     task.status = 'wip'
     task.updatedAt = Date.now()
     dailyTaskRepo.upsert(task)
   }
   onChange()
-  const desc = task.description?.trim()
-  // Prefix "ultrathink " by default so the Claude session reasons deeply (todo12).
-  const prompt = `ultrathink ${key} ${task.title}${desc ? `\n\n${desc}` : ''}`
-  let parentId: string | null = project.id
-  let cwd = project.path
-  if (useWorktree) {
-    // Create (or reuse) a worktree whose branch == the issue key (optionally with
-    // the task's slug suffix), and run there (todo6). The terminal nests under that
-    // worktree node.
-    const branch = worktreeBranchForTask(task, key)
-    const wt = await ensureWorktreeForBranch(project, branch)
-    if (!wt) {
-      await promptConfirm({
-        title: UITexts.DailyPlan.worktreeFailed.title,
-        message: UITexts.DailyPlan.worktreeFailed.message(branch),
-        confirmText: UITexts.DailyPlan.ok
-      })
-      return
-    }
-    cwd = wt.path
-    parentId = wt.nodeId ?? project.id
-  }
-  // Title the terminal by the work (renameable); the issue key is shown as a "(KEY)"
-  // suffix in the sidebar via the dailyTaskId link, not baked into the editable
-  // title (todo14). Auto-assign to this task (full match — see todo50).
-  await openClaudeWithPrompt(parentId, cwd, prompt, task.title, task.id)
 }
 
 // ---- Main entry --------------------------------------------------------

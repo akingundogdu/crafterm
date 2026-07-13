@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './shortcuts.css'
 import { UITexts } from '@texts'
 import { settingsCleanups } from '../shared'
 import ShortcutRow from './components/shortcut-row'
