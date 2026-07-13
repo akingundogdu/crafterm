@@ -13,7 +13,7 @@ import {
   newTab,
   newClaudeTab
 } from '@views/commands/commands'
-import { flattenProjects } from '@views/catalog/catalog'
+import { flattenProjects, findProjectById } from '@views/catalog/catalog'
 import { allTabs, panesInLayout, ancestorFolders } from '@views/tree/tree'
 import { KEYBINDINGS, effectiveCombo, comboLabel, comboFromEvent } from '@views/keybindings/keybindings'
 import { showDailyPlanModal } from '@views/screens/daily-plan/daily-plan.entry'
@@ -21,6 +21,7 @@ import { openReminderForm } from '@views/screens/reminders/components/reminder-f
 import { paneStatus } from '@views/pane/pane'
 import { terminalService, fsService, plansService, backlogService } from '@services'
 import { TABS } from './components/spot-tabs'
+import type { ProjectNode } from '@views/types/types'
 import type { SpotEntry, SpotSource } from './components/result-list'
 import type { SpotlightKeyContext } from './spotlight.types'
 
@@ -147,8 +148,32 @@ export function buildReminders(): SpotEntry[] {
   }))
 }
 
-export async function loadFiles(): Promise<SpotEntry[]> {
-  const folders = settings.commands.mdFolders
+// The project the active terminal is working in — the deepest project whose path
+// contains its cwd. Seeds the Files tab's scope, so a file search starts in the
+// project you are actually in (todomqakozha31).
+export function activeProjectId(): string | null {
+  const cwd = state.activePaneId ? panes.get(state.activePaneId)?.cwd : null
+  if (!cwd) return null
+  let best: ProjectNode | null = null
+  for (const project of flattenProjects(state.tree)) {
+    if (!project.path) continue
+    const path = project.path.replace(/\/+$/, '')
+    const isInside = cwd === path || cwd.startsWith(path + '/')
+    if (isInside && (!best || path.length > best.path.length)) best = project
+  }
+  return best?.id ?? null
+}
+
+// Roots the Files tab scans: one project, or every configured folder when the scope
+// is "all folders" (projectId null).
+function fileRoots(projectId: string | null): string[] {
+  if (!projectId) return settings.commands.mdFolders
+  const project = findProjectById(state.tree, projectId)
+  return project?.path ? [project.path] : []
+}
+
+export async function loadFiles(projectId: string | null): Promise<SpotEntry[]> {
+  const folders = fileRoots(projectId)
   if (!folders.length) return []
   const results = await Promise.all(
     folders.map((f) => fsService.findFiles(f, settings.explorerExclude))
@@ -303,15 +328,23 @@ class SpotlightStore extends Store {
   query = ''
   sel = 0
   loading = false
+  // Files tab scope: a project id, or null for every folder configured in Settings.
+  fileProjectId: string | null = null
 
-  // Seed for a fresh open: pin the initial tab and clear the reactive slice
-  // (no results yet, empty query, first row selected, loading spinner shown).
+  // Seed for a fresh open: pin the initial tab, scope Files to the project the
+  // active terminal is in, and clear the reactive slice (no results yet, empty
+  // query, first row selected, loading spinner shown).
   reset(initialTab: string): void {
     this.activeTab = initialTab
     this.current = []
     this.query = ''
     this.sel = 0
     this.loading = true
+    this.fileProjectId = activeProjectId()
+  }
+
+  setFileProject(projectId: string | null): void {
+    this.fileProjectId = projectId
   }
 
   setActiveTab(tab: string): void {

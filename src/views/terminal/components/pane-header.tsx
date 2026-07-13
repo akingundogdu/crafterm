@@ -1,5 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
+import './pane-header.css'
 
 export interface PaneHeaderProps {
   onTaskChipClick: (e: MouseEvent) => void

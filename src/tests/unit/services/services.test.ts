@@ -81,6 +81,7 @@ const ENTRIES: Entry[] = [
 
   // ── git ──
   { ns: 'git', method: 'branches', kind: 'invoke', channel: 'git:branches', args: ['id'], payload: { id: 'id' } },
+  { ns: 'git', method: 'branchesAt', kind: 'invoke', channel: 'git:branchesAt', args: ['cwd'], payload: { cwd: 'cwd' } },
   { ns: 'git', method: 'stashList', kind: 'invoke', channel: 'git:stashList', args: ['id'], payload: { id: 'id' } },
   { ns: 'git', method: 'fileStatus', kind: 'invoke', channel: 'git:fileStatus', args: ['cwd'], payload: { cwd: 'cwd' } },
   { ns: 'git', method: 'listWorktrees', kind: 'invoke', channel: 'git:worktrees', args: ['cwd'], payload: { cwd: 'cwd' } },
@@ -183,6 +184,9 @@ const ENTRIES: Entry[] = [
   { ns: 'ios', method: 'worktreeScript', kind: 'invoke', channel: 'iosWorktree:scriptPath', args: [], payload: undefined },
   { ns: 'ios', method: 'worktreeReport', kind: 'invoke', channel: 'iosWorktree:report', args: ['r', {}], payload: { repoRoot: 'r', cfg: {} } },
   { ns: 'ios', method: 'worktreeStop', kind: 'invoke', channel: 'iosWorktree:stop', args: ['wp', {}], payload: { worktreePath: 'wp', cfg: {} } },
+  { ns: 'ios', method: 'simShutdown', kind: 'invoke', channel: 'ios:simShutdown', args: ['udid'], payload: { udid: 'udid' } },
+  { ns: 'ios', method: 'simErase', kind: 'invoke', channel: 'ios:simErase', args: ['udid'], payload: { udid: 'udid' } },
+  { ns: 'ios', method: 'appUninstall', kind: 'invoke', channel: 'ios:appUninstall', args: ['udid', 'bid', 'simulator'], payload: { udid: 'udid', bundleId: 'bid', kind: 'simulator' } },
   { ns: 'ios', method: 'listTargets', kind: 'invoke', channel: 'ios:listTargets', args: [], payload: undefined },
   { ns: 'ios', method: 'listSchemes', kind: 'invoke', channel: 'ios:listSchemes', args: ['r', {}], payload: { repoRoot: 'r', cfg: {} } },
 

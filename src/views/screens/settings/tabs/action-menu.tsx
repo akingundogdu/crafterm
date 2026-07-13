@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './action-menu.css'
 import { UITexts } from '@texts'
 import ActionMenuRow from './components/action-menu-row'
 import store from './action-menu.store'

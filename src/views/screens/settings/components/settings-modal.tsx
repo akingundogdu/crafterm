@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './settings-modal.css'
 import { createOverlay } from '@views/components/overlay/overlay'
 
 // gea shell for the settings modal: a `.modal.settings-modal` grid with its inline

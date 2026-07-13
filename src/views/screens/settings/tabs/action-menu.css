@@ -1,0 +1,7 @@
+/* The Action-menu settings panel: the admin list of sidebar ⋯ menu rows. */
+.action-menu-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}

@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './plans.css'
 import { plansService } from '@services'
 import type { DirEntry } from '@services/fs/fs.types'
 import { UITexts } from '@texts'

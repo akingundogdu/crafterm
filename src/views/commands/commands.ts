@@ -102,6 +102,16 @@ async function liveCwd(paneId: string | null | undefined): Promise<string | unde
   return panes.get(paneId)?.cwd ?? undefined
 }
 
+// Drop the selection so the content area falls back to its start screen (the
+// composer + New Terminal / Open Project). The terminals stay open in the sidebar —
+// this only deselects. Same state the app launches in.
+export function showStartScreen(): void {
+  state.activeTabId = null
+  state.activePaneId = null
+  requestSidebar()
+  renderContent()
+}
+
 // ---- Creating ----
 
 export async function newTab(parentFolderId?: string | null, cwd?: string): Promise<void> {
@@ -159,17 +169,21 @@ function shQuote(s: string): string {
 // Open a Claude terminal in `cwd` (nested under the given project/folder),
 // seeded with an initial prompt and titled by `lockedTitle` (e.g. an issue key).
 // The locked title means the Claude session's own /rename won't override it.
+// `isPlanMode` starts the session in Claude's plan mode (it plans before touching
+// anything) instead of building straight away.
 export async function openClaudeWithPrompt(
   parentFolderId: string | null,
   cwd: string,
   prompt: string,
   lockedTitle: string,
-  dailyTaskId?: string
+  dailyTaskId?: string,
+  isPlanMode = false
 ): Promise<void> {
+  const flags = isPlanMode ? ' --permission-mode plan' : ''
   await createTab(parentFolderId, {
     title: lockedTitle,
     titleLocked: true,
-    command: `claude ${shQuote(prompt)}`,
+    command: `claude${flags} ${shQuote(prompt)}`,
     claude: true,
     cwd,
     dailyTaskId

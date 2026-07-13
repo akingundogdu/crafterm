@@ -1,0 +1,4 @@
+/* One worktree row: name + branch/path, plus the Claude / Remove actions. */
+.worktree-row {
+  gap: 8px;
+}

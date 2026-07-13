@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './row.css'
 import { showContextMenu } from '@views/components/context-menu/context-menu'
 import { INDENT } from '../treeview.store'
 import { getTreeRuntime } from '../treeview.registry'

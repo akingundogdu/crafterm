@@ -15,6 +15,7 @@ import { findTab } from '@views/tree/tree'
 import { mountPanes } from '@views/pane/pane'
 import { tabContainers, layoutSig, makePopoutFocus, persistResizedLayout } from './content.store'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
+import { buildAgentComposer, refreshAgentComposer } from './components/agent-composer'
 
 const contentEl = document.getElementById('content')!
 
@@ -24,6 +25,27 @@ const contentEl = document.getElementById('content')!
 // singletons, so they live as arrow methods on one module-level instance and
 // are re-exported as thin wrappers.
 class ContentController {
+  // Built on first use, then kept in the DOM and toggled — the draft and the
+  // selections it holds survive the whole session.
+  private composerEl: HTMLElement | null = null
+
+  // No tab is active (fresh launch, every tab closed, Cmd+Shift+N): show the agent
+  // composer instead of a blank area.
+  private toggleComposer = (visible: boolean): void => {
+    if (!visible) {
+      if (this.composerEl) this.composerEl.style.display = 'none'
+      return
+    }
+    if (!this.composerEl) {
+      this.composerEl = buildAgentComposer()
+      contentEl.appendChild(this.composerEl)
+    } else {
+      // Shown again: the sidebar's projects may have changed since.
+      refreshAgentComposer()
+    }
+    this.composerEl.style.display = 'flex'
+  }
+
   // A pane shown in a separate pop-out window leaves this placeholder behind.
   private buildPlaceholder = (paneId: string): HTMLElement => {
     return buildPoppedOutPlaceholder({
@@ -139,8 +161,10 @@ class ContentController {
     const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
     if (!tab) {
       tabContainers.forEach((e) => (e.el.style.display = 'none'))
+      this.toggleComposer(true)
       return
     }
+    this.toggleComposer(false)
     let entry = tabContainers.get(tab.id)
     if (!entry) {
       const tabEl = buildContentBox('tab-content')

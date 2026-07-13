@@ -1,0 +1,7 @@
+/* The settings modal's scrollable body: hosts one panel per settings category. */
+.settings-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 22px;
+}

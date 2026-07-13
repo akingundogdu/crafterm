@@ -1,0 +1,6 @@
+/* The diff pane header row: prev · search | path · counter | reload · next · close. */
+.diff-header {
+  height: 40px;
+  padding: 0 8px;
+  gap: 4px;
+}

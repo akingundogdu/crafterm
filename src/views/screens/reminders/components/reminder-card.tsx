@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './reminder-card.css'
 import type { Reminder } from '@views/types/types'
 import { UITexts } from '@texts'
 import { reminderRepo } from '@repositories'

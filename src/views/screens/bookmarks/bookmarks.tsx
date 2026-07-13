@@ -1,5 +1,5 @@
-import '@views/screens/bookmarks/bookmarks.css'
 import { Component } from '@geajs/core'
+import './bookmarks.css'
 import { UITexts } from '@texts'
 import { bookmarkRepo } from '@repositories'
 import { TYPE_FILTERS } from './bookmarks.store'

@@ -1,6 +1,7 @@
 import { Component } from '@geajs/core'
 import '@views/components/modal/modal.css'
 import '@views/components/form-field/form-field.css'
+import './changelog-modal.css'
 import { createOverlay } from '@views/components/overlay/overlay'
 import { CHANGELOG_RANGES, buildChangelogMarkdown } from '@views/screens/daily-plan/daily-plan.store'
 

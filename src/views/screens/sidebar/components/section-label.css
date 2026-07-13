@@ -1,0 +1,16 @@
+/* A sidebar section label: the static caption variant and the group-header variant
+   that highlights while a container is dragged over it. */
+.section-label {
+  font-size: 0.77em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 10px 14px 4px;
+}
+.section-label.group-header.drag-over {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: 6px;
+  outline: 1px dashed var(--accent);
+}

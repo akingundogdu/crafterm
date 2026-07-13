@@ -12,6 +12,10 @@ class IosClient extends BaseClient {
   listTargets = () => this.call(Channel.Ios.ListTargets)
   listSchemes = (repoRoot: string, cfg?: SavedIosConfig) =>
     this.call(Channel.Ios.ListSchemes, { repoRoot, cfg })
+  simShutdown = (udid?: string) => this.call(Channel.Ios.SimShutdown, { udid })
+  simErase = (udid?: string) => this.call(Channel.Ios.SimErase, { udid })
+  appUninstall = (udid: string, bundleId: string, kind: 'simulator' | 'device') =>
+    this.call(Channel.Ios.AppUninstall, { udid, bundleId, kind })
 }
 
 export const iosService = new IosClient()

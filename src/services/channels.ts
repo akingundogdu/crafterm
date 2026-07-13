@@ -93,6 +93,7 @@ export const Channel = {
   },
   Git: {
     Branches: 'git:branches',
+    BranchesAt: 'git:branchesAt',
     StashList: 'git:stashList',
     FileStatus: 'git:fileStatus',
     Worktrees: 'git:worktrees',
@@ -209,6 +210,9 @@ export const Channel = {
     Stop: 'iosWorktree:stop'
   },
   Ios: {
+    SimShutdown: 'ios:simShutdown',
+    SimErase: 'ios:simErase',
+    AppUninstall: 'ios:appUninstall',
     ListTargets: 'ios:listTargets',
     ListSchemes: 'ios:listSchemes'
   },
@@ -294,12 +298,15 @@ export const channels = {
 
   // ── git ──
   [Channel.Git.Branches]: rpc<{ id: string }, string[]>(),
+  [Channel.Git.BranchesAt]: rpc<{ cwd: string }, string[]>(),
   [Channel.Git.StashList]: rpc<{ id: string }, GitStash[]>(),
   [Channel.Git.FileStatus]: rpc<{ cwd?: string }, GitFileStatus>(),
   [Channel.Git.Worktrees]: rpc<{ cwd?: string }, WorktreeListing>(),
+  // `error` carries git's own stderr on failure, so the UI can say WHY the worktree
+  // could not be created instead of a generic message.
   [Channel.Git.WorktreeAdd]: rpc<
     { repo: string; path: string; branch: string; base?: string },
-    boolean
+    { ok: boolean; error?: string }
   >(),
 
   // ── fs (dir/md/fs/ide/shell/markdown) ──
@@ -440,6 +447,15 @@ export const channels = {
   >(),
   [Channel.IosWorktree.Stop]: rpc<{ worktreePath: string; cfg?: SavedIosConfig }, boolean>(),
   [Channel.Ios.ListTargets]: rpc<void, IosTargets>(),
+  // Simulator maintenance + app removal (todomqz3j1009t). `udid` omitted = every
+  // simulator ("simctl shutdown all" / "simctl erase all"); `error` carries xcrun's
+  // own stderr on failure.
+  [Channel.Ios.SimShutdown]: rpc<{ udid?: string }, { ok: boolean; error?: string }>(),
+  [Channel.Ios.SimErase]: rpc<{ udid?: string }, { ok: boolean; error?: string }>(),
+  [Channel.Ios.AppUninstall]: rpc<
+    { udid: string; bundleId: string; kind: 'simulator' | 'device' },
+    { ok: boolean; error?: string }
+  >(),
   [Channel.Ios.ListSchemes]: rpc<{ repoRoot: string; cfg?: SavedIosConfig }, string[]>(),
 
   // ── app / deploy / monaco / zsh / todo / backlog / sound / improve-window ──

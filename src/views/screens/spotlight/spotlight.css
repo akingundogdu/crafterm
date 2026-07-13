@@ -143,3 +143,15 @@
   color: var(--text-mute);
   font-size: 12px;
 }
+
+/* Files tab: which project the file scan is scoped to (todomqakozha31). */
+.spotlight-file-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 0;
+}
+.spotlight-file-scope-label {
+  font-size: 11px;
+  color: var(--text-faint);
+}

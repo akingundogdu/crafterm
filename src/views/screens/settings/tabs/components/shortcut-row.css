@@ -1,0 +1,7 @@
+/* One shortcut row: the action label, its combo button, and the reset control. */
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+}

@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './processes.css'
 import { overlayModal } from '../shared'
 import { UITexts } from '@texts'
 import type { CollectedProcess } from '@services/bgproc'

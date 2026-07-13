@@ -222,28 +222,46 @@ export function worktreeForCwd(
   return { project, node, path: node.worktreePath }
 }
 
-// Ensure a worktree exists for `branch` (creating it off main when absent), then
+// The steps "create a worktree" runs through, in order. The caller reports them to
+// the user (todomr4q102cd9) — the whole thing used to happen silently in the
+// background, so a failure looked like nothing happening.
+export type WorktreeStage = 'looking' | 'creating' | 'materializing'
+
+export type EnsureWorktreeResult =
+  | { ok: true; path: string; nodeId: string | null }
+  | { ok: false; error: string }
+
+// Ensure a worktree exists for `branch` (creating it off `base` when absent), then
 // return its path + materialized node id. Awaits creation. Used by "Run in
-// worktree" for a daily ticket — branch == issue key (todo6).
+// worktree" for a daily ticket — branch == issue key (todo6). Reports each step
+// through `onStage`, and hands git's own stderr back on failure so the caller can
+// show WHY it failed.
 export async function ensureWorktreeForBranch(
   p: ProjectNode,
-  branch: string
-): Promise<{ path: string; nodeId: string | null } | null> {
-  if (!p.path) return null
+  branch: string,
+  base = 'main',
+  onStage?: (stage: WorktreeStage) => void
+): Promise<EnsureWorktreeResult> {
+  if (!p.path) return { ok: false, error: `Project “${p.name}” has no path.` }
   const repo = norm(p.path)
   const worktreesDir = norm(
     p.iosConfig?.worktreesDir?.trim() || `${repo.split('/').slice(0, -1).join('/')}/worktrees`
   )
   const path = `${worktreesDir}/${branch}`
+  onStage?.('looking')
   const listing = await gitService.listWorktrees(repo)
   const exists = (listing?.worktrees ?? []).some((w) => norm(w.path) === path)
   if (!exists) {
-    const ok = await gitService.worktreeAdd(repo, path, branch, 'main')
-    if (!ok) return null
+    onStage?.('creating')
+    const created = await gitService.worktreeAdd(repo, path, branch, base)
+    if (!created.ok) {
+      return { ok: false, error: created.error || `git could not create a worktree for ${branch}.` }
+    }
   }
   // Wait deterministically for the node to materialize: reconcile, then poll
   // (git's worktree listing can lag a fresh add). Bounded so a failure can't hang
   // the "Run in worktree" action — caller falls back to the project root.
+  onStage?.('materializing')
   let node = findWorktreeNodeByPath(path)
   const deadline = Date.now() + 3000
   while (!node && Date.now() < deadline) {
@@ -252,7 +270,7 @@ export async function ensureWorktreeForBranch(
     if (node) break
     await delay(50)
   }
-  return { path, nodeId: node?.id ?? null }
+  return { ok: true, path, nodeId: node?.id ?? null }
 }
 
 // Find the worktree node for a branch (e.g. an issue key) within a project, for

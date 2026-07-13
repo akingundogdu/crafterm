@@ -1,0 +1,53 @@
+/* A single Docker list row: the main column (title, sub, meta, live CPU/MEM stats)
+   plus the inline action buttons on the right. */
+.docker-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 5px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.docker-row:hover {
+  border-color: var(--border-strong);
+}
+.docker-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.docker-row-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.docker-row-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.docker-row-sub,
+.docker-row-meta,
+.docker-row-stats {
+  font-size: 10.5px;
+  color: var(--text-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.docker-row-stats {
+  color: var(--accent, #58a6ff);
+}
+.docker-row-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 132px;
+  justify-content: flex-end;
+}

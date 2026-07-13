@@ -1,3 +1,4 @@
+import './pr-card.css'
 import { Component } from '@geajs/core'
 import type { PullRequest } from '@services/pr/pr.types'
 import { UITexts } from '@texts'

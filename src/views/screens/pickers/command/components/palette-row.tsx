@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './palette-row.css'
 import type { PaletteCommand } from '../command.types'
 
 export interface PaletteRowProps {
