@@ -26,18 +26,20 @@ class DailyPlanStore extends Store {
     this.tags = [...dailyTagRepo.getAll()]
   }
 
-  // Tasks in the active scope (single day or last-N-days), narrowed by the tag
-  // and project filters. Derived getter so gea tracks it as a reactive source.
+  // Tasks in the active scope (single day, last-N-days, or every task), narrowed by
+  // the tag and project filters. Derived getter so gea tracks it as a reactive source.
   get scopedTasks(): DailyPlanTask[] {
     const inScope =
-      this.selectedRange === 'day'
-        ? this.tasks.filter((t) => t.date === this.selectedDate)
-        : (() => {
-            const span = this.selectedRange === '3d' ? 3 : 7
-            const today = todayKey()
-            const start = shiftDays(today, -(span - 1))
-            return this.tasks.filter((t) => t.date >= start && t.date <= today)
-          })()
+      this.selectedRange === 'all'
+        ? this.tasks
+        : this.selectedRange === 'day'
+          ? this.tasks.filter((t) => t.date === this.selectedDate)
+          : (() => {
+              const span = this.selectedRange === '3d' ? 3 : 7
+              const today = todayKey()
+              const start = shiftDays(today, -(span - 1))
+              return this.tasks.filter((t) => t.date >= start && t.date <= today)
+            })()
     return inScope
       .filter((t) => !tagFilter.size || t.tagIds.some((id) => tagFilter.has(id)))
       .filter((t) => !this.projectFilter || t.projectId === this.projectFilter)

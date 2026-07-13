@@ -2,16 +2,10 @@ import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
 import { boardColumnOf } from '@views/screens/daily-plan/task-helpers'
-import { STATUSES } from '@views/screens/daily-plan/daily-plan.state'
+import { STATUSES, RANGES } from '@views/screens/daily-plan/daily-plan.state'
 import CompactCard from './compact-card'
 import store from './daily-compact.store'
 import type { DailyCompactDeps } from './daily-compact'
-
-const RANGES: { val: DailyRange; label: string }[] = [
-  { val: 'day', label: UITexts.DailyPlan.range.today },
-  { val: '3d', label: UITexts.DailyPlan.range.last3 },
-  { val: '7d', label: UITexts.DailyPlan.range.last7 }
-]
 
 // Reactive body of the compact Daily Plan view. It is rendered as a JSX child of
 // DailyCompact so gea tracks its store reads and re-renders it on every status /

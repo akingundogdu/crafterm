@@ -11,6 +11,7 @@ import { state } from '@views/state/spine'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
 import { findProjectById } from '@views/catalog/catalog'
 import { ymd, parseYmd, shiftDays } from './task-helpers'
+import type { DailyRange } from './daily-plan.types'
 
 // Pure logic + constants for the Daily Plan board. The view (`daily-plan.tsx`)
 // owns the closure-bound render/drag/form orchestration and the module-mutable
@@ -24,6 +25,14 @@ export const STATUSES: { id: DailyPlanStatus; label: string }[] = [
   { id: 'todo', label: UITexts.DailyPlan.status.todo },
   { id: 'wip', label: UITexts.DailyPlan.status.wip },
   { id: 'done', label: UITexts.DailyPlan.status.done }
+]
+
+// Date-range options for the board header's range picker.
+export const RANGES: { val: DailyRange; label: string }[] = [
+  { val: 'day', label: UITexts.DailyPlan.range.today },
+  { val: '3d', label: UITexts.DailyPlan.range.last3 },
+  { val: '7d', label: UITexts.DailyPlan.range.last7 },
+  { val: 'all', label: UITexts.DailyPlan.range.all }
 ]
 
 // Full status list for the task form's Status dropdown — includes Code Review

@@ -2,7 +2,7 @@ import '@views/screens/daily-plan/daily-plan.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
-import { STATUSES, todayKey, formatHeader, projectTree } from '@views/screens/daily-plan/daily-plan.state'
+import { STATUSES, RANGES, todayKey, formatHeader, projectTree } from '@views/screens/daily-plan/daily-plan.state'
 import { showTaskForm, openTagFilterPopover, tagFilter } from './daily-plan.entry'
 import { showManageTagsModal as buildManageTagsModal } from './components/manage-tags-modal'
 import { showChangelogModal } from './components/changelog-modal'
@@ -14,12 +14,6 @@ import store from './daily-plan.store'
 // closures rebuilt the DOM on every change via innerHTML=''; here the template is
 // declarative and every control mutates the store, which gea patches surgically.
 // Tag-manage / changelog reuse the legacy modals through co-existence.
-const RANGES: { val: DailyRange; label: string }[] = [
-  { val: 'day', label: UITexts.DailyPlan.range.today },
-  { val: '3d', label: UITexts.DailyPlan.range.last3 },
-  { val: '7d', label: UITexts.DailyPlan.range.last7 }
-]
-
 export default class DailyPlanBoard extends Component {
   private reload = (): void => store.reload()
 

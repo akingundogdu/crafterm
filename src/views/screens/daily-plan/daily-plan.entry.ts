@@ -51,14 +51,16 @@ function matchesTagFilter(task: DailyPlanTask): boolean {
 // lexicographically, so string range checks are correct.
 function tasksForScope(): DailyPlanTask[] {
   const inScope =
-    compactStore.range === 'day'
-      ? tasksFor(selectedDate)
-      : (() => {
-          const span = compactStore.range === '3d' ? 3 : 7
-          const today = todayKey()
-          const start = shiftDays(today, -(span - 1))
-          return dailyTaskRepo.getAll().filter((t) => t.date >= start && t.date <= today)
-        })()
+    compactStore.range === 'all'
+      ? dailyTaskRepo.getAll()
+      : compactStore.range === 'day'
+        ? tasksFor(selectedDate)
+        : (() => {
+            const span = compactStore.range === '3d' ? 3 : 7
+            const today = todayKey()
+            const start = shiftDays(today, -(span - 1))
+            return dailyTaskRepo.getAll().filter((t) => t.date >= start && t.date <= today)
+          })()
   return inScope.filter(matchesTagFilter).filter((t) => !projectFilter || t.projectId === projectFilter)
 }
 

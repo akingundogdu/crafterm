@@ -1,5 +1,6 @@
 import { Component } from '@geajs/core'
 import type { DailyPlanTask } from '@views/types/types'
+import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
 import { dailyTaskRepo } from '@repositories'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { showRemindModal } from '@views/screens/reminders/components/remind-modal'
@@ -19,7 +20,7 @@ export interface TaskCardProps {
   rerender: () => void
   // The current board scope; drives the per-card day label in multi-day views.
   // A getter so the card reads the live value at build time.
-  getSelectedRange: () => 'day' | '3d' | '7d'
+  getSelectedRange: () => DailyRange
   // Open a Claude terminal seeded with this task (owned by the board).
   openTaskInTerminal: (task: DailyPlanTask, onChange: () => void, useWorktree?: boolean) => void
   // Open the create/edit task form for this task (owned by the board).

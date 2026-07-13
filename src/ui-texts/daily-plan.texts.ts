@@ -39,7 +39,8 @@ export const DailyPlan = {
     last4: 'Last 4 days',
     last5: 'Last 5 days',
     last7: 'Last 7 days',
-    last10: 'Last 10 days'
+    last10: 'Last 10 days',
+    all: 'All'
   },
   openBoardTitle: 'Open full board',
   prevDay: 'Previous day',
