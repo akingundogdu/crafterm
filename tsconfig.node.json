@@ -9,7 +9,34 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["src/core/*"],
+      "@configs/*": ["src/configs/*"],
+      "@models/*": ["src/models/*"],
+      "@repositories": ["src/repositories/index.ts"],
+      "@repositories/*": ["src/repositories/*"],
+      "@texts": ["src/ui-texts/ui-texts.ts"],
+      "@texts/*": ["src/ui-texts/*"],
+      "@services": ["src/services/index.ts"],
+      "@services/*": ["src/services/*"],
+      "@views/*": ["src/views/*"],
+      "@resources/*": ["src/resources/*"],
+      "@tests/*": ["src/tests/*"]
+    }
   },
-  "include": ["src/main/**/*", "src/preload/**/*", "electron.vite.config.ts"]
+  "include": [
+    "src/core/**/*",
+    "src/configs/**/*",
+    "src/models/**/*",
+    "src/ui-texts/**/*",
+    "src/repositories/state.types.ts",
+    "src/services/**/*.main.ts",
+    "src/services/**/*.utils.ts",
+    "src/services/**/*.types.ts",
+    "src/services/**/*.service.ts",
+    "src/services/channels.ts",
+    "electron.vite.config.ts"
+  ]
 }

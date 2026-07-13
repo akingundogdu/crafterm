@@ -1,0 +1,7 @@
+[ -f "${USER_ZDOTDIR:-$HOME}/.zshrc" ] && source "${USER_ZDOTDIR:-$HOME}/.zshrc"
+if [ -n "$CRAFTERM_PANE_ID" ]; then
+  crafterm_preexec() { print -r -- "$1" > "{{cmdDir}}/$CRAFTERM_PANE_ID" 2>/dev/null }
+  typeset -ag preexec_functions
+  preexec_functions+=(crafterm_preexec)
+fi
+ZDOTDIR="${USER_ZDOTDIR:-$HOME}"

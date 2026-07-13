@@ -5,6 +5,13 @@ dist
 *.tsbuildinfo
 *.log
 
+# Test + build-tool artifacts
+.turbo
+coverage
+playwright-report
+test-results
+.vitest
+
 # Local-only docs (kept on disk, not published)
 todo-list.md
 /docs/plans

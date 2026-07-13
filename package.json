@@ -24,12 +24,18 @@
     "macos"
   ],
   "main": "./out/main/index.js",
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=6144 electron-vite build",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty,better-sqlite3",
-    "postinstall": "electron-rebuild -f -w node-pty,better-sqlite3",
+    "postinstall": "patch-package && electron-rebuild -f -w node-pty,better-sqlite3",
+    "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:update": "playwright test --update-snapshots",
     "dist": "npm run build && electron-builder",
     "dist:dir": "npm run build && electron-builder --dir",
     "deploy": "bash scripts/deploy.sh"
@@ -47,12 +53,12 @@
     ],
     "extraResources": [
       {
-        "from": "resources/sounds",
+        "from": "src/resources/sounds",
         "to": "sounds"
       },
       {
-        "from": "resources/scripts",
-        "to": "scripts"
+        "from": "src/resources/runtime",
+        "to": "runtime"
       },
       {
         "from": "node_modules/monaco-themes/themes",
@@ -73,7 +79,13 @@
       "identity": null
     }
   },
+  "overrides": {
+    "@geajs/vite-plugin": {
+      "vite": "$vite"
+    }
+  },
   "dependencies": {
+    "@geajs/core": "^1.4.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "better-sqlite3": "^12.10.0",
@@ -81,17 +93,23 @@
     "monaco-themes": "^0.4.8",
     "mysql2": "^3.22.3",
     "node-pty": "^1.0.0",
-    "pg": "^8.21.0"
+    "pg": "^8.21.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
+    "@geajs/vite-plugin": "^1.4.1",
+    "@playwright/test": "^1.61.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.20.0",
     "electron": "^33.0.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",
+    "happy-dom": "^20.10.3",
+    "patch-package": "^8.0.1",
     "typescript": "^5.5.0",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "vitest": "^4.1.9"
   }
 }

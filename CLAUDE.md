@@ -27,8 +27,8 @@ node-pty (TypeScript). Work happens here, in `src/`.
 | Build/dev | **electron-vite** (Vite 5); `electron-builder` for packaging |
 | Terminal UI | **xterm.js** (`@xterm/xterm` + `@xterm/addon-fit`) |
 | PTY | **node-pty** (native; externalized from the bundle, rebuilt via electron-rebuild) |
-| Renderer UI | **Vanilla TS + DOM** — no UI framework. Styles in `src/renderer/src/style.css` |
-| Markdown | hand-written renderer in `src/renderer/src/markdown.ts` (→ HTML string) |
+| Renderer UI | **React-free JSX/TSX over the DOM** — no UI framework. A custom JSX runtime (`src/ui/jsx-runtime.ts`, no React) compiles `<div/>` straight to real DOM nodes; views are `.tsx`. Design tokens in `src/ui/styles/tokens.css`; global + per-screen CSS co-located in `src/ui/` and each `src/ui/screens/<feature>/` |
+| Markdown | hand-written renderer in `src/ui/markdown/markdown.ts` (→ HTML string) |
 | Browser pane | Electron `<webview>` tag (the only web-content surface) |
 | Persistence | JSON at `~/.crafterm/crafterm-state.json` (dev: `~/.crafterm-dev/`); notebooks + bundled sounds under the same dir / app resources |
 
@@ -45,14 +45,14 @@ npm run rebuild      # rebuild the node-pty native module against Electron
 `electron-vite build` does **not** typecheck. Typecheck explicitly:
 
 ```bash
-npx tsc --noEmit -p tsconfig.web.json    # renderer + preload
-npx tsc --noEmit -p tsconfig.node.json   # main + preload
+npx tsc --noEmit -p tsconfig.web.json    # renderer (src/ui) + renderer-side services
+npx tsc --noEmit -p tsconfig.node.json   # main + preload (src/core) + main-side services
 ```
 
-**Verification:** there is currently **no test framework** in this repo. Verify a
-change with: (1) `npx tsc --noEmit` on both configs, (2) `npm run build`, then
-(3) `npm run dev` and exercise the feature in the running app. Adding a test
-framework is a new dependency — propose it and get approval first.
+**Verification:** (1) `npx tsc --noEmit` on both configs, (2) `npm run build`,
+(3) `npx vitest run` (unit) + `npx playwright test` (e2e — Playwright drives the
+real Electron build), then (4) `npm run dev` and exercise the feature in the
+running app. Tests live under `src/tests/` (`unit/` + `e2e/`).
 
 **NEVER kill the running app without asking first.** Do not run `kill`, `pkill`,
 `killall`, or otherwise terminate a running Crafterm / Electron / `npm run dev`
@@ -62,18 +62,29 @@ stopped, ask first and wait for an explicit OK.
 
 ## Process Model
 
-- **Main** (`src/main/index.ts`, single file): owns node-pty processes, the
-  `BrowserWindow`(s) and pop-out windows, native `Notification`s, the app menu,
-  and **every IPC handler** (`pty:*`, `store:*`, `git:*`, `claude:*`, `fs:*`,
-  `notebook:*`, `sound:*`, `dir:*`, `md:*`, `zsh:*`, `popout:*`, …). Anything that
-  touches the OS (spawn shells, read the filesystem, `afplay`, `git`) lives here.
-- **Preload** (`src/preload/index.ts` + `src/preload/api.d.ts`): a narrow,
-  **typed** `contextBridge` exposing `window.crafterm`. This is the **only** channel
-  between renderer and shell. Adding an IPC call means three edits together:
-  handler in `index.ts` (main) → method in `preload/index.ts` → signature in
-  `preload/api.d.ts` (and `SavedState` there if it's persisted).
-- **Renderer** (`src/renderer/src/*`): the UI. No Node/Electron APIs directly —
-  always go through `window.crafterm`.
+- **Main / model** (`src/core/`): bootstrap `src/core/index.ts` registers every
+  controller, owns the `BrowserWindow`(s) + pop-out windows, native `Notification`s,
+  and the app menu; the domain models (`services/terminal.manager`, `git`/`fs`/
+  `claude` services, `db`/`docker`, `windows`, `domain`) live under `src/core/`.
+  Anything that touches the OS (spawn shells, read the filesystem, `afplay`, `git`,
+  the `gh`/`docker` CLIs) lives here.
+- **Controllers** (`src/services/<domain>/`): each domain is one folder with
+  `<domain>.main.ts` (registers handlers via the typed `handle`/`on`/`emit` helpers
+  in `services/channels.main.ts`), `<domain>.client.ts` (renderer wrappers via
+  `call`/`send`/`listen` in `services/channels.client.ts`), and `<domain>.types.ts`
+  (shared request/response/data shapes). **Adding an IPC call = three edits:** a
+  channel entry in **`src/services/channels.ts`** (the central typed registry) → a
+  `handle`/`on` in `<domain>.main.ts` → a `call`/`send`/`listen` wrapper in
+  `<domain>.client.ts`. Both sides reference only the registry, so a channel-name
+  or req/res type drift fails at compile time. A grep guard
+  (`tests/.../cross-process.guard.test.ts`) blocks a `*.main.ts` from leaking into
+  the renderer (or `*.client.ts`/`window` into main).
+- **Preload** (`src/core/bridge/index.ts`): a generic `contextBridge` exposing
+  `window.crafterm.{invoke,send,on}` — an untyped pass-through over the registry;
+  the `*.client.ts` wrappers are its only callers (they supply the typed channel +
+  payload).
+- **Renderer / view** (`src/ui/*`): the UI. No Node/Electron APIs directly — always
+  go through the `@services` client wrappers (never `window.crafterm` raw).
 
 ## Architecture (renderer)
 
@@ -85,30 +96,106 @@ stopped, ask first and wait for an explicit OK.
   `renderNotifications()`), batched on `requestAnimationFrame`. Don't re-render
   the whole UI; call the narrowest hook.
 - **Break import cycles** via the indirection objects in `state.ts`
-  (`hooks`, `paneActions`) — wire real implementations in `main.ts`. Cross-module
+  (`hooks`, `paneActions`) — wire real implementations in `src/ui/main.ts`. Cross-module
   calls used only inside functions (not at module top-level) are fine.
 - Keep one responsibility per module; extract shared UI into helpers
-  (`dialog.ts`) rather than duplicating.
+  (`components/dialog`) rather than duplicating.
 
-### Module map (`src/renderer/src/`)
+### Module structure convention
 
-| File | Responsibility |
+The renderer lives under `src/views/` (`@views`) — the sole, gea-based renderer
+tree (the legacy `src/ui` tree was deleted at the end of the migration). Every
+module follows a consistent decomposition. **New work MUST conform; this is the
+structural rule set.**
+
+- **HARD RULE — every DOM-building folder is a gea `.tsx` Component.** Under
+  `src/views/`, apart from the build-infra shims (`jsx-runtime.ts`,
+  `jsx-dev-runtime.ts`, `vite-env.d.ts`, `lib/dom.ts`), any folder that builds DOM
+  **MUST** express its view as a gea `.tsx` Component (`export default class extends
+  Component`). **No plain-DOM `el(...)` / `createElement` container factories in a
+  `.ts` view** — that drift is forbidden. To embed an inherently imperative widget
+  (Monaco, xterm, `<webview>`, datepicker) the `.tsx` is a thin gea shell that
+  mounts it via a property `ref` + `onAfterRender` (§gea gotcha 5.11). A ratchet
+  guard (`tests/.../views-gea-component.guard.test.ts`) enforces this: it fails on
+  any NEW plain-DOM `.ts` view; the `GRANDFATHERED` list holds the not-yet-converted
+  folders and shrinks to empty as they migrate.
+
+- **HARD RULE — component structure is `.tsx` + `.store.ts` + `.css` (+ optional
+  `.types.ts`).** Each feature/screen/component folder is:
+  - `<name>.tsx` — the gea view. DOM via JSX only. **No non-view code inline** — no
+    constants, no pure-logic functions, no `@services` IPC calls, no data assembled
+    in the `.tsx`. The view reads from and calls into its `.store.ts`.
+  - `<name>.store.ts` — the component's **entire non-view module** (required for every
+    component): the reactive `Store` (`class X extends Store`; `export default new X()`
+    for a singleton overlay/screen, `export class X extends Store` for a per-instance
+    widget) when it has reactive state, PLUS the component's pure logic/helpers, its
+    constants (label lists, SVG icon strings), and its `@services` IPC client calls.
+    A stateless/presentational component still gets a `.store.ts` — it holds that
+    component's constants/helpers (its non-view home), keeping the `.tsx` a pure view.
+  - `<name>.css` — co-located styles (imported by the view).
+  - `<name>.types.ts` — module-local TS types (global types stay in `types/types.ts`).
+    Kept; optional (only when the module declares its own types).
+
+- **HARD RULE — no NEW `.state.ts` and no NEW `.controller.*` under `src/views/`.**
+  The old `types/state/view` split and the imperative `.controller` manager are
+  RETIRED: a component's state + logic + constants + IPC live in its `.store.ts`, its
+  view in its `.tsx`. Do not create a `<name>.state.ts` (fold that code into the
+  `.store.ts`) or a `<name>.controller.ts` (express it as a gea `.tsx` + `.store.ts`).
+  `.state.ts` is **fully retired** — all 66 have been folded into their `.store.ts`
+  (or, for cross-cutting utilities, their plain `.ts`). A guard
+  (`tests/.../views-store-structure.guard.test.ts`) now fails on ANY `.state.ts` and on
+  any `.controller.*` outside the 6 documented exceptions.
+  - **Documented exception — 6 imperative-widget controllers only.** `treeview`,
+    `code-pane`, `content`, `db-pane`, `diff-pane/file-search`, `diff/line-select`
+    keep a `.controller` because they own a Monaco/xterm/diff-engine widget or a DOM-
+    reconciliation loop that gea's async store-driven render cannot express (a
+    store-reading gea component renders asynchronously; these need synchronous DOM or
+    an imperative lifecycle). These are the ONLY `.controller` files permitted.
+  - **Cross-cutting pure-logic utilities stay plain `.ts`.** A shared, component-
+    independent logic/data module (`tree.ts`, `catalog.ts`, `task-helpers.ts`,
+    `themes.ts`) is not a component's non-view code — it stays a plain `.ts` module.
+    The `.store.ts` rule is about a component's OWN state/logic, not shared utilities.
+- **`.tsx` ↔ JSX.** A file that builds DOM with JSX is `.tsx`. A file that
+  delegates DOM to component helpers (`overlayModal`, `createField`, …) with no
+  JSX of its own may stay `.ts`. Hand-rolled `createElement`/`innerHTML` is the
+  old way — migrate it to JSX + `.tsx`.
+- **Thin bootstraps.** Window entries (`main`, `popout`, `improveWindow`) are a
+  thin `<name>.ts` (wiring only) over a `<name>.store.ts`.
+- **CSS co-location.** A CSS block lives in the folder of the module that owns the
+  DOM it styles. Global/shell CSS only in `styles/` and `app-shell/`.
+- **Markup ownership.** New UI builds its markup in its own `.tsx`; nothing static
+  is added to `index.html`. `index.html` holds only the shell skeleton, empty
+  containers for dynamic content, and rare static overlays.
+- **Folder shape.** A single-file module in its own folder (`catalog/catalog.ts`)
+  is correct. A loose `.ts` directly at `src/ui/` root is a smell — move it into a
+  folder, unless it is a build/infra shim (`jsx-runtime.ts`, `jsx-dev-runtime.ts`,
+  `vite-env.d.ts`) or the main-window `index.html`. Cross-cutting, DOM-free pure
+  logic/data utilities shared across components stay plain `.ts` (no `.tsx`/
+  `.store.ts`/`.css`).
+- **Child components.** A `.tsx` does not hold multiple separable UI parts inline;
+  extract each into `<feature>/components/<part>.tsx`. The parent keeps
+  mount/orchestration only.
+- **Naming.** CSS class names are descriptive and module-prefixed; no cryptic
+  abbreviations (`.code-editor-button`, not `.code-sel-btn`). English only.
+
+### Module map (`src/ui/`)
+
+The renderer view. The IPC/data layer it talks to lives in `src/services` (see
+Process Model); domain models + windows live in `src/core`.
+
+| Path | Responsibility |
 |---|---|
-| `state.ts` | singletons, `settings`, persistence (`persist`/`loadSettings`/`saveSoon`), `hooks`, `pushNotification` |
-| `types.ts` | shared TS types (LayoutNode, Pane, SidebarNode, Reminder, AppNotification, …) |
-| `main.ts` | entry: wires DOM buttons, global keybindings, and the `hooks`/`paneActions` implementations |
-| `commands.ts` | high-level actions: create/split/close panes, `openLink`, `openNote`, `openMarkdownFile`, worktree/git, … |
+| `state.ts` | single source of truth: live singletons (`panes`, `state`, `settings`, `notifications`), `hooks`, `paneActions`, `pushNotification` |
+| `types.ts` | shared renderer TS types (LayoutNode, Pane, SidebarNode, Reminder, AppNotification, …) |
+| `main.ts` | main-window entry: wires DOM buttons, global keybindings, and the `hooks`/`paneActions` implementations |
+| `commands.ts` | high-level actions: create/split/close panes, `openLink`/`openNote`/`openMarkdownFile`, worktree/git, … |
 | `pane.ts` | terminal pane lifecycle (xterm), doc + browser panes, activity detection & notifications |
-| `content.ts` | split-tree → DOM, per-tab container cache (tabs flip `display`, never detach) |
-| `sidebar.ts` | terminal + notebook sidebar (tree render, drag-drop, inline rename, details) |
-| `notebook.ts` | notebook tree (`<stateDir>/notebooks`) + linked external files |
-| `notifications.ts` | right panel: Alerts / Reminders / Files / Time tabs + cards |
-| `reminders.ts` | reminders, past reminders, snooze |
-| `explorer.ts` / `time.ts` | file explorer + time tracking (right-panel tabs) |
-| `pickers.ts` | modal pickers/finders (command palette, project, worktree, SSH, Claude, md/file finders) |
-| `settings.ts` | settings modal |
-| `markdown.ts` | markdown → HTML |
-| `themes.ts`, `palette-seed.ts`, `keybindings.ts`, `dialog.ts`, `tree.ts`, `popout.ts` | theming, palette seed, key handling, modal helpers, pure tree algorithms, pop-out window |
+| `screens/<feature>/` | one folder per feature screen — `sidebar`, `content`, `notifications`, `reminders`, `explorer`, `time`, `settings`, `pickers`, `spotlight`, `pr`, `docker`, `database`, `db-pane`, `diff`(`-pane`), `daily-plan`, `meeting-notes`, `accounts`, `bookmarks`, `ios-worktree`, `improve-crafterm`, `code-pane`/`file-pane` (CSS co-located per screen) |
+| `components/` | shared UI primitives: `overlay`, `modal`, `button`, `field`, `input`, `select`, `textarea`, `treeview`, `datepicker`, `search-box`, `context-menu` |
+| `terminal/`, `editor/` | xterm terminal + Monaco/code-editor pane subsystems |
+| `styles/tokens.css` + `*.css` | design tokens + global/app-shell CSS (per-screen CSS co-located under `screens/`) |
+| `markdown.ts`, `themes.ts`, `tree.ts`, `keybindings.ts`, `dialog.ts`, `palette-seed.ts`, `catalog.ts`, `notebook.ts`, `popout.ts` | renderer-only helpers: md→HTML, theming, pure tree algorithms, key handling, modal helpers, palette seed, command catalog, notebook tree, pop-out window |
+| `index.html` / `popout.html` / `improve-window.html` (+ `main.ts` / `popout.ts` / `improveWindow.ts`) | the three window bootstraps |
 
 ## Universal Rules
 
@@ -161,7 +248,7 @@ stopped, ask first and wait for an explicit OK.
 - Adding a persisted setting requires four edits in lockstep: the field on
   `settings` (`state.ts`), the `persist()` payload, `loadSettings()` (guarded by a
   type check / `Array.isArray`), and the type in `SavedState`
-  (`preload/api.d.ts`). Migrate old shapes on read.
+  (`src/services/storage/state.types.ts`). Migrate old shapes on read.
 
 ## Distribution
 

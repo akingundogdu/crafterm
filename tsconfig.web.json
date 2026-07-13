@@ -5,9 +5,26 @@
     "moduleResolution": "Bundler",
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "@views",
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["src/core/*"],
+      "@models/*": ["src/models/*"],
+      "@repositories": ["src/repositories/index.ts"],
+      "@repositories/*": ["src/repositories/*"],
+      "@texts": ["src/ui-texts/ui-texts.ts"],
+      "@texts/*": ["src/ui-texts/*"],
+      "@services": ["src/services/index.ts"],
+      "@services/*": ["src/services/*"],
+      "@views/*": ["src/views/*"],
+      "@resources/*": ["src/resources/*"],
+      "@tests/*": ["src/tests/*"]
+    }
   },
-  "include": ["src/renderer/src/**/*", "src/preload/api.d.ts"]
+  "include": ["src/views/**/*", "src/services/**/*", "src/models/**/*", "src/repositories/**/*", "src/ui-texts/**/*"],
+  "exclude": ["src/services/**/*.main.ts", "src/services/**/*.utils.ts", "src/services/**/*.service.ts"]
 }
