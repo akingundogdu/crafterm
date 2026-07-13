@@ -120,17 +120,46 @@ structural rule set.**
   any NEW plain-DOM `.ts` view; the `GRANDFATHERED` list holds the not-yet-converted
   folders and shrinks to empty as they migrate.
 
-- **types / state / view split.** Each feature/screen/component is a folder split
-  into: `<name>.types.ts` (module-local TS types; global types stay in
-  `types/types.ts`) · `<name>.state.ts` (state, data fetching, business logic, IPC
-  client calls — no DOM) · `<name>.tsx` (the view; DOM via JSX) · `<name>.css`
-  (co-located, imported by the view).
+- **HARD RULE — component structure is `.tsx` + `.store.ts` + `.css` (+ optional
+  `.types.ts`).** Each feature/screen/component folder is:
+  - `<name>.tsx` — the gea view. DOM via JSX only. **No non-view code inline** — no
+    constants, no pure-logic functions, no `@services` IPC calls, no data assembled
+    in the `.tsx`. The view reads from and calls into its `.store.ts`.
+  - `<name>.store.ts` — the component's **entire non-view module** (required for every
+    component): the reactive `Store` (`class X extends Store`; `export default new X()`
+    for a singleton overlay/screen, `export class X extends Store` for a per-instance
+    widget) when it has reactive state, PLUS the component's pure logic/helpers, its
+    constants (label lists, SVG icon strings), and its `@services` IPC client calls.
+    A stateless/presentational component still gets a `.store.ts` — it holds that
+    component's constants/helpers (its non-view home), keeping the `.tsx` a pure view.
+  - `<name>.css` — co-located styles (imported by the view).
+  - `<name>.types.ts` — module-local TS types (global types stay in `types/types.ts`).
+    Kept; optional (only when the module declares its own types).
+
+- **HARD RULE — no NEW `.state.ts` and no NEW `.controller.*` under `src/views/`.**
+  The old `types/state/view` split and the imperative `.controller` manager are
+  RETIRED: a component's state + logic + constants + IPC live in its `.store.ts`, its
+  view in its `.tsx`. Do not create a `<name>.state.ts` (fold that code into the
+  `.store.ts`) or a `<name>.controller.ts` (express it as a gea `.tsx` + `.store.ts`).
+  A ratchet guard (`tests/.../views-store-structure.guard.test.ts`) fails on any NEW
+  `.state.ts`/`.controller.*`; its `GRANDFATHERED_STATE` list holds the not-yet-folded
+  `.state.ts` files and shrinks to empty as they migrate into their `.store.ts`.
+  - **Documented exception — 6 imperative-widget controllers only.** `treeview`,
+    `code-pane`, `content`, `db-pane`, `diff-pane/file-search`, `diff/line-select`
+    keep a `.controller` because they own a Monaco/xterm/diff-engine widget or a DOM-
+    reconciliation loop that gea's async store-driven render cannot express (a
+    store-reading gea component renders asynchronously; these need synchronous DOM or
+    an imperative lifecycle). These are the ONLY `.controller` files permitted.
+  - **Cross-cutting pure-logic utilities stay plain `.ts`.** A shared, component-
+    independent logic/data module (`tree.ts`, `catalog.ts`, `task-helpers.ts`,
+    `themes.ts`) is not a component's non-view code — it stays a plain `.ts` module.
+    The `.store.ts` rule is about a component's OWN state/logic, not shared utilities.
 - **`.tsx` ↔ JSX.** A file that builds DOM with JSX is `.tsx`. A file that
   delegates DOM to component helpers (`overlayModal`, `createField`, …) with no
   JSX of its own may stay `.ts`. Hand-rolled `createElement`/`innerHTML` is the
   old way — migrate it to JSX + `.tsx`.
 - **Thin bootstraps.** Window entries (`main`, `popout`, `improveWindow`) are a
-  thin `<name>.ts` (wiring only) over a `<name>.state.ts`.
+  thin `<name>.ts` (wiring only) over a `<name>.store.ts`.
 - **CSS co-location.** A CSS block lives in the folder of the module that owns the
   DOM it styles. Global/shell CSS only in `styles/` and `app-shell/`.
 - **Markup ownership.** New UI builds its markup in its own `.tsx`; nothing static
@@ -139,8 +168,9 @@ structural rule set.**
 - **Folder shape.** A single-file module in its own folder (`catalog/catalog.ts`)
   is correct. A loose `.ts` directly at `src/ui/` root is a smell — move it into a
   folder, unless it is a build/infra shim (`jsx-runtime.ts`, `jsx-dev-runtime.ts`,
-  `vite-env.d.ts`) or the main-window `index.html`. DOM-free pure logic/data
-  utilities need no `.tsx`/`.state.ts`/`.css`.
+  `vite-env.d.ts`) or the main-window `index.html`. Cross-cutting, DOM-free pure
+  logic/data utilities shared across components stay plain `.ts` (no `.tsx`/
+  `.store.ts`/`.css`).
 - **Child components.** A `.tsx` does not hold multiple separable UI parts inline;
   extract each into `<feature>/components/<part>.tsx`. The parent keeps
   mount/orchestration only.
