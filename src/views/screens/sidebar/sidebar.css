@@ -425,9 +425,10 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   background-clip: padding-box;
 }
 
-/* Tree row visuals (.section-label, .tab-item, guides, .treeview-chevron, .folder-icon,
-   .tab-title, drag indicators, .rename-input) live in treeview.css — the shared
-   TreeView component stylesheet. Terminal-specific slot styles stay here. */
+/* Tree row visuals (.tab-item, guides, .treeview-chevron, .folder-icon, .tab-title,
+   drag indicators, .rename-input) live in treeview.css — the shared TreeView
+   component stylesheet; .section-label lives in components/section-label.css.
+   Terminal-specific slot styles stay here. */
 
 /* Terminal sidebar slot styles (.status-dot, .tab-sub, .tab-panes, .tab-plans,
    .tab-crumb, .tab-badge, .order-num, .pin-badge) moved to sidebar.css

@@ -3,6 +3,7 @@ import { Component } from '@geajs/core'
 export interface ExplorerSearchRowProps {
   name: string
   subPath: string
+  fullPath: string
   onClick: (e: MouseEvent) => void
 }
 
@@ -14,18 +15,25 @@ export interface ExplorerSearchRowProps {
 export default class ExplorerSearchRow extends Component {
   private readonly rowName: string
   private readonly subPath: string
+  private readonly fullPath: string
   private readonly onClickFn: (e: MouseEvent) => void
 
   constructor(props: ExplorerSearchRowProps) {
     super()
     this.rowName = props.name
     this.subPath = props.subPath
+    this.fullPath = props.fullPath
     this.onClickFn = props.onClick
   }
 
   template() {
     return (
-      <div class="explorer-row file" style="padding-left:6px" onClick={(e: MouseEvent) => this.onClickFn(e)}>
+      <div
+        class="explorer-row file"
+        style="padding-left:6px"
+        title={this.fullPath}
+        onClick={(e: MouseEvent) => this.onClickFn(e)}
+      >
         <span class="explorer-tri" />
         <span class="explorer-name">{this.rowName}</span>
         <span class="explorer-sub">{this.subPath}</span>

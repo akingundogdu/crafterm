@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './pane-box.css'
 
 // The pane-box shells for the browser + doc panes. Thin gea shells (§5.11): the
 // template is the empty `.pane-box` with its data-pane-id + select handler; the

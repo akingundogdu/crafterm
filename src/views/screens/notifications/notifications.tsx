@@ -1,27 +1,36 @@
-import '@views/screens/notifications/notifications.css'
+import './notifications.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import NotificationCard from './components/notification-card'
+import NotificationGroup from './components/notification-group'
+import NotifFilters from './components/notif-filters'
 import store from './notifications.store'
 
-// gea Notifications (Alerts) list: a keyed card list reactive off the store,
-// replacing the legacy renderNotifications()/replaceChildren cycle. Mounted by the
-// shell into #notif-list. The root is display:contents so the cards lay out as
-// direct children of the list host (§5.8 layout parity). The card list is rendered
-// unconditionally with the empty hint as a sibling (§5.2).
+// gea Notifications (Alerts) list: filter chips over a keyed list of terminal
+// groups, reactive off the store. A terminal with several notifications collapses
+// into one NotificationGroup (todomr5sckyaei); a lone notification renders as the
+// plain card it always was. Mounted by the shell into #notif-list. The root is
+// display:contents so the cards lay out as direct children of the list host (§5.8
+// layout parity). The list is rendered unconditionally with the empty hint as a
+// sibling (§5.2).
 export default class Notifications extends Component {
   created(): void {
     store.reload()
   }
 
   template() {
-    const items = store.items
+    const groups = store.groups
     return (
       <div class="notifications-root" style={{ display: 'contents' }}>
-        {items.map((n) => (
-          <NotificationCard key={n.id} notif={n} />
-        ))}
-        {items.length === 0 && <div class="notif-empty">{UITexts.Notifications.empty}</div>}
+        {store.items.length > 0 && <NotifFilters />}
+        {groups.map((g) =>
+          g.items.length > 1 ? (
+            <NotificationGroup key={g.key} group={g} />
+          ) : (
+            <NotificationCard key={g.key} notif={g.items[0]} />
+          )
+        )}
+        {groups.length === 0 && <div class="notif-empty">{UITexts.Notifications.empty}</div>}
       </div>
     )
   }

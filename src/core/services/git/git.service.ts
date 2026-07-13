@@ -122,7 +122,7 @@ export async function worktreeAdd(
   path: string,
   branch: string,
   base?: string
-): Promise<boolean> {
+): Promise<{ ok: boolean; error?: string }> {
   const git = gitBin()
   const baseRef = base || 'main'
   // Refresh the base from origin so the worktree branches off the latest tip.
@@ -131,11 +131,20 @@ export async function worktreeAdd(
     execFile(git, ['-C', repo, 'fetch', 'origin', baseRef], { timeout: 120_000 }, (err) => resolve(!err))
   })
   const startPoint = fetched ? `origin/${baseRef}` : baseRef
-  return new Promise<boolean>((resolve) => {
-    execFile(git, ['-C', repo, 'worktree', 'add', path, '-b', branch, startPoint], { timeout: 120_000 }, (err) => {
-      if (!err) return resolve(true)
-      // Branch likely already exists — attach it to the new worktree instead.
-      execFile(git, ['-C', repo, 'worktree', 'add', path, branch], { timeout: 120_000 }, (e2) => resolve(!e2))
+  // git's own stderr is the only honest explanation of a failed add (branch already
+  // checked out elsewhere, missing base, dirty index …) — carry it to the caller so
+  // the UI can show WHY instead of a generic "could not create".
+  const add = (args: string[]): Promise<{ ok: boolean; error?: string }> =>
+    new Promise((resolve) => {
+      execFile(git, ['-C', repo, 'worktree', 'add', ...args], { timeout: 120_000 }, (err, _out, stderr) => {
+        if (!err) return resolve({ ok: true })
+        resolve({ ok: false, error: (stderr || err.message).trim() })
+      })
     })
-  })
+
+  const created = await add([path, '-b', branch, startPoint])
+  if (created.ok) return created
+  // Branch likely already exists — attach it to the new worktree instead.
+  const attached = await add([path, branch])
+  return attached.ok ? attached : { ok: false, error: attached.error || created.error }
 }

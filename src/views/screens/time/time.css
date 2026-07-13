@@ -1,5 +1,5 @@
 /* Time tracking screen (right panel -> Time tab): controls, timer, summary,
-   pomodoro presets, and the report modal. */
+   pomodoro presets, and the report bar. */
 /* time tracking (right panel → Time tab) */
 #notif-time-view {
   flex: 1;
@@ -173,11 +173,6 @@
   color: var(--text);
   border-color: var(--accent);
 }
-.time-report-foot {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-}
 
 /* time report */
 .time-report-bar {
@@ -198,61 +193,4 @@
 #time-report-btn:hover {
   color: var(--text);
   border-color: var(--accent);
-}
-.time-report-modal {
-  width: 440px;
-  max-width: 92vw;
-}
-.time-report-chips {
-  display: flex;
-  gap: 6px;
-  margin: 10px 0;
-}
-.time-report-chip {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-strong);
-  color: var(--text-dim);
-  border-radius: 999px;
-  font-size: 12px;
-  padding: 4px 12px;
-  cursor: pointer;
-}
-.time-report-chip.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--text);
-}
-.time-report-body {
-  max-height: 50vh;
-  overflow-y: auto;
-}
-.time-report-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 5px 4px;
-  font-size: 13px;
-}
-.time-report-proj {
-  color: var(--text);
-  font-weight: 600;
-  border-top: 1px solid var(--border);
-  margin-top: 4px;
-  padding-top: 8px;
-}
-.time-report-feat {
-  color: var(--text-dim);
-  font-size: 12px;
-  padding-left: 16px;
-}
-.time-report-total {
-  border-top: 2px solid var(--border-strong);
-  margin-top: 8px;
-  padding-top: 8px;
-  font-weight: 700;
-  color: var(--text);
-}
-.time-report-dur {
-  flex: 0 0 auto;
-  font-variant-numeric: tabular-nums;
 }

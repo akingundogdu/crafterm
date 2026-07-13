@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './diff-header.css'
 import { SEARCH_SVG, stopAnd } from '../diff-pane.store'
 import { createFileCounter } from './file-counter'
 

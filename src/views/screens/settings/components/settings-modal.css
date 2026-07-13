@@ -1,0 +1,10 @@
+/* The settings modal shell: a two-column grid (nav | body) with a save footer. */
+.settings-modal {
+  width: min(1080px, 94vw);
+  height: min(760px, 88vh);
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  grid-template-rows: 1fr auto;
+  padding: 0;
+  overflow: hidden;
+}

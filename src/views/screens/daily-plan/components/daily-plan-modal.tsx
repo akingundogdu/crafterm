@@ -1,4 +1,6 @@
 import { Component } from '@geajs/core'
+import '@views/components/modal/modal.css'
+import './daily-plan-modal.css'
 import DailyPlanBoard from '../daily-plan'
 
 // Thin gea shell for the wide Daily Plan board overlay: a `.modal.daily-plan-modal`

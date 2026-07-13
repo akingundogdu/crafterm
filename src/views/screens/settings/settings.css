@@ -1,12 +1,3 @@
-.settings-modal {
-  width: min(1080px, 94vw);
-  height: min(760px, 88vh);
-  display: grid;
-  grid-template-columns: 168px 1fr;
-  grid-template-rows: 1fr auto;
-  padding: 0;
-  overflow: hidden;
-}
 .settings-save-footer {
   grid-column: 1 / -1;
   border-top: 1px solid var(--border);
@@ -35,41 +26,6 @@
 .settings-save-chip[data-state='saved'] {
   color: #3fb950;
   border-color: rgba(63, 185, 80, 0.4);
-}
-.settings-nav {
-  flex: 0 0 168px;
-  background: rgba(255, 255, 255, 0.02);
-  border-right: 1px solid var(--border);
-  padding: 16px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.settings-nav-item {
-  text-align: left;
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 8px 12px;
-  border-radius: 7px;
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.settings-nav-item:hover {
-  background: var(--row-hover);
-  color: var(--text);
-}
-.settings-nav-item.active {
-  background: var(--accent-soft);
-  color: var(--text);
-}
-.settings-body {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
-  padding: 18px 22px;
 }
 .settings-panel h3 {
   margin-top: 0;
@@ -189,11 +145,6 @@
   color: var(--text);
   background: rgba(255, 255, 255, 0.12);
 }
-.project-row {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-}
 .project-sub {
   font-size: 11px;
   color: var(--text-mute);
@@ -273,31 +224,6 @@
 }
 
 /* Projects settings: master (list) + detail (editor) */
-.projects-md {
-  display: flex;
-  gap: 14px;
-  margin: 10px 0;
-}
-.projects-md-list {
-  flex: 0 0 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  border-right: 1px solid var(--border);
-  padding-right: 12px;
-  max-height: 460px;
-  overflow-y: auto;
-}
-.projects-md-detail {
-  flex: 1;
-  min-width: 0;
-}
-.projects-md-detail .field textarea {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  font-family: inherit;
-}
 .proj-li {
   display: flex;
   align-items: center;
@@ -399,17 +325,6 @@
   margin: 6px 0;
   background: rgba(255, 255, 255, 0.02);
 }
-.app-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.app-card-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-}
 .settings-app-delete {
   border: none;
   background: transparent;
@@ -479,24 +394,6 @@
 }
 .app-rc-add {
   margin-top: 4px;
-}
-.action-menu-admin {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 8px 0;
-}
-.action-menu-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.action-menu-row.hidden {
-  opacity: 0.5;
 }
 .action-menu-text {
   flex: 1;
@@ -642,18 +539,6 @@
   }
 }
 
-.shortcuts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 8px;
-}
-.shortcut-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 4px;
-}
 .shortcut-label {
   flex: 1;
   font-size: 13px;
@@ -696,36 +581,6 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 16px;
-}
-.color-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.color-row label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.color-row input[type="color"] {
-  width: 30px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
-.color-row input[type="text"] {
-  width: 84px;
-  background: var(--bg-term);
-  color: var(--text);
-  border: 1px solid var(--border-strong);
-  border-radius: 5px;
-  padding: 3px 5px;
-  font-size: 12px;
-  outline: none;
 }
 .checkbox-row {
   display: flex;
@@ -862,10 +717,6 @@
 .pane-status-seg.tracking::before {
   content: "⏱ ";
   opacity: 0.85;
-}
-.track-modal {
-  width: 360px;
-  max-width: 92vw;
 }
 .track-modal .settings-select {
   margin-bottom: 4px;

@@ -1,0 +1,47 @@
+/* One pull-request card in the PR list: status rail, title row, branch, tags, actions. */
+.pr-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px 11px 15px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.018);
+  overflow: hidden;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pr-card:hover {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: var(--border-strong);
+}
+/* Left status rail — overall PR health at a glance. */
+.pr-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--text-mute);
+  opacity: 0.45;
+}
+.pr-card.state-ready::before {
+  background: #3fb950;
+  opacity: 1;
+}
+.pr-card.state-running::before {
+  background: #d29922;
+  opacity: 1;
+}
+.pr-card.state-blocked::before {
+  background: #f85149;
+  opacity: 1;
+}
+.pr-card.current {
+  border-color: var(--accent, #58a6ff);
+  background: rgba(88, 166, 255, 0.06);
+}
+.pr-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}

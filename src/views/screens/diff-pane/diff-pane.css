@@ -168,12 +168,7 @@
   cursor: default;
 }
 
-/* Tall header: prev | search | centered path/counter | reload · next · close. */
-.diff-header {
-  height: 40px;
-  padding: 0 8px;
-  gap: 4px;
-}
+/* Tall header controls: prev | search | centered path/counter | reload · next · close. */
 .diff-nav {
   flex: 0 0 auto;
   width: 30px;

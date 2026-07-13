@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './meeting-note-card.css'
 import type { MeetingNote } from '@views/types/types'
 import { UITexts } from '@texts'
 import { meetingNoteRepo } from '@repositories'

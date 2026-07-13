@@ -36,8 +36,21 @@ export const RANGES: { val: DailyRange; label: string }[] = [
   { val: 'day', label: UITexts.DailyPlan.range.today },
   { val: '3d', label: UITexts.DailyPlan.range.last3 },
   { val: '7d', label: UITexts.DailyPlan.range.last7 },
+  { val: '14d', label: UITexts.DailyPlan.range.last14 },
+  { val: '30d', label: UITexts.DailyPlan.range.last30 },
   { val: 'all', label: UITexts.DailyPlan.range.all }
 ]
+
+// Day span of a multi-day range ('3d' → 3, '30d' → 30), counting today as day 1.
+// Only called for the 'Nd' ranges; 'day' / 'all' are handled separately.
+export function rangeSpan(range: DailyRange): number {
+  return parseInt(range, 10) || 1
+}
+
+// The earliest YMD key a multi-day range covers, relative to today.
+export function rangeStartKey(range: DailyRange): string {
+  return shiftDays(todayKey(), -(rangeSpan(range) - 1))
+}
 
 // Full status list for the task form's Status dropdown — includes Code Review
 // and Test, which the board omits as columns.
@@ -159,25 +172,6 @@ export function sanitizeSlug(raw: string): string {
 export function worktreeBranchForTask(task: DailyPlanTask, key: string): string {
   const slug = sanitizeSlug(task.worktreeSlug ?? '')
   return slug ? `${key}-${slug}` : key
-}
-
-// Projects in tree order with their nesting depth (sub-projects indented), so the
-// task form's project dropdown reads as a hierarchy (todo5). Folders/worktrees are
-// descended into without adding a level.
-export function projectTree(): { p: ProjectNode; depth: number }[] {
-  const out: { p: ProjectNode; depth: number }[] = []
-  const walk = (nodes: SidebarNode[], depth: number): void => {
-    for (const n of nodes) {
-      if (n.kind === 'project') {
-        out.push({ p: n, depth })
-        walk(n.children, depth + 1)
-      } else if (n.kind === 'folder' || n.kind === 'worktree') {
-        walk(n.children, depth)
-      }
-    }
-  }
-  walk(state.tree, 0)
-  return out
 }
 
 export function taskById(id: string): DailyPlanTask | undefined {
@@ -315,9 +309,8 @@ class DailyPlanStore extends Store {
         : this.selectedRange === 'day'
           ? this.tasks.filter((t) => t.date === this.selectedDate)
           : (() => {
-              const span = this.selectedRange === '3d' ? 3 : 7
               const today = todayKey()
-              const start = shiftDays(today, -(span - 1))
+              const start = rangeStartKey(this.selectedRange)
               return this.tasks.filter((t) => t.date >= start && t.date <= today)
             })()
     return inScope

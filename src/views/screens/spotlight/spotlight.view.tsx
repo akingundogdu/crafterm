@@ -6,6 +6,7 @@ import type { SpotEntry } from './components/result-list'
 import { TABS, TAB_ACTION } from './components/spot-tabs'
 import { BADGE_LABEL } from './spotlight.store'
 import { spotlightStore as store, filterSpotEntries } from './spotlight.store'
+import ProjectSelect from '@views/components/project-select/project-select'
 import SpotTab from './components/tab-button'
 import ResultRow from './components/result-row'
 
@@ -18,6 +19,8 @@ export interface SpotlightDeps {
   onChoose: (e: SpotEntry) => void
   onHover: (index: number) => void
   onSelectTab: (tab: string) => void
+  // Files tab: rescan within another project ('' = every folder from Settings).
+  onSelectFileProject: (projectId: string | null) => void
 }
 
 // Reactive body of the spotlight: the search input, the WebStorm-style tab strip,
@@ -62,6 +65,17 @@ class SpotlightBody extends Component {
             )
           })}
         </div>
+        {activeTab === 'files' && (
+          <div class="spotlight-file-scope">
+            <span class="spotlight-file-scope-label">{UITexts.Spotlight.searchIn}</span>
+            <ProjectSelect
+              value={store.fileProjectId ?? ''}
+              emptyLabel={UITexts.Spotlight.allFolders}
+              selectClass="settings-select"
+              onChange={(id: string) => deps.onSelectFileProject(id || null)}
+            />
+          </div>
+        )}
         <div class="pick-list picker-list spot-list">
           {items.map((e, i) => (
             <ResultRow

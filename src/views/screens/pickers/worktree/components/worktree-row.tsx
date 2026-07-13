@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './worktree-row.css'
 import type { Worktree } from '@services/git/git.types'
 import { baseName } from '../../shared'
 

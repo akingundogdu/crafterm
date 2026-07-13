@@ -1,9 +1,12 @@
 import { Component } from '@geajs/core'
 import '@views/components/form-field/form-field.css'
-import type { DailyPlanTask, DailyPlanStatus, DailyPlanPriority, ProjectNode } from '@views/types/types'
+import type { DailyPlanTask, DailyPlanStatus, DailyPlanPriority } from '@views/types/types'
 import { createDateField, type DateField } from '@views/components/datepicker/datepicker'
+import ProjectSelect from '@views/components/project-select/project-select'
 import { showRemindModal } from '@views/screens/reminders/components/remind-modal'
-import { FORM_STATUSES, PRIORITIES, projectTree, sanitizeSlug } from '@views/screens/daily-plan/daily-plan.store'
+import { FORM_STATUSES, PRIORITIES, sanitizeSlug } from '@views/screens/daily-plan/daily-plan.store'
+import { state } from '@views/state/spine'
+import { findProjectById } from '@views/catalog/catalog'
 import { buildTagPicker } from './tag-picker'
 import store from './task-form.store'
 
@@ -23,7 +26,6 @@ export default class TaskForm extends Component {
   statusSel: HTMLSelectElement | null = null
   prioSel: HTMLSelectElement | null = null
   slugInput: HTMLInputElement | null = null
-  projHint: HTMLDivElement | null = null
   slugHint: HTMLDivElement | null = null
   dateHost: HTMLDivElement | null = null
   dueHost: HTMLDivElement | null = null
@@ -33,7 +35,6 @@ export default class TaskForm extends Component {
   private dueField: DateField | null = null
   private tagHost: HTMLDivElement | null = null
   private selectedTagIds: string[] = []
-  private readonly projects: { p: ProjectNode; depth: number }[] = projectTree()
 
   created(): void {
     this.dateField = createDateField({ mode: 'date', value: store.existing?.date ?? store.selectedDate })
@@ -55,15 +56,7 @@ export default class TaskForm extends Component {
     // Seed the slug input imperatively: a `value=` JSX binding would make gea treat
     // the input as controlled and reset it to the bound value on every keystroke.
     if (this.slugInput && !this.slugInput.value) this.slugInput.value = store.existing?.worktreeSlug ?? ''
-    this.updateProjHint()
     this.updateSlugHint()
-  }
-
-  private updateProjHint = (): void => {
-    if (!this.projHint) return
-    const id = this.projSel?.value
-    const p = id ? this.projects.find((x) => x.p.id === id)?.p : null
-    this.projHint.textContent = p ? p.path : ''
   }
 
   private updateSlugHint = (): void => {
@@ -74,9 +67,20 @@ export default class TaskForm extends Component {
       return
     }
     const id = this.projSel?.value
-    const p = id ? this.projects.find((x) => x.p.id === id)?.p : null
+    const p = id ? findProjectById(state.tree, id) : null
     const keyPreview = store.existing?.issueKey ?? (p?.issueKeyPrefix?.trim() ? `${p.issueKeyPrefix.trim()}-#` : 'KEY')
     this.slugHint.textContent = `Worktree: ${keyPreview}-${slug}`
+  }
+
+  // The shared dropdown owns the select; the form keeps the element to validate it
+  // (field-invalid) and to read the picked project on commit.
+  private onProjectSelectRef = (el: HTMLSelectElement): void => {
+    this.projSel = el
+  }
+
+  private onProjectChange = (id: string): void => {
+    if (id) this.projSel?.classList.remove('field-invalid')
+    this.updateSlugHint()
   }
 
   // Validate (title + project required) and persist; null when invalid.
@@ -162,26 +166,13 @@ export default class TaskForm extends Component {
         <div class="field">
           <label>Project</label>
           <div class="field-control-col">
-            <select
-              ref={this.projSel}
-              onChange={() => {
-                if (this.projSel?.value) this.projSel.classList.remove('field-invalid')
-                this.updateProjHint()
-                this.updateSlugHint()
-              }}
-            >
-              <option value="" selected={initialProjectId === ''}>
-                — Select a project —
-              </option>
-              {this.projects.map((entry) => (
-                <option key={entry.p.id} value={entry.p.id} selected={entry.p.id === initialProjectId}>
-                  {'   '.repeat(entry.depth) +
-                    (entry.depth ? '└ ' : '') +
-                    (entry.p.issueKeyPrefix ? `${entry.p.name} (${entry.p.issueKeyPrefix})` : entry.p.name)}
-                </option>
-              ))}
-            </select>
-            <div class="daily-plan-proj-hint" ref={this.projHint} />
+            <ProjectSelect
+              value={initialProjectId}
+              emptyLabel="— Select a project —"
+              showPathHint
+              onChange={this.onProjectChange}
+              onSelectRef={this.onProjectSelectRef}
+            />
           </div>
         </div>
         <div class="field">

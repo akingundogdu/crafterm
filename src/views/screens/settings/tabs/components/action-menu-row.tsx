@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './action-menu-row.css'
 import { UITexts } from '@texts'
 import type { ActionMenuItem } from '@views/types/types'
 

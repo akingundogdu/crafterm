@@ -1,0 +1,12 @@
+/* One application card in the project editor's Apps tab: head + fields + commands. */
+.app-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.app-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}

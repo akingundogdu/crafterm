@@ -46,7 +46,9 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
   let appEntries: SpotEntry[] = []
   let projectEntries: SpotEntry[] = []
   let taskEntries: SpotEntry[] = []
-  let filesCache: SpotEntry[] | null = null
+  // Files are cached per scope (project id, or '' for the configured folders), so
+  // switching the scope back and forth doesn't rescan.
+  const filesCache = new Map<string, SpotEntry[]>()
   let commandsCache: SpotEntry[] | null = null
   let plansCache: SpotEntry[] | null = null
   let backlogCache: SpotEntry[] | null = null
@@ -83,9 +85,15 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
           ...appEntries,
           ...taskEntries
         ]
-      case 'files':
-        filesCache ??= await loadFiles()
-        return filesCache
+      case 'files': {
+        const scope = store.fileProjectId ?? ''
+        let entries = filesCache.get(scope)
+        if (!entries) {
+          entries = await loadFiles(store.fileProjectId)
+          filesCache.set(scope, entries)
+        }
+        return entries
+      }
       case 'commands':
         commandsCache ??= await loadCommands()
         return commandsCache
@@ -175,6 +183,11 @@ export async function showSpotlight(initialTab = 'all'): Promise<void> {
   }
 
   const deps: SpotlightDeps = {
+    // Files-tab scope: re-run the Files load against the newly picked project.
+    onSelectFileProject: (projectId) => {
+      store.setFileProject(projectId)
+      void switchTab('files')
+    },
     onKeyDown: onKey,
     onChoose: choose,
     onHover: (i) => store.setSel(i),

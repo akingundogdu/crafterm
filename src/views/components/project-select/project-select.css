@@ -1,0 +1,16 @@
+/* Shared project dropdown: the select plus its optional path hint. */
+.project-select {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.project-select-input {
+  min-width: 0;
+}
+.project-select-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-mute);
+  font-family: var(--mono, monospace);
+  word-break: break-all;
+}

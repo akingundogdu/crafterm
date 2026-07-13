@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './settings-body.css'
 
 // gea shell for the `.settings-body` panel host: renders one empty `.settings-panel`
 // per category. Each panel is an imperative host — loadSettingsPanels fills it with

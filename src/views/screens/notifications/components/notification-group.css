@@ -1,0 +1,84 @@
+/* One terminal's notifications, collapsed into a single card. */
+.notif-group {
+  position: relative;
+  margin: 4px 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.notif-group:hover {
+  border-color: var(--accent, #4a9eff);
+}
+.notif-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.notif-group-chevron {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.notif-group.expanded .notif-group-chevron {
+  transform: rotate(180deg);
+}
+.notif-group-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.notif-group-count {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--row-hover);
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.notif-group-time {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 10px;
+}
+.notif-group-close {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.notif-group-close:hover {
+  color: var(--text);
+}
+.notif-group-summary {
+  margin-top: 3px;
+  padding-left: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+/* Expanded: the member cards sit inside the group, without their own outer margin. */
+.notif-group-items {
+  margin-top: 6px;
+}
+.notif-group-items .notif-card {
+  margin-left: 0;
+  margin-right: 0;
+}

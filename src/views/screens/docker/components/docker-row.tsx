@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './docker-row.css'
 import type { RowVM } from '../docker.types'
 import store from '../docker.store'
 

@@ -57,6 +57,15 @@ describe('DailyPlanStore.scopedTasks', () => {
     expect(store.scopedTasks.map((t) => t.id)).toEqual(['today', 'two-days-ago'])
   })
 
+  it('widens to two weeks and one month', () => {
+    store.setRange('7d')
+    expect(store.scopedTasks.map((t) => t.id)).toEqual(['today', 'two-days-ago'])
+    store.setRange('14d')
+    expect(store.scopedTasks.map((t) => t.id)).toEqual(['today', 'two-days-ago', 'ten-days-ago'])
+    store.setRange('30d')
+    expect(store.scopedTasks.map((t) => t.id)).toEqual(['today', 'two-days-ago', 'ten-days-ago'])
+  })
+
   it('lists every task regardless of date for the all range', () => {
     store.setRange('all')
     expect(store.scopedTasks.map((t) => t.id)).toEqual(['today', 'two-days-ago', 'ten-days-ago', 'long-ago'])

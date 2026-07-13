@@ -1,0 +1,13 @@
+/* Meeting note card: one clickable meeting entry in the Meeting Notes list. */
+.meeting-note-card {
+  position: relative;
+  background: var(--elev-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 9px 10px 10px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.08s ease;
+}
+.meeting-note-card:hover {
+  border-color: var(--accent);
+}

@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './stash-row.css'
 import { UITexts } from '@texts'
 import type { Stash } from '../git.types'
 

@@ -1,0 +1,5 @@
+/* The time-tracking modal: project + feature selects and the track / stop actions. */
+.track-modal {
+  width: 360px;
+  max-width: 92vw;
+}

@@ -2,6 +2,8 @@
 export const Spotlight = {
   searchPlaceholder: 'Search everything…  (Tab switch · ↑↓ move · ⏎ open · ⌘⏎ split)',
   noMatches: 'No matches',
+  searchIn: 'Search in',
+  allFolders: 'All folders (Settings)',
   loading: 'Loading…',
   tabs: {
     all: 'All',

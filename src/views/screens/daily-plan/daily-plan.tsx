@@ -1,8 +1,9 @@
-import '@views/screens/daily-plan/daily-plan.css'
 import { Component } from '@geajs/core'
+import './daily-plan.css'
 import { UITexts } from '@texts'
 import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
-import { STATUSES, RANGES, todayKey, formatHeader, projectTree } from '@views/screens/daily-plan/daily-plan.store'
+import { STATUSES, RANGES, todayKey, formatHeader } from '@views/screens/daily-plan/daily-plan.store'
+import ProjectSelect from '@views/components/project-select/project-select'
 import { showTaskForm, openTagFilterPopover, tagFilter } from './daily-plan.entry'
 import { showManageTagsModal as buildManageTagsModal } from './components/manage-tags-modal'
 import { showChangelogModal } from './components/changelog-modal'
@@ -66,19 +67,12 @@ export default class DailyPlanBoard extends Component {
                 </option>
               ))}
             </select>
-            <select
-              class="settings-select daily-plan-range"
-              onChange={(e: Event) => store.setProjectFilter((e.target as HTMLSelectElement).value || null)}
-            >
-              <option value="" selected={!store.projectFilter}>
-                {UITexts.DailyPlan.allProjects}
-              </option>
-              {projectTree().map((entry) => (
-                <option key={entry.p.id} value={entry.p.id} selected={entry.p.id === store.projectFilter}>
-                  {'   '.repeat(entry.depth) + (entry.depth ? '└ ' : '') + entry.p.name}
-                </option>
-              ))}
-            </select>
+            <ProjectSelect
+              value={store.projectFilter ?? ''}
+              emptyLabel={UITexts.DailyPlan.allProjects}
+              selectClass="settings-select daily-plan-range"
+              onChange={(id: string) => store.setProjectFilter(id || null)}
+            />
             {store.tags.length > 0 && (
               <button
                 class={'daily-plan-secondary-btn daily-tagfilter-btn' + (tagFilter.size ? ' active' : '')}

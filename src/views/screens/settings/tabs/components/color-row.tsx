@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './color-row.css'
 import { toHex6 } from '../../shared'
 
 export interface ColorRowProps {

@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './track-modal.css'
 import { UITexts } from '@texts'
 import Button from '@views/components/button/button'
 import store from './track-modal.store'

@@ -5,6 +5,7 @@ import { BaseClient } from '../base.client'
 // fields so call sites can destructure/pass the methods freely.
 class GitClient extends BaseClient {
   branches = (id: string) => this.call(Channel.Git.Branches, { id })
+  branchesAt = (cwd: string) => this.call(Channel.Git.BranchesAt, { cwd })
   stashList = (id: string) => this.call(Channel.Git.StashList, { id })
   fileStatus = (cwd: string) => this.call(Channel.Git.FileStatus, { cwd })
   listWorktrees = (cwd?: string) => this.call(Channel.Git.Worktrees, { cwd })

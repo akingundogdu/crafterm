@@ -1,4 +1,5 @@
 import { Component } from '@geajs/core'
+import './time-report.css'
 import type { Range } from '@services/domain/time'
 import { UITexts } from '@texts'
 import { rangeTab } from './time-report.store'

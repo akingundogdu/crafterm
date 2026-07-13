@@ -122,3 +122,39 @@ export function listSchemes(repoRoot: string, cfg?: IosCfg): Promise<string[]> {
     )
   })
 }
+
+// ---- Simulator maintenance (todomqz3j1009t) ---------------------------------
+
+// Run one xcrun command, carrying its stderr back so the UI can say what failed.
+function xcrun(args: string[]): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    execFile(BIN.xcrun, args, { timeout: 120_000 }, (err, _out, stderr) => {
+      if (!err) return resolve({ ok: true })
+      resolve({ ok: false, error: (stderr || err.message).toString().trim() })
+    })
+  })
+}
+
+// Shut down one simulator, or every booted one when no udid is given.
+export function simShutdown(udid?: string): Promise<{ ok: boolean; error?: string }> {
+  return xcrun(['simctl', 'shutdown', udid || 'all'])
+}
+
+// Erase one simulator (or all of them) back to a clean state. simctl refuses to
+// erase a booted device, so shut it down first — that is what the command means in
+// practice, and it matches what people type by hand.
+export async function simErase(udid?: string): Promise<{ ok: boolean; error?: string }> {
+  await simShutdown(udid)
+  return xcrun(['simctl', 'erase', udid || 'all'])
+}
+
+// Remove an installed app from a simulator or a physical device.
+export function appUninstall(
+  udid: string,
+  bundleId: string,
+  kind: 'simulator' | 'device'
+): Promise<{ ok: boolean; error?: string }> {
+  return kind === 'simulator'
+    ? xcrun(['simctl', 'uninstall', udid, bundleId])
+    : xcrun(['devicectl', 'device', 'uninstall', 'app', '--device', udid, bundleId])
+}

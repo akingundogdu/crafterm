@@ -40,38 +40,6 @@
   z-index: 99999;
 }
 
-.pane-box {
-  position: relative; /* containing block for the .pane-drop drag overlay (inset:0) */
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bg-term);
-  transition: border-color 0.15s ease;
-}
-.pane-box.active {
-  border-color: rgba(76, 141, 255, 0.55);
-}
-
-.pane-header {
-  flex: 0 0 auto;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  background: linear-gradient(180deg, #181a21, #15171d);
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--text-mute);
-}
-.pane-box.active .pane-header {
-  color: var(--text);
-}
 .pane-title {
   flex: 1;
   overflow: hidden;
@@ -255,9 +223,6 @@
 body.dragging-pane .pane-grip {
   cursor: grabbing;
 }
-body.dragging-pane .pane-header {
-  cursor: grabbing;
-}
 .pane-drop {
   position: absolute;
   inset: 0;
@@ -331,5 +296,3 @@ body.dragging-pane .pane-term {
 .pane-popped .settings-inline-btn {
   margin: 0;
 }
-
-
