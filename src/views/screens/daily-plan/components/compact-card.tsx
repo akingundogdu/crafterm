@@ -13,7 +13,7 @@ import {
   taskById,
   sanitizeSlug,
   worktreeBranchForTask
-} from '@views/screens/daily-plan/daily-plan.state'
+} from '@views/screens/daily-plan/daily-plan.store'
 
 export interface TaskCardProps {
   task: DailyPlanTask

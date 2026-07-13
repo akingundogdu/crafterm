@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { createOverlay } from '@views/components/overlay/overlay'
-import { bindEscapeClose } from './detail-modal.state'
+import { bindEscapeClose } from './detail-modal.store'
 
 // Read-only text modal for Docker action/prune errors. Title + monospace <pre>,
 // closable via the × button, backdrop click, or Escape. gea Component (§2.7):

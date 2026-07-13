@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { ALL_THEME_NAMES } from '@views/editor/monaco/monaco-setup'
-import { PLAY_SVG } from '../db-pane.state'
+import { PLAY_SVG } from '../db-pane.store'
 
 export interface QueryToolbar {
   bar: HTMLDivElement

@@ -3,7 +3,7 @@ import type { TreeSection } from '@views/components/treeview/treeview'
 import { UITexts } from '@texts'
 import { state, settings } from '@views/state/spine'
 import { collectPinnedRoots, isContainer } from '@views/tree/tree'
-import { recencyBucket, maxActivityOf, stripPinned } from '../sidebar.state'
+import { recencyBucket, maxActivityOf, stripPinned } from '../sidebar.store'
 import { sectionLabel, groupHeader } from './section-label'
 
 // Build the section list: Pinned → Free → group buckets (or recency buckets).

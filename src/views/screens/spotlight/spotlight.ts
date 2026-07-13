@@ -14,7 +14,7 @@ import {
   loadCommands,
   loadPlans,
   loadBacklog
-} from './spotlight.state'
+} from './spotlight.store'
 import { spotlightStore as store, filterSpotEntries } from './spotlight.store'
 import SpotlightView, { type SpotlightDeps } from './spotlight.view'
 

@@ -4,7 +4,7 @@ import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { themes } from '../themes'
 import { ALL_THEME_NAMES } from '@views/editor/monaco/monaco-setup'
-import { makeInputChange, makeSelectChange } from '../shared.state'
+import { makeInputChange, makeSelectChange } from '../shared'
 import BackgroundSwatchControl from './components/background-swatch-control'
 import ColorRow from './components/color-row'
 import store from './theme.store'
@@ -16,7 +16,7 @@ import {
   applyBackground,
   copyCurrentToCustom,
   setCustomColor
-} from './appearance.state'
+} from './appearance.store'
 
 // Appearance panel body: font family/size, background swatches, code-editor theme.
 // Static (no reactive store) — the inputs are uncontrolled and seeded in

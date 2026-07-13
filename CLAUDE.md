@@ -141,9 +141,10 @@ structural rule set.**
   RETIRED: a component's state + logic + constants + IPC live in its `.store.ts`, its
   view in its `.tsx`. Do not create a `<name>.state.ts` (fold that code into the
   `.store.ts`) or a `<name>.controller.ts` (express it as a gea `.tsx` + `.store.ts`).
-  A ratchet guard (`tests/.../views-store-structure.guard.test.ts`) fails on any NEW
-  `.state.ts`/`.controller.*`; its `GRANDFATHERED_STATE` list holds the not-yet-folded
-  `.state.ts` files and shrinks to empty as they migrate into their `.store.ts`.
+  `.state.ts` is **fully retired** — all 66 have been folded into their `.store.ts`
+  (or, for cross-cutting utilities, their plain `.ts`). A guard
+  (`tests/.../views-store-structure.guard.test.ts`) now fails on ANY `.state.ts` and on
+  any `.controller.*` outside the 6 documented exceptions.
   - **Documented exception — 6 imperative-widget controllers only.** `treeview`,
     `code-pane`, `content`, `db-pane`, `diff-pane/file-search`, `diff/line-select`
     keep a `.controller` because they own a Monaco/xterm/diff-engine widget or a DOM-

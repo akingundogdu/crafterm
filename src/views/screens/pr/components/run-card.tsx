@@ -3,7 +3,7 @@ import type { WorkflowRun } from '@services/pr/pr.types'
 import { UITexts } from '@texts'
 import { openLink } from '@views/commands/commands'
 import { runState } from '../pr-status'
-import { runSpec, runMetaLine } from '../cards.state'
+import { runSpec, runMetaLine } from '../cards.store'
 import store from '../pr.store'
 
 // gea port of the legacy workflow-run card.

@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { PaletteCommand } from '@views/types/types'
 import store from '../commands.store'
-import { paletteCategories, editPaletteCommand, removePaletteCommand } from '../commands.state'
+import { paletteCategories, editPaletteCommand, removePaletteCommand } from '../commands.store'
 import PaletteCommandRow from './palette-command-row'
 
 interface PaletteItem {

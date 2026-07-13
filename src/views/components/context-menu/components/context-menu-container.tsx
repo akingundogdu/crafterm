@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { pushMenu, keepOnScreen } from '../context-menu.state'
+import { pushMenu, keepOnScreen } from '../context-menu.store'
 
 // The popover container: an empty `.context-menu` div positioned at (x, y). It is
 // a gea Component with no handlers, so the freshly rendered root can be lifted out

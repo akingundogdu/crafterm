@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { LINK_SVG, MD_RE, stopAnd } from '../notebook.state'
+import { LINK_SVG, MD_RE, stopAnd } from '../notebook.store'
 
 // A single linked-file row with its hover actions. gea Component: the action
 // handlers are injected so this module stays free of IPC/command imports. The

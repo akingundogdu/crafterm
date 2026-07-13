@@ -9,7 +9,7 @@ import {
   saveKeychainService,
   saveFallbackSecret,
   makeNotifSoundChange
-} from './workspace.state'
+} from './workspace.store'
 import { buildCodeRootField } from './components/code-root-field'
 import { buildShellField } from './components/shell-field'
 import { buildExtensionsField } from './components/extensions-field'

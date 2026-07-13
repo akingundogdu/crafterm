@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { copyHistoryEntry } from '../command.state'
+import { copyHistoryEntry } from '../command.store'
 
 export interface CommandHistoryRowProps {
   command: string

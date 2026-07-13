@@ -4,7 +4,28 @@ import { findProjectByPath, findFeature } from '@views/catalog/catalog'
 import { timeEntryRepo } from '@repositories'
 import { fmtHM, rangeStart, reportByProject, type Range } from '@services/domain/time'
 import { UITexts } from '@texts'
-import { rangeLabel } from './time-report.state'
+
+// Human label for the current range, used in the copy-to-clipboard text.
+export function rangeLabel(range: Range): string {
+  return range === 'today'
+    ? UITexts.Time.report.today
+    : range === 'week'
+      ? UITexts.Time.report.week
+      : range === 'month'
+        ? UITexts.Time.report.month
+        : UITexts.Time.report.all
+}
+
+// Tab/chip label for a range.
+export function rangeTab(r: Range): string {
+  return r === 'today'
+    ? UITexts.Time.report.tabToday
+    : r === 'week'
+      ? UITexts.Time.report.tabWeek
+      : r === 'month'
+        ? UITexts.Time.report.tabMonth
+        : UITexts.Time.report.tabAll
+}
 
 // A single line of the report: a project total, a nested feature total, or the
 // grand total. `cls` carries the legacy row class so the e2e selectors + styling

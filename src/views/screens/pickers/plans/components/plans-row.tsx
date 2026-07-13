@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { DirEntry } from '@services/fs/fs.types'
-import { planTitle } from '../plans.state'
+import { planTitle } from '../plans.store'
 
 export interface PlansRowProps {
   plan: DirEntry

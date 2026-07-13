@@ -1,6 +1,6 @@
 import { monaco } from '../monaco/monaco-setup'
 import type { CreateCodeEditorOptions } from './code-editor.types'
-import { mountSelectionActions } from './code-editor.state'
+import { mountSelectionActions } from './code-editor.store'
 import { createSelectionActions } from './components/selection-actions'
 
 // Mounts the floating selection action bar when at least one selection callback

@@ -4,7 +4,7 @@ import {
   makeFontSizeChange,
   makeDetailToggle,
   makeRecencyToggle
-} from './sidebar-tab.state'
+} from './sidebar-tab.store'
 import { buildOrientationSelect } from './components/orientation-select'
 import { buildFontSizeInput } from './components/font-size-input'
 import { buildDetailToggles } from './components/detail-toggles'

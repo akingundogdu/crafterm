@@ -3,7 +3,7 @@ import { plansService } from '@services'
 import type { DirEntry } from '@services/fs/fs.types'
 import { UITexts } from '@texts'
 import { overlayModal } from '../shared'
-import { filterPlans, makeChoosePlan } from './plans.state'
+import { filterPlans, makeChoosePlan } from './plans.store'
 import store from './plans.store'
 import PlansRow from './components/plans-row'
 

@@ -1,12 +1,12 @@
 import './context-menu.css'
 import type { ContextMenuItem, ColorOption } from './context-menu.types'
-import { closeFromDepth, closeContextMenu, installOutsideHandler } from './context-menu.state'
+import { closeFromDepth, closeContextMenu, installOutsideHandler } from './context-menu.store'
 import { createContextMenuContainer, mountContextMenu } from './components/context-menu-container'
 import { createContextMenuItem } from './components/context-menu-item'
 import { createColorSwatches } from './components/context-menu-color-swatches'
 
 export type { ContextMenuItem, ColorOption } from './context-menu.types'
-export { NODE_PALETTE, closeContextMenu } from './context-menu.state'
+export { NODE_PALETTE, closeContextMenu } from './context-menu.store'
 
 // Shared sidebar context menu — one implementation used by the terminal sidebar,
 // the notebook, and the database tree, so every right-click menu looks and

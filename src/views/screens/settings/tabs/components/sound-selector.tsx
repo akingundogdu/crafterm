@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
-import { SOUNDS } from '../workspace.state'
+import { SOUNDS } from '../workspace.store'
 
 interface SoundSelectorProps {
   panel: HTMLElement

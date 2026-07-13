@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { DirEntry } from '@services/fs/fs.types'
-import { filterDirs } from '../folder.state'
+import { filterDirs } from '../folder.store'
 import store from '../folder.store'
 import FolderRow from './folder-row'
 

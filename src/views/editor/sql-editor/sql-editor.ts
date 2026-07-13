@@ -7,7 +7,7 @@ import {
   createSqlModelAndEditor,
   bindRunCommand,
   applyModelSchema
-} from './sql-editor.state'
+} from './sql-editor.store'
 
 export type { SqlEditor } from './sql-editor.types'
 

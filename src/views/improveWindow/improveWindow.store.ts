@@ -1,6 +1,6 @@
 import { applyBgColor } from '@views/state/state'
 import { loadSettings } from '@repositories/settings.service'
-import { showImproveModal } from '../screens/improve-crafterm/improve-crafterm.state'
+import { showImproveModal } from '../screens/improve-crafterm/improve-crafterm.store'
 import { storeService } from '@services'
 
 // Loads persisted state/settings so themes + the todo file path resolve exactly

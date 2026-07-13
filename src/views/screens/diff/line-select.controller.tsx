@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { LineRow, LineSelectOptions, LineSelectHandle } from './line-select.types'
-import { buildRef } from './line-select.state'
+import { buildRef } from './line-select.store'
 import { createSelectionEngine } from './selection.engine'
 import { createDiffRow } from './components/diff-row'
 import { createActionCluster } from './components/action-cluster'

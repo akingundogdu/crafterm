@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { makeCloseClick } from '../pane.state'
+import { makeCloseClick } from '../pane.store'
 import { createWebviewElement } from './webview-element'
 
 export interface BrowserPaneHeader {

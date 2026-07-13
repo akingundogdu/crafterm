@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { disableSpellcheck } from './comment-popover.state'
+import { disableSpellcheck } from './comment-popover.store'
 
 // The comment input textarea for the diff comment popover. Pure view: a gea
 // Component builds the node; the factory disables spellcheck and returns it.

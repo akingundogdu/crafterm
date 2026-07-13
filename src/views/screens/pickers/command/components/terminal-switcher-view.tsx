@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { OpenTerminal } from '../command.types'
-import { filterTerminals } from '../command.state'
+import { filterTerminals } from '../command.store'
 import { terminalSwitcherStore as store } from '../command.store'
 import TerminalRow from './terminal-row'
 

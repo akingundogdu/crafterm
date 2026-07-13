@@ -1,7 +1,7 @@
 import { buildBrowserPaneBox, buildDocPaneBox } from './pane-box'
 import type { BrowserPane } from '@views/types/types'
 import { browsers, docs, uid } from '@views/state/spine'
-import { makeSelectPane, makeDocMention } from './pane.state'
+import { makeSelectPane, makeDocMention } from './pane.store'
 import { showPaneMenu } from './components/pane-menu'
 import { createBrowserPaneHeader } from './components/browser-pane'
 import { createDocPaneHeader, createDocSelectionMenu } from './components/doc-pane'
@@ -12,7 +12,7 @@ import { setupEditorLifecycle } from './components/editor-lifecycle.engine'
 import { setupBrowserEvents } from './components/browser-events.engine'
 
 export type { PaneMenuEntry } from './pane.types'
-export { buildPaneMenu } from './pane.state'
+export { buildPaneMenu } from './pane.store'
 export { showPaneMenu } from './components/pane-menu'
 // Re-exported for external callers that still import them from the pane entry
 // (main.ts, pickers/commands/spotlight/sidebar/time/dailyPlan/content/settings) —

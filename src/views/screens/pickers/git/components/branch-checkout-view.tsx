@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { filterBranches } from '../git.state'
+import { filterBranches } from '../git.store'
 import store from '../branch.store'
 import GitQuickActionChips from './git-quick-action-chips'
 import BranchRow from './branch-row'

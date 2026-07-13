@@ -1,7 +1,7 @@
 import '@views/screens/meeting-notes/meeting-notes.css'
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { groupByProject, setActiveRerender } from '@views/screens/meeting-notes/meeting-notes.state'
+import { groupByProject, setActiveRerender } from '@views/screens/meeting-notes/meeting-notes.store'
 import { openMeetingForm } from './components/meeting-form.open'
 import MeetingNoteCard from './components/meeting-note-card'
 import store from './meeting-notes.store'

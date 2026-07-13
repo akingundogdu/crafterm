@@ -1,4 +1,4 @@
-import { makePaneDragMousedown } from '../pane.state'
+import { makePaneDragMousedown } from '../pane.store'
 import { createPaneGrip, createPaneDropOverlay } from './pane-drag'
 
 // Drag-to-rearrange wiring: the header is the handle. Uses pointer events (NOT

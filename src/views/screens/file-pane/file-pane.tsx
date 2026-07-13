@@ -15,10 +15,10 @@ import {
   makeRevealClick,
   makeReloadClick,
   makeCloseClick
-} from './file-pane.state'
+} from './file-pane.store'
 
 export type { CreateFilePaneOptions } from './file-pane.types'
-export { destroyFilePane } from './file-pane.state'
+export { destroyFilePane } from './file-pane.store'
 
 // The pane-box shell for a file pane. The header + line-select view are pre-built
 // nodes appended imperatively (a pre-built node embedded via a `{expr}` child

@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { filterAccounts, makeAccountRowClick } from '../claude.state'
+import { filterAccounts, makeAccountRowClick } from '../claude.store'
 import store from '../claude-accounts.store'
 import AccountRow from './account-row'
 

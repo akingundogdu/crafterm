@@ -1,7 +1,7 @@
 import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { labeledInput } from '../shared'
-import { makeSaveRepoPath, makeSaveUpdateCommand } from './system-update.state'
+import { makeSaveRepoPath, makeSaveUpdateCommand } from './system-update.store'
 
 export function buildSystemUpdatePanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.systemUpdate.heading}</h3>`)

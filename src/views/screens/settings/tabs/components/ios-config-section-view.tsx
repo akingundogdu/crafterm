@@ -7,7 +7,7 @@ import { reconcileWorktrees } from '@services/worktrees'
 import { iosConfigRepo } from '@repositories'
 import { promptForm } from '../../lib/prompt-form'
 import type { IosConfigKey } from '../projects.types'
-import { defaultIosConfig } from '../projects.state'
+import { defaultIosConfig } from '../projects.store'
 import IosConfigDetail from './ios-config-detail'
 import store from './ios-config-section.store'
 

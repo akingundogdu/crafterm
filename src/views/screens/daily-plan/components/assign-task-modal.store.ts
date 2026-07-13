@@ -4,7 +4,7 @@ import { panes } from '@views/state/state'
 import { persistence } from '@repositories/persistence.service'
 import { dailyTaskRepo } from '@repositories'
 import { refreshPaneDailyTask } from '@views/pane/pane'
-import { taskById } from '../daily-plan.state'
+import { taskById } from '../daily-plan.store'
 
 // Reactive state + logic for the gea "assign a daily task to a pane" modal (merges
 // the legacy imperative AssignTaskModalController). A singleton reset on each open

@@ -25,7 +25,7 @@ import {
   removeNode,
   locate,
   containsId
-} from './database.state'
+} from './database.store'
 
 // Database tool: a project/folder/connection tree in the sidebar, live object
 // introspection under each connection, a Queries section of saved .sql files,

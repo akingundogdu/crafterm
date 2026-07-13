@@ -1,5 +1,5 @@
 import { renderMarkdown } from '@views/markdown/markdown'
-import { readDoc } from '../pane.state'
+import { readDoc } from '../pane.store'
 
 export interface DocReloadDeps {
   source: string

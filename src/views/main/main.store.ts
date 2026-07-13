@@ -72,7 +72,7 @@ import {
   markPaneTaskReview,
   markPaneTaskTest
 } from '../screens/daily-plan/daily-plan.shell'
-import { openNewMeeting } from '../screens/meeting-notes/meeting-notes.state'
+import { openNewMeeting } from '../screens/meeting-notes/meeting-notes.store'
 import { openReminderForm } from '../screens/reminders/components/reminder-form.open'
 import { openSettings } from '../screens/settings/settings'
 import {
@@ -90,7 +90,7 @@ import { showSpotlight } from '../screens/spotlight/spotlight'
 import { startWorktreeReconcile } from '@services/worktrees'
 import { onProcessExit } from '@services/bgproc'
 import { startIosWorktreePoll } from '../screens/ios-worktree/ios-worktree'
-import { showImproveModal } from '../screens/improve-crafterm/improve-crafterm.state'
+import { showImproveModal } from '../screens/improve-crafterm/improve-crafterm.store'
 import { databaseNewProject } from '../screens/database/database'
 import { renderDocker } from '../screens/docker/docker'
 import { KEYBINDINGS, effectiveCombo, comboFromEvent, isRecording } from '@views/keybindings/keybindings'

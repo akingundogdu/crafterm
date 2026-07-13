@@ -8,7 +8,7 @@ import {
   makeSubmit,
   makeSendClick,
   makeTextareaKeydown
-} from './comment-popover.state'
+} from './comment-popover.store'
 import { createCommentTextarea } from './comment-textarea'
 
 export type { CommentRange, CommentPopoverHandle } from './comment-popover.types'

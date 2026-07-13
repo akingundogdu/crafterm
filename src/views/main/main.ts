@@ -13,7 +13,7 @@ import {
   startPolling,
   wireServiceWatchers,
   init
-} from './main.state'
+} from './main.store'
 
 // Main-window entry: register all wiring in the same order as before, then boot.
 // The handler bodies + session-restore logic live in `main.state.ts`.

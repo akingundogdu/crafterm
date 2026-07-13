@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { FileSearchHandle, FileSearchOptions } from './file-search.types'
-import { filterFiles, disableSpellcheck, makeItemPick, makeSearchKeydown } from './file-search.state'
+import { filterFiles, disableSpellcheck, makeItemPick, makeSearchKeydown } from './file-search.store'
 import { createSearchItem } from './search-item'
 
 // The search dropdown shell markup (input + results list), as a gea Component. The

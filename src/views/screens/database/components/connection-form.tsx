@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { DbEngine } from '@views/types/types'
-import { engineClass } from '../database.state'
+import { engineClass } from '../database.store'
 import store from './connection-form.store'
 
 // gea connection add/edit form body, mounted into the @views overlay backdrop by

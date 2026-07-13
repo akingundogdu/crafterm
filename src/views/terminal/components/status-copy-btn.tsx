@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { COPY_ICON } from '../status-bar.state'
+import { COPY_ICON } from '../status-bar.store'
 
 // Button that copies the pane's full cwd path, flashing a check on success. The
 // SVG icon is injected via a ref in onAfterRender (the innerHTML JSX prop is not

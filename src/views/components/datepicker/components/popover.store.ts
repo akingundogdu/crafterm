@@ -1,6 +1,6 @@
 import { Store } from '@geajs/core'
 import type { DateFieldMode, DateState, DayCell, FieldModel } from '../datepicker.types'
-import { nowState } from '../datepicker.state'
+import { nowState } from '../datepicker.store'
 
 // Per-instance reactive state for one calendar popover (a fresh CalendarStore is
 // created on every openPopover, so two date fields never share month/selection —

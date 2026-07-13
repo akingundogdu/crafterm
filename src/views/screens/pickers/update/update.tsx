@@ -8,7 +8,7 @@ import { deployService } from '@services'
 import { pickFolderPath } from '../folder/folder'
 import { UITexts } from '@texts'
 import type { UpdateStep } from './update.types'
-import { resolveUpdateCommand } from './update.state'
+import { resolveUpdateCommand } from './update.store'
 import store from './update.store'
 import UpdateStepRow from './components/update-step-row'
 

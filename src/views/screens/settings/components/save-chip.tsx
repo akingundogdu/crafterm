@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { persistence } from '@repositories/persistence.service'
-import { makeRefreshChip, flushSave } from '../settings.state'
+import { makeRefreshChip, flushSave } from '../settings.store'
 
 // gea footer holding the save-status chip + a manual "Save now" flush button.
 // One-shot builder (rebuilt when the modal opens), so no reactive store is needed —

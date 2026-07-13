@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { filterStashes, makeStashApplyClick, makeStashDropClick } from '../git.state'
+import { filterStashes, makeStashApplyClick, makeStashDropClick } from '../git.store'
 import store from '../stash.store'
 import StashRow from './stash-row'
 

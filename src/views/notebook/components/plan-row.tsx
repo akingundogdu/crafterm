@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { PlanItem } from '../notebook.types'
-import { NOTE_SVG, MD_RE, stopAnd } from '../notebook.state'
+import { NOTE_SVG, MD_RE, stopAnd } from '../notebook.store'
 
 // A single plan list item with its hover actions. gea Component: the action
 // handlers are injected so this module stays free of IPC/command imports. The

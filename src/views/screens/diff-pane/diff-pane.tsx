@@ -12,10 +12,10 @@ import { createDiffHeader } from './components/diff-header'
 import { createDiffNavigation } from './diff-navigation.engine'
 import { createDiffKeyboard } from './diff-keyboard.engine'
 import type { CreateDiffPaneOptions } from './diff-pane.types'
-import { COMMENT_SVG, registerDiffCleanup, fileToLineRows, stopAnd, preventStop } from './diff-pane.state'
+import { COMMENT_SVG, registerDiffCleanup, fileToLineRows, stopAnd, preventStop } from './diff-pane.store'
 
 export type { CreateDiffPaneOptions } from './diff-pane.types'
-export { destroyDiffPane } from './diff-pane.state'
+export { destroyDiffPane } from './diff-pane.store'
 
 // The pane-box shell for a diff pane. The header + file-search + line-select body
 // are pre-built nodes appended imperatively (a pre-built node embedded via a

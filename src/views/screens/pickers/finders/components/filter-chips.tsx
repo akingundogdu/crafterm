@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { baseName } from '../../shared'
-import { ALL_FOLDERS } from '../finders.state'
+import { ALL_FOLDERS } from '../finders.store'
 
 export interface FilterChipsProps {
   folders: string[]

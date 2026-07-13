@@ -12,7 +12,7 @@ import {
   makeRefreshClick,
   makeSearchInputHandler,
   stopPropagation
-} from './explorer.state'
+} from './explorer.store'
 import { buildExplorerSearchRow } from './components/explorer-search-row'
 import { buildExplorerEmpty } from './components/explorer-empty'
 

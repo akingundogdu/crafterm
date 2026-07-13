@@ -1,6 +1,6 @@
 import { monaco } from '../monaco/monaco-setup'
 import type { CreateCodeEditorOptions } from './code-editor.types'
-import { createModelAndEditor, bindSaveCommand, bindChange } from './code-editor.state'
+import { createModelAndEditor, bindSaveCommand, bindChange } from './code-editor.store'
 
 // Builds the Monaco editor + model for a pane and wires the save command and the
 // dirty-change subscription. Returns the instances plus the change disposable so

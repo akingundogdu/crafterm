@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { SidebarNode, ProjectNode, WorktreeNode } from '@views/types/types'
-import { makeRerunClick, makeMoreClick } from '../ios-worktree.state'
+import { makeRerunClick, makeMoreClick } from '../ios-worktree.store'
 
 // The ▶ (re-run last target) + ⋯ (action menu) buttons on an iOS worktree node.
 // Static per render — the sidebar rebuilds this whenever the worktree changes — so

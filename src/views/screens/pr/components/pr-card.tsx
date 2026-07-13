@@ -9,7 +9,7 @@ import {
   reviewSpec,
   isMergeDisabled,
   commentTitle
-} from '../cards.state'
+} from '../cards.store'
 import store from '../pr.store'
 
 const COMMENT_PATH =

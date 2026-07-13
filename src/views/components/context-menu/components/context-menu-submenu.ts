@@ -1,5 +1,5 @@
 import type { ContextMenuItem, ColorOption } from '../context-menu.types'
-import { closeFromDepth, menuAt } from '../context-menu.state'
+import { closeFromDepth, menuAt } from '../context-menu.store'
 
 // The recursive renderer injected from the orchestrator so the flyout chain
 // keeps working: a submenu renders another menu level, which can open further

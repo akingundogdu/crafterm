@@ -1,6 +1,6 @@
 import { Store } from '@geajs/core'
 import { settings } from '@views/state/spine'
-import { COLOR_KEYS, setThemeName, themeColorSource } from './appearance.state'
+import { COLOR_KEYS, setThemeName, themeColorSource } from './appearance.store'
 
 interface ColorEntry {
   key: string

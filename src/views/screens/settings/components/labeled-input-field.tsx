@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import '@views/components/form-field/form-field.css'
-import { makeInputChange } from '../shared.state'
+import { makeInputChange } from '../shared'
 
 // gea `.field` row: a label paired with a text input; forwards value changes.
 // Inline `.field` markup (§5.9 — no FormField wrapper). One-shot field builder

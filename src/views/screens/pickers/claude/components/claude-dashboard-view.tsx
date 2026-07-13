@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { filterSessions, makeSessionRowClick } from '../claude.state'
+import { filterSessions, makeSessionRowClick } from '../claude.store'
 import store from '../claude-dashboard.store'
 import ClaudeSessionRow from './claude-session-row'
 

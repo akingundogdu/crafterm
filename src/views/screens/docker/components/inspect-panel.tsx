@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { DockerKind } from '@services/docker/docker.types'
 import { inspectFields } from '../inspect'
-import { parseInspect, makeRawToggle } from './detail-modal.state'
+import { parseInspect, makeRawToggle } from './detail-modal.store'
 
 // The parsed inspect data rendered as a key/value grid with a Raw JSON toggle.
 // Falls back to the raw text when parsing fails. gea Component (§2.7): static

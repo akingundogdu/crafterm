@@ -6,7 +6,7 @@ import {
   makeDocCopyMention,
   makeDocAddToChat,
   preventStopMousedown
-} from '../pane.state'
+} from '../pane.store'
 
 export interface DocPaneHeader {
   header: HTMLDivElement

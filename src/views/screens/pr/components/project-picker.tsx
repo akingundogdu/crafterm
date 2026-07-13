@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { createOverlay } from '@views/components/overlay/overlay'
-import { bindEscapeClose } from './project-picker.state'
+import { bindEscapeClose } from './project-picker.store'
 import store from './project-picker.store'
 
 // Searchable, multi-select repo picker for the "All projects" PR/Deployments view.

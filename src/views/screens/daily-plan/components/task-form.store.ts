@@ -6,7 +6,7 @@ import type {
 } from '@views/types/types'
 import { uid } from '@views/lib/uid'
 import { dailyTaskRepo } from '@repositories'
-import { assignIssueKey, sanitizeSlug, nextOrder, taskById } from '@views/screens/daily-plan/daily-plan.state'
+import { assignIssueKey, sanitizeSlug, nextOrder, taskById } from '@views/screens/daily-plan/daily-plan.store'
 
 // Reactive shell + commit logic for the gea create/edit task form. The form's
 // inputs are uncontrolled (read from the DOM at commit time) and the imperative

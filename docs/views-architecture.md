@@ -125,9 +125,10 @@ filterFoo(...)`, `export async function loadFoo(...)` calling `@services`.
   `.store.ts`), only the 6 documented `.controller` files. `GRANDFATHERED_STATE`
   shrinks to empty as the remaining `.state.ts` files fold into their `.store.ts`.
 
-## 7. Migration status
+## 7. Migration status — DONE
 
-The `.state.ts` → `.store.ts` fold is a ratcheted in-progress migration: 66 files are
-grandfathered and shrink as each folds into its sibling `.store.ts` (reactive state →
-`Store` fields; pure logic/constants/IPC → exports in the same `.store.ts`). The rule
-is fully in force for all new and touched components now.
+The `.state.ts` → `.store.ts` fold is **complete**: all 66 `.state.ts` files were
+folded (37 renamed to `.store.ts`, 26 merged into an existing `.store.ts`, and 3
+cross-cutting ones — `commands`, `pickers/shared`, `settings/shared` — merged into
+their plain `.ts`). `.state.ts` is fully retired; the guard now fails on any
+occurrence. Verified: tsc web+node, build, vitest, playwright 126/126.

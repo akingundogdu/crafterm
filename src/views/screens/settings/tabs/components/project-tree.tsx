@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import type { ProjectTreeRowData } from './project-tree.state'
+import type { ProjectTreeRowData } from './project-tree.store'
 import ProjectTreeRow from './project-tree-row'
 
 export interface ProjectTreeDeps {

@@ -1,4 +1,10 @@
 import { Store } from '@geajs/core'
+import { settings } from '@views/state/spine'
+
+// The deploy command to rebuild from source, falling back to the default script.
+export function resolveUpdateCommand(): string {
+  return settings.updateCommand.trim() || 'run-crafterm-deploy'
+}
 
 // Reactive state for the self-update progress modal. `steps` is the source of
 // truth, read in the list view's template() so gea patches the rows as the async

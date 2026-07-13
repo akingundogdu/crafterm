@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { Application } from '@views/types/types'
-import { sanitizeBranch } from '../project.state'
+import { sanitizeBranch } from '../project.store'
 import store from '../feature-setup.store'
 import EnvironmentChips from './environment-chips'
 import ApplicationCheckboxRow from './application-checkbox-row'

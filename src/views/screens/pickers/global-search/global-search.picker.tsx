@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { GsEntry } from './global-search.types'
-import { filterEntries } from './global-search.state'
+import { filterEntries } from './global-search.store'
 import store from './global-search.store'
 import GlobalSearchRow from './components/global-search-row'
 

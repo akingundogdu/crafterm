@@ -1,5 +1,5 @@
 import type { BrowserPane } from '@views/types/types'
-import { makeBrowserReload, makeBrowserExternal, makeBrowserTitleUpdate } from '../pane.state'
+import { makeBrowserReload, makeBrowserExternal, makeBrowserTitleUpdate } from '../pane.store'
 
 export interface BrowserEventsDeps {
   bp: BrowserPane

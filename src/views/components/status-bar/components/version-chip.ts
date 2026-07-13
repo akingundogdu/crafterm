@@ -2,7 +2,7 @@ import { settings } from '@views/state/spine'
 import { appService } from '@services'
 import { runUpdate } from '@views/screens/pickers/update/update'
 import { UITexts } from '@texts'
-import { VERSION_POLL_MS } from '../status-bar.state'
+import { VERSION_POLL_MS } from '../status-bar.store'
 
 // Status bar version chip: shows the installed app version (base + git commit
 // count it was built from) and flags "redeploy needed" when the source repo has

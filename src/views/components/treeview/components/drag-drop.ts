@@ -1,5 +1,5 @@
 import type { TreeContext } from '../treeview.types'
-import { zoneFor, dropClass } from '../treeview.state'
+import { zoneFor, dropClass } from '../treeview.store'
 
 // Wire drag-reorder/nesting (before / after / inside) onto a single row. Reads
 // and mutates the shared drag id through the context; `clearDropMarks` removes

@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { filterResumeSessions, type ResumeSession } from '../claude.state'
+import { filterResumeSessions, type ResumeSession } from '../claude.store'
 import store from '../claude-resume.store'
 import ResumeSessionRow from './resume-session-row'
 

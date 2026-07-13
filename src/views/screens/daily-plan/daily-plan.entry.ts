@@ -15,7 +15,7 @@ import {
   tasksFor,
   assignIssueKey,
   worktreeBranchForTask
-} from '@views/screens/daily-plan/daily-plan.state'
+} from '@views/screens/daily-plan/daily-plan.store'
 import { openTaskForm } from './components/task-form.open'
 import { openTagFilterPopover as buildTagFilterPopover } from './components/tag-filter-popover'
 import { renderDailyCompactView } from './components/daily-compact'

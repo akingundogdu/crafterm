@@ -1,6 +1,6 @@
 import { Store } from '@geajs/core'
 import type { ClaudeSession } from './claude.types'
-import { collectSessions } from './claude.state'
+import { collectSessions } from './claude.store'
 
 // Reactive state for the live Claude sessions dashboard. `sessions` (recollected
 // from the live panes on the 1s timer) and `search` are read directly in the

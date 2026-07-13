@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { promptText } from '@views/components/dialog/prompt-text'
 import store from '../commands.store'
-import { prettyMdPath, removeMdFolder, addMdFolder } from '../commands.state'
+import { prettyMdPath, removeMdFolder, addMdFolder } from '../commands.store'
 import MarkdownFolderRow from './markdown-folder-row'
 
 interface FolderItem {

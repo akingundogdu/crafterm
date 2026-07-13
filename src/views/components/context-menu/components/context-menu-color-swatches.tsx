@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { ColorOption } from '../context-menu.types'
-import { NODE_PALETTE, makeSwatchClick } from '../context-menu.state'
+import { NODE_PALETTE, makeSwatchClick } from '../context-menu.store'
 
 // The root-level color row: a "none" swatch plus one swatch per palette color,
 // each marked active when it matches the current selection. Rendered directly into

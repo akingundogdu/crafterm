@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { CollectedProcess } from '@services/bgproc'
-import { PROC_STATUS_LABEL } from '../processes.state'
+import { PROC_STATUS_LABEL } from '../processes.store'
 
 export interface ProcessRowProps {
   item: CollectedProcess

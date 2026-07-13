@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { timeValue } from '../datepicker.state'
+import { timeValue } from '../datepicker.store'
 import type { CalendarStore } from './popover.store'
 
 // The datetime-mode time row. The input is controlled off the reactive selection

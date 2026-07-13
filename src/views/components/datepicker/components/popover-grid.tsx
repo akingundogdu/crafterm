@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { WEEKDAYS, MONTHS, buildMonthCells, isSelectedCell, stopMousedown } from '../datepicker.state'
+import { WEEKDAYS, MONTHS, buildMonthCells, isSelectedCell, stopMousedown } from '../datepicker.store'
 import type { CalendarStore } from './popover.store'
 import PopoverCell from './popover-cell'
 import PopoverFooter from './popover-footer'

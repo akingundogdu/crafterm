@@ -3,7 +3,7 @@ import { Component } from '@geajs/core'
 import { codePanes, uid } from '@views/state/spine'
 import { setupPaneDnd } from '@views/pane/pane'
 import type { CreateCodePaneOptions } from './code-pane.types'
-import { runCodePaneCleanup, makeSelectPane } from './code-pane.state'
+import { runCodePaneCleanup, makeSelectPane } from './code-pane.store'
 import { CodePaneController } from './code-pane.controller'
 
 export type { CreateCodePaneOptions } from './code-pane.types'

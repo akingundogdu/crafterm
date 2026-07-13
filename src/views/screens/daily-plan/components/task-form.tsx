@@ -3,7 +3,7 @@ import '@views/components/form-field/form-field.css'
 import type { DailyPlanTask, DailyPlanStatus, DailyPlanPriority, ProjectNode } from '@views/types/types'
 import { createDateField, type DateField } from '@views/components/datepicker/datepicker'
 import { showRemindModal } from '@views/screens/reminders/components/remind-modal'
-import { FORM_STATUSES, PRIORITIES, projectTree, sanitizeSlug } from '@views/screens/daily-plan/daily-plan.state'
+import { FORM_STATUSES, PRIORITIES, projectTree, sanitizeSlug } from '@views/screens/daily-plan/daily-plan.store'
 import { buildTagPicker } from './tag-picker'
 import store from './task-form.store'
 

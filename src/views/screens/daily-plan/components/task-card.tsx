@@ -3,7 +3,7 @@ import type { DailyPlanTask } from '@views/types/types'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { showRemindModal } from '@views/screens/reminders/components/remind-modal'
 import { parseYmd, shiftDays } from '@views/screens/daily-plan/task-helpers'
-import { todayKey, shortDue, dueInfo, tagById, sanitizeSlug, worktreeBranchForTask, taskById } from '@views/screens/daily-plan/daily-plan.state'
+import { todayKey, shortDue, dueInfo, tagById, sanitizeSlug, worktreeBranchForTask, taskById } from '@views/screens/daily-plan/daily-plan.store'
 import { showTaskForm, openTaskInTerminal } from '@views/screens/daily-plan/daily-plan.entry'
 import store from '../daily-plan.store'
 

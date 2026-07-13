@@ -1,6 +1,6 @@
 import type { Pane } from '@views/types/types'
 import type { StatusSegment } from './status-bar.types'
-import { buildPaneStatus, makeBranchClick } from './status-bar.state'
+import { buildPaneStatus, makeBranchClick } from './status-bar.store'
 
 // An ordered status segment paired with its (optional) click handler — the branch
 // segment carries the checkout-picker click; the rest carry none.

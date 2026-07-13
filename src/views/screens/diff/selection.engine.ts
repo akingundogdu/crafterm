@@ -1,4 +1,4 @@
-import { DEFAULT_FONT, clampFont } from './line-select.state'
+import { DEFAULT_FONT, clampFont } from './line-select.store'
 
 export interface SelectionEngineOptions {
   // The live row list (selectable rows, in order) — read by reference.

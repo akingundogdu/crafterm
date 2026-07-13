@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { PaletteCommand } from '../command.types'
-import { filterPaletteCommands } from '../command.state'
+import { filterPaletteCommands } from '../command.store'
 import { commandPaletteStore as store } from '../command.store'
 import CategoryChip from './category-chips'
 import PaletteRow from './palette-row'

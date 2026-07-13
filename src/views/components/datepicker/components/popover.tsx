@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { DateField, DateFieldMode, FieldModel } from '../datepicker.types'
-import { dispatchChange, positionPopover, makeOutsideDown, makeEscapeKey } from '../datepicker.state'
+import { dispatchChange, positionPopover, makeOutsideDown, makeEscapeKey } from '../datepicker.store'
 import { CalendarStore } from './popover.store'
 import PopoverBody from './popover-grid'
 

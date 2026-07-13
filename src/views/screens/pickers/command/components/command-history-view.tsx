@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
-import { filterHistory } from '../command.state'
+import { filterHistory } from '../command.store'
 import { commandHistoryStore as store } from '../command.store'
 import CommandHistoryRow from './command-history-row'
 

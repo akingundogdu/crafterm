@@ -21,7 +21,7 @@ import {
   makePaneRowClick,
   makePlanRowClick,
   makeNewWorktreeClick
-} from '../sidebar.state'
+} from '../sidebar.store'
 
 function pinBadge(): HTMLElement {
   return el('span', { class: 'pin-badge', title: UITexts.Sidebar.pinnedTitle }, '●')

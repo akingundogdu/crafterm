@@ -1,10 +1,10 @@
 import { settings } from '@views/state/spine'
 import { usageErrorShort, usageErrorLong } from '@services/domain/usage'
 import { shortModel } from '@views/screens/notifications/notif-format'
-import { fetchRealUsage, evaluateUsageThresholds } from '@views/screens/notifications/notifications.state'
+import { fetchRealUsage, evaluateUsageThresholds } from '@views/screens/notifications/notifications.store'
 import type { RealUsage } from '@views/screens/notifications/notifications.types'
 import { createUsagePopover, renderUsagePopover } from './usage-popover'
-import { USAGE_POLL_MS } from '../status-bar.state'
+import { USAGE_POLL_MS } from '../status-bar.store'
 
 // Status bar Claude usage chip: polls hourly. Compact display shows the active
 // model + this-week percentage; clicking opens a popover with full today / week /

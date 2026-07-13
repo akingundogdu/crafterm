@@ -5,7 +5,7 @@ import { buildSubTabs, labeledInput } from '../shared'
 import store from './commands.store'
 import PaletteCommandsControl from './components/palette-commands-control'
 import MarkdownFoldersControl from './components/markdown-folders-control'
-import { saveIdeCommand, saveOpenMyZsh } from './commands.state'
+import { saveIdeCommand, saveOpenMyZsh } from './commands.store'
 
 // Commands settings tab. A gea shell (no controller): the static heading is JSX and
 // the sub-tabs mount into an imperative host in onAfterRender (SubTabs panels are

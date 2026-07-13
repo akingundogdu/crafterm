@@ -1,5 +1,5 @@
 import { UITexts } from '@texts'
-import { preventAndStop } from '../line-select.state'
+import { preventAndStop } from '../line-select.store'
 
 interface ActionClusterOptions {
   // Extra buttons appended into the cluster after the "+" (e.g. comment).

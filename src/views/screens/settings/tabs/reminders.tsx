@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import '@views/components/form-field/form-field.css'
 import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
-import { makeInputChange } from '../shared.state'
+import { makeInputChange } from '../shared'
 import PresetCard from './components/preset-card'
 import store from './reminders.store'
 import {
@@ -13,7 +13,7 @@ import {
   removePreset,
   presetKind,
   presetInitialValue
-} from './reminders.state'
+} from './reminders.store'
 
 // Reactive body of the reminders panel: the live list of quick-time preset cards
 // followed by "+ Add preset". Rendered as a JSX child of RemindersPanel so gea

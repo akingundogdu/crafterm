@@ -10,7 +10,7 @@ import {
   addActionItem,
   resetActionMenu,
   editActionItem
-} from './action-menu.state'
+} from './action-menu.store'
 import type { ActionMenuItem } from '@views/types/types'
 
 // The descriptive line under each row: builtin rows name their in-app action,

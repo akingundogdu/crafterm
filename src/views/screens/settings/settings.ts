@@ -1,7 +1,7 @@
 import './settings.css'
 import { UITexts } from '@texts'
 import { settingsCleanups } from './shared'
-import { SETTINGS_CATEGORIES } from './settings.state'
+import { SETTINGS_CATEGORIES } from './settings.store'
 import { createSettingsModal } from './components/settings-modal'
 import { createSettingsBody, makeShow } from './components/settings-body'
 import { createSettingsNav } from './components/settings-nav'

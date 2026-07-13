@@ -1,13 +1,13 @@
 import './code-editor.css'
 import { applyTheme } from '../monaco/monaco-setup'
 import type { CodeEditor, CreateCodeEditorOptions } from './code-editor.types'
-import { revealLine, readSelectionRange } from './code-editor.state'
+import { revealLine, readSelectionRange } from './code-editor.store'
 import { runOneTimeSetup } from './code-editor.init.engine'
 import { buildEditor } from './code-editor.model.engine'
 import { setupSelectionActions } from './code-editor.selection.engine'
 
 export type { CodeEditor } from './code-editor.types'
-export { setEditorOpenHandler } from './code-editor.state'
+export { setEditorOpenHandler } from './code-editor.store'
 
 // Monaco-backed code editor pane: VSCode's editor engine (TextMate-grade
 // highlighting + full TS/JS IntelliSense out of the box). This is the view layer

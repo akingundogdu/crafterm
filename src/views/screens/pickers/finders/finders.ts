@@ -3,7 +3,7 @@ import { openMarkdownFile } from '@views/commands/commands'
 import { overlayModal } from '../shared'
 import { UITexts } from '@texts'
 import type { MdFile } from './finders.types'
-import { ALL_FOLDERS, loadMarkdown, loadFiles } from './finders.state'
+import { ALL_FOLDERS, loadMarkdown, loadFiles } from './finders.store'
 import store from './finders.store'
 import FindersPicker, { type FindersConfig } from './finders.picker'
 

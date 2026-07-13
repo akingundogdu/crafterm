@@ -7,7 +7,7 @@ import {
   placeholderFor,
   defineValueProp,
   makeTriggerClick
-} from '../datepicker.state'
+} from '../datepicker.store'
 import { openPopover } from './popover'
 
 // The trigger button: a label span + calendar glyph, a native-like `value`

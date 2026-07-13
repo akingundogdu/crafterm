@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import type { Range } from '@services/domain/time'
 import { UITexts } from '@texts'
-import { rangeTab } from './time-report.state'
+import { rangeTab } from './time-report.store'
 import store from './time-report.store'
 
 const RANGES: Range[] = ['today', 'week', 'month', 'all']

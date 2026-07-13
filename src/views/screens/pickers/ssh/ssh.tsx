@@ -8,7 +8,7 @@ import {
   makeEditClick,
   makeDeleteClick,
   makeRowClick
-} from './ssh.state'
+} from './ssh.store'
 import store from './ssh.store'
 import SshConnectionRow from './components/ssh-connection-row'
 

@@ -4,7 +4,7 @@ import type { DockerKind } from '@services/docker/docker.types'
 import { dockerService } from '@services'
 import { createOverlay } from '@views/components/overlay/overlay'
 import type { EmbeddedTerm, DetailTab, DetailModalOptions } from './detail-modal.types'
-import { makeEmbeddedTerm, tabsFor, bindEscapeClose } from './detail-modal.state'
+import { makeEmbeddedTerm, tabsFor, bindEscapeClose } from './detail-modal.store'
 import InspectPanel from './inspect-panel'
 
 // Open the rich detail modal. Containers get Inspect/Logs/Terminal (Terminal

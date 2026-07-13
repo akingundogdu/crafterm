@@ -10,7 +10,7 @@ import {
   makeOpenClaude,
   makeRemoveWorktree,
   makeOpenDir
-} from './worktree.state'
+} from './worktree.store'
 import store from './worktree.store'
 import WorktreeRow from './components/worktree-row'
 

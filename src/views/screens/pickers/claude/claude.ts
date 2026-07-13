@@ -5,7 +5,7 @@ import {
   loadResumeSessions,
   filterResumeSessions,
   resumeSession
-} from './claude.state'
+} from './claude.store'
 import dashboardStore from './claude-dashboard.store'
 import accountsStore from './claude-accounts.store'
 import resumeStore from './claude-resume.store'

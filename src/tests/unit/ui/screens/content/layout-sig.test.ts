@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { layoutSig } from '@views/screens/content/content.state'
+import { layoutSig } from '@views/screens/content/content.store'
 import type { LayoutNode, Dir } from '@views/types/types'
 
 const leaf = (paneId: string): LayoutNode => ({ type: 'leaf', paneId })

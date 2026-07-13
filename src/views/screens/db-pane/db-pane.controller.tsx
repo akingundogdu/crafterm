@@ -19,7 +19,7 @@ import {
   schemaFor,
   parseSimpleSelect,
   emitOrderedSql
-} from './db-pane.state'
+} from './db-pane.store'
 
 // DOM nodes the controller drives. The view (db-pane.tsx) builds the static
 // skeleton and hands these refs over; the controller owns all state + behavior.

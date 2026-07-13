@@ -5,7 +5,7 @@ import { meetingNoteRepo } from '@repositories'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { showRemindModal } from '@views/screens/reminders/components/remind-modal'
 import { openMeetingForm } from './meeting-form.open'
-import { ARCHIVE_SVG, formatDate, projectFor } from '@views/screens/meeting-notes/meeting-notes.state'
+import { ARCHIVE_SVG, formatDate, projectFor } from '@views/screens/meeting-notes/meeting-notes.store'
 import store from '../meeting-notes.store'
 
 // gea port of the meeting-note card: date / title / remind·archive·delete, plus

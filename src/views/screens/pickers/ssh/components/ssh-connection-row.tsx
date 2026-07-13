@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { SshConnection } from '@views/types/types'
-import { sshTarget } from '../ssh.state'
+import { sshTarget } from '../ssh.store'
 
 export interface SshConnectionRowProps {
   conn: SshConnection

@@ -2,7 +2,7 @@ import type { DirEntry } from '@services/fs/fs.types'
 import { settings } from '@views/state/spine'
 import { overlayModal } from '../shared'
 import { UITexts } from '@texts'
-import { filterDirs, makeOpenHere, loadFolderListing } from './folder.state'
+import { filterDirs, makeOpenHere, loadFolderListing } from './folder.store'
 import store from './folder.store'
 import FolderPickerView, { type FolderPickerDeps } from './components/folder-picker-view'
 

@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import type { DailyPlanTask } from '@views/types/types'
 import { createOverlay } from '@views/components/overlay/overlay'
 import { UITexts } from '@texts'
-import { STATUS_LABEL } from '../daily-plan.state'
+import { STATUS_LABEL } from '../daily-plan.store'
 import store from './assign-task-modal.store'
 
 // Modal to assign (or change / clear) the daily task a terminal pane works on.

@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { SEARCH_SVG, stopAnd } from '../diff-pane.state'
+import { SEARCH_SVG, stopAnd } from '../diff-pane.store'
 import { createFileCounter } from './file-counter'
 
 interface DiffHeaderOptions {

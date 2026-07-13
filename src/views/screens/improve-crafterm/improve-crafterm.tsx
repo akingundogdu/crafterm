@@ -4,7 +4,7 @@ import { appService } from '@services'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { splitOrder } from '@views/screens/improve-crafterm/todo-doc'
 import type { RowAction } from '@views/screens/improve-crafterm/improve-crafterm.types'
-import { makePopoutClick, makeOpenSettingsClick } from '@views/screens/improve-crafterm/improve-crafterm.state'
+import { makePopoutClick, makeOpenSettingsClick } from '@views/screens/improve-crafterm/improve-crafterm.store'
 import TodoRow from './components/todo-row'
 import store, { type EntryView } from './improve-crafterm.store'
 

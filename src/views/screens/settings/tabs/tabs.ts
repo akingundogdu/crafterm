@@ -1,5 +1,5 @@
 import { UITexts } from '@texts'
-import { makeTabDisplayChange, makeHideToggle } from './tabs.state'
+import { makeTabDisplayChange, makeHideToggle } from './tabs.store'
 import { buildDisplayModeSelect } from './components/display-mode-select'
 import { buildHideTogglesGroup } from './components/hide-toggles-group'
 

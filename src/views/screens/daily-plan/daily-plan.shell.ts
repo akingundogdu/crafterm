@@ -4,7 +4,7 @@ import { dailyTaskRepo } from '@repositories'
 import { findProjectById } from '@views/catalog/catalog'
 import { worktreeNodeForBranch, removeWorktree } from '@services/worktrees'
 import { refreshPaneDailyTask } from '@views/pane/pane'
-import { taskById, worktreeBranchForTask } from './daily-plan.state'
+import { taskById, worktreeBranchForTask } from './daily-plan.store'
 import { assignPaneToTask as buildAssignPaneToTask } from './components/assign-task-modal'
 import { showTaskForm, triggerActiveDailyRerender, getCompactStatus } from './daily-plan.entry'
 

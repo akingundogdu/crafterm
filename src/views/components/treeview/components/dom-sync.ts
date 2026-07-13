@@ -1,6 +1,6 @@
 import type { TreeContext } from '../treeview.types'
 import type { TreeStore } from '../treeview.store'
-import { CHEVRON, applyRowColor } from '../treeview.state'
+import { CHEVRON, applyRowColor } from '../treeview.store'
 import { syncSlot } from './dynamic-refresh'
 import { wireDragDrop } from './drag-drop'
 import { markSelected } from './selection'

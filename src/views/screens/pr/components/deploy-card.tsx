@@ -3,7 +3,7 @@ import type { DeploymentStatus } from '@services/pr/pr.types'
 import { UITexts } from '@texts'
 import { openLink } from '@views/commands/commands'
 import { deployState } from '../pr-status'
-import { deploySpec, deployMetaLine } from '../cards.state'
+import { deploySpec, deployMetaLine } from '../cards.store'
 
 // gea port of the legacy deployment card.
 export default class DeployCard extends Component {

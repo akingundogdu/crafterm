@@ -1,5 +1,5 @@
 import type { Pane } from '@views/types/types'
-import { makeCopyPath } from './status-bar.state'
+import { makeCopyPath } from './status-bar.store'
 import { buildStatusSegments } from './status-segments.engine'
 import { createStatusSegment } from './components/status-segment'
 import { createStatusSeparator } from './components/status-separator'

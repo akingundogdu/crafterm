@@ -13,7 +13,7 @@ import {
 import { buildContentBox } from './content-nodes'
 import { findTab } from '@views/tree/tree'
 import { mountPanes } from '@views/pane/pane'
-import { tabContainers, layoutSig, makePopoutFocus, persistResizedLayout } from './content.state'
+import { tabContainers, layoutSig, makePopoutFocus, persistResizedLayout } from './content.store'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 
 const contentEl = document.getElementById('content')!

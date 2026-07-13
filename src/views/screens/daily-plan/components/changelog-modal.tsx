@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import '@views/components/modal/modal.css'
 import '@views/components/form-field/form-field.css'
 import { createOverlay } from '@views/components/overlay/overlay'
-import { CHANGELOG_RANGES, buildChangelogMarkdown } from '@views/screens/daily-plan/daily-plan.state'
+import { CHANGELOG_RANGES, buildChangelogMarkdown } from '@views/screens/daily-plan/daily-plan.store'
 
 // Modal: pick a day range, then generate a copyable markdown changelog of
 // completed tasks for customers. Fully self-contained — reads completed tasks from

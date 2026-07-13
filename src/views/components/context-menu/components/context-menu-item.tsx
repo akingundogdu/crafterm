@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { ContextMenuItem as ContextMenuItemData } from '../context-menu.types'
-import { makeLeafClick } from '../context-menu.state'
+import { makeLeafClick } from '../context-menu.store'
 import { makeSubmenuOpen, type RenderMenu } from './context-menu-submenu'
 
 // One item button. A parent (has `children`) opens a flyout to the right on

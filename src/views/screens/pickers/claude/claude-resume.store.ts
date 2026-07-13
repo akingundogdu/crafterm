@@ -1,5 +1,5 @@
 import { Store } from '@geajs/core'
-import type { ResumeSession } from './claude.state'
+import type { ResumeSession } from './claude.store'
 
 // Reactive state for the resume-session picker. `sessions` (the ~/.claude history),
 // `search`, and `sel` (keyboard/hover selection index) are read directly in the

@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { shortPath } from '../file-pane.state'
+import { shortPath } from '../file-pane.store'
 
 export interface FilePaneHeaderProps {
   path: string

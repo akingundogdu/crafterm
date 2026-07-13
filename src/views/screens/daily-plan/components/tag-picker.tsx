@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import type { DailyPlanTag } from '@views/types/types'
 import { uid } from '@views/lib/uid'
 import { dailyTagRepo } from '@repositories'
-import { nextTagColor, tagById } from '@views/screens/daily-plan/daily-plan.state'
+import { nextTagColor, tagById } from '@views/screens/daily-plan/daily-plan.store'
 
 // Tag multi-select picker used inside the gea task form. Mutates the caller-owned
 // `selectedIds` array in place (selections live in the parent task form); this

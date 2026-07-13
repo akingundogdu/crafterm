@@ -9,7 +9,7 @@ import {
   loadZshCommands,
   buildPaletteCommands,
   filterPaletteCommands
-} from './command.state'
+} from './command.store'
 import {
   terminalSwitcherStore,
   commandHistoryStore,
@@ -20,7 +20,7 @@ import CommandHistoryView, { type CommandHistoryDeps } from './components/comman
 import CommandPaletteView, { type CommandPaletteDeps } from './components/command-palette-view'
 
 export type { PaletteCommand, OpenTerminal, ZshCommand } from './command.types'
-export { loadZshCommands } from './command.state'
+export { loadZshCommands } from './command.store'
 
 // The picker DOM lives in the gea view Components (…-view.tsx) reading command.store;
 // each entry stays el-free and owns the overlay, the async load, the selection index

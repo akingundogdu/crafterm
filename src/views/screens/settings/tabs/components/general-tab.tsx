@@ -5,7 +5,7 @@ import { reconcileWorktrees, purgeWorktrees } from '@services/worktrees'
 import type { ProjectNode } from '@views/types/types'
 import LabeledTextField from '../../components/labeled-text-field'
 import LabeledSelectControl from '../../components/labeled-select-control'
-import { computeGroupOptions } from '../projects.state'
+import { computeGroupOptions } from '../projects.store'
 
 export interface GeneralTabDeps {
   renderTree: () => void

@@ -22,7 +22,7 @@ import {
   makeMenuClick,
   makeCloseClick,
   makeSelectPane
-} from './terminal.state'
+} from './terminal.store'
 
 export type { CreatePaneOptions } from './terminal.types'
 export {
@@ -33,7 +33,7 @@ export {
   applyAppearance,
   adjustActivePaneFontSize,
   resetActivePaneFontSize
-} from './terminal.state'
+} from './terminal.store'
 
 export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promise<string> {
   const stableId = opts?.attachId || opts?.stableId || crypto.randomUUID()

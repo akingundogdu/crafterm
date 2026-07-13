@@ -1,7 +1,7 @@
 import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { labeledInput, labeledSelect } from '../../shared'
-import { buildSecretOptions, currentFallbackSecret } from '../workspace.state'
+import { buildSecretOptions, currentFallbackSecret } from '../workspace.store'
 
 interface ClaudeUsageSectionProps {
   panel: HTMLElement

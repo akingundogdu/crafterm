@@ -1,11 +1,11 @@
 import './global-search.css'
 import { overlayModal } from '../shared'
-import { buildGlobalSearchIndex, makeChoose } from './global-search.state'
+import { buildGlobalSearchIndex, makeChoose } from './global-search.store'
 import store from './global-search.store'
 import GlobalSearchPicker from './global-search.picker'
 
 export type { GsEntry } from './global-search.types'
-export { SOURCE_LABEL, buildGlobalSearchIndex } from './global-search.state'
+export { SOURCE_LABEL, buildGlobalSearchIndex } from './global-search.store'
 
 // ---- Cmd+J: Spotlight global search across every navigable surface -----------
 // Builds the async entry index, opens the shared modal, seeds the reactive

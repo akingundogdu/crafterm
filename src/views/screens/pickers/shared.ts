@@ -3,7 +3,11 @@ import { overlayModalShell } from './components/overlay-modal-shell'
 import type { OverlayModalHandle } from './shared.types'
 
 export type { OverlayModalHandle } from './shared.types'
-export { baseName } from './shared.state'
+
+// Last path segment (the directory/file name), tolerant of a trailing slash.
+export function baseName(p: string): string {
+  return p.replace(/\/+$/, '').split('/').pop() || p
+}
 
 // The pickers' "contains" search box is the @views search-box — re-exported
 // under the legacy name so the per-picker modules consume one impl.

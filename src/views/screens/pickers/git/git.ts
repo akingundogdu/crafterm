@@ -3,7 +3,7 @@ import stashStore from './stash.store'
 import branchStore from './branch.store'
 import StashManagerView from './components/stash-manager-view'
 import BranchCheckoutView, { type BranchPickerDeps } from './components/branch-checkout-view'
-import { loadStashes, loadBranches, filterBranches, checkoutBranch, makeQuickRun } from './git.state'
+import { loadStashes, loadBranches, filterBranches, checkoutBranch, makeQuickRun } from './git.store'
 
 // ---- Git stash manager: list stashes, apply or drop, for a pane's repo ----
 // Opens the stash overlay, seeds the reactive stash.store and reloads it after a

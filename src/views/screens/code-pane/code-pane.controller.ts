@@ -17,7 +17,7 @@ import {
   makeReloadClick,
   makeCloseClick,
   makeSaveClick
-} from './code-pane.state'
+} from './code-pane.store'
 
 // DOM nodes the controller drives. The view (code-pane.ts) builds the static
 // skeleton and hands these refs over; the controller builds its own header

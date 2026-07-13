@@ -8,7 +8,7 @@ import {
   makeViewClick,
   makeKillClick,
   makeStopAppClick
-} from './processes.state'
+} from './processes.store'
 import store from './processes.store'
 import ProcessRow from './components/process-row'
 import DeviceAppRow from './components/device-app-row'

@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { buildPaneMenu } from '../pane.state'
+import { buildPaneMenu } from '../pane.store'
 import type { PaneMenuEntry } from '../pane.types'
 
 // The pane menu, pre-grouped into rows: consecutive swatch entries collapse into a

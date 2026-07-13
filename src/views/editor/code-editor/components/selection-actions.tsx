@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { SelectionActionsHandlers } from '../code-editor.types'
-import { makeSelectionActionHandlers } from '../code-editor.state'
+import { makeSelectionActionHandlers } from '../code-editor.store'
 import CopyActionButton from './copy-action-button'
 import AddToChatButton from './add-to-chat-button'
 

@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import type { MdFile } from './finders.types'
-import { filterByName, fileCountLabel } from './finders.state'
+import { filterByName, fileCountLabel } from './finders.store'
 import store from './finders.store'
 import FilterChips from './components/filter-chips'
 import MdFileRow from './components/md-file-row'

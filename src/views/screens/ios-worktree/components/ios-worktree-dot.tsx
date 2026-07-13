@@ -1,5 +1,5 @@
 import { Component } from '@geajs/core'
-import { dotInfo } from '../ios-worktree.state'
+import { dotInfo } from '../ios-worktree.store'
 
 // Live iOS build-status dot for a worktree node (building/running/installed/…).
 // State is a one-shot read of dotInfo() at mount time — the sidebar rebuilds the

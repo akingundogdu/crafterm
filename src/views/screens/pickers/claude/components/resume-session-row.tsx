@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
-import type { ResumeSession } from '../claude.state'
-import { relTime, shortCwd } from '../claude.state'
+import type { ResumeSession } from '../claude.store'
+import { relTime, shortCwd } from '../claude.store'
 
 export interface ResumeSessionRowProps {
   session: ResumeSession

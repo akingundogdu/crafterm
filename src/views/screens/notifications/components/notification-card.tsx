@@ -6,7 +6,7 @@ import { selectPane } from '@views/commands/commands'
 import { terminalService } from '@services'
 import { snoozeOptions, snoozeReminder } from '@views/screens/reminders/reminders.engine'
 import { relTime } from '../notif-format'
-import { CHEVRON_SVG, toneOf, statusIconFor, buildNotifChips, resolvePayloadOpener } from '../notifications.state'
+import { CHEVRON_SVG, toneOf, statusIconFor, buildNotifChips, resolvePayloadOpener } from '../notifications.store'
 import { showPaneRemindPicker } from './remind-popover.open'
 import store from '../notifications.store'
 

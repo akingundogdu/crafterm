@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import { UITexts } from '@texts'
 import { ALL_THEME_NAMES, currentThemeName } from '@views/editor/monaco/monaco-setup'
 import { breadcrumb } from '../path-ref'
-import { stopMousedown, makeThemeChange } from '../code-pane.state'
+import { stopMousedown, makeThemeChange } from '../code-pane.store'
 
 export interface CodePaneHeaderProps {
   path: string

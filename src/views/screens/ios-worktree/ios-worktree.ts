@@ -1,11 +1,11 @@
 import './ios-worktree.css'
 import type { SidebarNode } from '@views/types/types'
-import { iosOwner } from './ios-worktree.state'
+import { iosOwner } from './ios-worktree.store'
 import { createIosWorktreeDot } from './components/ios-worktree-dot'
 import { createIosWorktreeActions } from './components/ios-worktree-actions'
 
 export type { RunTarget } from './ios-worktree.types'
-export { iosWorktreeEnvFor, startIosWorktreePoll, iosWorktreeMenuItems } from './ios-worktree.state'
+export { iosWorktreeEnvFor, startIosWorktreePoll, iosWorktreeMenuItems } from './ios-worktree.store'
 
 // iOS add-on for the worktree tree nodes — the per-node view. The generic
 // worktree manager (worktrees.ts) materializes worktrees as folder nodes; this

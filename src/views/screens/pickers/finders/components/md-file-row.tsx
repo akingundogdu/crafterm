@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { MdFile } from '../finders.types'
-import { prettyPath } from '../finders.state'
+import { prettyPath } from '../finders.store'
 
 export interface MdFileRowProps {
   file: MdFile

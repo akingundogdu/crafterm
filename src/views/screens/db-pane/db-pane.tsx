@@ -8,7 +8,7 @@ import { DbPaneController, type DbPaneOptions } from './db-pane.controller'
 
 export type { DbPaneOptions } from './db-pane.controller'
 export type { ParsedSelect } from './db-pane.types'
-export { destroySqlPane } from './db-pane.state'
+export { destroySqlPane } from './db-pane.store'
 
 // The pane-box shell for a SQL pane. A thin gea shell that owns the
 // `.pane-box.sql-pane` box (single fresh mount → extract, mirroring

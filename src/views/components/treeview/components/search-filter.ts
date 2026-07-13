@@ -1,6 +1,6 @@
 import type { TreeContext, TreeSection, LiveRow } from '../treeview.types'
 import type { VisibleItem } from '../treeview.store'
-import { subtreeMatches } from '../treeview.state'
+import { subtreeMatches } from '../treeview.store'
 
 // Flatten header + node sections into the ordered, filter-applied visible model
 // the gea list renders. Pure data — builds no DOM. As a side effect it repopulates

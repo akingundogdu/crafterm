@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import { showContextMenu } from '@views/components/context-menu/context-menu'
-import { INDENT } from '../treeview.state'
+import { INDENT } from '../treeview.store'
 import { getTreeRuntime } from '../treeview.registry'
 
 // One tree row rendered as gea JSX: chevron / leading / icon / label / trailing /

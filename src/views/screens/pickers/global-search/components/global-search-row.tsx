@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import type { GsEntry } from '../global-search.types'
-import { SOURCE_LABEL } from '../global-search.state'
+import { SOURCE_LABEL } from '../global-search.store'
 
 export interface GlobalSearchRowProps {
   entry: GsEntry

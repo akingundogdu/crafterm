@@ -1,6 +1,6 @@
 import { Component } from '@geajs/core'
 import '@views/components/form-field/form-field.css'
-import { makeSelectChange } from '../shared.state'
+import { makeSelectChange } from '../shared'
 
 // gea `.field` row: a label paired with a select; forwards value changes. Inline
 // `.field` markup (§5.9 — no FormField wrapper). One-shot field builder (rebuilt

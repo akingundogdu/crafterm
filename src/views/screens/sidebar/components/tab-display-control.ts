@@ -1,6 +1,6 @@
 import { settings } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
-import { TAB_ICON, TAB_META, tabOrder } from '../sidebar.state'
+import { TAB_ICON, TAB_META, tabOrder } from '../sidebar.store'
 import { fillTabButton } from './tab-button-content'
 
 export function tabMeta(): typeof TAB_META {

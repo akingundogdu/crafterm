@@ -23,7 +23,7 @@ import { type ContextMenuItem } from '@views/components/context-menu/context-men
 import { iosWorktreeMenuItems } from '@views/screens/ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '@services/worktrees'
 import { shellService } from '@services'
-import { knownGroups } from '../sidebar.state'
+import { knownGroups } from '../sidebar.store'
 import { showFolderSettings } from './folder-settings-modal'
 
 // Collaborators the context menu needs from the shell: the tree (for inline

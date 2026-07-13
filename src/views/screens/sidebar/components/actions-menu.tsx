@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import { actionMenuRepo } from '@repositories'
 import type { ActionMenuItem } from '@views/types/types'
-import { BUILTIN_ACTION_RUN, runActionItem } from '../sidebar.state'
+import { BUILTIN_ACTION_RUN, runActionItem } from '../sidebar.store'
 
 // Flattened sidebar ⋯ action-menu entries for the global search (Cmd+J). Skips
 // hidden rows and builtins whose id is no longer registered, mirroring the menu.

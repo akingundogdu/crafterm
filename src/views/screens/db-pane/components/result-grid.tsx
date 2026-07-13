@@ -10,7 +10,7 @@ import {
   insertInitialValues,
   buildUpdateSql,
   buildInsertSql
-} from './result-grid.state'
+} from './result-grid.store'
 import { buildStatusBar } from './result-status-bar'
 import { openRowFormModal } from './row-form-modal'
 

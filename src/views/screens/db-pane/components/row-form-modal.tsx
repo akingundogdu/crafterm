@@ -3,7 +3,7 @@ import type { DbColumn } from '@services/db/db.types'
 import { createOverlay } from '@views/components/overlay/overlay'
 import { UITexts } from '@texts'
 import type { FieldValue } from './result-grid.types'
-import { collectFieldValues } from './result-grid.state'
+import { collectFieldValues } from './result-grid.store'
 
 export interface RowFormModalOptions {
   title: string

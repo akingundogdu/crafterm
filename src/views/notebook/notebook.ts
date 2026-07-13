@@ -25,7 +25,7 @@ import {
   filterPlans,
   groupPlansByProject,
   stopAnd
-} from './notebook.state'
+} from './notebook.store'
 import { buildSubtabsHeader } from './components/subtabs-header'
 import { buildPlanRow } from './components/plan-row'
 import { buildLinkedFileRow } from './components/linked-file-row'
