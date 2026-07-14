@@ -17,7 +17,7 @@ import type {
 } from './pty/pty.types'
 import type { PaneInfo } from './pane/pane.types'
 import type { DirListing } from './dir/dir.types'
-import type { GitStash, GitFileStatus, WorktreeListing } from './git/git.types'
+import type { GitStash, GitFileStatus, WorktreeListing, WorktreeState } from './git/git.types'
 import type {
   DirEntry,
   FsEntryListing,
@@ -97,7 +97,8 @@ export const Channel = {
     StashList: 'git:stashList',
     FileStatus: 'git:fileStatus',
     Worktrees: 'git:worktrees',
-    WorktreeAdd: 'git:worktreeAdd'
+    WorktreeAdd: 'git:worktreeAdd',
+    WorktreeState: 'git:worktreeState'
   },
   Dir: {
     List: 'dir:list'
@@ -302,6 +303,7 @@ export const channels = {
   [Channel.Git.StashList]: rpc<{ id: string }, GitStash[]>(),
   [Channel.Git.FileStatus]: rpc<{ cwd?: string }, GitFileStatus>(),
   [Channel.Git.Worktrees]: rpc<{ cwd?: string }, WorktreeListing>(),
+  [Channel.Git.WorktreeState]: rpc<{ cwd: string }, WorktreeState>(),
   // `error` carries git's own stderr on failure, so the UI can say WHY the worktree
   // could not be created instead of a generic message.
   [Channel.Git.WorktreeAdd]: rpc<

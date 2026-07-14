@@ -85,6 +85,7 @@ const ENTRIES: Entry[] = [
   { ns: 'git', method: 'stashList', kind: 'invoke', channel: 'git:stashList', args: ['id'], payload: { id: 'id' } },
   { ns: 'git', method: 'fileStatus', kind: 'invoke', channel: 'git:fileStatus', args: ['cwd'], payload: { cwd: 'cwd' } },
   { ns: 'git', method: 'listWorktrees', kind: 'invoke', channel: 'git:worktrees', args: ['cwd'], payload: { cwd: 'cwd' } },
+  { ns: 'git', method: 'worktreeState', kind: 'invoke', channel: 'git:worktreeState', args: ['cwd'], payload: { cwd: 'cwd' } },
   { ns: 'git', method: 'worktreeAdd', kind: 'invoke', channel: 'git:worktreeAdd', args: ['r', 'p', 'b', 'base'], payload: { repo: 'r', path: 'p', branch: 'b', base: 'base' } },
 
   // ── fs ──

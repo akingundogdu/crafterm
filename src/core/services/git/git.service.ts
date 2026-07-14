@@ -148,3 +148,41 @@ export async function worktreeAdd(
   const attached = await add([path, branch])
   return attached.ok ? attached : { ok: false, error: attached.error || created.error }
 }
+
+
+// Pre-flight for removing a worktree (todomrkkvspyax): what would be lost. Parsed
+// from one `git status --porcelain -b` — uncommitted changes, untracked files and
+// commits the upstream does not have. A failure reads as "nothing to report", so a
+// non-repo path can still be removed.
+export async function worktreeState(cwd: string): Promise<{
+  branch: string | null
+  changed: number
+  untracked: number
+  ahead: number
+  hasUpstream: boolean
+}> {
+  const empty = { branch: null, changed: 0, untracked: 0, ahead: 0, hasUpstream: false }
+  const out = await run(gitBin(), ['-C', cwd, '-c', 'core.quotePath=false', 'status', '--porcelain=v1', '-b'])
+  if (!out) return empty
+
+  let branch: string | null = null
+  let ahead = 0
+  let hasUpstream = false
+  let changed = 0
+  let untracked = 0
+
+  for (const line of out.split('\n')) {
+    if (!line.trim()) continue
+    if (line.startsWith('## ')) {
+      const head = line.slice(3)
+      branch = head.split(/\.\.\.|\s/)[0] || null
+      hasUpstream = head.includes('...')
+      const m = /\[ahead (\d+)/.exec(head)
+      if (m) ahead = parseInt(m[1], 10)
+      continue
+    }
+    if (line.startsWith('??')) untracked++
+    else changed++
+  }
+  return { branch, changed, untracked, ahead, hasUpstream }
+}

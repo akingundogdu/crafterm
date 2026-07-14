@@ -1,6 +1,7 @@
 import { Component } from '@geajs/core'
 import './agent-composer.css'
 import ProjectSelect from '@views/components/project-select/project-select'
+import { focusWhenReady } from '@views/lib/focus'
 import store, {
   MODES,
   COMPOSER_PLACEHOLDER,
@@ -209,12 +210,24 @@ class AgentComposer extends Component {
 export function buildAgentComposer(): HTMLElement {
   const host = document.createElement('div')
   host.className = 'agent-composer-screen'
-  void store.refresh().then(() => new AgentComposer().render(host))
+  void store.refresh().then(() => {
+    new AgentComposer().render(host)
+    focusAgentComposer()
+  })
   return host
 }
 
 // Re-read the projects whenever the start screen is shown again (one may have been
-// added, or its branches changed, since it was built).
+// added, or its branches changed, since it was built) and put the caret back in the
+// prompt box, so the start screen is always ready to be typed into.
 export function refreshAgentComposer(): void {
   void store.refresh()
+  focusAgentComposer()
+}
+
+// The composer is built once and then shown/hidden, so its mount-only onAfterRender
+// cannot focus it on a later visit — and on the very first render the element does
+// not exist yet (gea renders async). Wait for the textarea, then focus it.
+function focusAgentComposer(): void {
+  focusWhenReady(() => document.querySelector<HTMLTextAreaElement>('.agent-composer-input'))
 }

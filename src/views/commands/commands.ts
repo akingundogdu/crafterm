@@ -29,7 +29,7 @@ import {
   updatePaneActive,
   applyDocFont
 } from '@views/state/state'
-import { exitSideBySide } from '@views/screens/content/content.store'
+import { exitSideBySide, isTabTiled } from '@views/screens/content/content.store'
 import { persistence } from '@repositories/persistence.service'
 import {
   firstPaneOf,
@@ -1229,19 +1229,24 @@ export function selectNode(id: string): void {
 }
 
 export function selectPane(paneId: string): void {
-  exitSideBySide()
+  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
+  // Clicking a pane that is ON SCREEN in the side-by-side view just makes it the
+  // active one — it must not collapse the view back to a single terminal
+  // (todomraex8usk1). Any other pane (a notification jump, the switcher) does leave.
+  const staysTiled = !!tab && isTabTiled(tab.id)
+  if (!staysTiled) exitSideBySide()
   state.activePaneId = paneId
   const p = panes.get(paneId)
   if (p) p.attention = false
-  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
   let tabChanged = false
   if (tab) {
     tabChanged = state.activeTabId !== tab.id
     state.activeTabId = tab.id
     state.selectedNodeId = tab.id // clicking a pane also selects its terminal in the sidebar
     // If the pane lives in a different tab (e.g. jumped to from a notification or
-    // the Claude dashboard), switch the visible content to that tab.
-    if (tabChanged) renderContent()
+    // the Claude dashboard), switch the visible content to that tab. In the tiled
+    // view every pane is already on screen — re-rendering would only churn the DOM.
+    if (tabChanged && !staysTiled) renderContent()
   }
   updateActive()
   updatePaneActive() // move the active-pane border so focus is visible

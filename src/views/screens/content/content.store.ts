@@ -46,6 +46,12 @@ export function isSideBySide(): boolean {
   return sideBySideTabIds.length > 1
 }
 
+// Is this terminal one of the tiles currently on screen? Clicking a pane inside a
+// tile must keep the view (it is already visible); anything else leaves it.
+export function isTabTiled(tabId: string): boolean {
+  return isSideBySide() && sideBySideTabIds.includes(tabId)
+}
+
 export function setSideBySide(tabIds: string[]): void {
   sideBySideTabIds = tabIds
 }

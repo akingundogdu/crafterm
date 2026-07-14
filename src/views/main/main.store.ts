@@ -276,6 +276,11 @@ export function wireFooterButtons(): void {
 function activeIsDoc(): boolean {
   return !!state.activePaneId && docs.has(state.activePaneId)
 }
+// The start screen (agent composer) is up whenever no tab is selected. It scales off
+// the doc font, so Cmd +/-/0 zoom it — text AND controls (todomrkhg31kaa).
+function activeIsComposer(): boolean {
+  return !state.activeTabId
+}
 function activeDiffPane(): DiffPane | null {
   return state.activePaneId ? diffPanes.get(state.activePaneId) ?? null : null
 }
@@ -287,7 +292,7 @@ function zoomFont(delta: number): void {
   const dp = activeDiffPane()
   if (cp) cp.setFont(delta)
   else if (dp) dp.setFont(delta)
-  else if (activeIsDoc()) adjustDocFontSize(delta)
+  else if (activeIsDoc() || activeIsComposer()) adjustDocFontSize(delta)
   else if (sidebarHasFocus()) adjustSidebarFontSize(delta)
   else adjustActivePaneFontSize(delta) // only the focused terminal, not all
 }
@@ -296,7 +301,7 @@ function zoomFontReset(): void {
   const dp = activeDiffPane()
   if (cp) cp.resetFont()
   else if (dp) dp.resetFont()
-  else if (activeIsDoc()) resetDocFontSize()
+  else if (activeIsDoc() || activeIsComposer()) resetDocFontSize()
   else if (sidebarHasFocus()) resetSidebarFontSize()
   else resetActivePaneFontSize()
 }

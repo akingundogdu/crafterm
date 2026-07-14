@@ -21,8 +21,11 @@ import { archiveTab } from '@views/commands/commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
 import { promptForm } from '@views/components/dialog/prompt-form'
 import { promptConfirm } from '@views/components/dialog/confirm'
-import { gitService, appService , soundService } from '@services'
+import { gitService, appService, soundService, terminalService } from '@services'
 import { norm, baseName, shq } from './domain/worktree-path'
+import type { WorktreeState } from './git/git.types'
+import { showWorktreeProgress } from '@views/components/worktree-progress/worktree-progress'
+import { REMOVE_STEPS } from '@views/components/worktree-progress/worktree-progress.store'
 
 const RECONCILE_INTERVAL_MS = 20_000
 let started = false
@@ -329,24 +332,60 @@ export async function newWorktree(p: ProjectNode): Promise<void> {
   }
 }
 
-// Remove a worktree (the branch is kept). `git worktree remove` runs as a hidden
-// background shell under the worktree node, which shows struck-through + a
-// spinner (`archiving`) while it runs; on success the node + its dead terminals
-// are archived (hidden from the list). On failure the visual reverts + a notice.
+// What the pre-check found, as the sentence the confirm dialog opens with. Empty
+// when the worktree is clean and nothing would be lost.
+function describeWorktreeLoss(state: WorktreeState): string {
+  const losses: string[] = []
+  if (state.changed) losses.push(`${state.changed} uncommitted ${state.changed === 1 ? 'change' : 'changes'}`)
+  if (state.untracked) {
+    losses.push(`${state.untracked} untracked ${state.untracked === 1 ? 'file' : 'files'}`)
+  }
+  if (state.ahead) {
+    const commits = `${state.ahead} ${state.ahead === 1 ? 'commit' : 'commits'}`
+    losses.push(state.hasUpstream ? `${commits} not pushed` : `${commits} on a branch with no upstream`)
+  }
+  return losses.join(', ')
+}
+
+// Remove a worktree (the branch is kept). `git worktree remove` refuses a worktree
+// with uncommitted work — that used to surface as a late "remove failed"
+// notification with nothing actionable in it. Now the state is checked FIRST and
+// spelled out (what exactly would be lost), the whole thing runs behind the progress
+// overlay, and a failure prints git's own words (todomrkkvspyax).
+//
+// The removal itself still runs as a hidden background shell under the worktree
+// node, which shows struck-through + a spinner (`archiving`) while it runs; on
+// success the node + its dead terminals are archived (hidden from the list).
 export async function removeWorktree(
   p: ProjectNode,
   worktreePath: string,
   opts?: { force?: boolean; skipConfirm?: boolean }
 ): Promise<boolean> {
   if (!p.path) return false
+
+  const label = `Removing worktree ${baseName(worktreePath)}`
+  let progress = showWorktreeProgress(label, REMOVE_STEPS)
+  progress.setStep('checking')
+  const state = await gitService.worktreeState(worktreePath)
+  const loss = describeWorktreeLoss(state)
+  // Uncommitted work means plain `git worktree remove` refuses; --force is the only
+  // way through, so ask for THAT explicitly instead of failing afterwards.
+  const force = opts?.force || state.changed > 0 || state.untracked > 0
+
   if (!opts?.skipConfirm) {
+    progress.close()
     const ok = await promptConfirm({
       title: 'Remove worktree',
-      message: `Remove the worktree at ${worktreePath}? (the branch is kept)`,
-      confirmText: 'Remove'
+      message: loss
+        ? `${baseName(worktreePath)} has ${loss}. Removing it discards them — the branch itself is kept.`
+        : `Remove the worktree at ${worktreePath}? Its working tree is clean; the branch is kept.`,
+      confirmText: loss ? 'Discard and remove' : 'Remove'
     })
     if (!ok) return false
+    progress = showWorktreeProgress(label, REMOVE_STEPS)
   }
+  progress.setStep('removing')
+
   const wt = findWorktreeNodeByPath(worktreePath)
   if (wt) {
     wt.archiving = true
@@ -355,29 +394,29 @@ export async function removeWorktree(
   const repo = norm(p.path)
   const { stableId, code } = await runHiddenAndWait(wt ?? p, {
     title: `removing ${baseName(worktreePath)}…`,
-    command: `git worktree remove ${opts?.force ? '--force ' : ''}${shq(worktreePath)}`,
+    command: `git worktree remove ${force ? '--force ' : ''}${shq(worktreePath)}`,
     cwd: repo,
     role: 'shell'
   })
+  // git's own words, read off the hidden shell before its buffer is dropped.
+  const output = code === 0 ? '' : await terminalService.procBuffer(stableId)
   removeProcess(stableId)
+
   if (code === 0) {
+    progress.setStep('cleaning')
     if (wt) archiveWorktreeNode(wt)
     else void reconcileWorktrees()
+    progress.close()
     return true
   }
   if (wt) {
     wt.archiving = false
     requestSidebar()
   }
-  pushNotification(
-    '',
-    'Worktree remove failed',
-    'worktree',
-    `git worktree remove exited with code ${code}. The worktree may have uncommitted changes (use a clean tree or remove it manually).`
-  )
   // Distinct error sound so a failed removal is audibly different from the
   // regular notification chime.
   if (settings.notifSound) soundService.play('Basso')
+  await progress.fail((output ?? '').trim() || `git worktree remove exited with code ${code}.`)
   return false
 }
 

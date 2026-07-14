@@ -4,11 +4,17 @@ import { shortModel } from '@views/screens/notifications/notif-format'
 import { fetchRealUsage, evaluateUsageThresholds } from '@views/screens/notifications/notifications.store'
 import type { RealUsage } from '@views/screens/notifications/notifications.types'
 import { createUsagePopover, renderUsagePopover } from './usage-popover'
-import { USAGE_POLL_MS } from '../status-bar.store'
+import { USAGE_POLL_MS, USAGE_FIRST_READ_MS } from '../status-bar.store'
 
-// Status bar Claude usage chip: polls hourly. Compact display shows the active
-// model + this-week percentage; clicking opens a popover with full today / week /
-// month progress bars (mirrors Claude's /usage TUI).
+// Status bar Claude usage chip: compact display shows the active model + this-week
+// percentage; clicking opens a popover with full today / week / month progress bars
+// (mirrors Claude's /usage TUI).
+//
+// The usage token lives in the macOS keychain, and reading it makes macOS prompt the
+// user. So the chip starts HIDDEN and asks for nothing at launch: the first read runs
+// minutes later, once the app has settled. If there is no credential to read — the
+// prompt was denied, or Claude Code never stored one — the chip stays hidden and the
+// polling stops, instead of nagging every hour (todomrkl5n2rb1).
 export function initStatusbarUsage(): void {
   const chip = document.getElementById('statusbar-claude-usage')
   if (!chip) return
@@ -16,12 +22,31 @@ export function initStatusbarUsage(): void {
   const refreshBtn = document.getElementById('statusbar-usage-refresh')
 
   let lastUsage: RealUsage | null = null
+  let pollTimer: number | null = null
+
+  const setVisible = (visible: boolean): void => {
+    chip.style.display = visible ? '' : 'none'
+    if (refreshBtn) refreshBtn.style.display = visible ? '' : 'none'
+  }
+  const stopPolling = (): void => {
+    if (pollTimer !== null) window.clearInterval(pollTimer)
+    pollTimer = null
+  }
+  setVisible(false)
 
   const refresh = async (force = false): Promise<void> => {
     refreshBtn?.classList.add('spinning')
     try {
       const u = await fetchRealUsage(force)
       lastUsage = u
+      // No credential (denied prompt / Claude Code never stored one): there is
+      // nothing to show and nothing to gain from asking again.
+      if (u.error === 'no-token') {
+        setVisible(false)
+        stopPolling()
+        return
+      }
+      setVisible(true)
       const week = u.sevenDay ? Math.round(u.sevenDay.utilization) : null
       const model = shortModel(u.modelName) || settings.claudePlanCaps.effort
       const parts: string[] = [model]
@@ -38,10 +63,13 @@ export function initStatusbarUsage(): void {
       refreshBtn?.classList.remove('spinning')
     }
   }
-  void refresh()
-  // Anthropic's limits move on the order of minutes/hours; poll hourly. Users
-  // can force an immediate refresh with the button next to the chip.
-  window.setInterval(refresh, USAGE_POLL_MS)
+  // Anthropic's limits move on the order of minutes/hours; poll hourly after the
+  // delayed first read. Users can force an immediate refresh with the button next to
+  // the chip.
+  window.setTimeout(() => {
+    void refresh()
+    pollTimer = window.setInterval(refresh, USAGE_POLL_MS)
+  }, USAGE_FIRST_READ_MS)
   refreshBtn?.addEventListener('click', (e) => {
     e.stopPropagation()
     void refresh(true)

@@ -12,6 +12,7 @@ import {
   BG_PRESETS,
   setFontFamily,
   setFontSize,
+  setDocFontSize,
   setEditorTheme,
   applyBackground,
   copyCurrentToCustom,
@@ -27,6 +28,7 @@ import {
 class AppearancePanel extends Component {
   famInput: HTMLInputElement | null = null
   fontSizeInput: HTMLInputElement | null = null
+  docFontSizeInput: HTMLInputElement | null = null
 
   onAfterRender(): void {
     if (this.famInput) {
@@ -34,6 +36,7 @@ class AppearancePanel extends Component {
       this.famInput.style.maxWidth = '280px'
     }
     if (this.fontSizeInput) this.fontSizeInput.value = String(settings.font.size)
+    if (this.docFontSizeInput) this.docFontSizeInput.value = String(settings.docFontSize)
   }
 
   template() {
@@ -47,6 +50,10 @@ class AppearancePanel extends Component {
         <div class="field">
           <label>{UITexts.Settings.appearance.terminalFontSize}</label>
           <input type="number" ref={this.fontSizeInput} onChange={makeInputChange(setFontSize)} />
+        </div>
+        <div class="field">
+          <label>{UITexts.Settings.appearance.docFontSize}</label>
+          <input type="number" ref={this.docFontSizeInput} onChange={makeInputChange(setDocFontSize)} />
         </div>
         <BackgroundSwatchControl
           presets={BG_PRESETS}

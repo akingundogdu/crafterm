@@ -6,9 +6,8 @@ vi.mock('@repositories/persistence.service', () => ({ persistence: { save: () =>
 vi.mock('@views/tree/tree', () => ({ findTab: () => null }))
 vi.mock('@services', () => ({ terminalService: {} }))
 
-const { tabContainers, setSideBySide, sideBySideTabs, isSideBySide, exitSideBySide } = await import(
-  '@views/screens/content/content.store'
-)
+const { tabContainers, setSideBySide, sideBySideTabs, isSideBySide, isTabTiled, exitSideBySide } =
+  await import('@views/screens/content/content.store')
 
 describe('side-by-side view state', () => {
   beforeEach(() => {
@@ -37,6 +36,17 @@ describe('side-by-side view state', () => {
     expect(isSideBySide()).toBe(false)
     expect(sideBySideTabs()).toEqual([])
     expect([...tabContainers.values()].map((e) => e.sig)).toEqual(['', ''])
+  })
+
+  it('knows which terminals are on screen as tiles', () => {
+    setSideBySide(['t1', 't2'])
+
+    // Clicking a pane inside a tile keeps the view; any other pane leaves it.
+    expect(isTabTiled('t1')).toBe(true)
+    expect(isTabTiled('t3')).toBe(false)
+
+    exitSideBySide()
+    expect(isTabTiled('t1')).toBe(false)
   })
 
   it('leaves the containers alone when the view was never on', () => {

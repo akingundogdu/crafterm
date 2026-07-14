@@ -7,16 +7,30 @@ import type { WorktreeStage } from '@services/worktrees'
 // small overlay that names each step, and on failure keeps it open with git's own
 // error instead of quietly giving up.
 
-// The steps, in the order they run. 'opening' is the caller's own last step (start
-// the terminal in the worktree); the service reports the ones before it.
-export const STEPS: { id: Step; label: string }[] = [
+// A step is just an id + a label; each flow supplies its own list.
+export interface ProgressStep {
+  id: string
+  label: string
+}
+
+// Creating a worktree. 'opening' is the caller's own last step (start the terminal
+// in the worktree); the service reports the ones before it.
+export const CREATE_STEPS: ProgressStep[] = [
   { id: 'looking', label: 'Looking for an existing worktree' },
   { id: 'creating', label: 'Creating the worktree' },
   { id: 'materializing', label: 'Adding it to the sidebar' },
   { id: 'opening', label: 'Starting the terminal' }
 ]
 
-export type Step = WorktreeStage | 'opening'
+// Removing one (todomrkkvspyax): the pre-checks used to be invisible — a worktree
+// with uncommitted work just failed with a notification long after the fact.
+export const REMOVE_STEPS: ProgressStep[] = [
+  { id: 'checking', label: 'Checking for uncommitted work' },
+  { id: 'removing', label: 'Removing the worktree' },
+  { id: 'cleaning', label: 'Updating the sidebar' }
+]
+
+export type Step = WorktreeStage | 'opening' | 'checking' | 'removing' | 'cleaning'
 
 export type StepState = 'pending' | 'active' | 'done' | 'failed'
 
@@ -24,18 +38,20 @@ export const CLOSE_LABEL = 'Close'
 
 class WorktreeProgressStore extends Store {
   title = ''
-  // Index into STEPS: everything before it is done, it is running.
+  steps: ProgressStep[] = CREATE_STEPS
+  // Index into `steps`: everything before it is done, it is running.
   stepIndex = 0
   error = ''
 
-  start(title: string): void {
+  start(title: string, steps: ProgressStep[] = CREATE_STEPS): void {
     this.title = title
+    this.steps = steps
     this.stepIndex = 0
     this.error = ''
   }
 
   setStep(step: Step): void {
-    const index = STEPS.findIndex((s) => s.id === step)
+    const index = this.steps.findIndex((s) => s.id === step)
     if (index >= 0) this.stepIndex = index
   }
 

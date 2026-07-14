@@ -22,6 +22,7 @@ export const Settings = {
     heading: 'Appearance',
     fontFamily: 'Font family',
     terminalFontSize: 'Terminal font size',
+    docFontSize: 'Doc & composer font size',
     codeEditorTheme: 'Code editor theme',
     customColor: 'Custom color',
     background: 'Background',
