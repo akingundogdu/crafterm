@@ -6,16 +6,31 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// A rendered document is untrusted input — it can come from any repo the user cloned. `esc`
+// leaves quotes intact (they are harmless as text), so a URL interpolated into an attribute
+// must escape them too, or `![x](a"onerror=...)` breaks out of the attribute.
+function escAttr(url: string): string {
+  return url.replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+// Only schemes that cannot execute script. Anything else (javascript:, data:, vbscript:)
+// renders as an inert anchor. Relative paths and fragments stay allowed.
+const SAFE_URL = /^(?:https?:\/\/|mailto:|file:\/\/|[./#?]|[\w.-]+\/|[\w.-]+$)/i
+
+function safeUrl(url: string): string {
+  return SAFE_URL.test(url) ? escAttr(url) : ''
+}
+
 // inline formatting on an already HTML-escaped string
 function inline(s: string): string {
   return s
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" />') // images before links
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt, src) => `<img src="${safeUrl(src)}" alt="${escAttr(alt)}" />`) // images before links
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/__([^_]+)__/g, '<strong>$1</strong>')
     .replace(/~~([^~]+)~~/g, '<del>$1</del>')
     .replace(/(^|[^*])\*([^*\s][^*]*?)\*/g, '$1<em>$2</em>')
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" rel="noreferrer">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text, href) => `<a href="${safeUrl(href)}" rel="noreferrer">${text}</a>`)
 }
 
 // A GFM table separator row, e.g. `| --- | :--: | ---: |`.

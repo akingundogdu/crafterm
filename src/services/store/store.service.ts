@@ -6,7 +6,8 @@ import {
   mkdirSync,
   renameSync,
   readdirSync,
-  unlinkSync
+  unlinkSync,
+  chmodSync
 } from 'fs'
 import { stateDir, statePath } from '@core/services/paths/paths.service'
 import type { SavedState } from '@repositories/state.types'
@@ -15,6 +16,11 @@ import type { SavedState } from '@repositories/state.types'
 // SCHEMA_VERSION in state.ts). State whose schemaVersion is below this is backed
 // up once before the renderer migrates and overwrites it on the next save.
 const SCHEMA_VERSION = 4
+
+// The blob holds DB and SSH connection passwords in the clear, so it must not be readable
+// by other accounts on the machine. Applied to the state file and to its backups.
+const OWNER_ONLY = 0o600
+const OWNER_ONLY_DIR = 0o700
 
 // Tiny JSON store domain logic (load/save the SavedState blob) at
 // <stateDir>/crafterm-state.json. No IPC wiring (that's the StoreController adapter).
@@ -35,12 +41,16 @@ export class StoreService {
 
   save(data: SavedState): void {
     try {
-      mkdirSync(stateDir(), { recursive: true })
+      mkdirSync(stateDir(), { recursive: true, mode: OWNER_ONLY_DIR })
       // Atomic write: a hard kill mid-write would otherwise leave a truncated JSON
       // that fails to parse on next launch, losing every saved session.
       const tmp = statePath() + '.tmp'
-      writeFileSync(tmp, JSON.stringify(data, null, 2))
+      writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: OWNER_ONLY })
       renameSync(tmp, statePath())
+      // mkdir/writeFile only apply the mode when they create the path — an existing state
+      // file (or dir) from an older build keeps its old, world-readable bits.
+      chmodSync(statePath(), OWNER_ONLY)
+      chmodSync(stateDir(), OWNER_ONLY_DIR)
     } catch {
       /* ignore write errors */
     }
@@ -49,7 +59,7 @@ export class StoreService {
   private backupBeforeMigration(raw: string): void {
     try {
       const ts = new Date().toISOString().replace(/[:.]/g, '-')
-      writeFileSync(join(stateDir(), `crafterm-state.backup-${ts}.json`), raw)
+      writeFileSync(join(stateDir(), `crafterm-state.backup-${ts}.json`), raw, { mode: OWNER_ONLY })
       // Keep only the most recent 5 backups.
       const dir = stateDir()
       const backups = readdirSync(dir)

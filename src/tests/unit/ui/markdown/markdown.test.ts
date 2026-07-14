@@ -53,6 +53,36 @@ describe('renderMarkdown', () => {
     expect(renderMarkdown('a & b')).toContain('a &amp; b')
   })
 
+  // A rendered document is untrusted: it can come from any cloned repo. A URL must never be
+  // able to close its attribute and add an event handler, nor carry an executable scheme.
+  it('does not let an image or link URL break out of its attribute', () => {
+    // The quote makes it fail the scheme allowlist, so the URL is dropped outright.
+    expect(renderMarkdown('![x](a"onerror=alert`1`)')).not.toContain('onerror=')
+    expect(renderMarkdown('[x](a"onmouseover=alert`1`)')).not.toContain('onmouseover=')
+
+    // A quote inside an otherwise allowed URL is escaped, so the payload stays inert text
+    // inside the attribute value instead of closing it and becoming a handler.
+    const ok = renderMarkdown('[x](https://ok.dev/a"onmouseover=alert)')
+    expect(ok).toContain('&quot;')
+    expect(ok).not.toContain('" onmouseover')
+    expect(ok).not.toMatch(/<a[^>]*\son\w+=/)
+  })
+
+  it('drops executable URL schemes but keeps ordinary ones', () => {
+    expect(renderMarkdown('[x](javascript:alert(1))')).toContain('href=""')
+    expect(renderMarkdown('[x](JaVaScRiPt:alert(1))')).toContain('href=""')
+    expect(renderMarkdown('![x](data:text/html;base64,PHN2Zz4=)')).toContain('src=""')
+
+    expect(renderMarkdown('[x](https://ok.dev)')).toContain('href="https://ok.dev"')
+    expect(renderMarkdown('[x](./notes/a.md)')).toContain('href="./notes/a.md"')
+    expect(renderMarkdown('[x](#anchor)')).toContain('href="#anchor"')
+    expect(renderMarkdown('[x](mailto:a@b.dev)')).toContain('href="mailto:a@b.dev"')
+  })
+
+  it('escapes quotes in an image alt text', () => {
+    expect(renderMarkdown('![a"b](x.png)')).toContain('alt="a&quot;b"')
+  })
+
   it('returns an empty string for empty input', () => {
     expect(renderMarkdown('')).toBe('')
   })

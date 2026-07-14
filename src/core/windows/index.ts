@@ -5,6 +5,7 @@ import { APP_NAME } from '../constants/constants'
 import { Events } from '../events/events'
 import { env } from '@configs/environment-variables'
 import { preloadPath, rendererHtmlPath, RENDERER_HTML } from './window-paths'
+import { hardenWindow } from './window-security'
 import { UITexts } from '@texts'
 
 let mainWindow: BrowserWindow | null = null
@@ -42,6 +43,8 @@ export function createMainWindow(): void {
       webviewTag: true // embedded browser panes (opening terminal links in-app)
     }
   })
+
+  hardenWindow(mainWindow.webContents)
 
   mainWindow.on(Events.Window.ReadyToShow, () => {
     if (!isE2E) mainWindow?.show()
@@ -92,6 +95,8 @@ function createPopoutWindow(paneId: string, title?: string): void {
       sandbox: false
     }
   })
+  hardenWindow(win.webContents)
+
   const qs = `id=${encodeURIComponent(paneId)}`
   const devUrl = env.rendererUrl()
   if (devUrl) {
@@ -203,6 +208,8 @@ export function registerWindowIpc(): void {
         sandbox: false
       }
     })
+    hardenWindow(improveWin.webContents)
+
     const devUrl = env.rendererUrl()
     if (devUrl) {
       improveWin.loadURL(`${devUrl}/${RENDERER_HTML.improveWindow}`)
