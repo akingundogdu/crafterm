@@ -12,6 +12,9 @@ playwright-report
 test-results
 .vitest
 
+# Local agent/session state
+.claude/
+
 # Local-only docs (kept on disk, not published)
 todo-list.md
 /docs/plans
