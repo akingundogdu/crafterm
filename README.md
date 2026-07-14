@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="resources/images/crafterm-logo.png" alt="Crafterm" width="160" />
+<img src="src/resources/images/crafterm-logo.png" alt="Crafterm" width="160" />
 
 # Crafterm
 

@@ -34,7 +34,10 @@ export interface TreeAdapter<T> {
   onColor?(node: T, color: string | null): void
   menu?(node: T): TreeMenuItem[]
   onToggle(node: T): void
-  onClick?(node: T): void
+  // Row click. Receives the event so an adapter can act on modifiers (the sidebar
+  // uses Cmd/Ctrl+click to multi-select terminals). Return true to say "handled" —
+  // the row then skips its default select + toggle/activate.
+  onClick?(node: T, e: MouseEvent): boolean | void
   onActivate?(node: T): void // double-click / Enter on a leaf
   onRename?(node: T, name: string): void
   onMove?(dragId: string, targetId: string, pos: DropPos): void

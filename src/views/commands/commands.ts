@@ -28,6 +28,7 @@ import {
   updatePaneActive,
   applyDocFont
 } from '@views/state/state'
+import { exitSideBySide } from '@views/screens/content/content.store'
 import { persistence } from '@repositories/persistence.service'
 import {
   firstPaneOf,
@@ -1208,6 +1209,8 @@ function fixActiveAfterChange(): void {
 export function selectTab(tabId: string): void {
   const tab = findTab(state.tree, tabId)
   if (!tab) return
+  // Picking a terminal leaves the side-by-side view (todomraex8usk1).
+  exitSideBySide()
   state.activeTabId = tabId
   state.selectedNodeId = tabId
   state.activePaneId = firstPaneOf(tab.root)
@@ -1223,6 +1226,7 @@ export function selectNode(id: string): void {
 }
 
 export function selectPane(paneId: string): void {
+  exitSideBySide()
   state.activePaneId = paneId
   const p = panes.get(paneId)
   if (p) p.attention = false

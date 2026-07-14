@@ -2,7 +2,15 @@ import type { SidebarNode } from '@views/types/types'
 import type { TreeAdapter, DropPos } from '@views/components/treeview/treeview'
 import { state, paneActions } from '@views/state/spine'
 import { selectTab, toggleCollapse, setNodeColor, setNodeName, moveNode } from '@views/commands/commands'
-import { PROJECT_SVG, FOLDER_SVG, WORKTREE_SVG, tabIssueKey, folderCrumb } from '../sidebar.store'
+import {
+  PROJECT_SVG,
+  FOLDER_SVG,
+  WORKTREE_SVG,
+  tabIssueKey,
+  folderCrumb,
+  isMultiSelected,
+  toggleMultiSelect
+} from '../sidebar.store'
 import { buildLeading, buildTrailing, buildBelow } from './slot-builders'
 import { buildCrumb } from './crumb-builder'
 import { buildMenu, type MenuContext } from './context-menu-builder'
@@ -44,7 +52,9 @@ export function buildAdapter(ctx: AdapterContext): TreeAdapter<SidebarNode> {
     },
     rowClass: (n) => {
       if (n.kind === 'worktree' && n.archiving) return 'worktree-archiving'
-      return n.kind === 'tab' && n.id === state.activeTabId ? 'active' : ''
+      if (n.kind !== 'tab') return ''
+      const marked = isMultiSelected(n.id) ? ' multi-selected' : ''
+      return (n.id === state.activeTabId ? 'active' : '') + marked
     },
     isContainer: (n) => n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree',
     children: (n) =>
@@ -65,7 +75,14 @@ export function buildAdapter(ctx: AdapterContext): TreeAdapter<SidebarNode> {
       if (n.status === 'archived') paneActions.reactivateTab(n.id)
       else selectTab(n.id)
     },
-    onClick: (n) => {
+    onClick: (n, e) => {
+      // Cmd/Ctrl+click marks a terminal for the side-by-side view instead of
+      // switching to it (todomraex8usk1).
+      if (n.kind === 'tab' && (e.metaKey || e.ctrlKey)) {
+        toggleMultiSelect(n.id)
+        ctx.renderSidebar()
+        return true
+      }
       if (n.kind !== 'tab') ctx.focusList()
     },
     onSelect: (n) => {

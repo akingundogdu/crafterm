@@ -67,11 +67,13 @@ export default class TreeRow extends Component {
         data-tree-id={id}
         data-rev={String(store.rev)}
         style={{ paddingLeft: 10 + depth * INDENT + 'px' }}
-        onClick={() => {
+        onClick={(e: MouseEvent) => {
           const n = ctx.nodeById.get(id)
           if (n === undefined) return
+          // A handled click (e.g. Cmd+click multi-select) keeps the row's own
+          // select/activate out of it.
+          if (a.onClick?.(n, e) === true) return
           ctx.select(id)
-          a.onClick?.(n)
           if (a.isContainer(n)) a.onToggle(n)
           else a.onActivate?.(n)
         }}

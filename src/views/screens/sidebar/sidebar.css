@@ -715,3 +715,9 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   background: rgba(255, 255, 255, 0.12);
   border-color: var(--accent);
 }
+
+/* Cmd+click-marked terminals, queued for the side-by-side view (todomraex8usk1). */
+.tab-item.multi-selected > .tab-row {
+  box-shadow: inset 2px 0 0 var(--accent, #4a9eff);
+  background: var(--row-hover);
+}
