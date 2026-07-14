@@ -9,6 +9,7 @@ import type {
   Application
 } from '@views/types/types'
 import { MAX_FOLDER_DEPTH } from '@views/types/types'
+import { linkTargetKind } from './link-target'
 import {
   panes,
   browsers,
@@ -797,21 +798,23 @@ export async function openUrlInBrowser(): Promise<void> {
   if (target) placeSplit(createBrowserPane(target), 'row')
 }
 
+// Cmd+click on a terminal link: a URL opens a browser pane, a file opens in-app (see
+// link-target.ts for the routing rule).
 export async function openLink(target: string): Promise<void> {
-  if (/^https?:\/\//i.test(target)) {
+  if (linkTargetKind(target) === 'url') {
     placeSplit(createBrowserPane(target), 'row')
     return
   }
-  if (/\.(?:mdx|mdc|md)$/i.test(target)) {
-    // Resolve against the active cwd and its ancestors so a relative path that
-    // already contains the project folder name (e.g. "pkg/docs/x.md" while cwd
-    // is inside "pkg") still finds the file instead of opening a blank pane.
-    const abs = await fsService.resolveFile(activeCwd() ?? '', target)
-    if (abs) openMarkdownFile(abs)
-    else await promptConfirm({ title: 'File not found', message: target, confirmText: 'OK' })
+  // Resolve against the active cwd and its ancestors so a relative path that
+  // already contains the project folder name (e.g. "pkg/docs/x.md" while cwd
+  // is inside "pkg") still finds the file instead of opening a blank pane.
+  const abs = await fsService.resolveFile(activeCwd() ?? '', target)
+  if (!abs) {
+    await promptConfirm({ title: 'File not found', message: target, confirmText: 'OK' })
     return
   }
-  await runInSplit(`${settings.commands.ide} ${shellQuote(target)}`)
+  if (linkTargetKind(abs) === 'markdown') openMarkdownFile(abs)
+  else openCodeEditor(abs)
 }
 
 // Open a fresh terminal tab rooted at `dir` (used by the Cmd+P folder picker).
