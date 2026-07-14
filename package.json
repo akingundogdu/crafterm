@@ -36,6 +36,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:update": "playwright test --update-snapshots",
+    "screenshots": "npm run build && playwright test -c scripts/screenshots/playwright.config.ts",
     "dist": "npm run build && electron-builder",
     "dist:dir": "npm run build && electron-builder --dir",
     "deploy": "bash scripts/deploy.sh"

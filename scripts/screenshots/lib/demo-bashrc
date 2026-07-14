@@ -1,0 +1,14 @@
+# Interactive rc for the demo shell: a short, anonymous prompt (current dir + git
+# branch only) and colored git/ls output, so recorded terminals read cleanly.
+branch() {
+  local b
+  b=$(git branch --show-current 2>/dev/null) || return
+  [ -n "$b" ] && printf ' \001\e[38;5;170m\002%s\001\e[0m\002' "$b"
+}
+PS1='\[\e[38;5;114m\]➜\[\e[0m\] \[\e[38;5;39m\]\W\[\e[0m\]$(branch) '
+export CLICOLOR=1
+export LSCOLORS=GxFxCxDxBxegedabagaced
+export GIT_PAGER=cat
+export PAGER=cat
+alias ls='ls -G'
+alias git='git -c color.ui=always'
