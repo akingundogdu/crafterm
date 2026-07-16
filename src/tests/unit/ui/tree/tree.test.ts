@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   firstPaneOf, panesInLayout, layoutContains, splitInLayout, movePaneInLayout, removePaneFromLayout,
-  isContainer, findById, findTab, allTabs, findTabByPane, isDescendant, depthOfFolder, projectOf,
-  collectPinnedRoots, makeFolder, makeProject
+  isContainer, findById, findTab, allTabs, findTabByPane, findTabByClaudeSession, isDescendant,
+  depthOfFolder, projectOf, collectPinnedRoots, makeFolder, makeProject
 } from '@views/tree/tree'
 import type { LayoutNode, Dir, TabNode, SidebarNode } from '@views/types/types'
 
@@ -100,5 +100,37 @@ describe('SidebarNode helpers', () => {
     f.pinned = true
     f.children.push(tab('t1', leaf('p1'), true))
     expect(collectPinnedRoots([f]).map((n) => n.id)).toEqual(['f']) // inner pinned tab excluded
+  })
+})
+
+describe('findTabByClaudeSession', () => {
+  const never = () => false
+
+  it('matches a live tab via the pane predicate', () => {
+    const t = tab('live', split('row', leaf('p1'), leaf('p2')))
+    const tree: SidebarNode[] = [t]
+    // pane p2 carries the session
+    expect(findTabByClaudeSession(tree, 'sess-1', (id) => id === 'p2')?.id).toBe('live')
+    expect(findTabByClaudeSession(tree, 'sess-1', never)).toBeNull()
+  })
+
+  it('matches an archived tab via its dormantRoot session id (nested)', () => {
+    const archived: TabNode = {
+      kind: 'tab', id: 'arch', title: 'arch', titleLocked: false, color: null, pinned: false,
+      root: { type: 'leaf', paneId: '' },
+      status: 'archived',
+      dormantRoot: {
+        type: 'split', dir: 'row', sizes: [1, 1],
+        children: [
+          { type: 'leaf', stableId: 's1' },
+          { type: 'leaf', stableId: 's2', claude: true, claudeSessionId: 'sess-9' }
+        ]
+      }
+    }
+    const f = makeFolder('wt', 'worktree')
+    f.children.push(archived)
+    // Archived tabs are matched by the serialized id, never by the (empty) live pane.
+    expect(findTabByClaudeSession([f], 'sess-9', never)?.id).toBe('arch')
+    expect(findTabByClaudeSession([f], 'sess-nope', never)).toBeNull()
   })
 })

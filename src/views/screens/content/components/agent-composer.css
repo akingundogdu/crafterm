@@ -8,9 +8,9 @@
   align-items: center;
   justify-content: center;
   overflow: auto;
-  /* Same surface as a pane, so the start screen reads as part of the app rather than
-     a hole in it. */
-  background: var(--bg-term);
+  /* Same surface as the left side panel, so the start screen reads as part of the
+     app chrome rather than a black hole in it. */
+  background: var(--sidebar-bg);
 }
 
 /* Composer: project · base branch · run mode, over a prompt box, over the escape
@@ -83,6 +83,12 @@
   line-height: 1.5;
   resize: none;
   outline: none;
+  /* Auto-grows from 2 lines: onInput measures scrollHeight and sets the height, so
+     the box expands downward with the text. `max-height` caps the growth and turns
+     the overflow into a scroll once the prompt gets long. */
+  min-height: 3em;
+  max-height: 14em;
+  overflow-y: auto;
 }
 .agent-composer-input::placeholder {
   color: var(--text-faint);

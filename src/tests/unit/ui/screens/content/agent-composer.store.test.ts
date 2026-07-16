@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { DailyPlanTask, ProjectNode } from '@views/types/types'
 
@@ -35,6 +36,7 @@ const {
   default: store,
   setDraft,
   getDraft,
+  seedDraftInto,
   slashQueryAt,
   slashItemsFor,
   textWithoutSlash,
@@ -108,7 +110,12 @@ describe('AgentComposerStore', () => {
     await store.submit('  add a settings screen  ')
 
     const task = upsert.mock.calls[0][0] as DailyPlanTask
-    expect(task).toMatchObject({ title: 'add a settings screen', projectId: 'p1', status: 'todo' })
+    expect(task).toMatchObject({
+      title: 'add a settings scree',
+      description: 'add a settings screen',
+      projectId: 'p1',
+      status: 'todo'
+    })
     expect(openTaskInTerminal).toHaveBeenCalledWith(task, expect.any(Function), true, {
       base: 'develop',
       isPlanMode: true
@@ -135,6 +142,46 @@ describe('AgentComposerStore', () => {
     await store.submit('fix the header')
 
     expect(getDraft()).toBe('')
+  })
+
+  it('shortens a long prompt to a 20-char title and keeps the full text as the description', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+    const long = 'fix the header button color and hover state'
+
+    await store.submit(long)
+
+    const task = upsert.mock.calls[0][0] as DailyPlanTask
+    expect(task.title).toBe(long.slice(0, 20))
+    expect(task.title.length).toBe(20)
+    expect(task.description).toBe(long)
+  })
+
+  it('keeps a short prompt as the whole title with no description', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+
+    await store.submit('short one')
+
+    const task = upsert.mock.calls[0][0] as DailyPlanTask
+    expect(task.title).toBe('short one')
+    expect(task.description).toBeUndefined()
+  })
+
+  it('re-seeds the textarea from the draft on show, so it clears after a submit', () => {
+    const input = document.createElement('textarea')
+    document.body.appendChild(input)
+
+    setDraft('hello world', 5)
+    seedDraftInto(input)
+    expect(input.value).toBe('hello world')
+    expect(input.selectionStart).toBe(5)
+
+    setDraft('')
+    seedDraftInto(input)
+    expect(input.value).toBe('')
+
+    input.remove()
   })
 
   it('ignores an empty prompt', async () => {

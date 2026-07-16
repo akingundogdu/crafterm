@@ -57,6 +57,7 @@ export interface SavedTabNode {
   root: SavedNode
   detailsOpen?: boolean
   status?: NodeStatus // derived from child panes; 'archived' when closed
+  archivedByWorktree?: boolean // archived by worktree-reconcile (not a user close)
 }
 export interface SavedFolder {
   kind: 'folder'

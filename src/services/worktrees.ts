@@ -12,7 +12,8 @@ import {
   settings,
   requestSidebar,
   uid,
-  pushNotification
+  pushNotification,
+  paneActions
 } from '@views/state/state'
 import { persistence } from '@repositories/persistence.service'
 import { makeFolder, allTabs, projectOf } from '@views/tree/tree'
@@ -60,6 +61,12 @@ async function reconcileProject(p: ProjectNode): Promise<boolean> {
   }
 
   const listing = await gitService.listWorktrees(p.path)
+  // A valid `git worktree list` always reports at least the MAIN checkout. An
+  // empty/failed listing (run() caps git at 2s and returns null on timeout) must
+  // NOT be read as "every worktree was removed" — that would archive every
+  // worktree node + its live sessions on a single transient git hiccup. Skip the
+  // pass untouched; the next tick retries.
+  if (!listing || listing.root === null || listing.worktrees.length === 0) return changed
   // `git worktree list` reports the MAIN checkout as its first entry. The project
   // node already represents that checkout, so it must not also appear as a linked
   // worktree — drop it here so the container holds only real worktrees (and any
@@ -90,8 +97,16 @@ async function reconcileProject(p: ProjectNode): Promise<boolean> {
       container.children.push(wt)
       changed = true
     } else if (existing.status === 'archived') {
-      // The git worktree came back (recreated) — un-archive the node.
+      // The git worktree came back (recreated) — un-archive the node, and
+      // symmetrically reactivate exactly the tabs that WE archived when it went
+      // missing (archivedByWorktree). User-closed tabs (flag absent) stay archived.
       existing.status = 'idle'
+      for (const tab of allTabs([existing])) {
+        if (tab.status === 'archived' && tab.archivedByWorktree) {
+          tab.archivedByWorktree = false
+          void paneActions.reactivateTab(tab.id)
+        }
+      }
       changed = true
     }
   }
@@ -118,7 +133,12 @@ async function reconcileProject(p: ProjectNode): Promise<boolean> {
 // items".
 export function archiveWorktreeNode(wt: WorktreeNode): void {
   for (const tab of allTabs([wt])) {
-    if (tab.status !== 'archived') archiveTab(tab)
+    if (tab.status !== 'archived') {
+      archiveTab(tab)
+      // Tag as worktree-archived so a later reappearance reactivates it (vs a tab
+      // the user archived by hand, which must stay archived).
+      tab.archivedByWorktree = true
+    }
   }
   wt.status = 'archived'
   wt.archiving = false

@@ -14,9 +14,8 @@ import store, {
   SPOTLIGHT_SVG,
   openNewTerminal,
   openSpotlight,
-  getDraft,
-  getDraftCaret,
-  setDraft
+  setDraft,
+  seedDraftInto
 } from './agent-composer.store'
 import type { ComposerMode, SlashItem } from './agent-composer.types'
 
@@ -24,11 +23,13 @@ import type { ComposerMode, SlashItem } from './agent-composer.types'
 // above a prompt box, with New Terminal / Open Project below it. What's typed becomes
 // a Daily Plan ticket and a Claude terminal. Shown whenever no tab is selected.
 //
-// The textarea is UNCONTROLLED and its text is kept in the store's non-reactive
-// draft: a dropdown change writes to the reactive store and re-renders the whole
-// composer, so the draft is seeded back (and focus + caret restored) in onAfterRender.
-// The icon SVGs are injected through refs there too — an `innerHTML=` JSX prop is
-// dropped by gea.
+// The textarea is UNCONTROLLED and its text is kept in the store's non-reactive draft
+// (updated on every keystroke). gea does fine-grained updates — a dropdown change patches
+// only its own node and leaves the textarea in place — and onAfterRender is mount-only,
+// so it seeds the draft on the FIRST render only. On a later show the same textarea node
+// survives with its stale value, so focusAgentComposer re-seeds it from the draft (empty
+// after a submit). The icon SVGs are injected through refs in onAfterRender — an
+// `innerHTML=` JSX prop is dropped by gea.
 class AgentComposer extends Component {
   inputEl: HTMLTextAreaElement | null = null
   modeIconEl: HTMLSpanElement | null = null
@@ -41,17 +42,19 @@ class AgentComposer extends Component {
     if (this.spotlightIconEl) this.spotlightIconEl.innerHTML = SPOTLIGHT_SVG
     const input = this.inputEl
     if (!input) return
-    input.value = getDraft()
+    seedDraftInto(input)
     input.focus()
-    const caret = getDraftCaret()
-    input.setSelectionRange(caret, caret)
+    this.autoGrow(input)
   }
+
+  private autoGrow = (input: HTMLTextAreaElement): void => sizeComposerInput(input)
 
   private onInput = (e: Event): void => {
     const input = e.target as HTMLTextAreaElement
     const caret = input.selectionStart ?? input.value.length
     setDraft(input.value, caret)
     store.syncSlash(input.value, caret)
+    this.autoGrow(input)
   }
 
   // Moving the caret out of a "/token" (click, arrow keys) closes the menu.
@@ -69,6 +72,7 @@ class AgentComposer extends Component {
     input.value = next.text
     input.setSelectionRange(next.caret, next.caret)
     input.focus()
+    this.autoGrow(input)
   }
 
   // Cmd+Enter submits; Enter is a plain newline (the box is a normal textarea). While
@@ -225,9 +229,24 @@ export function refreshAgentComposer(): void {
   focusAgentComposer()
 }
 
+// Size the textarea to its content: reset to `auto` so scrollHeight reflects the real
+// text height, then pin that height. CSS `max-height` caps the growth and scrolls the
+// overflow, so the box expands downward until the limit.
+function sizeComposerInput(input: HTMLTextAreaElement): void {
+  input.style.height = 'auto'
+  input.style.height = `${input.scrollHeight}px`
+}
+
 // The composer is built once and then shown/hidden, so its mount-only onAfterRender
-// cannot focus it on a later visit — and on the very first render the element does
-// not exist yet (gea renders async). Wait for the textarea, then focus it.
+// cannot re-seed it on a later visit — and on the very first render the element does
+// not exist yet (gea renders async). Wait for the textarea, resync it to the draft
+// (empty after a submit, so the prompt does not linger), size it, then focus it.
 function focusAgentComposer(): void {
-  focusWhenReady(() => document.querySelector<HTMLTextAreaElement>('.agent-composer-input'))
+  focusWhenReady(() => {
+    const input = document.querySelector<HTMLTextAreaElement>('.agent-composer-input')
+    if (!input) return null
+    seedDraftInto(input)
+    sizeComposerInput(input)
+    return input
+  })
 }

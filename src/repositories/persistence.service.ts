@@ -119,7 +119,8 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       // reactivatable; the live root is just an empty placeholder while dormant.
       root: node.status === 'archived' && node.dormantRoot ? node.dormantRoot : serializeLayout(node.root),
       status: node.status ?? deriveTabStatus(node.root),
-      ...(node.detailsOpen ? { detailsOpen: true } : {})
+      ...(node.detailsOpen ? { detailsOpen: true } : {}),
+      ...(node.archivedByWorktree ? { archivedByWorktree: true } : {})
     }
   }
   if (node.kind === 'project') {

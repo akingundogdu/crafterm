@@ -21,6 +21,11 @@ import type { ComposerMode, SlashItem } from './agent-composer.types'
 
 export const DEFAULT_BASE = 'main'
 
+// The composer files a Daily Plan ticket; keep its title short (a glanceable label in
+// the sidebar and on the terminal tab) and carry the full prompt in the description, so
+// Claude still receives everything the user typed.
+export const COMPOSER_TITLE_MAX = 20
+
 export const MODES: { val: ComposerMode; label: string }[] = [
   { val: 'local', label: 'Local' },
   { val: 'worktree', label: 'Worktree' }
@@ -118,6 +123,15 @@ export function getDraftCaret(): number {
 export function setDraft(text: string, caret = text.length): void {
   draft = text
   draftCaret = caret
+}
+
+// Push the current draft (and caret) into the textarea. The box is uncontrolled and
+// gea's onAfterRender is mount-only, so a re-shown composer keeps the textarea's stale
+// DOM value — the view calls this on every show to resync it (empty after a submit).
+export function seedDraftInto(input: HTMLTextAreaElement): void {
+  input.value = getDraft()
+  const caret = getDraftCaret()
+  input.setSelectionRange(caret, caret)
 }
 
 async function showMessage(title: string, message: string): Promise<void> {
@@ -250,8 +264,8 @@ class AgentComposerStore extends Store {
   // File the typed text as a ticket in the selected project and hand it to a Claude
   // terminal — in a worktree branched off the chosen base, or in the project itself.
   async submit(text: string): Promise<void> {
-    const title = text.trim()
-    if (!title || this.isBusy) return
+    const full = text.trim()
+    if (!full || this.isBusy) return
     const project = this.selectedProject
     if (!project) {
       await showMessage('No project', 'Add a project to the sidebar first, then start work from here.')
@@ -271,9 +285,13 @@ class AgentComposerStore extends Store {
     try {
       const now = Date.now()
       const date = todayKey()
+      // Short label for the ticket/terminal title; the full prompt rides in the
+      // description so openTaskInTerminal still hands Claude everything that was typed.
+      const title = full.slice(0, COMPOSER_TITLE_MAX)
       const task: DailyPlanTask = {
         id: uid('task'),
         title,
+        description: full.length > COMPOSER_TITLE_MAX ? full : undefined,
         date,
         status: 'todo',
         priority: 'medium',

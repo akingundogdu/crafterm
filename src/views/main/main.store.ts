@@ -574,7 +574,8 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
           root: { type: 'leaf', paneId: '' },
           status: 'archived',
           dormantRoot: n.root,
-          detailsOpen: !!n.detailsOpen
+          detailsOpen: !!n.detailsOpen,
+          archivedByWorktree: !!n.archivedByWorktree
         })
         continue
       }

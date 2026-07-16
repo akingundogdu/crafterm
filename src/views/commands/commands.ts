@@ -27,7 +27,8 @@ import {
   renderContent,
   updateActive,
   updatePaneActive,
-  applyDocFont
+  applyDocFont,
+  paneActions
 } from '@views/state/state'
 import { exitSideBySide, isTabTiled } from '@views/screens/content/content.store'
 import { persistence } from '@repositories/persistence.service'
@@ -41,6 +42,7 @@ import {
   findById,
   findTab,
   findTabByPane,
+  findTabByClaudeSession,
   allTabs,
   isDescendant,
   depthOfFolder,
@@ -852,7 +854,25 @@ export async function resumeClaudeSession(
   cwd: string | null,
   title: string
 ): Promise<void> {
-  await createTab(null, {
+  // If this session already lives in the tree, act on THAT node — never spawn a
+  // duplicate `claude --resume` in the free area. An archived tab reactivates in
+  // place (under its worktree, resuming Claude via buildLayout); a live one is
+  // just selected.
+  const existing = findTabByClaudeSession(
+    state.tree,
+    sessionId,
+    (id) => panes.get(id)?.claudeSessionId === sessionId
+  )
+  if (existing) {
+    if (existing.status === 'archived') void paneActions.reactivateTab(existing.id)
+    else selectTab(existing.id)
+    return
+  }
+  // No node for it yet: drop the resumed session under the worktree that owns its
+  // cwd, falling back to a top-level tab when the cwd isn't inside a managed
+  // worktree (e.g. a main-checkout session).
+  const owner = cwd ? worktreeForCwd(cwd) : null
+  await createTab(owner?.node.id ?? null, {
     title,
     cwd: cwd ?? undefined,
     command: `claude --resume ${sessionId}`,

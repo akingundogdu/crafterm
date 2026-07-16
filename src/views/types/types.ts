@@ -202,6 +202,10 @@ export interface TabNode {
   // the session can be rebuilt on reactivate; the live `root` is an empty
   // placeholder until then.
   dormantRoot?: SavedNode
+  // Set when the worktree-reconcile archived this tab because its worktree went
+  // missing (not a user close). If the worktree reappears, un-archive reactivates
+  // exactly these tabs — user-closed tabs (flag absent) stay archived.
+  archivedByWorktree?: boolean
 }
 
 // A grouping folder in the sidebar (can nest up to MAX_FOLDER_DEPTH). A folder
