@@ -394,6 +394,7 @@ export interface SavedState {
     cwd?: string | null
     reminderText?: string
     projectColor?: string
+    paneStableId?: string
     payload?: { kind: string; [k: string]: unknown }
   }[]
 }

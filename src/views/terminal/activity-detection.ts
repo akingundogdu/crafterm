@@ -110,9 +110,13 @@ function notifyPane(pane: Pane, body: string, event: 'question' | 'done'): boole
   const trail = tab ? ancestorFolders(state.tree, tab.id) : null
   const group = trail && trail.length ? trail.map((f) => f.name).join(' / ') : ''
   const proj = pane.projectId ? findProjectById(state.tree, pane.projectId) : null
+  // The title is only a fallback for when the terminal is gone: the panel resolves
+  // the live name from the tree, so a later rename is reflected rather than frozen
+  // at the moment the notification fired.
   pushNotification(pane.id, pane.title || 'zsh', group, body, {
     kind: 'pane',
     event,
+    paneStableId: pane.stableId,
     branch: pane.branch,
     worktree: pane.worktree,
     cwd: pane.cwd,

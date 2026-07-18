@@ -10,6 +10,18 @@
 .notif-group:hover {
   border-color: var(--accent, #4a9eff);
 }
+/* The terminal is gone: the card still shows what happened, but there is nowhere to
+   go — so it does not pretend to be clickable. */
+.notif-group.gone {
+  cursor: default;
+}
+.notif-group.gone .notif-group-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+.notif-group.gone:hover {
+  border-color: var(--border);
+}
 .notif-group-head {
   display: flex;
   align-items: center;

@@ -31,6 +31,19 @@ export function mirrorPaneTitleToTab(pane: Pane): void {
   }
 }
 
+// A name the user typed on the pane header. The sidebar labels a terminal by its
+// TAB's title, so a pane rename that never reached the tab read as "the rename did
+// nothing" — the row kept its "zsh 3" default. Renaming the pane that leads the tab
+// therefore renames the terminal, and locks it: typing a name is as explicit as
+// renaming the row itself, and an explicit name must survive the next OSC/Claude
+// title (and the restart that replays them).
+export function applyPaneRenameToTab(pane: Pane): void {
+  const tab = findTabByPane(state.tree, pane.id)
+  if (!tab || firstPaneId(tab.root) !== pane.id || !pane.title) return
+  tab.title = pane.title
+  tab.titleLocked = true
+}
+
 function firstPaneId(node: LayoutNode): string {
   return node.type === 'leaf' ? node.paneId : firstPaneId(node.children[0])
 }

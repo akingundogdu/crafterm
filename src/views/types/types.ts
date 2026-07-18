@@ -576,6 +576,10 @@ export interface NotificationMeta {
   reminderText?: string // present on reminder cards (used by snooze)
   projectColor?: string // optional hex tag color from the producing pane's project
   payload?: ReminderPayload // forwarded from the reminder; drives the card's Open action
+  // The producing pane's STABLE id. `paneId` is a runtime id that is regenerated on
+  // restore, so a persisted notification's paneId points at nothing after a restart —
+  // this is the durable link back to the terminal.
+  paneStableId?: string
 }
 
 // A notification card shown in the right notification panel.

@@ -6,6 +6,7 @@ import { selectPane } from '@views/commands/commands'
 import { terminalService } from '@services'
 import { snoozeOptions, snoozeReminder } from '@views/screens/reminders/reminders.engine'
 import { relTime } from '../notif-format'
+import { livePaneId, notifTitle } from '../notif-route'
 import { CHEVRON_SVG, toneOf, statusIconFor, buildNotifChips, resolvePayloadOpener } from '../notifications.store'
 import { showPaneRemindPicker } from './remind-popover.open'
 import store from '../notifications.store'
@@ -39,9 +40,13 @@ export default class NotificationCard extends Component {
       }
       return
     }
-    // Jump to the pane (focus its pop-out window when popped out), then dismiss.
-    if (poppedOut.has(n.paneId)) terminalService.popoutFocus(n.paneId)
-    else if (panes.has(n.paneId)) selectPane(n.paneId)
+    // Jump to the pane (focus its pop-out window when popped out), then dismiss. The
+    // pane is resolved LIVE: the stored paneId is a runtime id that dies on restore,
+    // so a restored notification used to click into nothing.
+    const paneId = livePaneId(n)
+    if (!paneId) return
+    if (poppedOut.has(paneId)) terminalService.popoutFocus(paneId)
+    else if (panes.has(paneId)) selectPane(paneId)
     store.dismiss(n.id)
   }
 
@@ -83,7 +88,7 @@ export default class NotificationCard extends Component {
           />
           <span class="notif-card-title" style={titleStyle}>
             {statusIcon && <span class={'notif-card-status notif-status-' + tone} ref={this.statusEl} />}
-            <span>{n.title}</span>
+            <span>{notifTitle(n)}</span>
           </span>
           <span class="notif-card-time">{relTime(n.time)}</span>
         </div>
