@@ -7,6 +7,8 @@ import store, {
   MODES,
   COMPOSER_PLACEHOLDER,
   COMPOSER_HINT,
+  TITLE_PLACEHOLDER,
+  BRANCH_PLACEHOLDER,
   PICK_HINT,
   PLAN_LABEL,
   BUILD_LABEL,
@@ -16,7 +18,12 @@ import store, {
   openNewTerminal,
   openSpotlight,
   setDraft,
-  seedDraftInto
+  seedDraftInto,
+  seedMetaInto,
+  syncTitleFromPrompt,
+  setTitleDraft,
+  setBranchDraft,
+  getBranchDraft
 } from './agent-composer.store'
 import type { ComposerMode, SlashItem } from './agent-composer.types'
 
@@ -33,6 +40,8 @@ import type { ComposerMode, SlashItem } from './agent-composer.types'
 // `innerHTML=` JSX prop is dropped by gea.
 class AgentComposer extends Component {
   inputEl: HTMLTextAreaElement | null = null
+  titleInputEl: HTMLInputElement | null = null
+  branchInputEl: HTMLInputElement | null = null
   modeIconEl: HTMLSpanElement | null = null
   terminalIconEl: HTMLSpanElement | null = null
   spotlightIconEl: HTMLSpanElement | null = null
@@ -44,18 +53,51 @@ class AgentComposer extends Component {
     const input = this.inputEl
     if (!input) return
     seedDraftInto(input)
+    this.seedMeta()
     input.focus()
     this.autoGrow(input)
   }
 
   private autoGrow = (input: HTMLTextAreaElement): void => sizeComposerInput(input)
 
+  private seedMeta = (): void => {
+    if (this.titleInputEl && this.branchInputEl) seedMetaInto(this.titleInputEl, this.branchInputEl)
+  }
+
   private onInput = (e: Event): void => {
     const input = e.target as HTMLTextAreaElement
     const caret = input.selectionStart ?? input.value.length
     setDraft(input.value, caret)
     store.syncSlash(input.value, caret)
+    // Mirror the prompt's head into the title (and its slug into the branch) live,
+    // unless the user already took the title over by hand.
+    syncTitleFromPrompt(input.value)
+    this.seedMeta()
     this.autoGrow(input)
+  }
+
+  private onTitleInput = (e: Event): void => {
+    const input = e.target as HTMLInputElement
+    setTitleDraft(input.value)
+    if (this.branchInputEl) this.branchInputEl.value = getBranchDraft()
+  }
+
+  // The branch keeps a slug shape while typed: rewrite the field only when the
+  // slugging actually changed it, keeping the caret in place relative to the cut.
+  private onBranchInput = (e: Event): void => {
+    const input = e.target as HTMLInputElement
+    const caret = input.selectionStart ?? input.value.length
+    const raw = input.value
+    const slug = setBranchDraft(raw)
+    if (slug === raw) return
+    input.value = slug
+    const next = Math.max(0, Math.min(slug.length, caret - (raw.length - slug.length)))
+    input.setSelectionRange(next, next)
+  }
+
+  // Keep the app's global keybindings out of the title/branch boxes, like the prompt.
+  private onMetaKeyDown = (e: KeyboardEvent): void => {
+    e.stopPropagation()
   }
 
   // Moving the caret out of a "/token" (click, arrow keys) closes the menu.
@@ -103,7 +145,17 @@ class AgentComposer extends Component {
     }
     if (e.key !== 'Enter' || !e.metaKey) return
     e.preventDefault()
-    void store.submit((e.target as HTMLTextAreaElement).value)
+    void store.submit((e.target as HTMLTextAreaElement).value).then((isFiled) => {
+      // Resync the box the moment a filed submit clears the draft. Without this the
+      // textarea keeps the old text, and the very next keyup/click on it would write
+      // that stale value back into the draft — resurrecting the prompt on the next
+      // show. A refused submit (isFiled false) keeps the text for another try.
+      const input = this.inputEl
+      if (!isFiled || !input) return
+      seedDraftInto(input)
+      this.seedMeta()
+      this.autoGrow(input)
+    })
   }
 
   template() {
@@ -175,6 +227,25 @@ class AgentComposer extends Component {
             onKeyUp={this.onSelectionChange}
             onClick={this.onSelectionChange}
           />
+          <div class="agent-composer-meta">
+            <input
+              type="text"
+              class="agent-composer-title-input"
+              placeholder={TITLE_PLACEHOLDER}
+              ref={this.titleInputEl}
+              onInput={this.onTitleInput}
+              onKeyDown={this.onMetaKeyDown}
+            />
+            <input
+              type="text"
+              class="agent-composer-branch-input"
+              placeholder={BRANCH_PLACEHOLDER}
+              disabled={mode === 'local'}
+              ref={this.branchInputEl}
+              onInput={this.onBranchInput}
+              onKeyDown={this.onMetaKeyDown}
+            />
+          </div>
           <div class="agent-composer-toolbar">
             <div class="agent-composer-toggle">
               <button
@@ -249,6 +320,9 @@ function focusAgentComposer(): void {
     const input = document.querySelector<HTMLTextAreaElement>('.agent-composer-input')
     if (!input) return null
     seedDraftInto(input)
+    const title = document.querySelector<HTMLInputElement>('.agent-composer-title-input')
+    const branch = document.querySelector<HTMLInputElement>('.agent-composer-branch-input')
+    if (title && branch) seedMetaInto(title, branch)
     sizeComposerInput(input)
     return input
   })

@@ -71,6 +71,9 @@
 #update-overlay[hidden] {
   display: none;
 }
+#update-overlay.fade-out {
+  opacity: 0;
+}
 .update-overlay-card {
   display: flex;
   flex-direction: column;

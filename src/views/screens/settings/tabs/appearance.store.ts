@@ -1,4 +1,4 @@
-import { settings, applyBgColor, applyDocFont, resolveTheme } from '@views/state/spine'
+import { settings, applyBgColor, applySidebarSelectedColor, applyDocFont, resolveTheme } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
 import { applyAppearance } from '@views/pane/pane'
 import { applyTheme } from '@views/editor/monaco/monaco-setup'
@@ -68,6 +68,12 @@ export function applyBackground(color: string): void {
   settings.bgColor = color
   applyBgColor()
   applyAppearance()
+  persistence.save()
+}
+
+export function setSidebarSelectedColor(v: string): void {
+  settings.sidebarSelectedColor = v
+  applySidebarSelectedColor()
   persistence.save()
 }
 

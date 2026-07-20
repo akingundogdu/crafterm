@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, openTerminal, readState, closeApp } from './_harness.js'
 
 // Live terminal-pane interactions (§2.37/§2.41–44): per-pane font zoom (Cmd+=/-/0,
 // active pane only) and pane drag-to-rearrange (pointer-event grip drag → movePane
@@ -14,7 +14,7 @@ test('pane: Cmd+= / Cmd+0 zoom the active pane font only (per-pane)', async () =
   const dir = freshStateDir('crafterm-e2e-pint-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
     await win.keyboard.press('Meta+d') // split → 2 panes, to prove "active pane only"
     await expect(win.locator('.pane-box')).toHaveCount(2)
     const boxes = win.locator('.pane-box')
@@ -41,7 +41,7 @@ test('pane: dragging the pane grip onto another pane rearranges the layout (row 
   const dir = freshStateDir('crafterm-e2e-pint-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
     await win.keyboard.press('Meta+d') // flat row split
     await expect(win.locator('.pane-box')).toHaveCount(2)
     await expect.poll(() => splitTab(dir)?.root?.dir, { timeout: 5_000 }).toBe('row')

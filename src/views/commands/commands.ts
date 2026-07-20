@@ -878,13 +878,13 @@ export async function resumeClaudeSession(
     command: `claude --resume ${sessionId}`,
     claude: true
   })
-  // record the exact session on the new pane so a later app-restore resumes it too
+  // Record the resumed session as a fallback, but DON'T lock it: `claude --resume`
+  // continues under a NEW session id, and refreshPaneInfo must capture that fresh
+  // id (createTab already set the claudeSpawnedAt baseline + left it unlocked) or
+  // /rename records would land in a jsonl we never read.
   const p = state.activePaneId ? panes.get(state.activePaneId) : null
   if (p) {
     p.claudeSessionId = sessionId
-    // we know the id, so lock it; the periodic refresh must not overwrite it
-    // with whatever's newest in this cwd (the bug we're fixing)
-    p.claudeSessionLocked = true
     persistence.save()
   }
 }

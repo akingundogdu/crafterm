@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, openTerminal, closeApp } from './_harness.js'
 
 // Sidebar session-node details (§3): the per-node detail toggles reveal a detail
 // line + a pane sub-list under an expanded session, and recency grouping buckets
@@ -10,8 +10,7 @@ test('sidebar details: toggles reveal detail line + pane sub-list; recency bucke
   const { app, win } = await launchApp(dir)
   try {
     await test.step('split the starter session (2 panes)', async () => {
-      // fresh launch auto-creates one starter terminal
-      await expect(win.locator('.pane-box')).toHaveCount(1)
+      await openTerminal(win)
       await win.keyboard.press('Meta+d')
       await expect(win.locator('.pane-box')).toHaveCount(2)
     })

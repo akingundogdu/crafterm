@@ -36,9 +36,10 @@ test('build project -> nested folder -> bookmark in one session and restore on r
       await expect(win.locator('#tab-list')).toContainText(PROJECT)
     })
 
-    await test.step('nest a folder under the selected project (⇧⌘N)', async () => {
-      // createProject left the project selected, so context-create nests into it.
-      await win.keyboard.press('Meta+Shift+N')
+    await test.step('nest a folder under the project (context menu → New subfolder)', async () => {
+      // ⇧⌘N now shows the start screen; nesting goes through the row context menu.
+      await win.locator('.tab-item.folder', { hasText: PROJECT }).first().click({ button: 'right' })
+      await win.locator('.context-menu').getByRole('button', { name: 'New subfolder', exact: true }).click()
       await dialogConfirm(win, [FOLDER])
       await expect(win.locator('#tab-list')).toContainText(FOLDER)
     })

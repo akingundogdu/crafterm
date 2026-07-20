@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, openTerminal, closeApp } from '../_harness.js'
 
 // Pop-out windows (§2): popping a pane opens a 2nd BrowserWindow (popout.html?id)
 // and the main window shows a placeholder + "Focus window". The first multi-window
@@ -10,7 +10,7 @@ test('pop-out: a pane pops to a 2nd window + the main shows a placeholder', asyn
   const dir = freshStateDir('crafterm-e2e-pop-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1) // starter terminal
+    await openTerminal(win)
     await win.locator('.pane-box.active .pane-btn').click()
     const popoutOpened = app.waitForEvent('window')
     await win.locator('.context-menu').getByRole('button', { name: 'Pop out to window', exact: true }).click()

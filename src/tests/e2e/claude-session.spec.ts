@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { homedir } from 'node:os'
 import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, openTerminal, selectTab, readState, closeApp } from './_harness.js'
 
 // Claude-session binding lifecycle (§2), Layer A only — Crafterm's handoff, NOT
 // the model's context continuity. We drive it WITHOUT the real claude CLI by
@@ -59,7 +59,7 @@ test('claude: typing `claude` flips detection and the session id binds + persist
   const U = 'aaaaaaaa-bbbb-4ccc-8ddd-000000000001'
   const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
     await win.locator('.pane-term').first().click()
     await win.keyboard.type('claude')
     await win.keyboard.press('Enter')
@@ -85,7 +85,7 @@ test('claude: a restored session injects `claude --resume <id>` on launch', asyn
   seedClaudeSession(dir, homedir(), U)
   const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await selectTab(win) // the seeded tab restores unselected; activate it
     // buildLayout injects `claude --resume <id>\r` 500ms after restore; the shell
     // echoes the injected command into the rendered xterm.
     await expect(win.locator('.pane-term .xterm-rows')).toContainText(`claude --resume ${U}`, { timeout: 12_000 })
@@ -106,6 +106,7 @@ test('claude: /rename custom-title syncs to the pane header + sidebar label', as
   ])
   const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
+    await selectTab(win) // the seeded tab restores unselected; activate it
     await test.step('initial custom-title reflects in both places', async () => {
       await expect(win.locator('.pane-box .pane-title', { hasText: 'Renamed One' })).toBeVisible({ timeout: 12_000 })
       await expect(win.locator('#tab-list .tab-item .tab-title', { hasText: 'Renamed One' })).toBeVisible({ timeout: 12_000 })

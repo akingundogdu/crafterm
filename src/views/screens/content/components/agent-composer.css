@@ -93,6 +93,39 @@
 .agent-composer-input::placeholder {
   color: var(--text-faint);
 }
+/* Title + branch under the prompt: the title mirrors the prompt's first 20 chars
+   (until hand-edited), the branch mirrors the title as a slug — it becomes the
+   worktree branch suffix (KEY-<slug>). */
+.agent-composer-meta {
+  display: flex;
+  gap: 0.55em;
+}
+.agent-composer-title-input,
+.agent-composer-branch-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35em 0.55em;
+  border: 1px solid var(--border);
+  border-radius: 0.4em;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.85em;
+  outline: none;
+}
+.agent-composer-title-input:focus,
+.agent-composer-branch-input:focus {
+  border-color: var(--accent, #4a9eff);
+  color: var(--text);
+}
+.agent-composer-title-input::placeholder,
+.agent-composer-branch-input::placeholder {
+  color: var(--text-faint);
+}
+.agent-composer-branch-input:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
 .agent-composer-toolbar {
   display: flex;
   align-items: center;

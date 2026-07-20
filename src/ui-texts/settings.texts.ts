@@ -24,6 +24,7 @@ export const Settings = {
     terminalFontSize: 'Terminal font size',
     docFontSize: 'Doc & composer font size',
     codeEditorTheme: 'Code editor theme',
+    sidebarSelectedBorder: 'Sidebar selected border',
     customColor: 'Custom color',
     background: 'Background',
     themeHeading: 'Theme',

@@ -128,6 +128,7 @@ export function createPaneState(args: {
     claudeSessionId: null,
     claudeSpawnedAt: null,
     claudeSessionLocked: false,
+    lastClaudeTitle: null,
     bgColor: null,
     fontSize: null,
     trackProjectPath: null,

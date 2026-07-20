@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, openTerminal, closeApp } from '../_harness.js'
 
 // Browser pane (§2): the Electron <webview>. Browser panes are runtime-only (no
 // seedable leaf), so we open one via the pane ⋯ menu → "Open URL in browser…".
@@ -12,8 +12,8 @@ test('browser pane: opening a URL mounts a <webview> with controls', async () =>
   const URL = 'https://example.com/'
   const { app, win } = await launchApp(dir)
   try {
-    // a starter terminal exists; open its ⋯ menu → "Open URL in browser…"
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    // open a terminal, then its ⋯ menu → "Open URL in browser…"
+    await openTerminal(win)
     await win.locator('.pane-box.active .pane-btn').click()
     await win.locator('.context-menu').getByRole('button', { name: /Open URL in browser/ }).click()
     const modal = win.locator('.modal-overlay')

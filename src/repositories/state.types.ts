@@ -16,6 +16,7 @@ export interface SavedLeaf {
   lastCommand?: string // last command run (raw panes only) — pre-typed on restore
   claude?: boolean // a Claude session — resumed on restore
   claudeSessionId?: string // exact session to `claude --resume <id>` on restore
+  lastClaudeTitle?: string // last /rename title seen (a differing one may beat a locked title)
   bgColor?: string // per-pane background override
   // Project / application this terminal was spawned from (drives the pane
   // action menu's "Commands — …" sections after restore).
@@ -223,6 +224,7 @@ export interface SavedState {
   theme: string // a built-in name, or 'Custom'
   customTheme?: Record<string, string>
   bgColor?: string // user-chosen background color
+  sidebarSelectedColor?: string // border color of the selected sidebar node
   editorTheme?: string // global Monaco theme name for the code + SQL editors
   docFontSize?: number // markdown doc font size
   codeRoot?: string // base folder for the Cmd+P folder picker

@@ -3,7 +3,7 @@ import { panes, state, paneActions, requestSidebar, requestStatuses } from '@vie
 import { persistence } from '@repositories/persistence.service'
 import { findTabByPane } from '@views/tree/tree'
 import { claudeService, terminalService, plansService , paneService } from '@services'
-import { mirrorPaneTitleToTab } from './osc-title'
+import { mirrorPaneTitleToTab, unlockTitlesForSessionRename } from './osc-title'
 import { looksLikeClaudeQuestion, syncPaneStatus } from './activity-detection'
 import { updatePaneStatus } from './status-bar'
 
@@ -106,10 +106,18 @@ export async function refreshClaudeStatus(pane: Pane): Promise<void> {
 }
 
 export async function applyClaudeSessionTitle(pane: Pane): Promise<void> {
-  if (!pane.cwd || !pane.claudeSessionId || pane.titleLocked) return
+  if (!pane.cwd || !pane.claudeSessionId) return
   try {
     const title = await claudeService.sessionTitle(pane.cwd, pane.claudeSessionId)
     if (!title) return
+    // A title that differs from the last one this pane saw is a fresh /rename —
+    // the newest explicit action, so it beats an earlier lock (ticket title or
+    // manual sidebar rename). An unchanged title never overrides a lock.
+    if (title !== pane.lastClaudeTitle) {
+      pane.lastClaudeTitle = title
+      unlockTitlesForSessionRename(pane)
+    }
+    if (pane.titleLocked) return
     if (pane.title !== title) {
       pane.title = title
       pane.htitle.textContent = title
@@ -149,7 +157,11 @@ export async function refreshPaneInfo(pane: Pane): Promise<void> {
   // whichever jsonl happens to be newest globally for the cwd.
   if (pane.claude && pane.cwd && !pane.claudeSessionLocked) {
     const since = pane.claudeSpawnedAt ?? 0
-    const sid = await claudeService.latestSession(pane.cwd, since)
+    // When this pane is resuming a known session (restore / resume picker), only
+    // that session or its continuation qualifies — `claude --resume` rolls to a
+    // NEW id, and without the constraint a same-cwd sibling's fresh session
+    // could be captured instead.
+    const sid = await claudeService.latestSession(pane.cwd, since, pane.claudeSessionId ?? undefined)
     if (sid) {
       if (sid !== pane.claudeSessionId) pane.claudeSessionId = sid
       pane.claudeSessionLocked = true
@@ -161,9 +173,10 @@ export async function refreshPaneInfo(pane: Pane): Promise<void> {
       setTimeout(() => applyClaudeSessionTitle(pane), 1000)
       setTimeout(() => applyClaudeSessionTitle(pane), 3000)
     }
-  } else if (pane.claude && pane.cwd && pane.claudeSessionId && !pane.titleLocked) {
+  } else if (pane.claude && pane.cwd && pane.claudeSessionId) {
     // Already locked: refresh in the background so /rename inside the session
-    // updates the title without requiring a full pane restart.
+    // updates the title without requiring a full pane restart. Runs for locked
+    // titles too — applyClaudeSessionTitle lets a fresh /rename beat the lock.
     applyClaudeSessionTitle(pane)
   }
   // Ensure a live watcher on this session's project dir so /rename reflects

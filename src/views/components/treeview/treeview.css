@@ -65,7 +65,7 @@
 /* selection context (e.g. clicked folder) — where the next new terminal lands */
 .tab-item.selected:not(.active) {
   background: var(--row-hover);
-  box-shadow: inset 0 0 0 1px var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--sidebar-selected-border);
 }
 
 .tab-item.folder {

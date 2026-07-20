@@ -109,7 +109,7 @@ const ENTRIES: Entry[] = [
   { ns: 'markdown', method: 'open', kind: 'send', channel: 'markdown:open', args: ['p'], payload: { path: 'p' } },
 
   // ── claude ──
-  { ns: 'claude', method: 'latestSession', kind: 'invoke', channel: 'claude:latestSession', args: ['cwd', 5], payload: { cwd: 'cwd', since: 5 } },
+  { ns: 'claude', method: 'latestSession', kind: 'invoke', channel: 'claude:latestSession', args: ['cwd', 5, 'sid'], payload: { cwd: 'cwd', since: 5, ofSession: 'sid' } },
   { ns: 'claude', method: 'sessionCwd', kind: 'invoke', channel: 'claude:sessionCwd', args: ['s'], payload: { sessionId: 's' } },
   { ns: 'claude', method: 'sessions', kind: 'invoke', channel: 'claude:sessions', args: [], payload: undefined },
   { ns: 'claude', method: 'sessionTitle', kind: 'invoke', channel: 'claude:sessionTitle', args: ['cwd', 's'], payload: { cwd: 'cwd', sessionId: 's' } },

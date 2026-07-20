@@ -10,6 +10,7 @@ import {
   paneActions,
   uid,
   applyBgColor,
+  applySidebarSelectedColor,
   applyDocFont,
   settings
 } from '@views/state/state'
@@ -495,16 +496,14 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
     if (p && n.claude) {
       p.claude = true
       p.claudeSessionId = n.claudeSessionId ?? null
-      if (n.claudeSessionId) {
-        // we already have the exact id from the saved state — freeze it so the
-        // periodic refresh can't replace it with a newer sibling session
-        p.claudeSessionLocked = true
-      } else {
-        // no id captured yet; baseline so future captures only adopt sessions
-        // appearing after this restore (not pre-existing jsonls in the cwd)
-        p.claudeSpawnedAt = Date.now()
-        p.claudeSessionLocked = false
-      }
+      p.lastClaudeTitle = n.lastClaudeTitle ?? null
+      // `claude --resume` continues the conversation under a NEW session id, so
+      // the saved id goes stale the moment the resume spawns — /rename records
+      // would land in a jsonl we never read. Baseline + unlock so refreshPaneInfo
+      // captures the resumed session's fresh id; the saved id stays as the
+      // --resume target and as a fallback until that capture lands.
+      p.claudeSpawnedAt = Date.now()
+      p.claudeSessionLocked = false
       // Resume the exact session if we captured its id, else the latest in this cwd.
       const cmd = n.claudeSessionId ? `claude --resume ${n.claudeSessionId}` : 'claude --continue'
       setTimeout(() => terminalService.input(id, cmd + '\r'), 500)
@@ -682,6 +681,7 @@ export async function init(): Promise<void> {
   if (!actionMenuRepo.getAll().length) settings.actionMenu = seedActionMenu()
 
   applyBgColor()
+  applySidebarSelectedColor()
   applyDocFont()
   void applyTheme(settings.editorTheme) // global Monaco editor theme
   // Route editor go-to-definition (cross-file imports) into our pane system.

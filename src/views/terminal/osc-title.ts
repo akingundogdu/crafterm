@@ -44,6 +44,16 @@ export function applyPaneRenameToTab(pane: Pane): void {
   tab.titleLocked = true
 }
 
+// A fresh /rename inside the Claude session is the newest explicit action — it
+// beats an earlier lock (a ticket title or a manual sidebar rename). Unlock the
+// pane and, when this pane leads its tab, the tab too, so the new title can
+// mirror onto the sidebar row.
+export function unlockTitlesForSessionRename(pane: Pane): void {
+  pane.titleLocked = false
+  const tab = findTabByPane(state.tree, pane.id)
+  if (tab && firstPaneId(tab.root) === pane.id) tab.titleLocked = false
+}
+
 function firstPaneId(node: LayoutNode): string {
   return node.type === 'leaf' ? node.paneId : firstPaneId(node.children[0])
 }

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, openTerminal, selectTab, readState, closeApp } from './_harness.js'
 
 // Terminal-session persistence (§2 + §9): a tab's pane LAYOUT serializes onto the
 // tab node as `root` (split/leaf tree). We create a split, set a per-pane bg +
@@ -24,9 +24,8 @@ test('session: split layout + per-pane bg + rename restore on relaunch', async (
   let { app, win } = await launchApp(dir)
   const RENAMED = 'My Split Pane'
   try {
-    await test.step('split the starter terminal', async () => {
-      // fresh launch auto-creates one starter terminal (main.state newTab())
-      await expect(win.locator('.pane-box')).toHaveCount(1)
+    await test.step('open a terminal and split it', async () => {
+      await openTerminal(win)
       await win.keyboard.press('Meta+d') // split-right
       await expect(win.locator('.pane-box')).toHaveCount(2)
     })
@@ -64,6 +63,7 @@ test('session: split layout + per-pane bg + rename restore on relaunch', async (
     await test.step('restore on relaunch', async () => {
       await app.close()
       ;({ app, win } = await launchApp(dir))
+      await selectTab(win) // launch restores the tab but no longer auto-selects it
       await expect(win.locator('.pane-box')).toHaveCount(2)
       await expect(win.locator('.pane-title', { hasText: RENAMED })).toBeVisible()
       expect(tabs(dir).some((t) => t.root?.type === 'split')).toBe(true)
@@ -77,8 +77,9 @@ test('session: close archives, show-archived reveals, restore rebuilds', async (
   const dir = freshStateDir('crafterm-e2e-sess-')
   const { app, win } = await launchApp(dir)
   try {
-    await test.step('create a second session (starter + one more)', async () => {
-      await expect(win.locator('#tab-list .tab-item')).toHaveCount(1) // starter
+    await test.step('create two sessions', async () => {
+      await openTerminal(win)
+      await expect(win.locator('#tab-list .tab-item')).toHaveCount(1)
       await win.locator('#new-tab').click()
       await expect(win.locator('#tab-list .tab-item')).toHaveCount(2)
       await expect(win.locator('.pane-box')).toHaveCount(2)

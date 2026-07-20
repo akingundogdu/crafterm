@@ -133,10 +133,10 @@ export async function openTaskInTerminal(
     parentId = wt.nodeId ?? project.id
     progress.setStep('opening')
     startWork(task, onChange)
-    // Title the terminal by the work (renameable); the issue key is shown as a "(KEY)"
-    // suffix in the sidebar via the dailyTaskId link, not baked into the editable
-    // title (todo14). Auto-assign to this task (full match — see todo50).
-    await openClaudeWithPrompt(parentId, cwd, prompt, task.title, task.id, opts.isPlanMode)
+    // The terminal opens under the SAME name as the worktree (the branch, KEY[-slug])
+    // so the sidebar reads as one unit; Claude's /rename can retitle it later.
+    // Auto-assign to this task (full match — see todo50).
+    await openClaudeWithPrompt(parentId, cwd, prompt, branch, task.id, opts.isPlanMode)
     progress.close()
     return
   }

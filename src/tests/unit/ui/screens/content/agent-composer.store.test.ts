@@ -24,7 +24,13 @@ vi.mock('@views/catalog/catalog', () => ({
 }))
 vi.mock('@views/screens/daily-plan/daily-plan.store', () => ({
   todayKey: () => '2026-07-13',
-  nextOrder: () => 0
+  nextOrder: () => 0,
+  sanitizeSlug: (raw: string) =>
+    raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
 }))
 vi.mock('@views/screens/daily-plan/daily-plan.entry', () => ({
   openTaskInTerminal: (...args: unknown[]) => openTaskInTerminal(...args)
@@ -45,7 +51,15 @@ const {
   slashItemsFor,
   textWithoutSlash,
   openNewTerminal,
-  openSpotlight
+  openSpotlight,
+  getTitleDraft,
+  getBranchDraft,
+  syncTitleFromPrompt,
+  setTitleDraft,
+  setBranchDraft,
+  resetTicketMeta,
+  seedMetaInto,
+  liveSlug
 } = await import('@views/screens/content/components/agent-composer.store')
 
 function project(id: string, name: string, prefix?: string): ProjectNode {
@@ -72,6 +86,7 @@ describe('AgentComposerStore', () => {
     promptConfirm.mockResolvedValue(true)
     branchesAt.mockResolvedValue([])
     setDraft('')
+    resetTicketMeta()
     store.projectId = null
     store.branches = []
     store.mode = 'local'
@@ -154,6 +169,43 @@ describe('AgentComposerStore', () => {
     expect(getDraft()).toBe('')
   })
 
+  it('ends with an empty draft even when the Cmd+Enter keyup writes the stale text back mid-launch', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+    setDraft('fix the header')
+    let launch!: () => void
+    openTaskInTerminal.mockReturnValueOnce(new Promise<void>((resolve) => (launch = resolve)))
+
+    const pending = store.submit('fix the header')
+    // The Cmd+Enter keyup fires on the textarea while the launch is in flight; its
+    // selection handler writes the textarea's still-stale value back into the draft.
+    setDraft('fix the header')
+    launch()
+    await pending
+
+    expect(getDraft()).toBe('')
+  })
+
+  it('reports whether the ticket was filed', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+
+    await expect(store.submit('fix the header')).resolves.toBe(true)
+    await expect(store.submit('   ')).resolves.toBe(false)
+  })
+
+  it('keeps the draft when the terminal launch fails, so the prompt survives for a retry', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+    setDraft('fix the header')
+    openTaskInTerminal.mockRejectedValueOnce(new Error('spawn failed'))
+
+    await expect(store.submit('fix the header')).rejects.toThrow('spawn failed')
+
+    expect(getDraft()).toBe('fix the header')
+    expect(store.isBusy).toBe(false)
+  })
+
   it('shortens a long prompt to a 20-char title and keeps the full text as the description', async () => {
     projects.push(project('p1', 'alpha', 'ALP'))
     await store.refresh()
@@ -221,6 +273,105 @@ describe('AgentComposerStore', () => {
 
     expect(upsert).not.toHaveBeenCalled()
     expect(promptConfirm).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the title and branch drafts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    projects.length = 0
+    tags.length = 0
+    store.clearLabels()
+    promptConfirm.mockResolvedValue(true)
+    branchesAt.mockResolvedValue([])
+    setDraft('')
+    resetTicketMeta()
+    store.projectId = null
+    store.mode = 'local'
+    store.isPlanMode = false
+  })
+
+  it('mirrors the prompt head into the title and its slug into the branch', () => {
+    syncTitleFromPrompt('Fix the header button color')
+
+    expect(getTitleDraft()).toBe('Fix the header butto')
+    expect(getTitleDraft().length).toBe(20)
+    expect(getBranchDraft()).toBe('fix-the-header-butto')
+  })
+
+  it('a hand-edited title breaks the prompt bond and re-derives the branch', () => {
+    syncTitleFromPrompt('fix the header')
+    setTitleDraft('Login fix')
+    expect(getBranchDraft()).toBe('login-fix')
+
+    syncTitleFromPrompt('something else entirely')
+
+    expect(getTitleDraft()).toBe('Login fix')
+    expect(getBranchDraft()).toBe('login-fix')
+  })
+
+  it('slugs a hand-typed branch but re-derives it on the next title change', () => {
+    expect(setBranchDraft('My Branch')).toBe('my-branch')
+    expect(getBranchDraft()).toBe('my-branch')
+
+    setTitleDraft('new title')
+
+    expect(getBranchDraft()).toBe('new-title')
+  })
+
+  it('keeps a trailing dash while the branch is being typed', () => {
+    expect(liveSlug('fix-')).toBe('fix-')
+    expect(liveSlug('  Fix Login ')).toBe('fix-login-')
+  })
+
+  it('files the ticket with the custom title and the sanitized branch slug', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+    setTitleDraft('Login fix')
+    setBranchDraft('login-flow-')
+
+    await store.submit('rework the whole login flow')
+
+    const task = upsert.mock.calls[0][0] as DailyPlanTask
+    expect(task.title).toBe('Login fix')
+    expect(task.description).toBe('rework the whole login flow')
+    expect(task.worktreeSlug).toBe('login-flow')
+  })
+
+  it('falls back to the prompt head when the title was emptied', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+    setTitleDraft('')
+
+    await store.submit('fix the header')
+
+    const task = upsert.mock.calls[0][0] as DailyPlanTask
+    expect(task.title).toBe('fix the header')
+    expect(task.worktreeSlug).toBeUndefined()
+  })
+
+  it('resets the drafts once the ticket is filed, restoring the prompt bond', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+    setTitleDraft('Login fix')
+
+    await store.submit('rework the login flow')
+
+    expect(getTitleDraft()).toBe('')
+    expect(getBranchDraft()).toBe('')
+    syncTitleFromPrompt('next piece of work')
+    expect(getTitleDraft()).toBe('next piece of work')
+  })
+
+  it('seeds the meta inputs from the drafts', () => {
+    const title = document.createElement('input')
+    const branch = document.createElement('input')
+    setTitleDraft('Login fix')
+
+    seedMetaInto(title, branch)
+
+    expect(title.value).toBe('Login fix')
+    expect(branch.value).toBe('login-fix')
   })
 })
 

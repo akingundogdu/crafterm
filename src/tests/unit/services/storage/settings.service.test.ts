@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadSettings } from '@repositories/settings.service'
-import { settings } from '@views/state/state'
+import { settings, applySidebarSelectedColor } from '@views/state/state'
 import { bookmarks, setBookmarks } from '@models/bookmark'
 import { reminders, setReminders } from '@models/reminder'
 import { setTimeEntries } from '@models/time-entry'
@@ -62,5 +62,28 @@ describe('loadSettings validation boundary (Phase 2 / F)', () => {
       )
     ).not.toThrow()
     expect(reminders).toEqual([])
+  })
+})
+
+describe('sidebarSelectedColor setting', () => {
+  it('loads a saved sidebarSelectedColor string', () => {
+    loadSettings(saved({ sidebarSelectedColor: '#00ff00' }))
+    expect(settings.sidebarSelectedColor).toBe('#00ff00')
+  })
+
+  it('ignores a missing or non-string sidebarSelectedColor', () => {
+    settings.sidebarSelectedColor = '#ff9500'
+    loadSettings(saved({}))
+    expect(settings.sidebarSelectedColor).toBe('#ff9500')
+    loadSettings(saved({ sidebarSelectedColor: 42 as unknown as string }))
+    expect(settings.sidebarSelectedColor).toBe('#ff9500')
+    loadSettings(saved({ sidebarSelectedColor: '' }))
+    expect(settings.sidebarSelectedColor).toBe('#ff9500')
+  })
+
+  it('applySidebarSelectedColor writes the CSS variable to the document root', () => {
+    settings.sidebarSelectedColor = '#123456'
+    applySidebarSelectedColor()
+    expect(document.documentElement.style.getPropertyValue('--sidebar-selected-border')).toBe('#123456')
   })
 })

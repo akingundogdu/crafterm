@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, openTerminal, closeApp } from '../_harness.js'
 
 // Diff pane (§2/§7): open a PR diff via the stub `gh` (pr:diff → unified diff →
 // parse → render), assert the file + changed lines render, and a line selection
@@ -48,6 +48,7 @@ test('diff-pane: a PR diff renders the file + changed lines; selection sends a r
   seedPrProjects(dir, repo)
   const { app, win } = await launchApp(dir, { CRAFTERM_GH_BIN: bin })
   try {
+    await openTerminal(win) // the line-ref action injects into this terminal
     await win.locator('#notif-tab-pr').click()
     await win.locator('.pr-scopetabs .pr-subtab', { hasText: /all/i }).click()
     const card = win.locator('#notif-pr-view .pr-card', { hasText: '#42' })
@@ -67,7 +68,7 @@ test('diff-pane: a PR diff renders the file + changed lines; selection sends a r
       await pane.locator('.diff-row.add[data-line="2"]').click()
       await expect(pane.locator('.diff-actions')).toBeVisible()
       await pane.locator('.diff-act.diff-act-term').click()
-      // the ref is injected into the auto-created starter terminal and echoed by the shell
+      // the ref is injected into the terminal opened above and echoed by the shell
       await expect(win.locator('.pane-box .pane-term .xterm-rows')).toContainText('hello.txt:2', { timeout: 8_000 })
     })
   } finally {

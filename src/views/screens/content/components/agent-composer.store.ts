@@ -4,7 +4,7 @@ import { state } from '@views/state/spine'
 import { uid } from '@views/lib/uid'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
 import { projectTree, findProjectById } from '@views/catalog/catalog'
-import { todayKey, nextOrder } from '@views/screens/daily-plan/daily-plan.store'
+import { todayKey, nextOrder, sanitizeSlug } from '@views/screens/daily-plan/daily-plan.store'
 import { openTaskInTerminal } from '@views/screens/daily-plan/daily-plan.entry'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { newTab } from '@views/commands/commands'
@@ -33,6 +33,8 @@ export const MODES: { val: ComposerMode; label: string }[] = [
 
 export const COMPOSER_PLACEHOLDER = 'Describe the work — a ticket is filed and Claude picks it up'
 export const COMPOSER_HINT = '⌘↵ to start · / for projects, labels and modes'
+export const TITLE_PLACEHOLDER = 'Title'
+export const BRANCH_PLACEHOLDER = 'Branch name'
 
 // ---- "/" menu ---------------------------------------------------------------
 
@@ -147,6 +149,73 @@ export function seedDraftInto(input: HTMLTextAreaElement): void {
   input.value = getDraft()
   const caret = getDraftCaret()
   input.setSelectionRange(caret, caret)
+}
+
+// The ticket meta (title + branch slug) follows the same non-reactive draft pattern
+// as the prompt: a store write per keystroke would re-render the composer and fight
+// the uncontrolled inputs. The title mirrors the prompt's first COMPOSER_TITLE_MAX
+// characters until the user edits it by hand (that breaks the prompt→title bond for
+// good, until the next submit). The branch is ALWAYS re-derived from the title on a
+// title change — a hand-typed branch survives only until the title changes again.
+let titleDraft = ''
+let branchDraft = ''
+let isTitleTouched = false
+
+export function getTitleDraft(): string {
+  return titleDraft
+}
+
+export function getBranchDraft(): string {
+  return branchDraft
+}
+
+// Slug shape for the branch box WHILE TYPING: lowercase, runs of invalid characters
+// to a single dash — but a trailing dash survives (sanitizeSlug would trim it, making
+// it impossible to type "fix-login" past "fix-"). Submit sanitizes the final value.
+export function liveSlug(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+}
+
+// Prompt keystroke → title (first COMPOSER_TITLE_MAX chars) + branch, unless the
+// user has taken the title over by hand.
+export function syncTitleFromPrompt(text: string): void {
+  if (isTitleTouched) return
+  const title = text.trim().slice(0, COMPOSER_TITLE_MAX)
+  if (title === titleDraft) return
+  titleDraft = title
+  branchDraft = sanitizeSlug(title)
+}
+
+// A hand-edited title breaks the prompt→title bond and re-derives the branch — the
+// branch always follows the title.
+export function setTitleDraft(text: string): void {
+  isTitleTouched = true
+  titleDraft = text
+  branchDraft = sanitizeSlug(text)
+}
+
+// A hand-edited branch keeps its slug shape but does NOT break the title→branch
+// bond: the next title change re-derives it. Returns the slugged value so the view
+// can write it back into the input.
+export function setBranchDraft(text: string): string {
+  branchDraft = liveSlug(text)
+  return branchDraft
+}
+
+export function resetTicketMeta(): void {
+  titleDraft = ''
+  branchDraft = ''
+  isTitleTouched = false
+}
+
+// Push the meta drafts into the (uncontrolled) title + branch inputs — the meta
+// counterpart of seedDraftInto, called on every show and after a prompt keystroke.
+export function seedMetaInto(titleInput: HTMLInputElement, branchInput: HTMLInputElement): void {
+  titleInput.value = titleDraft
+  branchInput.value = branchDraft
 }
 
 async function showMessage(title: string, message: string): Promise<void> {
@@ -316,13 +385,15 @@ class AgentComposerStore extends Store {
 
   // File the typed text as a ticket in the selected project and hand it to a Claude
   // terminal — in a worktree branched off the chosen base, or in the project itself.
-  async submit(text: string): Promise<void> {
+  // Returns true when the ticket was filed (the prompt was consumed), so the view
+  // knows to clear the textarea; a refused submit keeps the text for another try.
+  async submit(text: string): Promise<boolean> {
     const full = text.trim()
-    if (!full || this.isBusy) return
+    if (!full || this.isBusy) return false
     const project = this.selectedProject
     if (!project) {
       await showMessage('No project', 'Add a project to the sidebar first, then start work from here.')
-      return
+      return false
     }
     // openTaskInTerminal needs an issue key (the worktree branch is named after it),
     // so check the prefix before filing a ticket we'd have to abandon.
@@ -331,20 +402,23 @@ class AgentComposerStore extends Store {
         'No issue key prefix',
         `Set an issue key prefix on “${project.name}” (project settings) so tickets can be keyed.`
       )
-      return
+      return false
     }
 
     this.isBusy = true
     try {
       const now = Date.now()
       const date = todayKey()
-      // Short label for the ticket/terminal title; the full prompt rides in the
-      // description so openTaskInTerminal still hands Claude everything that was typed.
-      const title = full.slice(0, COMPOSER_TITLE_MAX)
+      // The title box (auto-filled from the prompt, hand-editable) labels the ticket;
+      // the full prompt rides in the description so openTaskInTerminal still hands
+      // Claude everything that was typed. An emptied title falls back to the prompt.
+      const title = getTitleDraft().trim() || full.slice(0, COMPOSER_TITLE_MAX)
+      const slug = sanitizeSlug(getBranchDraft())
       const task: DailyPlanTask = {
         id: uid('task'),
         title,
-        description: full.length > COMPOSER_TITLE_MAX ? full : undefined,
+        description: full !== title ? full : undefined,
+        worktreeSlug: slug || undefined,
         date,
         status: 'todo',
         priority: 'medium',
@@ -355,11 +429,18 @@ class AgentComposerStore extends Store {
         updatedAt: now
       }
       dailyTaskRepo.upsert(task)
-      setDraft('')
       await openTaskInTerminal(task, () => {}, this.mode === 'worktree', {
         base: this.baseBranch,
         isPlanMode: this.isPlanMode
       })
+      // Clear the draft only after the terminal is up: the Cmd+Enter keyup still
+      // fires on the textarea (whose value is the old text) and its selection
+      // handler writes that value back into the draft — clearing here, after the
+      // keyup has come and gone, is what makes the empty draft stick. A failed
+      // launch (throw above) keeps the draft, so the prompt survives for a retry.
+      setDraft('')
+      resetTicketMeta()
+      return true
     } finally {
       this.isBusy = false
     }

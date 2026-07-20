@@ -14,6 +14,7 @@ import {
   setFontSize,
   setDocFontSize,
   setEditorTheme,
+  setSidebarSelectedColor,
   applyBackground,
   copyCurrentToCustom,
   setCustomColor
@@ -61,6 +62,13 @@ class AppearancePanel extends Component {
           customColor={settings.bgColor}
           onApply={applyBackground}
         />
+        <div class="field">
+          <ColorRow
+            colorKey={UITexts.Settings.appearance.sidebarSelectedBorder}
+            value={settings.sidebarSelectedColor}
+            onApply={(_key: string, v: string) => setSidebarSelectedColor(v)}
+          />
+        </div>
         <div class="field">
           <label>{UITexts.Settings.appearance.codeEditorTheme}</label>
           <select onChange={makeSelectChange(setEditorTheme)}>

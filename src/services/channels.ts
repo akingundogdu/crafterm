@@ -335,7 +335,10 @@ export const channels = {
   [Channel.Markdown.Open]: msg<{ path: string }>(),
 
   // ── claude ──
-  [Channel.Claude.LatestSession]: rpc<{ cwd?: string; since?: number }, string | null>(),
+  [Channel.Claude.LatestSession]: rpc<
+    { cwd?: string; since?: number; ofSession?: string },
+    string | null
+  >(),
   [Channel.Claude.SessionCwd]: rpc<{ sessionId: string }, string | null>(),
   [Channel.Claude.Sessions]: rpc<void, ClaudeSession[]>(),
   [Channel.Claude.SessionTitle]: rpc<{ cwd: string; sessionId: string }, string | null>(),

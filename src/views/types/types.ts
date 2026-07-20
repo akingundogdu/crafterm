@@ -66,6 +66,11 @@ export interface Pane {
   // refresh would otherwise overwrite it with whichever jsonl is newest in the
   // shared cwd dir — the root of the cross-pane session-mixup bug.
   claudeSessionLocked: boolean
+  // Last session custom-title (/rename) this pane observed. A session title that
+  // DIFFERS from it is a fresh /rename — the newest explicit action — and may
+  // override a locked title; an unchanged one never beats a lock. Persisted so a
+  // restart can't mistake the stored title for a new rename.
+  lastClaudeTitle: string | null
   bgColor: string | null // per-pane background override (null = global default)
   fontSize: number | null // per-pane font-size override (null = global default)
   trackProjectPath: string | null // time-tracking: project this terminal logs to

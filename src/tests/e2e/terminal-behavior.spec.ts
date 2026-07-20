@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, openTerminal, closeApp } from './_harness.js'
 
 // Terminal runtime (§2): a real pty + real zsh driven through the UI. Asserts the
 // RENDERED xterm screen (terminal.spec only checks the raw bridge) and that `cd`
@@ -10,7 +10,7 @@ test('terminal: a typed command renders into the xterm screen', async () => {
   const { app, win } = await launchApp(dir)
   const token = `XTERM_${Date.now()}`
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
     await win.locator('.pane-term').first().click() // focus the xterm
     await win.keyboard.type(`echo ${token}`)
     await win.keyboard.press('Enter')
@@ -24,7 +24,7 @@ test('terminal: cd moves the status-bar cwd', async () => {
   const dir = freshStateDir('crafterm-e2e-beh-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
     await win.locator('.pane-term').first().click()
     await win.keyboard.type('cd /tmp')
     await win.keyboard.press('Enter')
@@ -39,7 +39,7 @@ test('terminal: a long command in an inactive pane fires a notification card', a
   const dir = freshStateDir('crafterm-e2e-beh-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
     await win.keyboard.press('Meta+d') // split -> two panes
     await expect(win.locator('.pane-box')).toHaveCount(2)
     const boxes = win.locator('.pane-box')
