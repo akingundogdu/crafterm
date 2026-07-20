@@ -2,6 +2,7 @@ import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'path'
 import { loadScript } from './services/scripts/scripts.service'
 import { lastCmdDir, zdotDir, runtimeDir } from './services/paths/paths.service'
+import { hydrateEnvPath } from './services/exec/exec.service'
 import * as terminal from './services/terminal.manager/terminal.manager.service'
 import * as plansWatcher from './services/plans.watcher/plans.watcher.service'
 import { writeFileSync, existsSync, mkdirSync } from 'fs'
@@ -44,6 +45,11 @@ import {
 
 // macOS uses this for the app menu / notification name; set it before whenReady.
 app.setName(APP_NAME)
+
+// Resolve the user's real PATH before anything spawns a process, so tools a
+// child looks up by name (git-lfs during a worktree checkout) are found even
+// when the app was launched from the Dock. No-op when launched from a shell.
+hydrateEnvPath()
 
 // Every domain IPC service (#11): each is a BaseService whose register() binds its
 // channel handlers. Instantiated once here; setup?() runs before register() and

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { DailyPlanTask, ProjectNode } from '@views/types/types'
+import type { DailyPlanTag, DailyPlanTask, ProjectNode } from '@views/types/types'
 
 const upsert = vi.fn()
 const openTaskInTerminal = vi.fn()
@@ -10,10 +10,14 @@ const newTab = vi.fn()
 const showSpotlight = vi.fn()
 
 const projects: ProjectNode[] = []
+const tags: DailyPlanTag[] = []
 
 vi.mock('@views/state/spine', () => ({ state: { tree: [] } }))
 vi.mock('@views/lib/uid', () => ({ uid: (prefix: string) => `${prefix}-1` }))
-vi.mock('@repositories', () => ({ dailyTaskRepo: { upsert: (t: DailyPlanTask) => upsert(t) } }))
+vi.mock('@repositories', () => ({
+  dailyTaskRepo: { upsert: (t: DailyPlanTask) => upsert(t) },
+  dailyTagRepo: { getAll: () => tags }
+}))
 vi.mock('@views/catalog/catalog', () => ({
   projectTree: () => projects.map((p) => ({ p, depth: 0 })),
   findProjectById: (_tree: unknown, id: string) => projects.find((p) => p.id === id) ?? null
@@ -55,10 +59,16 @@ function project(id: string, name: string, prefix?: string): ProjectNode {
   } as unknown as ProjectNode
 }
 
+function tag(id: string, name: string): DailyPlanTag {
+  return { id, name, color: '#4a9eff' }
+}
+
 describe('AgentComposerStore', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     projects.length = 0
+    tags.length = 0
+    store.clearLabels()
     promptConfirm.mockResolvedValue(true)
     branchesAt.mockResolvedValue([])
     setDraft('')
@@ -232,6 +242,8 @@ describe('the "/" menu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     projects.length = 0
+    tags.length = 0
+    store.clearLabels()
     store.closeSlash()
     store.projectId = null
     store.mode = 'local'
@@ -316,5 +328,88 @@ describe('the "/" menu', () => {
 
   it('cuts the token out of the middle of a prompt', () => {
     expect(textWithoutSlash('fix /plan the header', 4, 9)).toEqual({ text: 'fix  the header', caret: 4 })
+  })
+
+  it('lists the labels and marks the ones already on the ticket', () => {
+    tags.push(tag('t1', 'urgent'), tag('t2', 'design'))
+
+    expect(slashItemsFor('urg')[0]).toMatchObject({ kind: 'label', labelId: 't1', isOn: false })
+    expect(slashItemsFor('urg', ['t1'])[0]).toMatchObject({ labelId: 't1', isOn: true })
+    expect(slashItemsFor('design').map((i) => i.label)).toEqual(['design'])
+  })
+
+  it('picking "/urgent" toggles the label on, then off, and cuts the token out', () => {
+    tags.push(tag('t1', 'urgent'))
+    const text = 'fix the header /urgent'
+    store.syncSlash(text, text.length)
+
+    const next = store.applySlash(store.activeSlashItem!, text, text.length)
+
+    expect(store.labelIds).toEqual(['t1'])
+    expect(next).toEqual({ text: 'fix the header ', caret: 15 })
+    expect(store.isSlashOpen).toBe(false)
+
+    store.applySlash(slashItemsFor('urgent', store.labelIds)[0], '/urgent', 7)
+    expect(store.labelIds).toEqual([])
+  })
+
+  it('re-renders the menu when a listed label is toggled elsewhere', () => {
+    tags.push(tag('t1', 'urgent'))
+    store.syncSlash('/urgent', 7)
+    expect(store.slashItems[0].isOn).toBe(false)
+
+    store.toggleLabel('t1')
+    store.syncSlash('/urgent', 7)
+
+    expect(store.slashItems[0].isOn).toBe(true)
+  })
+})
+
+describe('the composer labels', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    projects.length = 0
+    tags.length = 0
+    store.clearLabels()
+    branchesAt.mockResolvedValue([])
+    setDraft('')
+  })
+
+  it('toggles a label on and off', () => {
+    store.toggleLabel('t1')
+    store.toggleLabel('t2')
+    expect(store.labelIds).toEqual(['t1', 't2'])
+    expect(store.isLabelOn('t1')).toBe(true)
+
+    store.toggleLabel('t1')
+    expect(store.labelIds).toEqual(['t2'])
+    expect(store.isLabelOn('t1')).toBe(false)
+  })
+
+  it('files the ticket with the picked labels as its tags', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    tags.push(tag('t1', 'urgent'), tag('t2', 'design'))
+    await store.refresh()
+    store.toggleLabel('t2')
+
+    await store.submit('fix the header')
+
+    const task = upsert.mock.calls[0][0] as DailyPlanTask
+    expect(task.tagIds).toEqual(['t2'])
+  })
+
+  it('snapshots the labels on refresh and drops a picked one that was deleted', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    tags.push(tag('t1', 'urgent'), tag('t2', 'design'))
+    await store.refresh()
+    store.toggleLabel('t1')
+    store.toggleLabel('t2')
+    expect(store.labels.map((t) => t.name)).toEqual(['urgent', 'design'])
+
+    tags.splice(0, 1) // "urgent" deleted on the board
+    await store.refresh()
+
+    expect(store.labelIds).toEqual(['t2'])
+    expect(store.selectedLabels.map((t) => t.name)).toEqual(['design'])
   })
 })

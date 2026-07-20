@@ -1,6 +1,7 @@
 import { Component } from '@geajs/core'
 import './agent-composer.css'
 import ProjectSelect from '@views/components/project-select/project-select'
+import ComposerLabels from './composer-labels'
 import { focusWhenReady } from '@views/lib/focus'
 import store, {
   MODES,
@@ -142,6 +143,7 @@ class AgentComposer extends Component {
               ))}
             </select>
           </span>
+          <ComposerLabels />
         </div>
 
         <div class="agent-composer-box">
@@ -158,6 +160,7 @@ class AgentComposer extends Component {
                 >
                   <span class="agent-composer-slash-label">{'/' + item.label}</span>
                   <span class="agent-composer-slash-detail">{item.detail}</span>
+                  <span class="agent-composer-slash-check">{item.isOn ? '✓' : ''}</span>
                 </div>
               ))}
             </div>

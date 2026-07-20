@@ -156,7 +156,7 @@
   color: var(--text-faint);
 }
 
-/* "/" menu: projects + plan/build + local/worktree, above the prompt box. */
+/* "/" menu: projects + labels + plan/build + local/worktree, above the prompt box. */
 .agent-composer-slash {
   position: absolute;
   left: 0;
@@ -188,9 +188,16 @@
   font-size: 0.85em;
 }
 .agent-composer-slash-detail {
+  flex: 1;
   color: var(--text-faint);
   font-size: 0.75em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Marks a label already on the ticket, so picking it reads as a toggle. */
+.agent-composer-slash-check {
+  flex: none;
+  color: var(--accent, #4a9eff);
+  font-size: 0.8em;
 }

@@ -1,6 +1,42 @@
-import { execFile } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import { BIN } from './exec.types'
-import { resolveBin } from './exec.utils'
+import {
+  resolveBin,
+  isBarePath,
+  mergePath,
+  extractMarkedPath,
+  PATH_MARKER_START,
+  PATH_MARKER_END
+} from './exec.utils'
+
+// Replace the bare PATH a GUI launch inherits with the user's real one, resolved
+// once from a login shell. Every execFile below — and every process they spawn in
+// turn — then sees it, so git can find git-lfs during a worktree checkout instead
+// of dying with "git-lfs: command not found".
+//
+// Synchronous on purpose: it runs before any service registers, so nothing can
+// spawn against the bare PATH. Costs ~200ms, and only on a GUI launch — a PATH
+// inherited from a shell is left alone. Non-interactive (-lc) reads .zshenv +
+// .zprofile, where PATH belongs; -lic would add ~1.5s of .zshrc for no PATH we
+// need here.
+export function hydrateEnvPath(): void {
+  const current = process.env.PATH ?? ''
+  if (!isBarePath(current)) return
+  try {
+    const out = execFileSync(
+      '/bin/zsh',
+      ['-lc', `echo "${PATH_MARKER_START}\${PATH}${PATH_MARKER_END}"`],
+      { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+    const discovered = extractMarkedPath(out)
+    if (!discovered) return
+    const merged = mergePath(current, discovered)
+    if (merged) process.env.PATH = merged
+  } catch {
+    // Keep the inherited PATH: resolveBin() still probes absolute install paths,
+    // so a failed probe degrades to today's behaviour rather than breaking startup.
+  }
+}
 
 // Run a command and capture stdout. Resolves null on any error / non-zero exit.
 // 2s timeout — these back quick metadata queries (git, lsof), not long jobs.

@@ -1,8 +1,8 @@
 import { Store } from '@geajs/core'
-import type { DailyPlanTask, ProjectNode } from '@views/types/types'
+import type { DailyPlanTag, DailyPlanTask, ProjectNode } from '@views/types/types'
 import { state } from '@views/state/spine'
 import { uid } from '@views/lib/uid'
-import { dailyTaskRepo } from '@repositories'
+import { dailyTaskRepo, dailyTagRepo } from '@repositories'
 import { projectTree, findProjectById } from '@views/catalog/catalog'
 import { todayKey, nextOrder } from '@views/screens/daily-plan/daily-plan.store'
 import { openTaskInTerminal } from '@views/screens/daily-plan/daily-plan.entry'
@@ -32,7 +32,7 @@ export const MODES: { val: ComposerMode; label: string }[] = [
 ]
 
 export const COMPOSER_PLACEHOLDER = 'Describe the work — a ticket is filed and Claude picks it up'
-export const COMPOSER_HINT = '⌘↵ to start · / for projects and modes'
+export const COMPOSER_HINT = '⌘↵ to start · / for projects, labels and modes'
 
 // ---- "/" menu ---------------------------------------------------------------
 
@@ -57,12 +57,27 @@ export function slashQueryAt(text: string, caret: number): { query: string; star
 
 // Entries matching the query (contains, case-insensitive), best match first: an
 // exact name beats a prefix, a prefix beats a mid-word hit. So "/backend" puts the
-// backend project at the top, ready for Enter, while "/bac" still lists it.
-export function slashItemsFor(query: string): SlashItem[] {
+// backend project at the top, ready for Enter, while "/bac" still lists it. The
+// same holds for labels — "/urgent" surfaces the urgent label ready for Enter.
+// `selectedLabelIds` marks the labels already on the ticket, so picking one reads
+// as a toggle rather than a blind add.
+export function slashItemsFor(query: string, selectedLabelIds: string[] = []): SlashItem[] {
   const projects: SlashItem[] = projectTree(state.tree)
     .map((entry) => entry.p)
     .filter((p) => p.path)
     .map((p) => ({ id: `project:${p.id}`, kind: 'project' as const, label: p.name, detail: p.path, projectId: p.id }))
+
+  const labels: SlashItem[] = dailyTagRepo.getAll().map((tag) => {
+    const isOn = selectedLabelIds.includes(tag.id)
+    return {
+      id: `label:${tag.id}`,
+      kind: 'label' as const,
+      label: tag.name,
+      detail: isOn ? 'Label — remove from the ticket' : 'Label — add to the ticket',
+      labelId: tag.id,
+      isOn
+    }
+  })
 
   const q = query.trim().toLowerCase()
   const rank = (label: string): number => {
@@ -71,7 +86,7 @@ export function slashItemsFor(query: string): SlashItem[] {
     if (l.startsWith(q)) return 1
     return 2
   }
-  return [...SLASH_COMMANDS, ...projects]
+  return [...SLASH_COMMANDS, ...projects, ...labels]
     .filter((item) => !q || item.label.toLowerCase().includes(q))
     .sort((a, b) => rank(a.label) - rank(b.label))
 }
@@ -145,6 +160,12 @@ class AgentComposerStore extends Store {
   mode: ComposerMode = 'local'
   isPlanMode = false
   isBusy = false
+  // The Daily Plan tags the filed ticket carries. `labels` is a snapshot of the tag
+  // repo (which is not a reactive source) re-read on every refresh, so the dropdown
+  // and the "/" menu pick up a tag added on the board meanwhile; `labelIds` is the
+  // multi-select, reassigned (never mutated in place) so gea re-renders on a toggle.
+  labels: DailyPlanTag[] = []
+  labelIds: string[] = []
   // Bumped on every refresh. The project dropdown reads the sidebar tree (not a
   // reactive source), so a refresh that changes nothing else — the same project
   // still selected — must still force a re-render to pick up a tree that has since
@@ -169,9 +190,10 @@ class AgentComposerStore extends Store {
   // keystroke.
   syncSlash(text: string, caret: number): void {
     const q = slashQueryAt(text, caret)
-    const items = q ? slashItemsFor(q.query) : []
+    const items = q ? slashItemsFor(q.query, this.labelIds) : []
     const same =
-      items.length === this.slashItems.length && items.every((item, i) => item.id === this.slashItems[i].id)
+      items.length === this.slashItems.length &&
+      items.every((item, i) => item.id === this.slashItems[i].id && item.isOn === this.slashItems[i].isOn)
     if (same) return
     this.slashItems = items
     this.slashIndex = 0
@@ -195,6 +217,7 @@ class AgentComposerStore extends Store {
     else if (item.kind === 'plan') this.setPlanMode(true)
     else if (item.kind === 'build') this.setPlanMode(false)
     else if (item.kind === 'local' || item.kind === 'worktree') this.setMode(item.kind)
+    else if (item.kind === 'label' && item.labelId) this.toggleLabel(item.labelId)
 
     const q = slashQueryAt(text, caret)
     const next = q ? textWithoutSlash(text, q.start, caret) : { text, caret }
@@ -217,8 +240,38 @@ class AgentComposerStore extends Store {
     if (!projects.some((p) => p.id === this.projectId)) {
       this.projectId = projects[0]?.id ?? null
     }
+    this.loadLabels()
     await this.loadBranches()
     this.rev++
+  }
+
+  // Re-snapshot the tag repo (§5.3: fresh objects, never the repo's own records) and
+  // drop any picked label that has since been deleted on the board.
+  private loadLabels(): void {
+    this.labels = dailyTagRepo.getAll().map((tag) => ({ ...tag }))
+    const live = new Set(this.labels.map((tag) => tag.id))
+    const kept = this.labelIds.filter((id) => live.has(id))
+    if (kept.length !== this.labelIds.length) this.labelIds = kept
+  }
+
+  // The picked labels, in repo order (not pick order) so the button caption is stable.
+  get selectedLabels(): DailyPlanTag[] {
+    return this.labels.filter((tag) => this.labelIds.includes(tag.id))
+  }
+
+  isLabelOn(id: string): boolean {
+    return this.labelIds.includes(id)
+  }
+
+  // Reassigned, never spliced: gea only re-renders on a field write.
+  toggleLabel(id: string): void {
+    this.labelIds = this.labelIds.includes(id)
+      ? this.labelIds.filter((x) => x !== id)
+      : [...this.labelIds, id]
+  }
+
+  clearLabels(): void {
+    if (this.labelIds.length) this.labelIds = []
   }
 
   async setProject(id: string): Promise<void> {
@@ -295,7 +348,7 @@ class AgentComposerStore extends Store {
         date,
         status: 'todo',
         priority: 'medium',
-        tagIds: [],
+        tagIds: this.labelIds.slice(),
         projectId: project.id,
         order: nextOrder(date, 'todo'),
         createdAt: now,
