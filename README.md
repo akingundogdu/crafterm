@@ -79,14 +79,16 @@ left them, including the working directory and any running Claude session.
 With no terminal selected — a fresh launch, every tab closed, or `Cmd+Shift+N` —
 the content area shows the **agent composer** instead of an empty void:
 
-- Pick the **project**, the **base branch** and where the work runs (**Local** or
-  **Worktree**), then describe the work in the prompt box.
+- Pick the **project**, the **base branch**, the **Daily Plan labels** the ticket
+  gets, and where the work runs (**Local** or **Worktree**), then describe the work
+  in the prompt box.
 - Submitting files a **Daily Plan ticket** (issue key assigned, moved to In
   Progress), creates a git **worktree named after the issue key** — branched off
   the base you picked — and starts a **Claude session** in it, seeded with the
   ticket. `Cmd+Enter` submits; `Enter` is a plain newline.
-- Type **`/`** for projects and modes: `/backend` selects that project,
-  `/plan` starts Claude in plan mode, `/build`, `/local`, `/worktree`.
+- Type **`/`** for projects, labels and modes: `/backend` selects that project,
+  `/urgent` toggles that label on the ticket, `/plan` starts Claude in plan mode,
+  `/build`, `/local`, `/worktree`.
 - Worktree creation shows its **steps live** and prints git's own error if it
   fails — and a ticket is never marked In Progress for work that never started.
 
