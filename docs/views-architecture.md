@@ -128,16 +128,22 @@ filterFoo(...)`, `export async function loadFoo(...)` calling `@services`.
 
 ## 6. Enforcement
 
-- `tests/.../views-gea-component.guard.test.ts` — no plain-DOM `el()`/`createElement`
-  view code; every DOM-builder is a gea `.tsx`.
-- `tests/.../views-store-structure.guard.test.ts` — no NEW `.state.ts` (fold into
-  `.store.ts`), only the 6 documented `.controller` files. `GRANDFATHERED_STATE`
-  shrinks to empty as the remaining `.state.ts` files fold into their `.store.ts`.
+Unit guards under `src/tests/unit/ui/` fail the build on drift:
+
+- `views-gea-component.guard.test.ts` — no plain-DOM `el()`/`createElement` view code;
+  every DOM-builder is a gea `.tsx`. Its `GRANDFATHERED` list is down to the sidebar's
+  imperative `el()` slot builders (status pill / process sub-rows), which stay plain-DOM
+  because gea cannot render an adapter-provided component through a dynamic tag.
+- `views-store-structure.guard.test.ts` — fails on ANY `.state.ts` and on any
+  `.controller.*` outside the 6 documented widgets. `GRANDFATHERED_STATE` is **empty**.
+- `views-css-colocation.guard.test.ts` — a component's own-prefixed classes must live in
+  its own `<name>.css`, never in a screen's catch-all stylesheet. `GRANDFATHERED` is
+  **empty**.
 
 ## 7. Migration status — DONE
 
 The `.state.ts` → `.store.ts` fold is **complete**: all 66 `.state.ts` files were
 folded (37 renamed to `.store.ts`, 26 merged into an existing `.store.ts`, and 3
 cross-cutting ones — `commands`, `pickers/shared`, `settings/shared` — merged into
-their plain `.ts`). `.state.ts` is fully retired; the guard now fails on any
-occurrence. Verified: tsc web+node, build, vitest, playwright 126/126.
+their plain `.ts`). `.state.ts` and screen-owned component CSS are both fully retired;
+the guards now fail on any occurrence.

@@ -16,3 +16,15 @@ export interface GitStash {
   ref: string
   description: string
 }
+
+// What a worktree looks like right before it is removed (todomrkkvspyax): the
+// pre-checks that decide whether `git worktree remove` can succeed at all.
+export interface WorktreeState {
+  branch: string | null
+  // Tracked files with uncommitted changes, and files git has never seen.
+  changed: number
+  untracked: number
+  // Commits on this branch that the upstream does not have (lost with the branch).
+  ahead: number
+  hasUpstream: boolean
+}

@@ -5,7 +5,8 @@ import type { ClaudeRealUsageOptions } from './claude.types'
 // Claude integration IPC (session detection, status/title/permission, usage).
 // Arrow-function fields so call sites can destructure/pass the methods freely.
 class ClaudeClient extends BaseClient {
-  latestSession = (cwd?: string, since?: number) => this.call(Channel.Claude.LatestSession, { cwd, since })
+  latestSession = (cwd?: string, since?: number, ofSession?: string) =>
+    this.call(Channel.Claude.LatestSession, { cwd, since, ofSession })
   sessionCwd = (sessionId: string) => this.call(Channel.Claude.SessionCwd, { sessionId })
   sessions = () => this.call(Channel.Claude.Sessions)
   sessionTitle = (cwd: string, sessionId: string) => this.call(Channel.Claude.SessionTitle, { cwd, sessionId })

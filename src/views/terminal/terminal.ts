@@ -5,7 +5,7 @@ import type { Pane } from '@views/types/types'
 import { panes, settings, resolveTheme, requestSidebar } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
 import { terminalService } from '@services'
-import { onPaneTitle } from './osc-title'
+import { onPaneTitle, applyPaneRenameToTab } from './osc-title'
 import { onBell } from './activity-detection'
 import { refreshPaneInfo } from './pane-info'
 import { setupPaneDnd } from '@views/pane/pane'
@@ -105,6 +105,7 @@ export function startPaneRename(pane: Pane): void {
         pane.title = v
         pane.titleLocked = true
         pane.htitle.textContent = v
+        applyPaneRenameToTab(pane)
       }
     }
     if (input.parentElement === header) header.replaceChild(pane.htitle, input)

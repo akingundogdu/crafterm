@@ -67,11 +67,19 @@ export default class TreeRow extends Component {
         data-tree-id={id}
         data-rev={String(store.rev)}
         style={{ paddingLeft: 10 + depth * INDENT + 'px' }}
-        onClick={() => {
+        onClick={(e: MouseEvent) => {
+          // gea dispatches a delegated click to every ancestor handler regardless
+          // of stopPropagation, so a chevron / rename-input click lands here too —
+          // skip those (the chevron toggles via its own handler; a click into the
+          // rename input must not select/toggle the row).
+          const target = e.target as HTMLElement
+          if (target.closest('.treeview-chevron') || target.closest('.rename-input')) return
           const n = ctx.nodeById.get(id)
           if (n === undefined) return
+          // A handled click (e.g. Cmd+click multi-select) keeps the row's own
+          // select/activate out of it.
+          if (a.onClick?.(n, e) === true) return
           ctx.select(id)
-          a.onClick?.(n)
           if (a.isContainer(n)) a.onToggle(n)
           else a.onActivate?.(n)
         }}

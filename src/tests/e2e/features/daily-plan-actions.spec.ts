@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
-import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, selectTab, readState, closeApp } from '../_harness.js'
 
 // Daily-plan task actions (§8.7 / §8.8): Open in Claude (▶ card → seeded terminal,
 // task → In Progress, pane bound), Run in worktree (real git worktree + terminal at
@@ -152,7 +152,7 @@ test('daily-plan: pane ⋯ menu marks the bound task review → test → done', 
   seedState(dir, repo, [task({ id: 'seed-1', title: 'Pane task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], { tab })
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await selectTab(win, 'CRF-1') // the seeded tab restores unselected; activate it
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 10_000 })
 
     await (await openPaneMenu(win)).getByRole('button', { name: 'Mark as code review', exact: true }).click()
@@ -179,7 +179,7 @@ test('daily-plan: pane ⋯ menu assigns an unbound pane to a task', async () => 
   seedState(dir, repo, [task({ id: 'seed-1', title: 'Assignable task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], { tab })
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await selectTab(win, 'Term') // the seeded tab restores unselected; activate it
     await (await openPaneMenu(win)).getByRole('button', { name: /Assign to daily task/ }).click()
     const assign = win.locator('.daily-assign-modal')
     await expect(assign).toBeVisible()
@@ -200,6 +200,7 @@ test('daily-plan: pane ⋯ menu "View ticket detail" opens the task form', async
   seedState(dir, repo, [task({ id: 'seed-1', title: 'Detail task', projectId: 'p-test', issueKey: 'CRF-1', status: 'wip' })], { tab })
   const { app, win } = await launchApp(dir)
   try {
+    await selectTab(win, 'CRF-1') // the seeded tab restores unselected; activate it
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 10_000 })
     await (await openPaneMenu(win)).getByRole('button', { name: /View ticket detail/ }).click()
     const form = win.locator('.daily-plan-form-overlay')
@@ -228,6 +229,7 @@ test('daily-plan: pane ⋯ Mark done while in the task worktree offers to remove
   try {
     // wait for the worktree node to reconcile so offerDeleteTaskWorktree can find it
     await expect.poll(() => worktreeNodes(dir).some((w) => w.branch === 'CRF-1'), { timeout: 30_000 }).toBe(true)
+    await selectTab(win, 'CRF-1') // the seeded tab restores unselected; activate it
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 10_000 })
 
     await (await openPaneMenu(win)).getByRole('button', { name: 'Mark as done', exact: true }).click()

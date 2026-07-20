@@ -77,6 +77,8 @@ export function loadSettings(saved: SavedState): void {
   }
   if (saved.customTheme) settings.customTheme = saved.customTheme
   if (saved.bgColor) settings.bgColor = saved.bgColor
+  if (typeof saved.sidebarSelectedColor === 'string' && saved.sidebarSelectedColor)
+    settings.sidebarSelectedColor = saved.sidebarSelectedColor
   if (typeof saved.editorTheme === 'string') settings.editorTheme = saved.editorTheme
   if (typeof saved.docFontSize === 'number') settings.docFontSize = saved.docFontSize
   if (typeof saved.codeRoot === 'string') settings.codeRoot = saved.codeRoot

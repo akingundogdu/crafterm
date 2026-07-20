@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
-import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, selectTab, readState, closeApp } from './_harness.js'
 
 // Close-actions modal + worktree delete (§3.19 / §4.5): closing a terminal pane
 // that lives inside a managed git worktree shows the close-actions modal. The
@@ -64,6 +64,7 @@ function seed(stateDir: string, repo: string, wtPath: string, opts?: { task?: an
 // Wait for the worktree node to reconcile (worktreeForCwd only matches a materialized
 // node), then close the pane to bring up the close-actions modal.
 async function openCloseModal(win: Page, dir: string, branch: string): Promise<Locator> {
+  await selectTab(win, 'WT') // the seeded tab restores unselected; activate it
   await expect(win.locator('.pane-box')).toHaveCount(1)
   await expect.poll(() => worktreeNodes(dir).some((w) => w.branch === branch), { timeout: 30_000 }).toBe(true)
   await win.locator('.pane-box.active .pane-close').click()

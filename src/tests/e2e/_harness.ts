@@ -32,6 +32,25 @@ export async function launchApp(
   return { app, win }
 }
 
+// A fresh launch shows the start screen — no tab is auto-selected and no starter
+// terminal spawns (agent-composer, todomrjaau5qa4). Specs that drive a terminal
+// create one the way a user does: the sidebar "+" (New terminal) button.
+export async function openTerminal(win: Page): Promise<void> {
+  await win.locator('#new-tab').click()
+  await expect(win.locator('.pane-box')).toHaveCount(1, { timeout: 15_000 })
+}
+
+// Activate a tab seeded into (or restored from) the state file by clicking its
+// sidebar row — launch no longer auto-selects the first tab, so a seeded pane
+// only mounts once its row is selected.
+export async function selectTab(win: Page, title?: string): Promise<void> {
+  const rows = win.locator('#tab-list .tab-item')
+  const row = title ? rows.filter({ hasText: title }).first() : rows.first()
+  await expect(row).toBeVisible({ timeout: 15_000 })
+  await row.click()
+  await expect(win.locator('.pane-box').first()).toBeVisible({ timeout: 15_000 })
+}
+
 // Parse the persisted state file; null if it does not exist yet / is unreadable.
 export function readState(dir: string): Record<string, any> | null {
   try {

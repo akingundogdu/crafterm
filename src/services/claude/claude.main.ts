@@ -14,7 +14,9 @@ export class ClaudeController extends BaseService {
     this.handle(Channel.Claude.SessionTitle, ({ cwd, sessionId }) => this.service.sessionTitle(cwd, sessionId))
     this.handle(Channel.Claude.SessionStatus, ({ cwd, sessionId }) => this.service.sessionStatus(cwd, sessionId))
     this.handle(Channel.Claude.PermissionMode, ({ cwd, sessionId }) => this.service.permissionMode(cwd, sessionId))
-    this.handle(Channel.Claude.LatestSession, ({ cwd, since }) => this.service.latestSession(cwd, since))
+    this.handle(Channel.Claude.LatestSession, ({ cwd, since, ofSession }) =>
+      this.service.latestSession(cwd, since, ofSession)
+    )
     this.handle(Channel.Claude.SessionCwd, ({ sessionId }) => this.service.sessionCwd(sessionId))
     this.handle(Channel.Claude.Sessions, () => this.service.sessions())
     this.handle(Channel.Claude.WatchSessions, ({ cwd }) => this.service.watchSessions(cwd))

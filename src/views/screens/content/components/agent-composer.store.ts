@@ -1,10 +1,10 @@
 import { Store } from '@geajs/core'
-import type { DailyPlanTask, ProjectNode } from '@views/types/types'
+import type { DailyPlanTag, DailyPlanTask, ProjectNode } from '@views/types/types'
 import { state } from '@views/state/spine'
 import { uid } from '@views/lib/uid'
-import { dailyTaskRepo } from '@repositories'
+import { dailyTaskRepo, dailyTagRepo } from '@repositories'
 import { projectTree, findProjectById } from '@views/catalog/catalog'
-import { todayKey, nextOrder } from '@views/screens/daily-plan/daily-plan.store'
+import { todayKey, nextOrder, sanitizeSlug } from '@views/screens/daily-plan/daily-plan.store'
 import { openTaskInTerminal } from '@views/screens/daily-plan/daily-plan.entry'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { newTab } from '@views/commands/commands'
@@ -21,13 +21,20 @@ import type { ComposerMode, SlashItem } from './agent-composer.types'
 
 export const DEFAULT_BASE = 'main'
 
+// The composer files a Daily Plan ticket; keep its title short (a glanceable label in
+// the sidebar and on the terminal tab) and carry the full prompt in the description, so
+// Claude still receives everything the user typed.
+export const COMPOSER_TITLE_MAX = 20
+
 export const MODES: { val: ComposerMode; label: string }[] = [
   { val: 'local', label: 'Local' },
   { val: 'worktree', label: 'Worktree' }
 ]
 
 export const COMPOSER_PLACEHOLDER = 'Describe the work — a ticket is filed and Claude picks it up'
-export const COMPOSER_HINT = '⌘↵ to start · / for projects and modes'
+export const COMPOSER_HINT = '⌘↵ to start · / for projects, labels and modes'
+export const TITLE_PLACEHOLDER = 'Title'
+export const BRANCH_PLACEHOLDER = 'Branch name'
 
 // ---- "/" menu ---------------------------------------------------------------
 
@@ -52,12 +59,27 @@ export function slashQueryAt(text: string, caret: number): { query: string; star
 
 // Entries matching the query (contains, case-insensitive), best match first: an
 // exact name beats a prefix, a prefix beats a mid-word hit. So "/backend" puts the
-// backend project at the top, ready for Enter, while "/bac" still lists it.
-export function slashItemsFor(query: string): SlashItem[] {
+// backend project at the top, ready for Enter, while "/bac" still lists it. The
+// same holds for labels — "/urgent" surfaces the urgent label ready for Enter.
+// `selectedLabelIds` marks the labels already on the ticket, so picking one reads
+// as a toggle rather than a blind add.
+export function slashItemsFor(query: string, selectedLabelIds: string[] = []): SlashItem[] {
   const projects: SlashItem[] = projectTree(state.tree)
     .map((entry) => entry.p)
     .filter((p) => p.path)
     .map((p) => ({ id: `project:${p.id}`, kind: 'project' as const, label: p.name, detail: p.path, projectId: p.id }))
+
+  const labels: SlashItem[] = dailyTagRepo.getAll().map((tag) => {
+    const isOn = selectedLabelIds.includes(tag.id)
+    return {
+      id: `label:${tag.id}`,
+      kind: 'label' as const,
+      label: tag.name,
+      detail: isOn ? 'Label — remove from the ticket' : 'Label — add to the ticket',
+      labelId: tag.id,
+      isOn
+    }
+  })
 
   const q = query.trim().toLowerCase()
   const rank = (label: string): number => {
@@ -66,7 +88,7 @@ export function slashItemsFor(query: string): SlashItem[] {
     if (l.startsWith(q)) return 1
     return 2
   }
-  return [...SLASH_COMMANDS, ...projects]
+  return [...SLASH_COMMANDS, ...projects, ...labels]
     .filter((item) => !q || item.label.toLowerCase().includes(q))
     .sort((a, b) => rank(a.label) - rank(b.label))
 }
@@ -120,6 +142,82 @@ export function setDraft(text: string, caret = text.length): void {
   draftCaret = caret
 }
 
+// Push the current draft (and caret) into the textarea. The box is uncontrolled and
+// gea's onAfterRender is mount-only, so a re-shown composer keeps the textarea's stale
+// DOM value — the view calls this on every show to resync it (empty after a submit).
+export function seedDraftInto(input: HTMLTextAreaElement): void {
+  input.value = getDraft()
+  const caret = getDraftCaret()
+  input.setSelectionRange(caret, caret)
+}
+
+// The ticket meta (title + branch slug) follows the same non-reactive draft pattern
+// as the prompt: a store write per keystroke would re-render the composer and fight
+// the uncontrolled inputs. The title mirrors the prompt's first COMPOSER_TITLE_MAX
+// characters until the user edits it by hand (that breaks the prompt→title bond for
+// good, until the next submit). The branch is ALWAYS re-derived from the title on a
+// title change — a hand-typed branch survives only until the title changes again.
+let titleDraft = ''
+let branchDraft = ''
+let isTitleTouched = false
+
+export function getTitleDraft(): string {
+  return titleDraft
+}
+
+export function getBranchDraft(): string {
+  return branchDraft
+}
+
+// Slug shape for the branch box WHILE TYPING: lowercase, runs of invalid characters
+// to a single dash — but a trailing dash survives (sanitizeSlug would trim it, making
+// it impossible to type "fix-login" past "fix-"). Submit sanitizes the final value.
+export function liveSlug(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+}
+
+// Prompt keystroke → title (first COMPOSER_TITLE_MAX chars) + branch, unless the
+// user has taken the title over by hand.
+export function syncTitleFromPrompt(text: string): void {
+  if (isTitleTouched) return
+  const title = text.trim().slice(0, COMPOSER_TITLE_MAX)
+  if (title === titleDraft) return
+  titleDraft = title
+  branchDraft = sanitizeSlug(title)
+}
+
+// A hand-edited title breaks the prompt→title bond and re-derives the branch — the
+// branch always follows the title.
+export function setTitleDraft(text: string): void {
+  isTitleTouched = true
+  titleDraft = text
+  branchDraft = sanitizeSlug(text)
+}
+
+// A hand-edited branch keeps its slug shape but does NOT break the title→branch
+// bond: the next title change re-derives it. Returns the slugged value so the view
+// can write it back into the input.
+export function setBranchDraft(text: string): string {
+  branchDraft = liveSlug(text)
+  return branchDraft
+}
+
+export function resetTicketMeta(): void {
+  titleDraft = ''
+  branchDraft = ''
+  isTitleTouched = false
+}
+
+// Push the meta drafts into the (uncontrolled) title + branch inputs — the meta
+// counterpart of seedDraftInto, called on every show and after a prompt keystroke.
+export function seedMetaInto(titleInput: HTMLInputElement, branchInput: HTMLInputElement): void {
+  titleInput.value = titleDraft
+  branchInput.value = branchDraft
+}
+
 async function showMessage(title: string, message: string): Promise<void> {
   await promptConfirm({ title, message, confirmText: 'OK' })
 }
@@ -131,6 +229,12 @@ class AgentComposerStore extends Store {
   mode: ComposerMode = 'local'
   isPlanMode = false
   isBusy = false
+  // The Daily Plan tags the filed ticket carries. `labels` is a snapshot of the tag
+  // repo (which is not a reactive source) re-read on every refresh, so the dropdown
+  // and the "/" menu pick up a tag added on the board meanwhile; `labelIds` is the
+  // multi-select, reassigned (never mutated in place) so gea re-renders on a toggle.
+  labels: DailyPlanTag[] = []
+  labelIds: string[] = []
   // Bumped on every refresh. The project dropdown reads the sidebar tree (not a
   // reactive source), so a refresh that changes nothing else — the same project
   // still selected — must still force a re-render to pick up a tree that has since
@@ -155,9 +259,10 @@ class AgentComposerStore extends Store {
   // keystroke.
   syncSlash(text: string, caret: number): void {
     const q = slashQueryAt(text, caret)
-    const items = q ? slashItemsFor(q.query) : []
+    const items = q ? slashItemsFor(q.query, this.labelIds) : []
     const same =
-      items.length === this.slashItems.length && items.every((item, i) => item.id === this.slashItems[i].id)
+      items.length === this.slashItems.length &&
+      items.every((item, i) => item.id === this.slashItems[i].id && item.isOn === this.slashItems[i].isOn)
     if (same) return
     this.slashItems = items
     this.slashIndex = 0
@@ -181,6 +286,7 @@ class AgentComposerStore extends Store {
     else if (item.kind === 'plan') this.setPlanMode(true)
     else if (item.kind === 'build') this.setPlanMode(false)
     else if (item.kind === 'local' || item.kind === 'worktree') this.setMode(item.kind)
+    else if (item.kind === 'label' && item.labelId) this.toggleLabel(item.labelId)
 
     const q = slashQueryAt(text, caret)
     const next = q ? textWithoutSlash(text, q.start, caret) : { text, caret }
@@ -203,8 +309,38 @@ class AgentComposerStore extends Store {
     if (!projects.some((p) => p.id === this.projectId)) {
       this.projectId = projects[0]?.id ?? null
     }
+    this.loadLabels()
     await this.loadBranches()
     this.rev++
+  }
+
+  // Re-snapshot the tag repo (§5.3: fresh objects, never the repo's own records) and
+  // drop any picked label that has since been deleted on the board.
+  private loadLabels(): void {
+    this.labels = dailyTagRepo.getAll().map((tag) => ({ ...tag }))
+    const live = new Set(this.labels.map((tag) => tag.id))
+    const kept = this.labelIds.filter((id) => live.has(id))
+    if (kept.length !== this.labelIds.length) this.labelIds = kept
+  }
+
+  // The picked labels, in repo order (not pick order) so the button caption is stable.
+  get selectedLabels(): DailyPlanTag[] {
+    return this.labels.filter((tag) => this.labelIds.includes(tag.id))
+  }
+
+  isLabelOn(id: string): boolean {
+    return this.labelIds.includes(id)
+  }
+
+  // Reassigned, never spliced: gea only re-renders on a field write.
+  toggleLabel(id: string): void {
+    this.labelIds = this.labelIds.includes(id)
+      ? this.labelIds.filter((x) => x !== id)
+      : [...this.labelIds, id]
+  }
+
+  clearLabels(): void {
+    if (this.labelIds.length) this.labelIds = []
   }
 
   async setProject(id: string): Promise<void> {
@@ -249,13 +385,15 @@ class AgentComposerStore extends Store {
 
   // File the typed text as a ticket in the selected project and hand it to a Claude
   // terminal — in a worktree branched off the chosen base, or in the project itself.
-  async submit(text: string): Promise<void> {
-    const title = text.trim()
-    if (!title || this.isBusy) return
+  // Returns true when the ticket was filed (the prompt was consumed), so the view
+  // knows to clear the textarea; a refused submit keeps the text for another try.
+  async submit(text: string): Promise<boolean> {
+    const full = text.trim()
+    if (!full || this.isBusy) return false
     const project = this.selectedProject
     if (!project) {
       await showMessage('No project', 'Add a project to the sidebar first, then start work from here.')
-      return
+      return false
     }
     // openTaskInTerminal needs an issue key (the worktree branch is named after it),
     // so check the prefix before filing a ticket we'd have to abandon.
@@ -264,31 +402,45 @@ class AgentComposerStore extends Store {
         'No issue key prefix',
         `Set an issue key prefix on “${project.name}” (project settings) so tickets can be keyed.`
       )
-      return
+      return false
     }
 
     this.isBusy = true
     try {
       const now = Date.now()
       const date = todayKey()
+      // The title box (auto-filled from the prompt, hand-editable) labels the ticket;
+      // the full prompt rides in the description so openTaskInTerminal still hands
+      // Claude everything that was typed. An emptied title falls back to the prompt.
+      const title = getTitleDraft().trim() || full.slice(0, COMPOSER_TITLE_MAX)
+      const slug = sanitizeSlug(getBranchDraft())
       const task: DailyPlanTask = {
         id: uid('task'),
         title,
+        description: full !== title ? full : undefined,
+        worktreeSlug: slug || undefined,
         date,
         status: 'todo',
         priority: 'medium',
-        tagIds: [],
+        tagIds: this.labelIds.slice(),
         projectId: project.id,
         order: nextOrder(date, 'todo'),
         createdAt: now,
         updatedAt: now
       }
       dailyTaskRepo.upsert(task)
-      setDraft('')
       await openTaskInTerminal(task, () => {}, this.mode === 'worktree', {
         base: this.baseBranch,
         isPlanMode: this.isPlanMode
       })
+      // Clear the draft only after the terminal is up: the Cmd+Enter keyup still
+      // fires on the textarea (whose value is the old text) and its selection
+      // handler writes that value back into the draft — clearing here, after the
+      // keyup has come and gone, is what makes the empty draft stick. A failed
+      // launch (throw above) keeps the draft, so the prompt survives for a retry.
+      setDraft('')
+      resetTicketMeta()
+      return true
     } finally {
       this.isBusy = false
     }

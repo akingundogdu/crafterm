@@ -9,6 +9,7 @@ import type {
   Application
 } from '@views/types/types'
 import { MAX_FOLDER_DEPTH } from '@views/types/types'
+import { linkTargetKind } from './link-target'
 import {
   panes,
   browsers,
@@ -26,8 +27,10 @@ import {
   renderContent,
   updateActive,
   updatePaneActive,
-  applyDocFont
+  applyDocFont,
+  paneActions
 } from '@views/state/state'
+import { exitSideBySide, isTabTiled } from '@views/screens/content/content.store'
 import { persistence } from '@repositories/persistence.service'
 import {
   firstPaneOf,
@@ -39,6 +42,7 @@ import {
   findById,
   findTab,
   findTabByPane,
+  findTabByClaudeSession,
   allTabs,
   isDescendant,
   depthOfFolder,
@@ -796,21 +800,23 @@ export async function openUrlInBrowser(): Promise<void> {
   if (target) placeSplit(createBrowserPane(target), 'row')
 }
 
+// Cmd+click on a terminal link: a URL opens a browser pane, a file opens in-app (see
+// link-target.ts for the routing rule).
 export async function openLink(target: string): Promise<void> {
-  if (/^https?:\/\//i.test(target)) {
+  if (linkTargetKind(target) === 'url') {
     placeSplit(createBrowserPane(target), 'row')
     return
   }
-  if (/\.(?:mdx|mdc|md)$/i.test(target)) {
-    // Resolve against the active cwd and its ancestors so a relative path that
-    // already contains the project folder name (e.g. "pkg/docs/x.md" while cwd
-    // is inside "pkg") still finds the file instead of opening a blank pane.
-    const abs = await fsService.resolveFile(activeCwd() ?? '', target)
-    if (abs) openMarkdownFile(abs)
-    else await promptConfirm({ title: 'File not found', message: target, confirmText: 'OK' })
+  // Resolve against the active cwd and its ancestors so a relative path that
+  // already contains the project folder name (e.g. "pkg/docs/x.md" while cwd
+  // is inside "pkg") still finds the file instead of opening a blank pane.
+  const abs = await fsService.resolveFile(activeCwd() ?? '', target)
+  if (!abs) {
+    await promptConfirm({ title: 'File not found', message: target, confirmText: 'OK' })
     return
   }
-  await runInSplit(`${settings.commands.ide} ${shellQuote(target)}`)
+  if (linkTargetKind(abs) === 'markdown') openMarkdownFile(abs)
+  else openCodeEditor(abs)
 }
 
 // Open a fresh terminal tab rooted at `dir` (used by the Cmd+P folder picker).
@@ -848,19 +854,37 @@ export async function resumeClaudeSession(
   cwd: string | null,
   title: string
 ): Promise<void> {
-  await createTab(null, {
+  // If this session already lives in the tree, act on THAT node — never spawn a
+  // duplicate `claude --resume` in the free area. An archived tab reactivates in
+  // place (under its worktree, resuming Claude via buildLayout); a live one is
+  // just selected.
+  const existing = findTabByClaudeSession(
+    state.tree,
+    sessionId,
+    (id) => panes.get(id)?.claudeSessionId === sessionId
+  )
+  if (existing) {
+    if (existing.status === 'archived') void paneActions.reactivateTab(existing.id)
+    else selectTab(existing.id)
+    return
+  }
+  // No node for it yet: drop the resumed session under the worktree that owns its
+  // cwd, falling back to a top-level tab when the cwd isn't inside a managed
+  // worktree (e.g. a main-checkout session).
+  const owner = cwd ? worktreeForCwd(cwd) : null
+  await createTab(owner?.node.id ?? null, {
     title,
     cwd: cwd ?? undefined,
     command: `claude --resume ${sessionId}`,
     claude: true
   })
-  // record the exact session on the new pane so a later app-restore resumes it too
+  // Record the resumed session as a fallback, but DON'T lock it: `claude --resume`
+  // continues under a NEW session id, and refreshPaneInfo must capture that fresh
+  // id (createTab already set the claudeSpawnedAt baseline + left it unlocked) or
+  // /rename records would land in a jsonl we never read.
   const p = state.activePaneId ? panes.get(state.activePaneId) : null
   if (p) {
     p.claudeSessionId = sessionId
-    // we know the id, so lock it; the periodic refresh must not overwrite it
-    // with whatever's newest in this cwd (the bug we're fixing)
-    p.claudeSessionLocked = true
     persistence.save()
   }
 }
@@ -1208,6 +1232,8 @@ function fixActiveAfterChange(): void {
 export function selectTab(tabId: string): void {
   const tab = findTab(state.tree, tabId)
   if (!tab) return
+  // Picking a terminal leaves the side-by-side view (todomraex8usk1).
+  exitSideBySide()
   state.activeTabId = tabId
   state.selectedNodeId = tabId
   state.activePaneId = firstPaneOf(tab.root)
@@ -1223,18 +1249,24 @@ export function selectNode(id: string): void {
 }
 
 export function selectPane(paneId: string): void {
+  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
+  // Clicking a pane that is ON SCREEN in the side-by-side view just makes it the
+  // active one — it must not collapse the view back to a single terminal
+  // (todomraex8usk1). Any other pane (a notification jump, the switcher) does leave.
+  const staysTiled = !!tab && isTabTiled(tab.id)
+  if (!staysTiled) exitSideBySide()
   state.activePaneId = paneId
   const p = panes.get(paneId)
   if (p) p.attention = false
-  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
   let tabChanged = false
   if (tab) {
     tabChanged = state.activeTabId !== tab.id
     state.activeTabId = tab.id
     state.selectedNodeId = tab.id // clicking a pane also selects its terminal in the sidebar
     // If the pane lives in a different tab (e.g. jumped to from a notification or
-    // the Claude dashboard), switch the visible content to that tab.
-    if (tabChanged) renderContent()
+    // the Claude dashboard), switch the visible content to that tab. In the tiled
+    // view every pane is already on screen — re-rendering would only churn the DOM.
+    if (tabChanged && !staysTiled) renderContent()
   }
   updateActive()
   updatePaneActive() // move the active-pane border so focus is visible

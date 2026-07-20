@@ -77,7 +77,7 @@ export async function listTargets(): Promise<{ simulators: IosTarget[]; devices:
       // Physical devices live under "== Devices ==" AND "== Devices Offline =="
       // (a USB device is often listed "offline" until trusted/tunneled — still
       // worth showing so the user can pick it). Lines look like
-      // "Akın's iPhone (17.0) (00008110-...)". The host Mac carries no OS version
+      // "Jane's iPhone (17.0) (00008110-...)". The host Mac carries no OS version
       // in parens, so the version-requiring regex excludes it; simulators live
       // under their own header.
       let inDevices = false

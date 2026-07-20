@@ -1,0 +1,6 @@
+/* Folder/project settings modal: the KEY=VALUE env textarea reads better in a
+   monospace face. Base textarea styling comes from form-field.css. */
+.folder-env {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}

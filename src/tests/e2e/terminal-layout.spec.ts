@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, openTerminal, readState, closeApp } from './_harness.js'
 
 // Terminal split layout (§2): nested splits build the LayoutNode tree, the active
 // highlight follows the focused pane, and the resizer drag changes the split
@@ -16,7 +16,7 @@ test('terminal: nested splits build the tree; active highlight follows focus', a
   const dir = freshStateDir('crafterm-e2e-lay-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1) // starter
+    await openTerminal(win)
     await win.keyboard.press('Meta+d') // split row -> 2
     await expect(win.locator('.pane-box')).toHaveCount(2)
 
@@ -51,7 +51,7 @@ test('terminal: resizer drag changes the split ratio (persisted)', async () => {
   const dir = freshStateDir('crafterm-e2e-lay-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
     await win.keyboard.press('Meta+d')
     await expect(win.locator('.pane-box')).toHaveCount(2)
 

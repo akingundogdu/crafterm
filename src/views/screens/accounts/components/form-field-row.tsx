@@ -39,7 +39,7 @@ export default class FormFieldRow extends Component {
           <input type="checkbox" checked={f.secret} onChange={() => store.toggleSecret(index)} />
           {' secret'}
         </label>
-        <button class="accounts-action small danger" type="button" onClick={() => store.removeField(index)}>
+        <button class="accounts-action small button-danger" type="button" onClick={() => store.removeField(index)}>
           ✕
         </button>
       </div>

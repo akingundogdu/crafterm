@@ -5,6 +5,7 @@ import { persistence } from '@repositories/persistence.service'
 import { createOverlay } from '@views/components/overlay/overlay'
 import '@views/components/modal/modal.css'
 import '@views/components/form-field/form-field.css'
+import './folder-settings-modal.css'
 
 // Per-folder settings modal (startup command / env / shell). Projects also expose
 // name/path/command; folders don't. Static per open — no store — so a one-shot gea

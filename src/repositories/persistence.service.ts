@@ -68,6 +68,9 @@ export function serializeLayout(node: LayoutNode): SavedNode {
     if (p?.lastCommand && !p.claude) leaf.lastCommand = p.lastCommand
     if (p?.claude) leaf.claude = true // resume the Claude session on restore
     if (p?.claudeSessionId) leaf.claudeSessionId = p.claudeSessionId // exact session for --resume
+    // Last /rename seen — so a restart can't mistake the stored title for a new
+    // rename and let it clobber a locked (ticket/manual) title.
+    if (p?.lastClaudeTitle) leaf.lastClaudeTitle = p.lastClaudeTitle
     if (p?.bgColor) leaf.bgColor = p.bgColor // per-pane background
     if (p?.projectId) leaf.projectId = p.projectId
     if (p?.appId) leaf.appId = p.appId
@@ -119,7 +122,8 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       // reactivatable; the live root is just an empty placeholder while dormant.
       root: node.status === 'archived' && node.dormantRoot ? node.dormantRoot : serializeLayout(node.root),
       status: node.status ?? deriveTabStatus(node.root),
-      ...(node.detailsOpen ? { detailsOpen: true } : {})
+      ...(node.detailsOpen ? { detailsOpen: true } : {}),
+      ...(node.archivedByWorktree ? { archivedByWorktree: true } : {})
     }
   }
   if (node.kind === 'project') {
@@ -194,6 +198,7 @@ function persist(): void {
     customTheme: settings.customTheme,
     font: settings.font,
     bgColor: settings.bgColor,
+    sidebarSelectedColor: settings.sidebarSelectedColor,
     editorTheme: settings.editorTheme,
     docFontSize: settings.docFontSize,
     codeRoot: settings.codeRoot,

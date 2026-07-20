@@ -9,6 +9,7 @@ class GitClient extends BaseClient {
   stashList = (id: string) => this.call(Channel.Git.StashList, { id })
   fileStatus = (cwd: string) => this.call(Channel.Git.FileStatus, { cwd })
   listWorktrees = (cwd?: string) => this.call(Channel.Git.Worktrees, { cwd })
+  worktreeState = (cwd: string) => this.call(Channel.Git.WorktreeState, { cwd })
   worktreeAdd = (repo: string, path: string, branch: string, base?: string) =>
     this.call(Channel.Git.WorktreeAdd, { repo, path, branch, base })
 }

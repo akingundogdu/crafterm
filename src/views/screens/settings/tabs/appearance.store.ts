@@ -1,4 +1,4 @@
-import { settings, applyBgColor, resolveTheme } from '@views/state/spine'
+import { settings, applyBgColor, applySidebarSelectedColor, applyDocFont, resolveTheme } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
 import { applyAppearance } from '@views/pane/pane'
 import { applyTheme } from '@views/editor/monaco/monaco-setup'
@@ -46,6 +46,18 @@ export function setFontSize(v: string): void {
   }
 }
 
+// The doc font drives the markdown/doc panes AND the agent composer, which sizes
+// its whole layout in `em` off it (todomrkhg31kaa). Applies only when it parses to
+// 10..28 — the same range Cmd +/- clamps to.
+export function setDocFontSize(v: string): void {
+  const n = parseInt(v, 10)
+  if (!Number.isNaN(n) && n >= 10 && n <= 28) {
+    settings.docFontSize = n
+    applyDocFont()
+    persistence.save()
+  }
+}
+
 export function setEditorTheme(v: string): void {
   settings.editorTheme = v
   void applyTheme(v)
@@ -56,6 +68,12 @@ export function applyBackground(color: string): void {
   settings.bgColor = color
   applyBgColor()
   applyAppearance()
+  persistence.save()
+}
+
+export function setSidebarSelectedColor(v: string): void {
+  settings.sidebarSelectedColor = v
+  applySidebarSelectedColor()
   persistence.save()
 }
 

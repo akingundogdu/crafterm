@@ -1,4 +1,5 @@
 import type { Dir, LayoutNode, SidebarNode, TabNode, FolderNode, ProjectNode, WorktreeNode } from '@views/types/types'
+import type { SavedNode } from '@repositories/state.types'
 
 // Folders, projects and worktrees all hold `children`; this narrows to any.
 export function isContainer(node: SidebarNode): node is FolderNode | ProjectNode | WorktreeNode {
@@ -134,6 +135,33 @@ export function allTabs(tree: SidebarNode[], acc: TabNode[] = []): TabNode[] {
 // The tab whose layout contains the given pane.
 export function findTabByPane(tree: SidebarNode[], paneId: string): TabNode | null {
   return allTabs(tree).find((t) => layoutContains(t.root, paneId)) ?? null
+}
+
+// A serialized (dormant) layout can nest — check every leaf for the session id.
+function savedLayoutHasSession(node: SavedNode, sessionId: string): boolean {
+  if (node.type === 'leaf') return node.claudeSessionId === sessionId
+  return node.children.some((c) => savedLayoutHasSession(c, sessionId))
+}
+
+// The tab that owns a given Claude session. An archived tab keeps its session id
+// in the serialized dormantRoot; a live tab's id lives on a pane, resolved via the
+// caller's `paneHasSession` (so this module stays free of the live-pane singleton).
+// Used by resume so a session reopens under the node it belongs to — the ~/.claude
+// history only records the session's cwd, which for a worktree session is often
+// the main checkout, not the worktree dir.
+export function findTabByClaudeSession(
+  tree: SidebarNode[],
+  sessionId: string,
+  paneHasSession: (paneId: string) => boolean
+): TabNode | null {
+  for (const tab of allTabs(tree)) {
+    if (tab.status === 'archived' && tab.dormantRoot) {
+      if (savedLayoutHasSession(tab.dormantRoot, sessionId)) return tab
+    } else if (panesInLayout(tab.root).some(paneHasSession)) {
+      return tab
+    }
+  }
+  return null
 }
 
 export function isDescendant(parent: SidebarNode, maybeChildId: string): boolean {

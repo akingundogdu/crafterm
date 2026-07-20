@@ -69,11 +69,11 @@ export default class BookmarkCard extends Component {
         )}
         <div class="bookmarks-actions">
           {bm.type === 'link' ? (
-            <button class="bookmarks-action primary" onClick={() => void openLink(bm.content)}>
+            <button class="bookmarks-action button-primary" onClick={() => void openLink(bm.content)}>
               {UITexts.Bookmarks.card.open}
             </button>
           ) : (
-            <button class="bookmarks-action primary" onClick={this.onCopy}>
+            <button class="bookmarks-action button-primary" onClick={this.onCopy}>
               Copy
             </button>
           )}
@@ -83,7 +83,7 @@ export default class BookmarkCard extends Component {
           <button class="bookmarks-action" onClick={() => openBookmarkForm(this.raw(), () => store.reload())}>
             {UITexts.Bookmarks.card.edit}
           </button>
-          <button class="bookmarks-action danger" onClick={this.onDelete}>
+          <button class="bookmarks-action button-danger" onClick={this.onDelete}>
             {UITexts.Bookmarks.card.delete}
           </button>
         </div>

@@ -12,7 +12,9 @@ import {
   BG_PRESETS,
   setFontFamily,
   setFontSize,
+  setDocFontSize,
   setEditorTheme,
+  setSidebarSelectedColor,
   applyBackground,
   copyCurrentToCustom,
   setCustomColor
@@ -27,6 +29,7 @@ import {
 class AppearancePanel extends Component {
   famInput: HTMLInputElement | null = null
   fontSizeInput: HTMLInputElement | null = null
+  docFontSizeInput: HTMLInputElement | null = null
 
   onAfterRender(): void {
     if (this.famInput) {
@@ -34,6 +37,7 @@ class AppearancePanel extends Component {
       this.famInput.style.maxWidth = '280px'
     }
     if (this.fontSizeInput) this.fontSizeInput.value = String(settings.font.size)
+    if (this.docFontSizeInput) this.docFontSizeInput.value = String(settings.docFontSize)
   }
 
   template() {
@@ -48,12 +52,23 @@ class AppearancePanel extends Component {
           <label>{UITexts.Settings.appearance.terminalFontSize}</label>
           <input type="number" ref={this.fontSizeInput} onChange={makeInputChange(setFontSize)} />
         </div>
+        <div class="field">
+          <label>{UITexts.Settings.appearance.docFontSize}</label>
+          <input type="number" ref={this.docFontSizeInput} onChange={makeInputChange(setDocFontSize)} />
+        </div>
         <BackgroundSwatchControl
           presets={BG_PRESETS}
           currentBgColor={() => settings.bgColor}
           customColor={settings.bgColor}
           onApply={applyBackground}
         />
+        <div class="field">
+          <ColorRow
+            colorKey={UITexts.Settings.appearance.sidebarSelectedBorder}
+            value={settings.sidebarSelectedColor}
+            onApply={(_key: string, v: string) => setSidebarSelectedColor(v)}
+          />
+        </div>
         <div class="field">
           <label>{UITexts.Settings.appearance.codeEditorTheme}</label>
           <select onChange={makeSelectChange(setEditorTheme)}>

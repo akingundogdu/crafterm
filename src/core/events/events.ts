@@ -16,7 +16,10 @@ export const Events = {
   },
   WebContents: {
     DidFinishLoad: 'did-finish-load',
-    BeforeInputEvent: 'before-input-event'
+    BeforeInputEvent: 'before-input-event',
+    WillNavigate: 'will-navigate',
+    WillAttachWebview: 'will-attach-webview',
+    DidAttachWebview: 'did-attach-webview'
   },
   Notification: {
     Click: 'click'

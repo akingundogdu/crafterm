@@ -20,15 +20,25 @@ Requirements: macOS, Node.js 18+, and Xcode Command Line Tools
    npx tsc --noEmit -p tsconfig.web.json
    npx tsc --noEmit -p tsconfig.node.json
    ```
-2. **Build**:
+2. **Run the unit tests** (Vitest):
+   ```bash
+   npx vitest run
+   ```
+3. **Build**:
    ```bash
    npm run build
    ```
-3. **Run the app** (`npm run dev`) and exercise the feature you changed.
+4. **Run the app** (`npm run dev`) and exercise the feature you changed.
 
-There is currently no automated test framework in the repo; verify changes by
-running the app. If you want to add a test framework, please open an issue to
-discuss it first.
+CI runs steps 1–3 on every pull request.
+
+New behavior needs a test. Tests live under `src/tests/`:
+
+- `src/tests/unit/` — Vitest. Pure logic and stores run in `node`; anything that
+  touches the DOM opts into happy-dom with a `// @vitest-environment happy-dom`
+  docblock at the top of the file.
+- `src/tests/e2e/` — Playwright, driving the real Electron build (`npm run e2e`).
+  Slower; run it when you change a user-facing flow.
 
 ## Code style
 
@@ -42,15 +52,31 @@ discuss it first.
 - `camelCase` for variables/functions, `UpperCamelCase` for types, boolean props
   start with `is`/`has`/`should`.
 
+## The three layers
+
+- **`src/views/`** — the renderer. gea `.tsx` components (no React). It never
+  touches Node or Electron; it calls a service client. See
+  [`docs/views-architecture.md`](docs/views-architecture.md) for the component
+  file structure (`.tsx` + `.store.ts` + `.css`), which is enforced by guard tests.
+- **`src/services/<domain>/`** — the IPC layer, one folder per domain.
+- **`src/core/`** — the main process: anything that touches the OS (node-pty, the
+  filesystem, the `git` / `gh` / `docker` CLIs, windows, notifications).
+
 ## Adding an IPC call
 
-Anything touching the OS lives in the main process. A new IPC call means three
-edits in lockstep:
+Three edits in lockstep — every channel is registered centrally, so a name or
+payload-type drift fails at compile time:
 
-1. Handler in `src/main/index.ts`
-2. Method in `src/preload/index.ts`
-3. Signature in `src/preload/api.d.ts` (and `SavedState` there if it is
-   persisted)
+1. A channel entry in `src/services/channels.ts` (the typed registry)
+2. A `handle` / `on` in `src/services/<domain>/<domain>.main.ts`
+3. A `call` / `send` / `listen` wrapper in `src/services/<domain>/<domain>.client.ts`
+
+The renderer imports the client wrapper — never the preload bridge directly. A
+guard test fails the build if a main-side module leaks into the renderer, or vice
+versa.
+
+If the value is persisted, also add it to `SavedState` in
+`src/repositories/state.types.ts` and migrate old shapes on read.
 
 ## Commits & pull requests
 

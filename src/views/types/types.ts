@@ -66,6 +66,11 @@ export interface Pane {
   // refresh would otherwise overwrite it with whichever jsonl is newest in the
   // shared cwd dir — the root of the cross-pane session-mixup bug.
   claudeSessionLocked: boolean
+  // Last session custom-title (/rename) this pane observed. A session title that
+  // DIFFERS from it is a fresh /rename — the newest explicit action — and may
+  // override a locked title; an unchanged one never beats a lock. Persisted so a
+  // restart can't mistake the stored title for a new rename.
+  lastClaudeTitle: string | null
   bgColor: string | null // per-pane background override (null = global default)
   fontSize: number | null // per-pane font-size override (null = global default)
   trackProjectPath: string | null // time-tracking: project this terminal logs to
@@ -202,6 +207,10 @@ export interface TabNode {
   // the session can be rebuilt on reactivate; the live `root` is an empty
   // placeholder until then.
   dormantRoot?: SavedNode
+  // Set when the worktree-reconcile archived this tab because its worktree went
+  // missing (not a user close). If the worktree reappears, un-archive reactivates
+  // exactly these tabs — user-closed tabs (flag absent) stay archived.
+  archivedByWorktree?: boolean
 }
 
 // A grouping folder in the sidebar (can nest up to MAX_FOLDER_DEPTH). A folder
@@ -572,6 +581,10 @@ export interface NotificationMeta {
   reminderText?: string // present on reminder cards (used by snooze)
   projectColor?: string // optional hex tag color from the producing pane's project
   payload?: ReminderPayload // forwarded from the reminder; drives the card's Open action
+  // The producing pane's STABLE id. `paneId` is a runtime id that is regenerated on
+  // restore, so a persisted notification's paneId points at nothing after a restart —
+  // this is the durable link back to the terminal.
+  paneStableId?: string
 }
 
 // A notification card shown in the right notification panel.

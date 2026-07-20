@@ -31,3 +31,36 @@ export function persistResizedLayout(): void {
   if (tab && entry) entry.sig = layoutSig(tab.root)
   persistence.save()
 }
+
+// ---- Side-by-side view (todomraex8usk1) ------------------------------------
+// The terminals the user Cmd+clicked in the sidebar and asked to see together. A
+// VIEW only: the tabs and their layouts are untouched, the panes' DOM is borrowed
+// into a tiled container until the view is left (picking any terminal leaves it).
+let sideBySideTabIds: string[] = []
+
+export function sideBySideTabs(): string[] {
+  return sideBySideTabIds
+}
+
+export function isSideBySide(): boolean {
+  return sideBySideTabIds.length > 1
+}
+
+// Is this terminal one of the tiles currently on screen? Clicking a pane inside a
+// tile must keep the view (it is already visible); anything else leaves it.
+export function isTabTiled(tabId: string): boolean {
+  return isSideBySide() && sideBySideTabIds.includes(tabId)
+}
+
+export function setSideBySide(tabIds: string[]): void {
+  sideBySideTabIds = tabIds
+}
+
+// Leaving the view: the borrowed pane elements went back to the tiled container, so
+// every tab container has to be rebuilt from its layout — their cached signatures
+// would otherwise say "already correct" and leave the panes behind.
+export function exitSideBySide(): void {
+  if (!sideBySideTabIds.length) return
+  sideBySideTabIds = []
+  for (const entry of tabContainers.values()) entry.sig = ''
+}

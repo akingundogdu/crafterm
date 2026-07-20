@@ -7,3 +7,12 @@
   padding: 18px 22px 22px;
   overflow: hidden;
 }
+
+/* The board's host. Without a flex chain down to the columns, the modal's height is
+   never handed to them: the columns grow with their cards, the modal clips the
+   overflow and the lower cards become unreachable (todomrkhv6q9ae). */
+.daily-plan-modal-board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}

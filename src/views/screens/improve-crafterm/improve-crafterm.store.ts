@@ -1,4 +1,5 @@
 import { Store } from '@geajs/core'
+import { focusWhenReady } from '@views/lib/focus'
 import { settings, uid } from '@views/state/spine'
 import { appService, todoService } from '@services'
 import { createOverlay } from '@views/components/overlay/overlay'
@@ -273,6 +274,9 @@ class ImproveStore extends Store {
   }
   openForm(): void {
     this.formOpen = true
+    // The textarea is rendered by the store write above, on gea's own tick — so it
+    // cannot be focused synchronously here (todomrkhe5mba9).
+    focusWhenReady(() => document.querySelector<HTMLTextAreaElement>('.improve-textarea'))
   }
   closeForm(): void {
     this.formOpen = false

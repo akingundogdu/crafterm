@@ -1,5 +1,6 @@
 import type { DailyPlanTask, DailyPlanStatus } from '@views/types/types'
 import { createOverlay } from '@views/components/overlay/overlay'
+import { focusWhenReady } from '@views/lib/focus'
 import store from './task-form.store'
 import TaskForm from './task-form'
 
@@ -23,7 +24,10 @@ export function openTaskForm({ existing, onSaved, defaultStatus = 'todo', getSel
   store.open(existing, defaultStatus, getSelectedDate(), onSaved, openTaskInTerminal, () => ov.close())
   new TaskForm().render(ov.overlay)
   ov.mount()
-  const title = ov.overlay.querySelector('.daily-plan-title-input') as HTMLTextAreaElement | null
-  title?.focus()
-  title?.select()
+  // gea renders the form on its own tick, so the input does not exist yet — focus it
+  // as soon as it does (todomrkhe5mba9).
+  focusWhenReady(
+    () => ov.overlay.querySelector<HTMLTextAreaElement>('.daily-plan-title-input'),
+    true
+  )
 }

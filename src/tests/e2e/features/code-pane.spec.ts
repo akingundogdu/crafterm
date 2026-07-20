@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { tmpdir } from 'node:os'
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, selectTab, closeApp } from '../_harness.js'
 
 // Monaco code editor pane (§2), seeded deterministically via a `codePane` leaf
 // pointing at a real temp file. Covers open→edit→dirty→Cmd+S(disk) and Cmd+click
@@ -43,6 +43,7 @@ test('code-pane: open a file → Monaco mounts; edit → dirty; Cmd+S writes to 
   seedCodePane(dir, file)
   const { app, win } = await launchApp(dir)
   try {
+    await selectTab(win, 'Code') // the seeded tab restores unselected; activate it
     const pane = win.locator('.pane-box.code-pane')
     await expect(pane).toBeVisible({ timeout: 15_000 })
     await expect(pane.locator('.code-body .monaco-editor')).toBeVisible({ timeout: 10_000 })
@@ -72,6 +73,7 @@ test('code-pane: opening another file from the explorer reuses the same pane', a
   seedCodePane(dir, join(src, 'a.ts'), src)
   const { app, win } = await launchApp(dir)
   try {
+    await selectTab(win, 'Code') // the seeded tab restores unselected; activate it
     const pane = win.locator('.pane-box.code-pane')
     await expect(pane.locator('.diff-path')).toHaveAttribute('title', /a\.ts$/, { timeout: 15_000 })
     await expect(win.locator('.pane-box.code-pane')).toHaveCount(1)

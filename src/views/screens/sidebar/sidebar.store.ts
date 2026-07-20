@@ -8,7 +8,8 @@ import type {
 } from '@views/types/types'
 import { UITexts } from '@texts'
 import { openProcessView, killProcess } from '@services/bgproc'
-import { state, panes, settings, paneActions } from '@views/state/spine'
+import { state, panes, settings, paneActions, renderContent, requestSidebar } from '@views/state/spine'
+import { setSideBySide, exitSideBySide } from '@views/screens/content/content.store'
 import { allTabs, panesInLayout, firstPaneOf, ancestorFolders } from '@views/tree/tree'
 import { paneStatus, isPlanOwnedByPane } from '@views/pane/pane'
 import {
@@ -361,4 +362,43 @@ export function makeNewWorktreeClick(proj: ProjectNode): (e: MouseEvent) => void
     e.stopPropagation()
     void newWorktree(proj)
   }
+}
+
+// ---- Multi-select (todomraex8usk1) -----------------------------------------
+// Cmd/Ctrl+click marks extra terminals in the sidebar. The set is view-only — it
+// is never persisted and it does not move a terminal out of its tab; the content
+// area just tiles the marked ones side by side until another terminal is picked.
+const multiSelected = new Set<string>()
+
+export function isMultiSelected(id: string): boolean {
+  return multiSelected.has(id)
+}
+
+export function multiSelectedIds(): string[] {
+  return [...multiSelected]
+}
+
+// Cmd/Ctrl+click on a terminal row: add or remove it from the marked set.
+export function toggleMultiSelect(id: string): void {
+  if (multiSelected.has(id)) multiSelected.delete(id)
+  else multiSelected.add(id)
+}
+
+export function clearMultiSelect(): void {
+  multiSelected.clear()
+}
+
+// Show the marked terminals tiled in the content area. A VIEW: the terminals stay
+// where they are in the sidebar and in their tabs.
+export function showSideBySide(tabIds: string[]): void {
+  setSideBySide(tabIds)
+  renderContent()
+  requestSidebar()
+}
+
+export function clearSideBySideSelection(): void {
+  clearMultiSelect()
+  exitSideBySide()
+  renderContent()
+  requestSidebar()
 }

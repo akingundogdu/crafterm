@@ -64,6 +64,7 @@ export const settings = {
   } as Record<string, string>,
   font: { family: 'Menlo, Monaco, "Courier New", monospace', size: 13 } as Font,
   bgColor: '#000000', // terminal/app background; user-selectable, defaults to black
+  sidebarSelectedColor: '#ff9500', // border color of the selected sidebar node (selection context)
   editorTheme: 'Default', // global Monaco theme name for the code + SQL editors
   docFontSize: 15, // markdown (notebook) doc font size; Cmd+/- when a doc is focused
   codeRoot: '', // base folder for the Cmd+P folder picker ('' = home)
@@ -159,6 +160,11 @@ export function resolveTheme(): ITheme {
 export function applyBgColor(): void {
   document.documentElement.style.setProperty('--bg', settings.bgColor)
   document.documentElement.style.setProperty('--bg-term', settings.bgColor)
+}
+
+// The sidebar's selected-row border reads its color from this CSS variable.
+export function applySidebarSelectedColor(): void {
+  document.documentElement.style.setProperty('--sidebar-selected-border', settings.sidebarSelectedColor)
 }
 
 // Markdown doc panes read their size from this CSS variable.

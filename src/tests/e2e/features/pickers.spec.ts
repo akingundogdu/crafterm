@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, openTerminal, closeApp } from '../_harness.js'
 
 // Pickers (§4): the command palette (Cmd+Shift+P) and terminal switcher
 // (Cmd+Shift+O) — the two most deterministic (the palette seed ships in default
@@ -18,6 +18,7 @@ test('pickers: command palette inserts a seed command; terminal switcher lists p
   const dir = freshStateDir('crafterm-e2e-pick-')
   const { app, win } = await launchApp(dir)
   try {
+    await openTerminal(win) // the palette inserts into the active terminal; the switcher needs a pane row
     await test.step('command palette: git→status seed row, Enter closes', async () => {
       await openWithShortcut(win, 'Meta+Shift+p', '.picker-modal')
       await win.locator('.palette-chips button', { hasText: 'git' }).click() // default chip is zsh-only

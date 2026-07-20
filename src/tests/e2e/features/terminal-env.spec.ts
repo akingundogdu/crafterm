@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, openTerminal, selectTab, closeApp } from '../_harness.js'
 
 // Terminal-pane runtime + appearance (§2.81 CRAFTERM_PANE_ID env injection, §2.35
 // global background applied to the live pane). Real zsh spawns (CRAFTERM_E2E only
@@ -30,7 +30,7 @@ test('terminal-env: $CRAFTERM_PANE_ID echoes the pane stable UUID', async () => 
   })
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await selectTab(win, 'EnvPane') // the seeded tab restores unselected; activate it
     await win.locator('.pane-term').first().click() // focus the xterm
     await win.keyboard.type('echo $CRAFTERM_PANE_ID')
     await win.keyboard.press('Enter')
@@ -43,10 +43,10 @@ test('terminal-env: $CRAFTERM_PANE_ID echoes the pane stable UUID', async () => 
 
 test('terminal-env: a global Background change updates the live pane', async () => {
   const dir = freshStateDir('crafterm-e2e-tenv-')
-  writeState(dir, { tree: [] }) // default → one starter terminal pane
+  writeState(dir, { tree: [] })
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await openTerminal(win)
 
     await win.locator('#settings-btn').click()
     const modal = win.locator('.modal.settings-modal')

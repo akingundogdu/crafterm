@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
-import { freshStateDir, launchApp, readState, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, selectTab, readState, closeApp } from '../_harness.js'
 
 // The user's end-to-end daily-task worktree story (§8.7 / §8.8 / §2 Claude resume):
 // (1) create a NEW task from the board, pick its project + a WORKTREE SLUG, and run
@@ -157,6 +157,7 @@ test('daily-task: after review→test, close+reopen resumes the session and keep
   let win: Page
   ;({ app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir }))
   try {
+    await selectTab(win, 'CRF-1') // the seeded tab restores unselected; activate it
     await expect(win.locator('.pane-box .pane-daily-chip', { hasText: 'CRF-1' })).toBeVisible({ timeout: 12_000 })
 
     // drive review -> test via the pane menu (re-open the menu each time)
@@ -168,6 +169,7 @@ test('daily-task: after review→test, close+reopen resumes the session and keep
     // close + reopen the same state dir
     await app.close()
     ;({ app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir }))
+    await selectTab(win, 'CRF-1') // relaunch restores the tab but no longer auto-selects it
 
     // the session resumes where it left off (claude --resume <id> echoed into the xterm)
     await expect(win.locator('.pane-box .xterm-rows')).toContainText(`claude --resume ${SID}`, { timeout: 15_000 })

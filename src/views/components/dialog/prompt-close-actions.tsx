@@ -1,6 +1,7 @@
 import { Component } from '@geajs/core'
 import { createOverlay } from '../overlay/overlay'
 import '../modal/modal.css'
+import './prompt-close-actions.css'
 
 // Wide "close terminal" modal (gea port of the @ui dialog promptCloseActions):
 // shows the bound task + any worktree, each a switch toggled ON by default, so
@@ -66,6 +67,9 @@ class CloseActionsBody extends Component {
         onKeyDown={this.onKeyDown}
       >
         <h2>{opts.title}</h2>
+        <p class="close-actions-hint">
+          Closing this terminal also applies the actions below. Turn one off to skip it.
+        </p>
         {task ? (
           <label class="close-action-row">
             <div class="close-action-info">

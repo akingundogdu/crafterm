@@ -20,6 +20,7 @@ import { showRunApps, showFeatureSetup, showRunCommand } from '@views/screens/pi
 import { promptText } from '@views/components/dialog/prompt-text'
 import { promptSelect } from '@views/components/dialog/prompt-select'
 import { type ContextMenuItem } from '@views/components/context-menu/context-menu'
+import { multiSelectedIds, showSideBySide, clearSideBySideSelection } from '../sidebar.store'
 import { iosWorktreeMenuItems } from '@views/screens/ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '@services/worktrees'
 import { shellService } from '@services'
@@ -68,6 +69,16 @@ export function buildMenu(node: SidebarNode, ctx: MenuContext): ContextMenuItem[
     items.push({ label: UITexts.Sidebar.menu.rename, run: () => ctx.beginRename(node.id) })
     if (node.titleLocked) items.push({ label: UITexts.Sidebar.menu.autoName, run: () => autoNameTab(node.id) })
     items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
+    // Cmd+click marks extra terminals; with more than one marked, show them tiled
+    // in the content area (todomraex8usk1). A view only — nothing moves.
+    const marked = multiSelectedIds()
+    if (marked.length > 1) {
+      items.push({
+        label: `View ${marked.length} terminals side by side`,
+        run: () => showSideBySide(marked)
+      })
+      items.push({ label: 'Clear selection', run: () => clearSideBySideSelection() })
+    }
     items.push({ label: UITexts.Sidebar.menu.closeTab, run: () => closeTab(node.id), danger: true })
   } else if (isWorktreeFolder(node)) {
     // A worktree node: a dedicated, type-aware menu — git-managed, so the generic

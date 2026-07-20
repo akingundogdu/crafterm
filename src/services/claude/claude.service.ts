@@ -178,7 +178,13 @@ export class ClaudeService {
     return null
   }
 
-  latestSession(cwd?: string, since?: number): string | null {
+  // Newest session jsonl in a cwd's project dir, optionally only counting ones
+  // modified after `since`. With `ofSession`, only that session itself or a
+  // continuation of it qualifies: `claude --resume <id>` rolls the conversation
+  // to a NEW session id whose jsonl head carries the resumed history (and thus
+  // the old id) — matching on that keeps a same-cwd sibling pane's session from
+  // being mistaken for this pane's.
+  latestSession(cwd?: string, since?: number, ofSession?: string): string | null {
     if (!cwd) return null
     const dir = join(claudeProjectsDir(), encodeClaudeCwd(cwd))
     if (!existsSync(dir)) return null
@@ -186,9 +192,12 @@ export class ClaudeService {
     try {
       for (const f of readdirSync(dir)) {
         if (!f.endsWith('.jsonl')) continue
+        const id = f.replace(/\.jsonl$/, '')
         const m = statSync(join(dir, f)).mtimeMs
         if (typeof since === 'number' && m <= since) continue
-        if (!best || m > best.mtimeMs) best = { id: f.replace(/\.jsonl$/, ''), mtimeMs: m }
+        if (best && m <= best.mtimeMs) continue
+        if (ofSession && id !== ofSession && !readHead(join(dir, f)).includes(ofSession)) continue
+        best = { id, mtimeMs: m }
       }
     } catch {
       return null

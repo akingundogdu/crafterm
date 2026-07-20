@@ -1,7 +1,7 @@
 import { Component } from '@geajs/core'
 import './worktree-progress.css'
 import { createOverlay } from '@views/components/overlay/overlay'
-import store, { STEPS, CLOSE_LABEL, type Step } from './worktree-progress.store'
+import store, { CLOSE_LABEL, type ProgressStep, type Step } from './worktree-progress.store'
 
 // The steps of a worktree creation, shown while it runs (todomr4q102cd9). Each row
 // is pending → running → done; a failure stops on its row and prints git's own
@@ -19,7 +19,7 @@ class WorktreeProgressBody extends Component {
       <div class="worktree-progress">
         <div class="worktree-progress-title">{store.title}</div>
         <div class="worktree-progress-steps">
-          {STEPS.map((step, i) => {
+          {store.steps.map((step, i) => {
             const state = store.stateOf(i)
             return (
               <div key={step.id} class={'worktree-progress-step ' + state}>
@@ -68,8 +68,8 @@ export interface WorktreeProgressHandle {
 }
 
 // Open the progress overlay for one worktree creation.
-export function showWorktreeProgress(title: string): WorktreeProgressHandle {
-  store.start(title)
+export function showWorktreeProgress(title: string, steps?: ProgressStep[]): WorktreeProgressHandle {
+  store.start(title, steps)
   const { overlay, mount, onClose, close } = createOverlay()
   let acknowledge: (() => void) | null = null
   const dismiss = (): void => {

@@ -12,6 +12,9 @@ export const notificationMetaSchema = z.object({
   cwd: z.string().nullable().optional(),
   reminderText: z.string().optional(),
   projectColor: z.string().optional(),
+  // The producing pane's stable id — the link that survives a restart (runtime pane
+  // ids are regenerated). Optional: notifications persisted before it existed.
+  paneStableId: z.string().optional(),
   payload: reminderPayloadSchema.optional()
 })
 

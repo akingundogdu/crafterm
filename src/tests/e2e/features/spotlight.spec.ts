@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, openTerminal, closeApp } from '../_harness.js'
 
 // Spotlight (Cmd+P) palette (§4): open, Tab/Shift+Tab tab cycling, deterministic
 // tab population (Terminals from the starter pane, Shortcuts from KEYBINDINGS),
@@ -18,7 +18,7 @@ test('spotlight: Cmd+P opens; Tab cycles tabs; tabs populate; Esc closes', async
   const dir = freshStateDir('crafterm-e2e-spot-')
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1) // starter terminal must be registered for the Terminals tab
+    await openTerminal(win) // a terminal must be registered for the Terminals tab
     await openSpotlight(win)
     await expect(win.locator('.spot-tab.active .spot-tab-name')).toHaveText('All')
 

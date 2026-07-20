@@ -30,6 +30,24 @@
 .field select:focus {
   border-color: var(--accent);
 }
+/* Zero-specificity textarea default so a bare `.field textarea` matches the
+   dark inputs above; any component class rule still overrides it. */
+:where(.field textarea) {
+  flex: 1;
+  background: var(--bg-term);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+:where(.field textarea:focus) {
+  border-color: var(--accent);
+}
 .field input[type="number"] {
   max-width: 90px;
 }

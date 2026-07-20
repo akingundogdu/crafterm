@@ -101,9 +101,32 @@ describe('openTaskInTerminal — worktree run', () => {
     )
     expect(t.status).toBe('wip')
     expect(upsert).toHaveBeenCalledWith(t)
-    expect(openClaudeWithPrompt).toHaveBeenCalled()
+    // The terminal opens under the SAME name as the worktree (the branch).
+    expect(openClaudeWithPrompt).toHaveBeenCalledWith(
+      'w1',
+      '/repos/worktrees/CRF-1',
+      expect.stringContaining('add a settings screen'),
+      'CRF-1',
+      't1',
+      undefined
+    )
     expect(setStep).toHaveBeenCalledWith('opening')
     expect(closeProgress).toHaveBeenCalledTimes(1)
+  })
+
+  it('titles a local run by the task title, not a branch', async () => {
+    const t = task()
+
+    await openTaskInTerminal(t, () => {}, false)
+
+    expect(openClaudeWithPrompt).toHaveBeenCalledWith(
+      'p1',
+      '/repos/crafterm',
+      expect.stringContaining('add a settings screen'),
+      'add a settings screen',
+      't1',
+      undefined
+    )
   })
 
   it('runs a local ticket without touching the worktree machinery', async () => {

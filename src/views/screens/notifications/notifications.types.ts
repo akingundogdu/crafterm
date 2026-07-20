@@ -23,11 +23,15 @@ export interface PayloadOpener {
 // The kind filter above the Alerts list. 'all' = no filter.
 export type NotifKindFilter = 'all' | 'question' | 'done' | 'reminder'
 
-// Notifications from one terminal, collapsed into a single card (todomr5sckyaei).
-// A notification with no pane (Claude usage, app alerts) forms a group of one.
+// One TERMINAL's notifications, collapsed into a single card (todomr5sckyaei). An
+// app-level alert (Claude usage) — or one whose terminal is gone — forms a group of
+// one. Both `title` and `paneId` are resolved live from the tree, never from the
+// notification's stale snapshot.
 export interface NotifGroup {
   key: string
-  paneId: string
+  // Where a click lands. Null when the terminal is gone: the card is then inert
+  // rather than pretending it can still jump somewhere.
+  paneId: string | null
   title: string
   project: string
   projectColor?: string

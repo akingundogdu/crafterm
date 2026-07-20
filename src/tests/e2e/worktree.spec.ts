@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
-import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, selectTab, readState, closeApp } from './_harness.js'
 
 // Git worktree management (§3): create via the New-worktree modal (hidden
 // `git worktree add` → reconcile materializes the node), remove → archived; plus
@@ -131,7 +131,7 @@ test('worktree: a claude session + the worktree status segment work in a worktre
   ])
   const { app, win } = await launchApp(dir, { CRAFTERM_CLAUDE_DIR: claudeDir })
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
+    await selectTab(win, 'Claude') // the seeded tab restores unselected; activate it
     await test.step('claude title binds at the worktree cwd', async () => {
       await expect(win.locator('.pane-box .pane-title', { hasText: 'WT Claude' })).toBeVisible({ timeout: 12_000 })
     })

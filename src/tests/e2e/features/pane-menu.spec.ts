@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
-import { freshStateDir, launchApp, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, selectTab, closeApp } from '../_harness.js'
 
 // Pane "⋯" menu actions (§2.31/§2.32/§2.33): git quick-actions, the project/app
 // command sections, and SSH items — each types its command into the SAME pane's
@@ -37,6 +37,7 @@ function termTab(cwd: string, leafExtra?: Record<string, any>): Record<string, a
   }
 }
 async function openPaneMenu(win: Page): Promise<ReturnType<Page['locator']>> {
+  await selectTab(win, 'Term') // the seeded tab restores unselected; activate it
   await win.locator('.pane-box .pane-btn').first().click()
   const menu = win.locator('.context-menu')
   await expect(menu).toBeVisible()
@@ -49,7 +50,6 @@ test('pane-menu: git quick-action Pull runs `git pull` in the same pane', async 
   writeState(dir, { tree: [termTab(repo)] })
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('.pane-box')).toHaveCount(1)
     await (await openPaneMenu(win)).getByRole('button', { name: 'Pull', exact: true }).click()
     await expect(win.locator('.pane-box.active .xterm-rows')).toContainText('git pull', { timeout: 12_000 })
     await expect(win.locator('.pane-box')).toHaveCount(1) // same pane, not a new split

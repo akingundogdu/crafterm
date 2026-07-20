@@ -7,6 +7,7 @@ import { fmtResetTime } from '@services/domain/usage'
 import { bookmarkRepo, dailyTaskRepo, meetingNoteRepo, notificationRepo } from '@repositories'
 import { updateNotifBadge } from '@views/components/status-bar/components/notif-badge'
 import { pathTail } from './notif-format'
+import { livePaneId, liveTab, notifTitle } from './notif-route'
 import { UITexts } from '@texts'
 // @ui debt (documented): the daily-task + meeting-note payload openers resolve to
 // the daily-plan modal / meeting opener, which still live in the un-migrated
@@ -175,35 +176,47 @@ export function kindOf(n: AppNotification): NotifKindFilter {
   return tone === 'reminder' || tone === 'question' || tone === 'done' ? tone : 'all'
 }
 
-// Collapse notifications from the SAME terminal into one group, newest group first
-// (todomr5sckyaei). Pane-less notifications (Claude usage, app alerts) each stay on
-// their own. Order within a group is preserved — the repo hands them newest-first.
+// Collapse a TERMINAL's notifications into one group, newest group first
+// (todomr5sckyaei). The key is the terminal (its sidebar tab), not the pane: a split
+// terminal used to scatter its panes across several groups, each labelled by its own
+// stale snapshot — which read as "this notification is in the wrong group".
+//
+// Everything shown is resolved live (see notif-route): the title is the sidebar's
+// current label, and `paneId` is where a click lands. A notification whose terminal
+// is gone keeps its own group, labelled with the stored snapshot and not clickable.
 export function groupNotifications(items: AppNotification[]): NotifGroup[] {
-  const byPane = new Map<string, AppNotification[]>()
+  const byTab = new Map<string, AppNotification[]>()
   const groups: NotifGroup[] = []
+
+  const loose = (n: AppNotification): NotifGroup => ({
+    key: n.id,
+    paneId: livePaneId(n),
+    title: notifTitle(n),
+    project: n.group,
+    projectColor: n.projectColor,
+    items: [n],
+    latest: n.time
+  })
+
   for (const n of items) {
-    if (!n.paneId) {
-      groups.push({
-        key: n.id,
-        paneId: '',
-        title: n.title,
-        project: n.group,
-        projectColor: n.projectColor,
-        items: [n],
-        latest: n.time
-      })
+    const tab = n.paneId ? liveTab(n) : null
+    // No terminal to group under: an app-level alert (Claude usage) or one whose
+    // terminal is gone. Each stands alone.
+    if (!tab) {
+      groups.push(loose(n))
       continue
     }
-    const list = byPane.get(n.paneId)
+    const list = byTab.get(tab.id)
     if (list) list.push(n)
-    else byPane.set(n.paneId, [n])
+    else byTab.set(tab.id, [n])
   }
-  for (const [paneId, list] of byPane) {
+
+  for (const [tabId, list] of byTab) {
     const newest = list.reduce((a, b) => (b.time > a.time ? b : a))
     groups.push({
-      key: 'pane:' + paneId,
-      paneId,
-      title: newest.title,
+      key: 'tab:' + tabId,
+      paneId: livePaneId(newest),
+      title: notifTitle(newest),
       project: newest.group,
       projectColor: newest.projectColor,
       items: list,

@@ -35,7 +35,9 @@ test('sidebar: node render, inline rename, context-menu pin/unpin', async () => 
       await fillModal(win, [PROJECT, '/tmp/e2e-sidebar-nodes'], 'Create')
       await expect(win.locator('.modal-overlay')).toBeHidden()
       await expect(win.locator('#tab-list')).toContainText(PROJECT)
-      await win.keyboard.press('Meta+Shift+N')
+      // ⇧⌘N now shows the start screen; nesting goes through the row context menu.
+      await win.locator('.tab-item.folder', { hasText: PROJECT }).first().click({ button: 'right' })
+      await win.locator('.context-menu').getByRole('button', { name: 'New subfolder', exact: true }).click()
       await fillModal(win, [FOLDER], 'Create')
       await expect(win.locator('.modal-overlay')).toBeHidden()
       await expect(win.locator('#tab-list')).toContainText(FOLDER)

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { freshStateDir, launchApp, readState, closeApp } from './_harness.js'
+import { freshStateDir, launchApp, openTerminal, readState, closeApp } from './_harness.js'
 
 // Left sidebar (§3) preferences: orientation + font through Settings, size via
 // the resizer drag, and the Cmd+=/Cmd+0 font keys — each asserted live and
@@ -79,6 +79,8 @@ test('sidebar prefs: Cmd+= / Cmd+0 adjust + reset font when the sidebar has focu
   const dir = freshStateDir('crafterm-e2e-prefs-')
   const { app, win } = await launchApp(dir)
   try {
+    // dismiss the start screen (its composer autofocus would steal the focus back)
+    await openTerminal(win)
     await win.locator('#tab-list').focus() // sidebarHasFocus() => #sidebar contains activeElement
     await expect(win.locator('#sidebar')).toHaveCSS('font-size', '13px') // default
     await win.keyboard.press('Meta+=')

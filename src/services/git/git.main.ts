@@ -28,6 +28,9 @@ export class GitController extends BaseService {
       return git.branches(cwd)
     })
 
+    // What a worktree would lose if it were removed now (todomrkkvspyax).
+    this.handle(Channel.Git.WorktreeState, ({ cwd }) => git.worktreeState(cwd))
+
     // List git stashes for the repo a pane is in: [{ ref: 'stash@{0}', description }].
     this.handle(Channel.Git.StashList, async ({ id }) => {
       const p = terminal.get(id)

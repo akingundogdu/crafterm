@@ -11,11 +11,19 @@ import {
   poppedOut
 } from '@views/state/spine'
 import { buildContentBox } from './content-nodes'
-import { findTab } from '@views/tree/tree'
+import { findTab, firstPaneOf } from '@views/tree/tree'
 import { mountPanes } from '@views/pane/pane'
-import { tabContainers, layoutSig, makePopoutFocus, persistResizedLayout } from './content.store'
+import {
+  tabContainers,
+  layoutSig,
+  makePopoutFocus,
+  persistResizedLayout,
+  isSideBySide,
+  sideBySideTabs
+} from './content.store'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 import { buildAgentComposer, refreshAgentComposer } from './components/agent-composer'
+import { buildSideBySideBar } from './components/side-by-side-bar'
 
 const contentEl = document.getElementById('content')!
 
@@ -28,6 +36,7 @@ class ContentController {
   // Built on first use, then kept in the DOM and toggled — the draft and the
   // selections it holds survive the whole session.
   private composerEl: HTMLElement | null = null
+  private sideBySideEl: HTMLElement | null = null
 
   // No tab is active (fresh launch, every tab closed, Cmd+Shift+N): show the agent
   // composer instead of a blank area.
@@ -150,6 +159,40 @@ class ContentController {
     })
   }
 
+  // The Cmd+clicked terminals, tiled in one row. Their pane elements are BORROWED
+  // from their tab containers (never re-created, so the terminals keep running);
+  // leaving the view rebuilds those containers from their layouts.
+  private renderSideBySide = (): void => {
+    const tabs = sideBySideTabs()
+      .map((id) => findTab(state.tree, id))
+      .filter((t): t is NonNullable<typeof t> => !!t)
+    const paneIds = tabs.map((t) => firstPaneOf(t.root)).filter((id): id is string => !!id)
+
+    tabContainers.forEach((e) => (e.el.style.display = 'none'))
+    this.toggleComposer(false)
+
+    if (!this.sideBySideEl) {
+      this.sideBySideEl = buildContentBox('side-by-side')
+      contentEl.appendChild(this.sideBySideEl)
+    }
+    const host = this.sideBySideEl
+    host.style.display = 'flex'
+    host.replaceChildren(buildSideBySideBar(tabs.length))
+
+    const grid = buildContentBox('side-by-side-grid')
+    for (const paneId of paneIds) {
+      const paneEl = panes.get(paneId)?.el
+      if (!paneEl) continue
+      paneEl.style.flexGrow = '1'
+      paneEl.style.flexShrink = '1'
+      paneEl.style.flexBasis = '0'
+      grid.appendChild(paneEl)
+    }
+    host.appendChild(grid)
+    mountPanes()
+    this.updatePaneHighlight()
+  }
+
   renderContent = (): void => {
     // Drop containers for tabs that no longer exist (closed tabs).
     for (const [id, entry] of tabContainers) {
@@ -158,6 +201,11 @@ class ContentController {
         tabContainers.delete(id)
       }
     }
+    if (isSideBySide()) {
+      this.renderSideBySide()
+      return
+    }
+    if (this.sideBySideEl) this.sideBySideEl.style.display = 'none'
     const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
     if (!tab) {
       tabContainers.forEach((e) => (e.el.style.display = 'none'))
