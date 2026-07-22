@@ -1,0 +1,69 @@
+/* The per-pane "Take a note" side panel: a thin markdown scratch pad overlaid on
+   the right edge of the terminal, from just below the pane header to the pane
+   bottom. Kept below the drag overlay (.pane-drop, z-index 20) but above the
+   terminal so it captures its own clicks. */
+.pane-note {
+  position: absolute;
+  top: 26px; /* below the fixed-height .pane-header */
+  right: 0;
+  bottom: 0;
+  width: 300px;
+  max-width: 60%;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  background: var(--elev);
+  border-left: 1px solid var(--border);
+  box-shadow: -6px 0 16px rgba(0, 0, 0, 0.28);
+}
+
+.pane-note-header {
+  flex: 0 0 auto;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+.pane-note-title {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pane-note-close {
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.pane-note-close:hover {
+  color: var(--text);
+  background: var(--elev-2);
+}
+
+.pane-note-input {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 10px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono, "SF Mono", Menlo, monospace);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.pane-note-input::placeholder {
+  color: var(--text-faint);
+}

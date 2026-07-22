@@ -14,6 +14,7 @@ export interface SavedLeaf {
   titleLocked?: boolean
   cwd?: string // restore the terminal in its last working directory
   lastCommand?: string // last command run (raw panes only) — pre-typed on restore
+  note?: string // per-pane markdown scratch note (the "Take a note" side panel)
   claude?: boolean // a Claude session — resumed on restore
   claudeSessionId?: string // exact session to `claude --resume <id>` on restore
   lastClaudeTitle?: string // last /rename title seen (a differing one may beat a locked title)

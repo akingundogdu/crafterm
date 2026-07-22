@@ -54,6 +54,9 @@ export interface Pane {
   // Literal last command run in this pane (captured by the zsh preexec hook).
   // Persisted for non-Claude panes so restore can pre-type it (without running).
   lastCommand: string | null
+  // Per-pane markdown scratch note (the "Take a note" side panel). Persisted per
+  // stableId; the panel's open/closed state is not persisted, only its content.
+  note?: string
   plans: PlanEntry[] // docs/plans files matching this branch (filtered by ownership)
   claude: boolean // a Claude session — resumed on restore
   claudeSessionId: string | null // captured session id for `claude --resume <id>` on restore

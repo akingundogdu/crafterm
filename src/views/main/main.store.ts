@@ -515,6 +515,7 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
     }
     if (n.bgColor) setPaneBackground(id, n.bgColor)
     if (p) {
+      if (n.note) p.note = n.note // restore the "Take a note" content
       if (n.projectId) p.projectId = n.projectId
       if (n.appId) p.appId = n.appId
       // running/waiting don't survive a restart (nothing is actually live yet) —

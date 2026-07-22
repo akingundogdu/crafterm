@@ -6,6 +6,7 @@ import { findProjectById, findApp, flattenProjects } from '@views/catalog/catalo
 import { terminalService, fsService, notebookService, appService, shellService } from '@services'
 import { sshConnectionRepo } from '@repositories'
 import { PANE_BG_PALETTE, setPaneBackground } from '../terminal/terminal'
+import { openNotePanel } from './components/note-panel.store'
 
 // ---- Drag-to-rearrange geometry --------------------------------------------
 // Which edge-zone of rect `r` the point (x,y) is nearest to.
@@ -123,6 +124,7 @@ export function buildPaneMenu(
   })
   item('Open URL in browser…', () => paneActions.openUrl())
   item('Track time…', () => paneActions.trackTime(paneId))
+  item('Take a note', () => openNotePanel(paneId))
   if (opts.worktree !== false) item('Create worktree…', () => paneActions.createWorktree(paneId))
 
   // Git quick-actions (terminal panes in a repo). Each runs in a fresh split.
