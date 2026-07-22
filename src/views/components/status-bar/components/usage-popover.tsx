@@ -36,10 +36,15 @@ class UsagePopoverContent extends Component {
 
     const model = shortModel(u.modelName) || UITexts.Notifications.claudeUsageFallback
     const sub = 'Official limits · ' + fmtResetTime(u.fetchedAt).replace(/^Today /, 'updated ')
-    const bars: { label: string; win: UsageWindow }[] = []
-    if (u.fiveHour) bars.push({ label: UITexts.Notifications.bars.session, win: u.fiveHour })
-    if (u.sevenDay) bars.push({ label: UITexts.Notifications.bars.week, win: u.sevenDay })
-    if (u.sevenDaySonnet) bars.push({ label: UITexts.Notifications.bars.weekSonnet, win: u.sevenDaySonnet })
+    // Build the bar list as a literal-with-conditionals array, NOT an empty array
+    // filled by `.push()`. gea's `.map()` transform only expands an array bound to a
+    // literal; a `push()`-built binding compiles the map to a dead comment anchor and
+    // no bars render (the gea `.map()` gotcha). See usage-popover.test.tsx.
+    const bars = [
+      u.fiveHour && { label: UITexts.Notifications.bars.session, win: u.fiveHour },
+      u.sevenDay && { label: UITexts.Notifications.bars.week, win: u.sevenDay },
+      u.sevenDaySonnet && { label: UITexts.Notifications.bars.weekSonnet, win: u.sevenDaySonnet }
+    ].filter(Boolean) as { label: string; win: UsageWindow }[]
 
     return (
       <div>
