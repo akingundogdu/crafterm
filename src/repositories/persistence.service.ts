@@ -66,6 +66,7 @@ export function serializeLayout(node: LayoutNode): SavedNode {
     // Pre-type the last command on restore for raw terminals. Skipped for Claude
     // panes — they resume via `claude --resume`, not by re-typing the command.
     if (p?.lastCommand && !p.claude) leaf.lastCommand = p.lastCommand
+    if (p?.note) leaf.note = p.note // per-pane "Take a note" content
     if (p?.claude) leaf.claude = true // resume the Claude session on restore
     if (p?.claudeSessionId) leaf.claudeSessionId = p.claudeSessionId // exact session for --resume
     // Last /rename seen — so a restart can't mistake the stored title for a new
