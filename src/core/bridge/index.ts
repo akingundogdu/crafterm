@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 
 // The renderer (web) can only reach the shell through this narrow, generic
@@ -16,5 +16,10 @@ contextBridge.exposeInMainWorld('crafterm', {
     return () => {
       ipcRenderer.removeListener(channel, listener)
     }
-  }
+  },
+  // Resolve a dropped File to its absolute filesystem path. Electron 33 removed
+  // File.path; webUtils.getPathForFile is the replacement and must run in the
+  // renderer (a File cannot cross IPC), so it is a synchronous preload helper
+  // rather than a channel.
+  pathForFile: (file: File) => webUtils.getPathForFile(file)
 })

@@ -3,7 +3,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import type { Pane } from '@views/types/types'
 import { panes, opened, settings, resolveTheme, paneActions, state } from '@views/state/spine'
 import { persistence, recordCommand } from '@repositories/persistence.service'
-import { terminalService } from '@services'
+import { terminalService, pathForFile } from '@services'
 import { commandRunsClaude } from './activity-detection'
 import { showPaneMenu } from '@views/pane/pane'
 
@@ -160,6 +160,51 @@ export function makeCustomKeyHandler(id: string): (e: KeyboardEvent) => boolean 
       return false
     }
     return true
+  }
+}
+
+// Backslash-escape every character that is not shell-safe, so a dropped path
+// with spaces/parens/etc. pastes as a single usable argument (Terminal.app
+// behaviour). The safe set is the conventional POSIX shell-quote allowlist.
+function escapeShellPath(path: string): string {
+  return path.replace(/[^A-Za-z0-9_@%+=:,./-]/g, '\\$&')
+}
+
+// Turn dropped absolute paths into the text written to the PTY: each path
+// escaped, space-joined for multi-file drops, with a trailing space so the
+// next argument (or Enter) follows cleanly. Empty when nothing usable dropped.
+export function formatDroppedPaths(paths: string[]): string {
+  const usable = paths.filter((p) => p.length > 0)
+  if (usable.length === 0) return ''
+  return usable.map(escapeShellPath).join(' ') + ' '
+}
+
+// Finder → terminal file drop: on drop, resolve each File to its absolute path
+// and write the escaped path(s) into the PTY as if typed. dragover must
+// preventDefault (only for OS file drags) or the drop never fires; guarding on
+// the 'Files' type leaves internal pane-rearrange drags untouched.
+export function makeFileDrop(id: string): {
+  onDragOver: (e: DragEvent) => void
+  onDrop: (e: DragEvent) => void
+} {
+  const isFileDrag = (e: DragEvent): boolean =>
+    !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')
+  return {
+    onDragOver: (e) => {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      e.dataTransfer!.dropEffect = 'copy'
+    },
+    onDrop: (e) => {
+      const files = e.dataTransfer?.files
+      if (!files || files.length === 0) return
+      e.preventDefault()
+      const paths = Array.from(files).map((f) => pathForFile(f))
+      const text = formatDroppedPaths(paths)
+      if (!text) return
+      terminalService.input(id, text)
+      panes.get(id)?.term.focus()
+    }
   }
 }
 
