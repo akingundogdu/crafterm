@@ -21,7 +21,8 @@ import {
   makeTaskChipClick,
   makeMenuClick,
   makeCloseClick,
-  makeSelectPane
+  makeSelectPane,
+  makeFileDrop
 } from './terminal.store'
 
 export type { CreatePaneOptions } from './terminal.types'
@@ -67,6 +68,11 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
   const box = buildTermBox(id, makeSelectPane(id))
   box.append(header, host, statusEl)
   setupPaneDnd(box, header, id)
+
+  // Finder → terminal: dropping a file onto the xterm area types its path.
+  const fileDrop = makeFileDrop(id)
+  host.addEventListener('dragover', fileDrop.onDragOver)
+  host.addEventListener('drop', fileDrop.onDrop)
 
   const pane = createPaneState({ id, stableId, term, fit, el: box, host, statusEl, htitle, cwd, isProcessView: !!opts?.attachId })
 

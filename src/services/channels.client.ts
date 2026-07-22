@@ -17,6 +17,9 @@ export interface CraftermBridge {
   invoke(channel: string, payload?: unknown): Promise<unknown>
   send(channel: string, payload?: unknown): void
   on(channel: string, cb: (payload: unknown) => void): () => void
+  // Not IPC: resolves a dropped File to its absolute path in the renderer (a
+  // File cannot be serialized across a channel). See core/bridge.
+  pathForFile(file: File): string
 }
 
 declare global {
@@ -47,4 +50,9 @@ export function listen<C extends EvtChannel>(
   cb: (payload: PayloadOf<C>) => void
 ): () => void {
   return window.crafterm.on(channel, (p) => cb(p as PayloadOf<C>))
+}
+
+// Absolute path of a dropped File (renderer-only; not an IPC channel).
+export function pathForFile(file: File): string {
+  return window.crafterm.pathForFile(file)
 }

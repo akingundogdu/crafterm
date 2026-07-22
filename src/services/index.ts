@@ -29,3 +29,7 @@ export { todoService } from './todo/todo.client'
 export { backlogService } from './backlog/backlog.client'
 export { soundService } from './sound/sound.client'
 export { storeService } from './store/store.client'
+
+// Renderer-only preload utility (not an IPC channel): resolves a dropped File
+// to its absolute path via webUtils.getPathForFile in the preload.
+export { pathForFile } from './channels.client'
