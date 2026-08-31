@@ -1,0 +1,54 @@
+/* Machine CPU + RAM chip at the left end of the status bar (beside the sidebar
+   toggle). The two wrappers are display:contents so the button lays out as a
+   direct flex item of #content-statusbar, exactly like the other chips. */
+.resource-chip-root,
+.resource-chip-wrap {
+  display: contents;
+}
+
+.resource-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* The status bar itself is a drag region; the chip is not a direct child of
+     #content-statusbar, so it opts out of dragging on its own. */
+  -webkit-app-region: no-drag;
+}
+.resource-chip:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+.resource-chip.active {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.resource-chip-label {
+  opacity: 0.65;
+  letter-spacing: 0.3px;
+}
+.resource-chip-value {
+  color: var(--text);
+  font-weight: 600;
+  min-width: 30px;
+  text-align: right;
+}
+.resource-chip-value.warn {
+  color: #d29922;
+}
+.resource-chip-value.high {
+  color: #f85149;
+}
+.resource-chip-sep {
+  opacity: 0.4;
+  margin: 0 2px;
+}

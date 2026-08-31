@@ -9,6 +9,7 @@ export const Notifications = {
   remindMeAbout: 'Remind me about this',
   claudeUsageHeading: 'Claude Usage',
   claudeUsageFallback: 'Claude usage',
+  usagePlanModel: (model: string) => `Plan ${model}`,
   upToDate: 'up to date',
   appName: 'Crafterm',
   deployHint: (version: string) => `Crafterm v${version} · click to deploy`,

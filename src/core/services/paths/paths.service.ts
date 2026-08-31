@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { homedir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { env } from '@configs/environment-variables'
 
 // Centralized filesystem path resolution for the main process. Every directory
@@ -24,6 +24,11 @@ export const zdotDir = (): string => join(stateDir(), 'zdotdir')
 
 // Notebook tree root: a free-form folder/.md tree under <stateDir>/notebooks.
 export const notebooksDir = (): string => join(stateDir(), 'notebooks')
+
+// Images pasted into the agent composer land here. Deliberately under the OS temp
+// dir and NOT the state dir: the file only has to outlive the Claude session that
+// reads it back off the prompt, and no project/worktree gets polluted with it.
+export const pastedImagesDir = (): string => join(tmpdir(), 'crafterm-pasted-images')
 
 // Monotonic build counter file (<stateDir>/build-counter.json).
 export const buildCounterPath = (): string => join(stateDir(), 'build-counter.json')

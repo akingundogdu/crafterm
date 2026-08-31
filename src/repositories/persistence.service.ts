@@ -3,6 +3,7 @@ import type { SavedState, SavedSidebarNode, SavedNode } from '@repositories/stat
 import { panesInLayout } from '@views/tree/tree'
 import {
   panes,
+  docs,
   sqlPanes,
   codePanes,
   state,
@@ -54,6 +55,10 @@ export function serializeLayout(node: LayoutNode): SavedNode {
     const cp = codePanes.get(node.paneId)
     if (cp) {
       return { type: 'leaf', codePane: { path: cp.path, themeName: cp.themeName } }
+    }
+    const dp = docs.get(node.paneId)
+    if (dp) {
+      return { type: 'leaf', docPane: { path: dp.relPath, absolute: dp.absolute } }
     }
     const p = panes.get(node.paneId)
     const leaf: SavedNode = { type: 'leaf' }
@@ -146,6 +151,9 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       ...(node.features && node.features.length ? { features: node.features } : {}),
       ...(node.runCommands && node.runCommands.length ? { runCommands: node.runCommands } : {}),
       ...(node.supportWorktree ? { supportWorktree: true } : {}),
+      ...(node.worktreeScripts && (node.worktreeScripts.pre.length || node.worktreeScripts.post.length)
+        ? { worktreeScripts: node.worktreeScripts }
+        : {}),
       ...(node.iosApp ? { iosApp: true } : {}),
       ...(node.iosConfig ? { iosConfig: node.iosConfig } : {}),
       ...(node.issueKeyPrefix ? { issueKeyPrefix: node.issueKeyPrefix } : {})
@@ -200,6 +208,10 @@ function persist(): void {
     font: settings.font,
     bgColor: settings.bgColor,
     sidebarSelectedColor: settings.sidebarSelectedColor,
+    sidebarSelectedBg: settings.sidebarSelectedBg,
+    sidebarSelectedText: settings.sidebarSelectedText,
+    sidebarActiveBg: settings.sidebarActiveBg,
+    sidebarActiveText: settings.sidebarActiveText,
     editorTheme: settings.editorTheme,
     docFontSize: settings.docFontSize,
     codeRoot: settings.codeRoot,
@@ -215,6 +227,7 @@ function persist(): void {
     actionMenu: settings.actionMenu,
     sshConnections: settings.sshConnections,
     paletteCommands: settings.paletteCommands,
+    worktreeScripts: settings.worktreeScripts,
     notifPanelSize: settings.notifPanelSize,
     notifSound: settings.notifSound,
     reminders,

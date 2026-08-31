@@ -1,14 +1,20 @@
-/* One terminal's notifications, collapsed into a single card. */
+/* One terminal's notifications, collapsed into a single card. The geometry mirrors
+   .notif-card exactly (same padding, radius, fill, hover) so a grouped terminal is
+   the same size as every other card in the list. */
 .notif-group {
   position: relative;
-  margin: 4px 8px;
-  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
+  padding: 11px 12px 10px;
   cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
 }
 .notif-group:hover {
-  border-color: var(--accent, #4a9eff);
+  background: rgba(255, 255, 255, 0.065);
+  border-color: var(--accent);
+  transform: translateY(-1px);
 }
 /* The terminal is gone: the card still shows what happened, but there is nowhere to
    go — so it does not pretend to be clickable. */
@@ -21,22 +27,31 @@
 }
 .notif-group.gone:hover {
   border-color: var(--border);
+  transform: none;
 }
 .notif-group-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 .notif-group-chevron {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--text-mute);
+  color: var(--text-faint);
+  border-radius: 5px;
   cursor: pointer;
-  transition: transform 0.12s ease;
+  transition: transform 0.15s ease, color 0.12s ease, background 0.12s ease;
+}
+.notif-group-chevron:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
 }
 .notif-group.expanded .notif-group-chevron {
   transform: rotate(180deg);
@@ -47,9 +62,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--text);
+  letter-spacing: 0.01em;
 }
 .notif-group-count {
   flex: 0 0 auto;
@@ -63,6 +79,7 @@
   flex: 0 0 auto;
   color: var(--text-faint);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 .notif-group-close {
   flex: 0 0 auto;
@@ -76,15 +93,6 @@
 }
 .notif-group-close:hover {
   color: var(--text);
-}
-.notif-group-summary {
-  margin-top: 3px;
-  padding-left: 18px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-dim);
-  font-size: 11px;
 }
 /* Expanded: the member cards sit inside the group, without their own outer margin. */
 .notif-group-items {

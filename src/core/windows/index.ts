@@ -69,11 +69,14 @@ export function createMainWindow(): void {
   })
 
   // electron-vite sets ELECTRON_RENDERER_URL in dev (Vite server); in prod we load the built file.
+  // Under E2E the renderer skips the boot skeleton's hold — a purely cosmetic
+  // delay would add seconds to every spec that waits for the shell.
   const devUrl = env.rendererUrl()
+  const search = isE2E ? 'e2e=1' : ''
   if (devUrl) {
-    mainWindow.loadURL(devUrl)
+    mainWindow.loadURL(search ? `${devUrl}?${search}` : devUrl)
   } else {
-    mainWindow.loadFile(rendererHtmlPath('index'))
+    mainWindow.loadFile(rendererHtmlPath('index'), search ? { search } : undefined)
   }
 }
 

@@ -2,6 +2,8 @@ import { Component } from '@geajs/core'
 import './agent-composer.css'
 import ProjectSelect from '@views/components/project-select/project-select'
 import ComposerLabels from './composer-labels'
+import ComposerAttachments from './composer-attachments'
+import { onComposerPaste } from './composer-attachments.store'
 import { focusWhenReady } from '@views/lib/focus'
 import store, {
   MODES,
@@ -226,7 +228,9 @@ class AgentComposer extends Component {
             onKeyDown={this.onKeyDown}
             onKeyUp={this.onSelectionChange}
             onClick={this.onSelectionChange}
+            onPaste={onComposerPaste}
           />
+          <ComposerAttachments />
           <div class="agent-composer-meta">
             <input
               type="text"

@@ -3,6 +3,8 @@ import { claudeService } from '@services'
 // Real server-side Claude utilization (shape mirrors claudeService.realUsage).
 export type RealUsage = Awaited<ReturnType<typeof claudeService.realUsage>>
 export type UsageWindow = NonNullable<RealUsage['fiveHour']>
+// The model actually in use, read from the newest session jsonl (claudeService.lastModel).
+export type LastModel = Awaited<ReturnType<typeof claudeService.lastModel>>
 
 // The right panel's selectable views.
 export type RightTab = 'notifs' | 'reminders' | 'files' | 'time' | 'pr' | 'bm'
@@ -19,9 +21,6 @@ export interface PayloadOpener {
   label: string
   open: () => void
 }
-
-// The kind filter above the Alerts list. 'all' = no filter.
-export type NotifKindFilter = 'all' | 'question' | 'done' | 'reminder'
 
 // One TERMINAL's notifications, collapsed into a single card (todomr5sckyaei). An
 // app-level alert (Claude usage) — or one whose terminal is gone — forms a group of

@@ -57,6 +57,12 @@
   box-sizing: border-box;
 }
 
+/* Host for the machine CPU/RAM chip (its own styles live in resource-chip.css);
+   display:contents so the chip button lays out as a status-bar flex item. */
+#statusbar-resource-chip {
+  display: contents;
+}
+
 /* ---- Claude usage chip ---- */
 #statusbar-claude-usage {
   display: flex;
@@ -161,6 +167,20 @@
   font-weight: 700;
   color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.usage-speed {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 .usage-sub {
   font-size: 11.5px;

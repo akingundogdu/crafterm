@@ -211,6 +211,23 @@ export function ancestorFolders(
   return null
 }
 
+// Every container ancestor of a node, outermost first — projects included (unlike
+// `ancestorFolders`, which skips them). Returns an empty array for a top-level node
+// and null when the id is not in the tree.
+export function ancestorChain(
+  tree: SidebarNode[],
+  id: string,
+  trail: (FolderNode | ProjectNode | WorktreeNode)[] = []
+): (FolderNode | ProjectNode | WorktreeNode)[] | null {
+  for (const node of tree) {
+    if (node.id === id) return trail
+    if (!isContainer(node)) continue
+    const r = ancestorChain(node.children, id, [...trail, node])
+    if (r) return r
+  }
+  return null
+}
+
 // Pinned roots = pinned nodes with no pinned ancestor (rendered in the Pinned section).
 export function collectPinnedRoots(tree: SidebarNode[], acc: SidebarNode[] = []): SidebarNode[] {
   for (const node of tree) {

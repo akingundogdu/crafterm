@@ -1,0 +1,10 @@
+/* Modern data-driven sidebar tree — root + scroll container.
+   All classes use the `.crtree-*` namespace so nothing collides with the legacy
+   `.tab-*` / `.tree-*` treeview styles. Per-component styles are co-located
+   (tree-rows.css / tree-row.css / tree-section.css). */
+
+.crtree-root {
+  /* display:contents wrapper — the rows/headers flow directly into the host. */
+  --crtree-indent: 16px;
+  --crtree-gap: 3px;
+}

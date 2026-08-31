@@ -8,6 +8,7 @@ const promptConfirm = vi.fn()
 const branchesAt = vi.fn()
 const newTab = vi.fn()
 const showSpotlight = vi.fn()
+const writePastedImage = vi.fn()
 
 const projects: ProjectNode[] = []
 const tags: DailyPlanTag[] = []
@@ -38,10 +39,16 @@ vi.mock('@views/screens/daily-plan/daily-plan.entry', () => ({
 vi.mock('@views/components/dialog/confirm', () => ({
   promptConfirm: (...args: unknown[]) => promptConfirm(...args)
 }))
-vi.mock('@services', () => ({ gitService: { branchesAt: (cwd: string) => branchesAt(cwd) } }))
+vi.mock('@services', () => ({
+  gitService: { branchesAt: (cwd: string) => branchesAt(cwd) },
+  fsService: { writePastedImage: (...args: unknown[]) => writePastedImage(...args) }
+}))
 vi.mock('@views/commands/commands', () => ({ newTab: () => newTab() }))
 vi.mock('@views/screens/spotlight/spotlight', () => ({ showSpotlight: (tab: string) => showSpotlight(tab) }))
 
+const { default: attachmentsStore } = await import(
+  '@views/screens/content/components/composer-attachments.store'
+)
 const {
   default: store,
   setDraft,
@@ -83,6 +90,7 @@ describe('AgentComposerStore', () => {
     projects.length = 0
     tags.length = 0
     store.clearLabels()
+    attachmentsStore.clear()
     promptConfirm.mockResolvedValue(true)
     branchesAt.mockResolvedValue([])
     setDraft('')
@@ -228,6 +236,27 @@ describe('AgentComposerStore', () => {
     const task = upsert.mock.calls[0][0] as DailyPlanTask
     expect(task.title).toBe('short one')
     expect(task.description).toBeUndefined()
+  })
+
+  it('hands the pasted image paths to Claude through the description, not the title', async () => {
+    projects.push(project('p1', 'alpha', 'ALP'))
+    await store.refresh()
+    writePastedImage.mockImplementation((_d: string, ext: string, name: string) => `/tmp/batch/${name}.${ext}`)
+    await attachmentsStore.add([
+      {
+        name: 'clip',
+        type: 'image/png',
+        arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2]).buffer)
+      } as unknown as File
+    ])
+
+    await store.submit('fix the header')
+
+    const task = upsert.mock.calls[0][0] as DailyPlanTask
+    expect(task.title).toBe('fix the header')
+    expect(task.description).toBe('fix the header\n\nAttached image:\nimage-1: /tmp/batch/image-1.png')
+    // Filed — the next ticket starts with no attachments.
+    expect(attachmentsStore.items).toEqual([])
   })
 
   it('re-seeds the textarea from the draft on show, so it clears after a submit', () => {

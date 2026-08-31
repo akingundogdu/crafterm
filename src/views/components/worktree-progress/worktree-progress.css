@@ -38,6 +38,36 @@
   width: 12px;
   text-align: center;
 }
+/* The running step gets a spinner rather than a static bullet, so a long setup
+   script (an index build, an install) reads as working instead of stuck. */
+.worktree-progress-step.active .worktree-progress-mark {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--accent, #4a9eff);
+  border-top-color: transparent;
+  border-radius: 50%;
+  color: transparent;
+  overflow: hidden;
+  animation: worktree-progress-spin 0.7s linear infinite;
+}
+@keyframes worktree-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* The command behind a setup script's name, for rows the user configured. */
+.worktree-progress-detail {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--text-faint);
+  font-family: var(--mono, monospace);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
 .worktree-progress-error {
   margin: 12px 0 0;
   padding: 8px 10px;

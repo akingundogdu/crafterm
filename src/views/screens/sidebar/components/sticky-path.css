@@ -1,0 +1,44 @@
+/* The sticky ancestor path bar pinned over the top of the sidebar list. A passive
+   label: it never takes pointer events, so the rows it covers stay clickable. */
+.sticky-path {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 10px 5px;
+  font-size: 0.77em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+  background: linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg) 76%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.7);
+}
+
+/* no ancestors to name (list at the top, or a non-terminal mode) — take no space */
+.sticky-path-empty {
+  display: none;
+}
+
+.sticky-path-crumb {
+  flex: 0 1 auto;
+  min-width: 2.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the deepest container is the one being scrolled through — keep it intact and
+   readable, letting the outer crumbs ellipsize away when the sidebar is narrow */
+.sticky-path-crumb:last-child {
+  flex: 0 0 auto;
+  max-width: 62%;
+  color: var(--text-dim);
+}
+
+/* separator between crumbs (drawn in CSS so each crumb stays a plain text span) */
+.sticky-path-crumb + .sticky-path-crumb::before {
+  content: '›';
+  margin-right: 4px;
+  color: var(--text-faint);
+}

@@ -4,8 +4,59 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Crafterm</title>
+    <!-- Linked, not module-imported: this one has to be in the very first paint,
+         because it hides the static shell below until the entry module has
+         applied every other stylesheet. -->
+    <link rel="stylesheet" href="./app-shell/boot-skeleton.css" />
   </head>
   <body>
+    <div id="boot-skeleton" aria-hidden="true">
+      <div class="boot-skeleton-sidebar">
+        <div class="boot-skeleton-tabs">
+          <span class="boot-skeleton-chip"></span>
+          <span class="boot-skeleton-chip"></span>
+          <span class="boot-skeleton-chip"></span>
+        </div>
+        <div class="boot-skeleton-search"></div>
+        <div class="boot-skeleton-rows">
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+        </div>
+      </div>
+      <div class="boot-skeleton-content">
+        <div class="boot-skeleton-statusbar">
+          <span class="boot-skeleton-chip"></span>
+          <span class="boot-skeleton-chip"></span>
+          <span class="boot-skeleton-chip"></span>
+        </div>
+        <div class="boot-skeleton-stage">
+          <span class="boot-skeleton-block"></span>
+          <span class="boot-skeleton-block"></span>
+          <span class="boot-skeleton-block"></span>
+        </div>
+      </div>
+      <div class="boot-skeleton-panel">
+        <div class="boot-skeleton-tabs">
+          <span class="boot-skeleton-chip"></span>
+          <span class="boot-skeleton-chip"></span>
+          <span class="boot-skeleton-chip"></span>
+        </div>
+        <div class="boot-skeleton-rows">
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+          <span class="boot-skeleton-row"></span>
+        </div>
+      </div>
+    </div>
     <div id="app" class="orient-left">
       <div id="collapsed-topbar">
         <button id="sidebar-show" title="Show sidebar (⌘B)" aria-label="Show sidebar">
@@ -39,7 +90,12 @@
           </button>
           <button id="sidebar-actions" title="More actions" aria-label="More actions">⋮</button>
         </div>
-        <div id="tab-list"></div>
+        <div id="tab-list-wrap">
+          <div id="tab-list"></div>
+          <!-- The sticky ancestor path bar (overlay pinned over the list's top edge)
+               is rendered by screens/sidebar/components/sticky-path. -->
+          <div id="sidebar-sticky-path"></div>
+        </div>
         <!-- The per-mode footer button bars (#sidebar-footer, #notebook-footer,
              #database-footer, #docker-footer, #accounts-footer) are rendered by
              screens/sidebar/components/sidebar-footers (mountSidebarFooters). -->

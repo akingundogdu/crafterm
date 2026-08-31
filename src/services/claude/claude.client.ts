@@ -19,6 +19,7 @@ class ClaudeClient extends BaseClient {
     this.listen(Channel.Claude.SessionsChanged, (p) => cb(p.cwd))
   usageSummary = () => this.call(Channel.Claude.UsageSummary)
   realUsage = (opts: ClaudeRealUsageOptions) => this.call(Channel.Claude.RealUsage, opts)
+  lastModel = () => this.call(Channel.Claude.LastModel)
 }
 
 export const claudeService = new ClaudeClient()

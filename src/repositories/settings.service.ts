@@ -26,6 +26,7 @@ import { setMeetingNotes } from '@models/meeting-note'
 import { setDailyPlan } from '@models/daily-plan'
 import { setDbTree } from '@models/db-tree'
 import { persistence } from './persistence.service'
+import { normalizeWorktreeScripts } from '@services/domain/worktree-command'
 import { reminderSchema } from '@models/reminder'
 import { bookmarkSchema } from '@models/bookmark'
 import { accountEntrySchema } from '@models/account'
@@ -72,13 +73,19 @@ export function loadSettings(saved: SavedState): void {
       fontSize: saved.sidebar.fontSize ?? settings.sidebar.fontSize,
       collapsed: saved.sidebar.collapsed ?? settings.sidebar.collapsed,
       details: { ...settings.sidebar.details, ...(saved.sidebar.details ?? {}) },
-      groupByRecency: saved.sidebar.groupByRecency ?? settings.sidebar.groupByRecency
+      groupByRecency: saved.sidebar.groupByRecency ?? settings.sidebar.groupByRecency,
+      newTree: saved.sidebar.newTree ?? settings.sidebar.newTree
     }
   }
   if (saved.customTheme) settings.customTheme = saved.customTheme
   if (saved.bgColor) settings.bgColor = saved.bgColor
   if (typeof saved.sidebarSelectedColor === 'string' && saved.sidebarSelectedColor)
     settings.sidebarSelectedColor = saved.sidebarSelectedColor
+  // Blank is a valid value here — it means "fall back to the theme default".
+  if (typeof saved.sidebarSelectedBg === 'string') settings.sidebarSelectedBg = saved.sidebarSelectedBg
+  if (typeof saved.sidebarSelectedText === 'string') settings.sidebarSelectedText = saved.sidebarSelectedText
+  if (typeof saved.sidebarActiveBg === 'string') settings.sidebarActiveBg = saved.sidebarActiveBg
+  if (typeof saved.sidebarActiveText === 'string') settings.sidebarActiveText = saved.sidebarActiveText
   if (typeof saved.editorTheme === 'string') settings.editorTheme = saved.editorTheme
   if (typeof saved.docFontSize === 'number') settings.docFontSize = saved.docFontSize
   if (typeof saved.codeRoot === 'string') settings.codeRoot = saved.codeRoot
@@ -130,6 +137,7 @@ export function loadSettings(saved: SavedState): void {
     settings.sshConnections = validateRows(saved.sshConnections, sshConnectionSchema, 'ssh-connection')
   if (Array.isArray(saved.paletteCommands))
     settings.paletteCommands = validateRows(saved.paletteCommands, paletteCommandSchema, 'palette-command')
+  if (saved.worktreeScripts) settings.worktreeScripts = normalizeWorktreeScripts(saved.worktreeScripts)
   if (typeof saved.notifPanelSize === 'number') settings.notifPanelSize = saved.notifPanelSize
   if (typeof saved.notifSound === 'string') settings.notifSound = saved.notifSound
   if (Array.isArray(saved.reminders))

@@ -1,0 +1,17 @@
+.crtree-section {
+  padding: 12px 12px 4px;
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-faint);
+  user-select: none;
+}
+.crtree-section-group {
+  margin: 0 6px;
+  border-radius: 6px;
+}
+.crtree-section-group.crtree-drag-over {
+  background: var(--accent-soft);
+  outline: 1px dashed var(--accent);
+}

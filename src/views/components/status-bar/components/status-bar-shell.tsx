@@ -55,6 +55,7 @@ class StatusBarShell extends Component {
           ref={this.sidebarToggleEl}
           onClick={deps.onToggleSidebar}
         />
+        <div id="statusbar-resource-chip" />
         <div id="content-statusbar-drag" />
         <button id="statusbar-version" title="App version" aria-label="App version">
           <span class="version-dot" />

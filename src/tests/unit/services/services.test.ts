@@ -98,6 +98,7 @@ const ENTRIES: Entry[] = [
   { ns: 'fs', method: 'readText', kind: 'invoke', channel: 'fs:readText', args: ['p'], payload: { path: 'p' } },
   { ns: 'fs', method: 'writeMd', kind: 'invoke', channel: 'fs:writeMd', args: ['p', 'c'], payload: { path: 'p', content: 'c' } },
   { ns: 'fs', method: 'writeText', kind: 'invoke', channel: 'fs:writeText', args: ['p', 'c'], payload: { path: 'p', content: 'c' } },
+  { ns: 'fs', method: 'writePastedImage', kind: 'invoke', channel: 'fs:writePastedImage', args: ['b64', 'png', 'image-1', 'b1'], payload: { data: 'b64', ext: 'png', name: 'image-1', batch: 'b1' } },
   { ns: 'fs', method: 'createFile', kind: 'invoke', channel: 'fs:createFile', args: ['p'], payload: { path: 'p' } },
   { ns: 'fs', method: 'mkdir', kind: 'invoke', channel: 'fs:mkdir', args: ['p'], payload: { path: 'p' } },
   { ns: 'fs', method: 'renamePath', kind: 'invoke', channel: 'fs:rename', args: ['f', 't'], payload: { from: 'f', to: 't' } },
@@ -119,6 +120,7 @@ const ENTRIES: Entry[] = [
   { ns: 'claude', method: 'onSessionsChanged', kind: 'listen', channel: 'claude:sessionsChanged', args: [cb] },
   { ns: 'claude', method: 'usageSummary', kind: 'invoke', channel: 'claude:usageSummary', args: [], payload: undefined },
   { ns: 'claude', method: 'realUsage', kind: 'invoke', channel: 'claude:realUsage', args: [{ force: true }], payload: { force: true } },
+  { ns: 'claude', method: 'lastModel', kind: 'invoke', channel: 'claude:lastModel', args: [], payload: undefined },
 
   // ── notebook ──
   { ns: 'notebook', method: 'tree', kind: 'invoke', channel: 'notebook:tree', args: [], payload: undefined },

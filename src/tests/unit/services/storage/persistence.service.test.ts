@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { persistence, serializeLayout, recordCommand } from '@repositories/persistence.service'
-import { settings, state, notifications, commandHistory } from '@views/state/state'
+import { settings, state, notifications, commandHistory, docs } from '@views/state/state'
 import { bookmarks, setBookmarks } from '@models/bookmark'
 import type { LayoutNode } from '@views/types/types'
 
@@ -20,6 +20,7 @@ beforeEach(() => {
   setBookmarks([])
   notifications.length = 0
   commandHistory.length = 0
+  docs.clear()
 })
 afterEach(() => vi.useRealTimers())
 
@@ -48,6 +49,19 @@ describe('serialize / persist', () => {
     } as LayoutNode)
     expect(split.type).toBe('split')
     expect((split as { children: unknown[] }).children).toHaveLength(2)
+  })
+
+  it('serializeLayout persists a doc pane leaf with its path + absolute flag', () => {
+    docs.set('d1', {
+      id: 'd1',
+      el: document.createElement('div'),
+      relPath: '/repo/docs/plans/branch-plan.md',
+      absolute: true
+    })
+    expect(serializeLayout({ type: 'leaf', paneId: 'd1' } as LayoutNode)).toEqual({
+      type: 'leaf',
+      docPane: { path: '/repo/docs/plans/branch-plan.md', absolute: true }
+    })
   })
 })
 

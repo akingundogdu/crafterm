@@ -3,18 +3,19 @@ import './notification-group.css'
 import { UITexts } from '@texts'
 import type { NotifGroup } from '../notifications.types'
 import { relTime } from '../notif-format'
-import { CHEVRON_SVG, GONE_TITLE, groupCountLabel, groupSummary, goToGroup } from './notification-group.store'
+import { CHEVRON_SVG, GONE_TITLE, groupCountLabel, goToGroup } from './notification-group.store'
 import NotificationCard from './notification-card'
 import store from '../notifications.store'
 
 // One terminal's notifications, collapsed into a single card (todomr5sckyaei): the
-// terminal's live name, how many alerts it has and the newest message.
+// terminal's live name and how many alerts it has, in one row exactly as tall as a
+// single card.
 //
-// Clicking the card GOES TO THE TERMINAL, the same as a single card — the chevron is
-// what expands it. It used to be the other way round (the whole head toggled), which
-// left a grouped terminal unreachable from the panel. Expanding lists every
-// notification as its own card, so each keeps its own actions (remind / snooze /
-// dismiss); the × on the head drops them all.
+// Clicking the card GOES TO THE TERMINAL and clears the group, the same as a single
+// card — the chevron is what expands it. It used to be the other way round (the whole
+// head toggled), which left a grouped terminal unreachable from the panel. Expanding
+// lists every notification as its own card, so each keeps its own actions (remind /
+// snooze / dismiss); the × on the head drops them all.
 export default class NotificationGroup extends Component {
   declare props: { group: NotifGroup }
   chevronEl: HTMLElement | null = null
@@ -63,7 +64,6 @@ export default class NotificationGroup extends Component {
             ×
           </button>
         </div>
-        {!expanded && <div class="notif-group-summary">{groupSummary(group)}</div>}
         {expanded && (
           <div class="notif-group-items">
             {group.items.map((n) => (

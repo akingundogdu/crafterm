@@ -1,12 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { DailyPlanTask, ProjectNode } from '@views/types/types'
 
-const ensureWorktreeForBranch = vi.fn()
+const createWorktreeInTerminal = vi.fn()
 const openClaudeWithPrompt = vi.fn()
 const upsert = vi.fn()
-const setStep = vi.fn()
-const fail = vi.fn()
-const closeProgress = vi.fn()
 
 const projects: ProjectNode[] = []
 
@@ -18,13 +15,8 @@ vi.mock('@views/catalog/catalog', () => ({
   findProjectById: (_tree: unknown, id: string) => projects.find((p) => p.id === id) ?? null
 }))
 vi.mock('@views/commands/commands', () => ({
-  openClaudeWithPrompt: (...args: unknown[]) => openClaudeWithPrompt(...args)
-}))
-vi.mock('@services/worktrees', () => ({
-  ensureWorktreeForBranch: (...args: unknown[]) => ensureWorktreeForBranch(...args)
-}))
-vi.mock('@views/components/worktree-progress/worktree-progress', () => ({
-  showWorktreeProgress: () => ({ setStep, fail, close: closeProgress })
+  openClaudeWithPrompt: (...args: unknown[]) => openClaudeWithPrompt(...args),
+  createWorktreeInTerminal: (...args: unknown[]) => createWorktreeInTerminal(...args)
 }))
 vi.mock('@views/components/dialog/confirm', () => ({ promptConfirm: async () => true }))
 vi.mock('@views/components/overlay/overlay', () => ({ createOverlay: () => ({}) }))
@@ -71,47 +63,58 @@ describe('openTaskInTerminal — worktree run', () => {
       issueKeyPrefix: 'CRF',
       children: []
     } as unknown as ProjectNode)
-    fail.mockResolvedValue(undefined)
+    // The shared flow reports the terminal being up; the ticket moves on that.
+    createWorktreeInTerminal.mockImplementation(async (opts: { onTerminalOpened?: () => void }) => {
+      opts.onTerminalOpened?.()
+      return { worktreePath: '/repos/worktrees/CRF-1', nodeId: 'w1', paneId: 'pane1', existed: false }
+    })
   })
 
-  it('leaves the ticket alone when the worktree could not be created (todomr4q102cd9)', async () => {
-    ensureWorktreeForBranch.mockResolvedValue({ ok: false, error: 'fatal: CRF-1 is already checked out' })
+  it('runs the ticket through the shared worktree flow, seeded with the Claude prompt', async () => {
+    const t = task()
+
+    await openTaskInTerminal(t, () => {}, true, { base: 'develop' })
+
+    const opts = createWorktreeInTerminal.mock.calls[0][0]
+    expect(opts).toMatchObject({
+      project: projects[0],
+      repoRoot: '/repos/crafterm',
+      branch: 'CRF-1',
+      base: 'develop',
+      placement: 'tab',
+      parentFolderId: 'p1',
+      // The terminal carries the SAME name as the worktree (the branch).
+      title: 'CRF-1',
+      titleLocked: true,
+      dailyTaskId: 't1'
+    })
+    expect(opts.claudePrompt).toContain('add a settings screen')
+    // Claude runs in that same terminal — no separate pane.
+    expect(openClaudeWithPrompt).not.toHaveBeenCalled()
+  })
+
+  it('moves the ticket to In Progress as soon as the terminal is up', async () => {
+    const t = task()
+
+    await openTaskInTerminal(t, () => {}, true)
+
+    expect(t.status).toBe('wip')
+    expect(upsert).toHaveBeenCalledWith(t)
+  })
+
+  it('leaves the ticket alone when the terminal never opened', async () => {
+    createWorktreeInTerminal.mockResolvedValue({
+      worktreePath: '/repos/worktrees/CRF-1',
+      nodeId: null,
+      paneId: null,
+      existed: false
+    })
     const t = task()
 
     await openTaskInTerminal(t, () => {}, true)
 
     expect(t.status).toBe('todo')
-    expect(openClaudeWithPrompt).not.toHaveBeenCalled()
-    // The failure is shown on the progress overlay, with git's own words.
-    expect(fail).toHaveBeenCalledWith('fatal: CRF-1 is already checked out')
-    expect(closeProgress).not.toHaveBeenCalled()
-  })
-
-  it('moves the ticket to In Progress once the worktree is up and the terminal starts', async () => {
-    ensureWorktreeForBranch.mockResolvedValue({ ok: true, path: '/repos/worktrees/CRF-1', nodeId: 'w1' })
-    const t = task()
-
-    await openTaskInTerminal(t, () => {}, true, { base: 'develop' })
-
-    expect(ensureWorktreeForBranch).toHaveBeenCalledWith(
-      projects[0],
-      'CRF-1',
-      'develop',
-      expect.any(Function)
-    )
-    expect(t.status).toBe('wip')
-    expect(upsert).toHaveBeenCalledWith(t)
-    // The terminal opens under the SAME name as the worktree (the branch).
-    expect(openClaudeWithPrompt).toHaveBeenCalledWith(
-      'w1',
-      '/repos/worktrees/CRF-1',
-      expect.stringContaining('add a settings screen'),
-      'CRF-1',
-      't1',
-      undefined
-    )
-    expect(setStep).toHaveBeenCalledWith('opening')
-    expect(closeProgress).toHaveBeenCalledTimes(1)
+    expect(upsert).not.toHaveBeenCalled()
   })
 
   it('titles a local run by the task title, not a branch', async () => {
@@ -134,7 +137,7 @@ describe('openTaskInTerminal — worktree run', () => {
 
     await openTaskInTerminal(t, () => {}, false)
 
-    expect(ensureWorktreeForBranch).not.toHaveBeenCalled()
+    expect(createWorktreeInTerminal).not.toHaveBeenCalled()
     expect(t.status).toBe('wip')
     expect(openClaudeWithPrompt).toHaveBeenCalled()
   })

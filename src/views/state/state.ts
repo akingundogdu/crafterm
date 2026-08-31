@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm'
-import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, CodePane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, ReminderDefaults, TimeEntry, DbNode, ActionMenuItem, Bookmark, DailyPlanData, DailyPlanTask, DailyPlanTag, MeetingNote, AccountEntry } from '@views/types/types'
+import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, CodePane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, ReminderDefaults, TimeEntry, DbNode, ActionMenuItem, Bookmark, DailyPlanData, DailyPlanTask, DailyPlanTag, MeetingNote, AccountEntry, WorktreeScripts } from '@views/types/types'
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from '@views/themes/themes'
 import { PALETTE_SEED } from '@views/palette-seed/palette-seed'
 import { allTabs } from '@views/tree/tree'
@@ -65,6 +65,10 @@ export const settings = {
   font: { family: 'Menlo, Monaco, "Courier New", monospace', size: 13 } as Font,
   bgColor: '#000000', // terminal/app background; user-selectable, defaults to black
   sidebarSelectedColor: '#ff9500', // border color of the selected sidebar node (selection context)
+  sidebarSelectedBg: '', // background of the selected sidebar node ('' = theme default)
+  sidebarSelectedText: '', // text/glyph color inside the selected sidebar node ('' = theme default)
+  sidebarActiveBg: '', // background of the active (open) terminal's sidebar card ('' = theme default)
+  sidebarActiveText: '', // text/glyph color inside the active terminal's card ('' = theme default)
   editorTheme: 'Default', // global Monaco theme name for the code + SQL editors
   docFontSize: 15, // markdown (notebook) doc font size; Cmd+/- when a doc is focused
   codeRoot: '', // base folder for the Cmd+P folder picker ('' = home)
@@ -87,6 +91,10 @@ export const settings = {
   // user-managed command palette entries (predefined + git/linux cheatsheets);
   // seeded on first run, edited in Settings → Command palette
   paletteCommands: PALETTE_SEED.map((c) => ({ ...c })) as PaletteCommand[],
+  // Shell commands run around every `git worktree add`: `pre` in the repo root
+  // before the worktree exists, `post` inside the new worktree (e.g. an index
+  // build). Projects can add their own on top (ProjectNode.worktreeScripts).
+  worktreeScripts: { pre: [], post: [] } as WorktreeScripts,
   notifPanelSize: 290, // right notification panel width (px), resizable
   notifSound: 'Glass', // macOS system sound played on notification ('' = off)
   // Default hour + quick-time chips for the reminder form (Settings → Reminders).
@@ -134,7 +142,8 @@ export const settings = {
     fontSize: 13,
     collapsed: false,
     details: { status: true, git: true, panes: true, paneList: false },
-    groupByRecency: false
+    groupByRecency: false,
+    newTree: false
   } as SidebarPrefs
 }
 
@@ -162,9 +171,24 @@ export function applyBgColor(): void {
   document.documentElement.style.setProperty('--bg-term', settings.bgColor)
 }
 
-// The sidebar's selected-row border reads its color from this CSS variable.
+// Writes a CSS variable, or removes it when the value is blank so the stylesheet
+// falls back to the value baked into the rule.
+function setRootVar(name: string, value: string): void {
+  const style = document.documentElement.style
+  if (value) style.setProperty(name, value)
+  else style.removeProperty(name)
+}
+
+// The sidebar row colors read from these CSS variables — the active (open)
+// terminal's filled card and the selection-context card. The border always has a
+// color; every other setting treats blank as "theme default", so its variable is
+// removed and each rule's own fallback applies.
 export function applySidebarSelectedColor(): void {
   document.documentElement.style.setProperty('--sidebar-selected-border', settings.sidebarSelectedColor)
+  setRootVar('--sidebar-selected-bg', settings.sidebarSelectedBg)
+  setRootVar('--sidebar-selected-text', settings.sidebarSelectedText)
+  setRootVar('--sidebar-active-bg', settings.sidebarActiveBg)
+  setRootVar('--sidebar-active-text', settings.sidebarActiveText)
 }
 
 // Markdown doc panes read their size from this CSS variable.

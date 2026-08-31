@@ -5,6 +5,8 @@ const listWorktrees = vi.fn()
 const worktreeAdd = vi.fn()
 const worktreeState = vi.fn()
 const promptConfirm = vi.fn()
+const promptForm = vi.fn()
+const createWorktreeInTerminal = vi.fn()
 const runHiddenAndWait = vi.fn()
 const procBuffer = vi.fn()
 const progressSetStep = vi.fn()
@@ -49,67 +51,63 @@ vi.mock('@views/state/state', () => ({
 vi.mock('@repositories/persistence.service', () => ({ persistence: { save: () => {} } }))
 vi.mock('@views/tree/tree', () => ({ makeFolder: () => ({}), allTabs: () => [], projectOf: () => null }))
 vi.mock('@views/catalog/catalog', () => ({ flattenProjects: () => [] }))
-vi.mock('@views/commands/commands', () => ({ archiveTab: () => {} }))
+vi.mock('@views/commands/commands', () => ({
+  archiveTab: () => {},
+  createWorktreeInTerminal: (...args: unknown[]) => createWorktreeInTerminal(...args)
+}))
 vi.mock('@services/bgproc', () => ({
   runHiddenAndWait: (...args: unknown[]) => runHiddenAndWait(...args),
   removeProcess: () => {}
 }))
-vi.mock('@views/components/dialog/prompt-form', () => ({ promptForm: async () => null }))
+vi.mock('@views/components/dialog/prompt-form', () => ({
+  promptForm: (opts: unknown) => promptForm(opts)
+}))
 vi.mock('@views/components/dialog/confirm', () => ({
   promptConfirm: (opts: unknown) => promptConfirm(opts)
 }))
 
-const { ensureWorktreeForBranch, removeWorktree } = await import('@services/worktrees')
+const { newWorktree, removeWorktree } = await import('@services/worktrees')
 
 function project(name: string, path: string): ProjectNode {
   return { kind: 'project', id: 'p1', name, path, children: [] } as unknown as ProjectNode
 }
 
-describe('ensureWorktreeForBranch', () => {
+describe('newWorktree', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    listWorktrees.mockResolvedValue({ worktrees: [] })
-    worktreeAdd.mockResolvedValue({ ok: true })
+    promptForm.mockResolvedValue({ branch: 'CRF-1', base: 'develop' })
   })
 
-  it('creates the worktree off the given base and reports each step', async () => {
-    const stages: string[] = []
+  it('runs through the shared terminal flow, in a tab under the project', async () => {
+    await newWorktree(project('alpha', '/repos/alpha/'))
 
-    const result = await ensureWorktreeForBranch(project('alpha', '/repos/alpha'), 'CRF-1', 'develop', (s) =>
-      stages.push(s)
+    expect(createWorktreeInTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoRoot: '/repos/alpha',
+        branch: 'CRF-1',
+        base: 'develop',
+        placement: 'tab',
+        parentFolderId: 'p1',
+        title: 'CRF-1'
+      })
     )
-
-    expect(worktreeAdd).toHaveBeenCalledWith('/repos/alpha', '/repos/worktrees/CRF-1', 'CRF-1', 'develop')
-    expect(result).toMatchObject({ ok: true, path: '/repos/worktrees/CRF-1', nodeId: 'w1' })
-    expect(stages).toEqual(['looking', 'creating', 'materializing'])
   })
 
-  it('reuses an existing worktree without calling git again', async () => {
-    listWorktrees.mockResolvedValue({ worktrees: [{ path: '/repos/worktrees/CRF-1' }] })
-    const stages: string[] = []
+  it('defaults the base to main', async () => {
+    promptForm.mockResolvedValue({ branch: 'CRF-1', base: '' })
 
-    const result = await ensureWorktreeForBranch(project('alpha', '/repos/alpha'), 'CRF-1', 'main', (s) =>
-      stages.push(s)
-    )
+    await newWorktree(project('alpha', '/repos/alpha'))
 
-    expect(worktreeAdd).not.toHaveBeenCalled()
-    expect(result.ok).toBe(true)
-    expect(stages).toEqual(['looking', 'materializing'])
+    expect(createWorktreeInTerminal.mock.calls[0][0]).toMatchObject({ base: 'main' })
   })
 
-  it("hands git's own error back when the worktree cannot be created", async () => {
-    worktreeAdd.mockResolvedValue({ ok: false, error: "fatal: 'CRF-1' is already checked out" })
+  it('does nothing without a branch name or a project path', async () => {
+    promptForm.mockResolvedValue({ branch: '  ', base: 'main' })
+    await newWorktree(project('alpha', '/repos/alpha'))
+    promptForm.mockResolvedValue({ branch: 'CRF-1', base: 'main' })
+    await newWorktree(project('alpha', ''))
 
-    const result = await ensureWorktreeForBranch(project('alpha', '/repos/alpha'), 'CRF-1')
-
-    expect(result).toEqual({ ok: false, error: "fatal: 'CRF-1' is already checked out" })
-  })
-
-  it('fails with a message when the project has no path', async () => {
-    const result = await ensureWorktreeForBranch(project('alpha', ''), 'CRF-1')
-
-    expect(result.ok).toBe(false)
-    expect(worktreeAdd).not.toHaveBeenCalled()
+    expect(createWorktreeInTerminal).not.toHaveBeenCalled()
   })
 })
 

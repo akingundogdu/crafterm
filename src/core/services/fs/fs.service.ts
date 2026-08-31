@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import { readdirSync, existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
 import type { DirEntry, FileRef, ReadTextResult } from './fs.types'
 import { isFilePath, walkFiles } from './fs.utils'
+import { pastedImagesDir } from '../paths/paths.service'
 
 // Filesystem operations backing the Files tree, code editor, and finders. All
 // callers pass absolute paths (with optional ~ expansion), so there is no base
@@ -65,6 +66,45 @@ export function writeText(path: string, content: string): boolean {
   } catch {
     return false
   }
+}
+
+// An image pasted into the agent composer. The renderer has no filesystem, so it
+// hands the bitmap over as base64 and this writes it out under the pasted-images
+// temp dir, returning the absolute path the prompt then refers to.
+//
+// The composer names its images itself (image-1, image-2, …) so the prompt can say
+// "in image-2 …" and Claude knows which file that is. Those names repeat with every
+// new ticket, so each composer batch gets its own subdirectory — a still-running
+// session's image-1 is never overwritten by the next one's. `name` and `batch` are
+// stripped to [a-z0-9-] here (and `ext` to a short token): they end up in a path, so
+// nothing that could climb out of the dir is trusted through.
+// Oversized payloads are dropped — a paste is not a file-transfer channel.
+const PASTED_IMAGE_MAX_BYTES = 25 * 1024 * 1024
+const SAFE_EXT = /^[a-z0-9]{1,5}$/
+
+export function writePastedImage(data: string, ext: string, name: string, batch: string): string | null {
+  try {
+    const bytes = Buffer.from(data, 'base64')
+    if (!bytes.length || bytes.length > PASTED_IMAGE_MAX_BYTES) return null
+    const dir = join(pastedImagesDir(), safeToken(batch, 'batch'))
+    mkdirSync(dir, { recursive: true })
+    const path = join(dir, `${safeToken(name, 'image')}.${SAFE_EXT.test(ext) ? ext : 'png'}`)
+    writeFileSync(path, bytes)
+    return path
+  } catch {
+    return null
+  }
+}
+
+// A path segment that cannot be anything but a plain name: everything outside
+// [a-z0-9-] is dropped (so are '.' and '/'), and an empty result takes the fallback.
+function safeToken(raw: string, fallback: string): string {
+  const token = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/^-+/, '')
+    .slice(0, 64)
+  return token || fallback
 }
 
 // Resolve a relative import specifier to an absolute source file (go-to-

@@ -14,7 +14,10 @@ vi.mock('@views/catalog/catalog', () => ({ projectTree: () => [], findProjectByI
 vi.mock('@views/screens/daily-plan/daily-plan.store', () => ({ todayKey: () => '2026-07-20', nextOrder: () => 0 }))
 vi.mock('@views/screens/daily-plan/daily-plan.entry', () => ({ openTaskInTerminal: () => {} }))
 vi.mock('@views/components/dialog/confirm', () => ({ promptConfirm: () => Promise.resolve(true) }))
-vi.mock('@services', () => ({ gitService: { branchesAt: () => Promise.resolve([]) } }))
+vi.mock('@services', () => ({
+  gitService: { branchesAt: () => Promise.resolve([]) },
+  fsService: { writePastedImage: () => Promise.resolve(null) }
+}))
 vi.mock('@views/commands/commands', () => ({ newTab: () => {} }))
 vi.mock('@views/screens/spotlight/spotlight', () => ({ showSpotlight: () => {} }))
 

@@ -25,6 +25,13 @@ export const Settings = {
     docFontSize: 'Doc & composer font size',
     codeEditorTheme: 'Code editor theme',
     sidebarSelectedBorder: 'Sidebar selected border',
+    sidebarSelectedBackground: 'Sidebar selected background',
+    sidebarSelectedText: 'Sidebar selected text',
+    sidebarActiveBackground: 'Active terminal background',
+    sidebarActiveText: 'Active terminal text',
+    themeDefault: 'Default',
+    reset: 'Reset',
+    resetToDefault: 'Reset to the theme default',
     customColor: 'Custom color',
     background: 'Background',
     themeHeading: 'Theme',
@@ -55,6 +62,25 @@ export const Settings = {
     claudeUsage: 'Claude usage',
     keychainService: 'Keychain service',
     fallbackSecret: 'Fallback secret'
+  },
+  worktreeScripts: {
+    heading: 'Worktree scripts',
+    globalHint:
+      'Shell commands run around every worktree creation. Pre runs in the repo root before the worktree exists; post runs inside the new worktree (e.g. "codegraph init -i ."). Placeholders: {worktreePath}, {repoRoot}, {branch}, {base}.',
+    projectHint:
+      'Extra scripts for this project only — they run after the global ones. Pre runs in the repo root, post inside the new worktree.',
+    pre: 'Before creating (repo root)',
+    post: 'After creating (inside the worktree)',
+    addPre: '+ Add pre script',
+    addPost: '+ Add post script',
+    name: 'Name',
+    command: 'Command',
+    namePlaceholder: 'Index the worktree',
+    commandPlaceholder: 'codegraph init -i .',
+    unnamed: '(unnamed script)',
+    remove: 'Remove script',
+    noPre: 'No pre scripts.',
+    noPost: 'No post scripts.'
   },
   projects: {
     heading: 'Projects',
@@ -148,7 +174,8 @@ export const Settings = {
     showGitBranch: 'Show git branch',
     showPaneCount: 'Show pane count',
     showPanesUnderTerminal: 'Show panes under terminal',
-    groupByRecency: 'Group by recency (Today / Yesterday / Earlier)'
+    groupByRecency: 'Group by recency (Today / Yesterday / Earlier)',
+    newTree: 'Use the new tree design (restart to apply)'
   },
   systemUpdate: {
     heading: 'System update',

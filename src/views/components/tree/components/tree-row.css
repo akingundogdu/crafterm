@@ -1,0 +1,543 @@
+/* Spacious card rows for the modern sidebar tree. Namespaced `.crtree-*` so
+   nothing collides with the legacy `.tab-*`/`.tree-*` treeview styles. */
+
+.crtree-card {
+  position: relative;
+  margin: var(--crtree-gap, 3px) 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease;
+}
+.crtree-card:hover:not(.crtree-active) {
+  background: var(--row-hover);
+  border-color: var(--border);
+}
+.crtree-folder {
+  color: var(--text);
+}
+
+/* Active terminal — filled card. Its fill and text are user-overridable from
+   Settings → Appearance via `--sidebar-active-bg` / `--sidebar-active-text`;
+   unset, the card keeps the accent fill on white it has always had. */
+.crtree-active {
+  background: var(--sidebar-active-bg, var(--accent));
+  border-color: var(--sidebar-active-bg, var(--accent));
+  color: var(--sidebar-active-text, #fff);
+}
+.crtree-active .crtree-label {
+  color: var(--sidebar-active-text, #fff);
+}
+
+/* colour tag → whole-card tint + a left edge */
+.crtree-colored:not(.crtree-active) {
+  background: var(--crtree-tint);
+}
+.crtree-colored::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--crtree-edge);
+}
+
+/* Selection context (clicked container / keyboard target). Background and text
+   are user-overridable from Settings → Appearance via `--sidebar-selected-bg` /
+   `--sidebar-selected-text`; with neither set the card keeps its theme look — a
+   colour-tagged card its tint, everything else the plain hover fill. Placed after
+   the `.crtree-colored` rule (same specificity) so a chosen background wins on a
+   colour-tagged card too. */
+.crtree-selected:not(.crtree-active) {
+  background: var(--sidebar-selected-bg, var(--crtree-tint, var(--row-hover)));
+  border-color: var(--sidebar-selected-border);
+  color: var(--sidebar-selected-text, var(--text-dim));
+}
+.crtree-selected.crtree-folder:not(.crtree-active) {
+  color: var(--sidebar-selected-text, var(--text));
+}
+
+/* Cmd+click side-by-side marker */
+.crtree-multi {
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+.crtree-archiving {
+  opacity: 0.55;
+}
+
+/* indent guides (one thin vertical line per continuing ancestor level) */
+.crtree-guide {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--guide-line);
+}
+
+.crtree-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+
+/* disclosure chevron */
+.crtree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  margin-left: -2px;
+  color: var(--text-mute);
+  transition:
+    transform 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.15s ease;
+}
+.crtree-chevron.crtree-open {
+  transform: rotate(90deg);
+}
+.crtree-chevron-svg {
+  display: inline-flex;
+}
+.crtree-chevron-svg svg {
+  display: block;
+}
+.crtree-card:hover .crtree-chevron,
+.crtree-active .crtree-chevron {
+  color: var(--text);
+}
+
+/* row icon */
+.crtree-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  min-width: 15px;
+  height: 15px;
+  color: var(--text-mute);
+}
+.crtree-icon svg {
+  display: block;
+}
+.crtree-icon-project,
+.crtree-icon-worktree {
+  color: var(--accent);
+}
+.crtree-active .crtree-icon {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* label */
+.crtree-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 1em;
+  font-weight: 450;
+  letter-spacing: -0.006em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crtree-folder .crtree-label {
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+/* status dot (terminal activity) */
+.crtree-dot {
+  width: 8px;
+  min-width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--text-faint);
+}
+.crtree-dot-running {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(63, 185, 80, 0.6);
+}
+.crtree-dot-attention {
+  background: var(--amber);
+  box-shadow: 0 0 6px rgba(227, 179, 65, 0.7);
+  animation: crtree-pulse-dot 1.6s ease-in-out infinite;
+}
+@keyframes crtree-pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* trailing badges */
+.crtree-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.crtree-count {
+  padding: 1px 6px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-faint);
+  font-size: 0.72em;
+  font-variant-numeric: tabular-nums;
+  min-width: 16px;
+  text-align: center;
+}
+.crtree-active .crtree-count {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.crtree-pin {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.crtree-status {
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.62em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+.crtree-status-in-progress {
+  color: var(--accent);
+  background: rgba(76, 141, 255, 0.16);
+}
+.crtree-status-question {
+  color: #d6a94a;
+  background: rgba(240, 180, 41, 0.14);
+}
+.crtree-status-idle {
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.05);
+}
+.crtree-status-review {
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.16);
+}
+.crtree-status-test {
+  color: #2dd4bf;
+  background: rgba(45, 212, 191, 0.16);
+}
+.crtree-active .crtree-status {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+}
+.crtree-pulse {
+  animation: crtree-pulse-badge 1.6s ease-in-out infinite;
+}
+@keyframes crtree-pulse-badge {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* per-row order number (Cmd+1..9) */
+.crtree-order {
+  font-size: 0.74em;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+  min-width: 12px;
+  text-align: right;
+}
+.crtree-order-shortcut {
+  color: var(--text-mute);
+  opacity: 1;
+}
+
+/* hover-revealed inline actions */
+.crtree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.crtree-card:hover .crtree-actions {
+  opacity: 1;
+}
+.crtree-act {
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 5px;
+}
+.crtree-act:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+.crtree-active .crtree-act {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* pinned breadcrumb above the row */
+.crtree-crumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 2px;
+  margin-bottom: 3px;
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.crtree-crumb-dot {
+  width: 6px;
+  min-width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.crtree-crumb-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crtree-active .crtree-crumb,
+.crtree-active .crtree-crumb-text {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* detail sub-rows (panes / plans / background processes) */
+.crtree-detail {
+  margin: 4px 0 1px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.crtree-sub {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 0.84em;
+  color: var(--text-mute);
+  cursor: pointer;
+}
+.crtree-sub::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  min-width: 4px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.crtree-sub-plan::before {
+  border-radius: 1px;
+}
+.crtree-sub-text {
+  cursor: default;
+  color: var(--text-faint);
+}
+.crtree-sub-text::before {
+  display: none;
+}
+.crtree-sub-text:hover {
+  background: transparent;
+  color: var(--text-faint);
+}
+.crtree-sub:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.crtree-sub-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crtree-sub-kill {
+  margin-left: auto;
+  opacity: 0;
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--text-faint);
+}
+.crtree-sub:hover .crtree-sub-kill {
+  opacity: 1;
+}
+.crtree-sub-kill:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* inline rename input */
+.crtree-rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-term);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: 1px 5px;
+  outline: none;
+}
+
+/* drag-drop insertion indicators */
+.crtree-drag-before {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+.crtree-drag-after {
+  box-shadow: inset 0 -2px 0 0 var(--accent);
+}
+.crtree-drag-into {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* ---- Selection-context colour overrides ----
+   Every glyph and label the selected card paints reads `--sidebar-selected-text`
+   when the user picks one, and falls back to the colour it would otherwise use.
+   Kept last in the file so these also win over the hover rules above. */
+.crtree-selected:not(.crtree-active) .crtree-chevron {
+  color: var(--sidebar-selected-text, var(--text-mute));
+}
+.crtree-selected:not(.crtree-active):hover .crtree-chevron {
+  color: var(--sidebar-selected-text, var(--text));
+}
+.crtree-selected:not(.crtree-active) .crtree-icon {
+  color: var(--sidebar-selected-text, var(--text-mute));
+}
+.crtree-selected:not(.crtree-active) .crtree-icon-project,
+.crtree-selected:not(.crtree-active) .crtree-icon-worktree {
+  color: var(--sidebar-selected-text, var(--accent));
+}
+.crtree-selected:not(.crtree-active) .crtree-crumb,
+.crtree-selected:not(.crtree-active) .crtree-crumb-text {
+  color: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-crumb-dot {
+  background: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-count {
+  color: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-order {
+  color: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-order-shortcut {
+  color: var(--sidebar-selected-text, var(--text-mute));
+}
+.crtree-selected:not(.crtree-active) .crtree-act {
+  color: var(--sidebar-selected-text, var(--text-mute));
+}
+.crtree-selected:not(.crtree-active) .crtree-act:hover {
+  color: var(--sidebar-selected-text, var(--text));
+}
+.crtree-selected:not(.crtree-active) .crtree-status-in-progress {
+  color: var(--sidebar-selected-text, var(--accent));
+}
+.crtree-selected:not(.crtree-active) .crtree-status-question {
+  color: var(--sidebar-selected-text, #d6a94a);
+}
+.crtree-selected:not(.crtree-active) .crtree-status-idle {
+  color: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-status-review {
+  color: var(--sidebar-selected-text, #c084fc);
+}
+.crtree-selected:not(.crtree-active) .crtree-status-test {
+  color: var(--sidebar-selected-text, #2dd4bf);
+}
+.crtree-selected:not(.crtree-active) .crtree-sub {
+  color: var(--sidebar-selected-text, var(--text-mute));
+}
+.crtree-selected:not(.crtree-active) .crtree-sub:hover {
+  color: var(--sidebar-selected-text, var(--text));
+}
+.crtree-selected:not(.crtree-active) .crtree-sub::before {
+  background: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-sub-text,
+.crtree-selected:not(.crtree-active) .crtree-sub-text:hover {
+  color: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-sub-kill {
+  color: var(--sidebar-selected-text, var(--text-faint));
+}
+.crtree-selected:not(.crtree-active) .crtree-sub-kill:hover {
+  color: var(--sidebar-selected-text, var(--text));
+}
+
+/* ---- Active-card colour overrides ----
+   Every glyph and label the active card paints reads `--sidebar-active-text`
+   when the user picks one, and falls back to the colour it would otherwise use.
+   Kept last in the file so these also win over the hover rules above. */
+.crtree-active .crtree-chevron {
+  color: var(--sidebar-active-text, var(--text));
+}
+.crtree-active .crtree-icon {
+  color: var(--sidebar-active-text, rgba(255, 255, 255, 0.85));
+}
+.crtree-active .crtree-count {
+  color: var(--sidebar-active-text, #fff);
+}
+.crtree-active .crtree-status {
+  color: var(--sidebar-active-text, #fff);
+}
+.crtree-active .crtree-act {
+  color: var(--sidebar-active-text, rgba(255, 255, 255, 0.8));
+}
+.crtree-active .crtree-crumb,
+.crtree-active .crtree-crumb-text {
+  color: var(--sidebar-active-text, rgba(255, 255, 255, 0.75));
+}
+.crtree-active .crtree-crumb-dot {
+  background: var(--sidebar-active-text, var(--text-faint));
+}
+.crtree-active .crtree-order {
+  color: var(--sidebar-active-text, var(--text-faint));
+}
+.crtree-active .crtree-order-shortcut {
+  color: var(--sidebar-active-text, var(--text-mute));
+}
+.crtree-active .crtree-sub {
+  color: var(--sidebar-active-text, var(--text-mute));
+}
+.crtree-active .crtree-sub:hover {
+  color: var(--sidebar-active-text, var(--text));
+}
+.crtree-active .crtree-sub::before {
+  background: var(--sidebar-active-text, var(--text-faint));
+}
+.crtree-active .crtree-sub-text,
+.crtree-active .crtree-sub-text:hover {
+  color: var(--sidebar-active-text, var(--text-faint));
+}
+.crtree-active .crtree-sub-kill {
+  color: var(--sidebar-active-text, var(--text-faint));
+}
+.crtree-active .crtree-sub-kill:hover {
+  color: var(--sidebar-active-text, var(--text));
+}

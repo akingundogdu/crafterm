@@ -129,6 +129,9 @@ export interface DocPane {
   id: string
   el: HTMLElement
   relPath: string
+  // Whether `relPath` is an absolute disk path (plan/disk files, read-only) or a
+  // relative notebook note path. Persisted so restore re-opens the right source.
+  absolute: boolean
 }
 
 // A SQL query editor + results, shown as a pane (replaces the old modal).
@@ -264,12 +267,29 @@ export interface ProjectNode {
   features?: Feature[] // time-tracking features under this project
   runCommands?: ProjectCommand[] // named one-shot shell commands (sidebar "Run command…")
   supportWorktree?: boolean // when true, auto-list this repo's git worktrees as folder nodes
+  worktreeScripts?: WorktreeScripts // extra pre/post setup scripts for this project's worktrees
   iosApp?: boolean // when true, add iOS build/run actions to the worktree nodes (implies supportWorktree)
   iosConfig?: IosDevConfig // per-project iOS build config (repo root = this node's path)
   issueKeyPrefix?: string // prefix for generated daily-task issue keys (e.g. CRF → CRF-12)
   // Transient hidden shells owned by the project (e.g. a `git worktree add` while
   // the worktree node doesn't exist yet). Not persisted.
   processes?: BackgroundProcess[]
+}
+
+// One shell command run around a `git worktree add`. Kept as data (not code) so a
+// tool change — codegraph today, something else tomorrow — is a Settings edit
+// rather than a code change. `pre` runs in the repo root before the worktree
+// exists; `post` runs inside the new worktree.
+export interface WorktreeScript {
+  id: string
+  name: string
+  command: string
+}
+
+// The pre/post script lists, held both globally (settings) and per project.
+export interface WorktreeScripts {
+  pre: WorktreeScript[]
+  post: WorktreeScript[]
 }
 
 // A hidden/background PTY (a "hidden shell") owned by a worktree — e.g. an iOS
@@ -644,6 +664,9 @@ export interface SidebarPrefs {
   // When true, the sidebar's top-level rows are bucketed by last activity
   // (Today / Yesterday / Earlier) instead of by workspace group.
   groupByRecency?: boolean
+  // When true, the terminal sidebar renders with the modern data-driven gea tree
+  // (`components/tree`) instead of the legacy `components/treeview`. Experimental.
+  newTree?: boolean
 }
 
 export const MAX_FOLDER_DEPTH = 4

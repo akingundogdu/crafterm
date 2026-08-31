@@ -22,8 +22,12 @@ vi.mock('@views/tree/tree', () => ({
   findTabByPane: (_tree: unknown, paneId: string) => tabsByPane.get(paneId) ?? null
 }))
 vi.mock('@repositories/persistence.service', () => ({ persistence: { save: () => {} } }))
+// Panes a click landed on, so goToGroup's navigation is observable.
+const selectedPanes = vi.hoisted(() => [] as string[])
 vi.mock('@views/commands/commands', () => ({
-  selectPane: () => {},
+  selectPane: (paneId: string) => {
+    selectedPanes.push(paneId)
+  },
   openLink: () => {},
   openNote: () => {},
   openMarkdownFile: () => {}
@@ -48,9 +52,8 @@ vi.mock('@views/components/status-bar/components/notif-badge', () => ({ updateNo
 vi.mock('@views/screens/daily-plan/daily-plan.entry', () => ({ showDailyPlanModal: () => {} }))
 vi.mock('@views/screens/meeting-notes/meeting-notes.store', () => ({ openMeetingNote: () => {} }))
 
-const { default: store, groupNotifications, kindOf } = await import(
-  '@views/screens/notifications/notifications.store'
-)
+const { default: store, groupNotifications } = await import('@views/screens/notifications/notifications.store')
+const { goToGroup } = await import('@views/screens/notifications/components/notification-group.store')
 
 function notif(
   id: string,
@@ -163,16 +166,7 @@ describe('groupNotifications', () => {
   })
 })
 
-describe('kindOf', () => {
-  it('reads the notification status', () => {
-    expect(kindOf(notif('a', 'p1', 'x', 1, { kind: 'reminder' }))).toBe('reminder')
-    expect(kindOf(notif('b', 'p1', 'x', 1, { event: 'question' }))).toBe('question')
-    expect(kindOf(notif('c', 'p1', 'x', 1, { event: 'done' }))).toBe('done')
-    expect(kindOf(notif('d', 'p1', 'x', 1))).toBe('all')
-  })
-})
-
-describe('NotificationsStore filters', () => {
+describe('NotificationsStore', () => {
   beforeEach(() => {
     livePane('p1', 's1', 't1', 'backend')
     livePane('p2', 's2', 't2', 'ios')
@@ -183,39 +177,13 @@ describe('NotificationsStore filters', () => {
       notif('c', 'p2', 'beta', 20, { event: 'done' }),
       notif('d', 'p3', 'beta', 10, { kind: 'reminder' })
     ]
-    store.setProjectFilter('')
-    store.setKindFilter('all')
+    selectedPanes.length = 0
     store.reload()
   })
 
-  it('groups everything when no filter is set', () => {
+  it('groups every notification — the panel has no filters', () => {
     expect(store.groups.map((g) => g.key)).toEqual(['tab:t1', 'tab:t2', 'tab:t3'])
-  })
-
-  it('filters by project', () => {
-    store.setProjectFilter('beta')
-    expect(store.groups.flatMap((g) => g.items.map((n) => n.id))).toEqual(['c', 'd'])
-  })
-
-  it('filters by kind', () => {
-    store.setKindFilter('done')
-    expect(store.groups.flatMap((g) => g.items.map((n) => n.id))).toEqual(['b', 'c'])
-  })
-
-  it('combines both filters', () => {
-    store.setProjectFilter('alpha')
-    store.setKindFilter('question')
-    expect(store.groups.flatMap((g) => g.items.map((n) => n.id))).toEqual(['a'])
-  })
-
-  it('counts the project chips against the active kind filter', () => {
-    expect(store.projectChips).toEqual([
-      { project: 'alpha', count: 2 },
-      { project: 'beta', count: 2 }
-    ])
-
-    store.setKindFilter('question')
-    expect(store.projectChips).toEqual([{ project: 'alpha', count: 1 }])
+    expect(store.groups.flatMap((g) => g.items.map((n) => n.id))).toEqual(['a', 'b', 'c', 'd'])
   })
 
   it('dismisses a whole group at once', () => {
@@ -225,12 +193,32 @@ describe('NotificationsStore filters', () => {
     expect(stored.map((n) => n.id)).toEqual(['c', 'd'])
     expect(store.groups.map((g) => g.key)).toEqual(['tab:t2', 'tab:t3'])
   })
+})
 
-  it('drops a project filter whose notifications are all gone', () => {
-    store.setProjectFilter('alpha')
-    store.dismissGroup(store.groups[0])
+describe('goToGroup', () => {
+  beforeEach(() => {
+    livePane('p1', 's1', 't1', 'backend')
+    livePane('p2', 's2', 't2', 'ios')
+    stored = [notif('a', 'p1', 'alpha', 40), notif('b', 'p1', 'alpha', 30), notif('c', 'p2', 'beta', 20)]
+    selectedPanes.length = 0
+    store.reload()
+  })
 
-    expect(store.projectFilter).toBe('')
-    expect(store.groups).toHaveLength(2)
+  it('opens the terminal and clears the group, like a single card', () => {
+    goToGroup(store.groups[0])
+
+    expect(selectedPanes).toEqual(['p1'])
+    expect(stored.map((n) => n.id)).toEqual(['c'])
+    expect(store.groups.map((g) => g.key)).toEqual(['tab:t2'])
+  })
+
+  it('keeps a gone terminal’s notifications — there is nowhere to go', () => {
+    stored = [notif('x', 'p-dead', 'alpha', 10, { paneStableId: 's-dead' })]
+    store.reload()
+
+    goToGroup(store.groups[0])
+
+    expect(selectedPanes).toEqual([])
+    expect(stored.map((n) => n.id)).toEqual(['x'])
   })
 })

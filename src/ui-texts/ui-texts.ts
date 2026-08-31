@@ -24,6 +24,7 @@ import { Diff } from './diff.texts'
 import { IosWorktree } from './ios-worktree.texts'
 import { Components } from './components.texts'
 import { Terminal } from './terminal.texts'
+import { Resources } from './resources.texts'
 
 export const UITexts = {
   Settings,
@@ -47,5 +48,6 @@ export const UITexts = {
   Diff,
   IosWorktree,
   Components,
-  Terminal
+  Terminal,
+  Resources
 } as const

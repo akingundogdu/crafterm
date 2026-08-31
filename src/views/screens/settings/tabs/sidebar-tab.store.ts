@@ -43,3 +43,12 @@ export function makeRecencyToggle(cb: HTMLInputElement): () => void {
     persistence.save()
   }
 }
+
+// `change` handler for the experimental "new tree design" checkbox. The tree is
+// chosen at sidebar mount, so this takes effect on the next launch — persist only.
+export function makeNewTreeToggle(cb: HTMLInputElement): () => void {
+  return () => {
+    settings.sidebar.newTree = cb.checked
+    persistence.save()
+  }
+}

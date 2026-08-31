@@ -17,6 +17,7 @@ import { buildTodoFileField } from './components/todo-file-field'
 import { buildExplorerSection } from './components/explorer-section'
 import { buildSoundSelector } from './components/sound-selector'
 import { buildClaudeUsageSection } from './components/claude-usage-section'
+import { buildWorktreeScriptsSection } from './components/worktree-scripts-section'
 
 export function buildWorkspacePanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.workspace.heading}</h3>`)
@@ -25,6 +26,7 @@ export function buildWorkspacePanel(panel: HTMLElement): void {
   buildExtensionsField({ panel, onSave: saveCodeExtensions })
   buildTodoFileField({ panel, onSave: saveTodoFile })
   buildExplorerSection({ panel, onSaveRoot: saveExplorerRoot, onSaveExclude: saveExplorerExclude })
+  buildWorktreeScriptsSection(panel, null)
   buildSoundSelector({ panel, makeChange: makeNotifSoundChange })
   buildClaudeUsageSection({ panel, onSaveKeychainService: saveKeychainService, onSaveFallbackSecret: saveFallbackSecret })
 }

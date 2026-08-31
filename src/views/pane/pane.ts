@@ -108,7 +108,7 @@ export function createDocPane(source: string, opts?: { absolute?: boolean }): st
     })
   }
 
-  docs.set(id, { id, el: box, relPath: source })
+  docs.set(id, { id, el: box, relPath: source, absolute })
   return id
 }
 

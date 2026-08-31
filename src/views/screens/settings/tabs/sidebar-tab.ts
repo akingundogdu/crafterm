@@ -3,12 +3,14 @@ import {
   makeOrientationChange,
   makeFontSizeChange,
   makeDetailToggle,
-  makeRecencyToggle
+  makeRecencyToggle,
+  makeNewTreeToggle
 } from './sidebar-tab.store'
 import { buildOrientationSelect } from './components/orientation-select'
 import { buildFontSizeInput } from './components/font-size-input'
 import { buildDetailToggles } from './components/detail-toggles'
 import { buildRecencyToggle } from './components/recency-toggle'
+import { buildNewTreeToggle } from './components/new-tree-toggle'
 
 export function buildSidebarPanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.sidebar.heading}</h3>`)
@@ -16,4 +18,5 @@ export function buildSidebarPanel(panel: HTMLElement): void {
   buildFontSizeInput({ panel, onChange: makeFontSizeChange() })
   buildDetailToggles({ panel, makeToggle: makeDetailToggle })
   buildRecencyToggle({ panel, makeToggle: makeRecencyToggle })
+  buildNewTreeToggle({ panel, makeToggle: makeNewTreeToggle })
 }

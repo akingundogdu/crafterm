@@ -12,6 +12,8 @@ class FsClient extends BaseClient {
   readText = (path: string) => this.call(Channel.Fs.ReadText, { path })
   writeMd = (path: string, content: string) => this.call(Channel.Fs.WriteMd, { path, content })
   writeText = (path: string, content: string) => this.call(Channel.Fs.WriteText, { path, content })
+  writePastedImage = (data: string, ext: string, name: string, batch: string) =>
+    this.call(Channel.Fs.WritePastedImage, { data, ext, name, batch })
   createFile = (path: string) => this.call(Channel.Fs.CreateFile, { path })
   mkdir = (path: string) => this.call(Channel.Fs.Mkdir, { path })
   renamePath = (from: string, to: string) => this.call(Channel.Fs.Rename, { from, to })

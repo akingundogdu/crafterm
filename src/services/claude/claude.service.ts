@@ -3,7 +3,7 @@ import { existsSync, readdirSync, statSync, watch as fsWatch, type FSWatcher } f
 import { newSummary, applyJsonlLine } from '@core/services/claude-usage/claude-usage.service'
 import type { ClaudeUsageSummary } from '@core/services/claude-usage/claude-usage.types'
 import * as claudeAccount from '@core/services/claude-account/claude-account.service'
-import type { ClaudeRealUsageOptions, ClaudeSessionStatus } from './claude.types'
+import type { ClaudeLastModel, ClaudeRealUsageOptions, ClaudeSessionStatus } from './claude.types'
 import {
   encodeClaudeCwd,
   claudeProjectsDir,
@@ -19,6 +19,9 @@ import {
 // ./claude.utils.
 export class ClaudeService {
   private usageCache: { expiresAt: number; data: ClaudeUsageSummary } | null = null
+  // The active model changes far more often than the server-side usage windows, so
+  // the status bar polls it on its own short cadence — hence a short cache here.
+  private lastModelCache: { expiresAt: number; data: ClaudeLastModel | null } | null = null
   // Brief per-session title cache so the renderer can poll at 0s/1s/3s after a
   // session locks without thrashing the disk.
   private readonly titleCache = new Map<string, { title: string | null; expiresAt: number }>()
@@ -84,6 +87,73 @@ export class ClaudeService {
   // Real ("server-side") Claude usage from Anthropic's GET /api/oauth/usage.
   realUsage(opts: ClaudeRealUsageOptions): ReturnType<typeof claudeAccount.realUsage> {
     return claudeAccount.realUsage(opts)
+  }
+
+  // The model actually in use right now. The server-side usage payload only names
+  // the plan's headline model, so the real answer comes from the session logs:
+  // pick the most recently written jsonl across every project dir (a stat scan, no
+  // reads), then walk its tail backwards for the newest assistant record carrying a
+  // `message.model`. Cached 15s so the status bar can poll it cheaply.
+  lastModel(): ClaudeLastModel | null {
+    const now = Date.now()
+    if (this.lastModelCache && this.lastModelCache.expiresAt > now) return this.lastModelCache.data
+    const cache = (data: ClaudeLastModel | null): ClaudeLastModel | null => {
+      this.lastModelCache = { expiresAt: now + 15_000, data }
+      return data
+    }
+    const root = claudeProjectsDir()
+    if (!existsSync(root)) return cache(null)
+    let projDirs: string[] = []
+    try {
+      projDirs = readdirSync(root)
+    } catch {
+      return cache(null)
+    }
+    let newest: { file: string; mtimeMs: number } | null = null
+    for (const proj of projDirs) {
+      const dir = join(root, proj)
+      let files: string[]
+      try {
+        files = readdirSync(dir).filter((f) => f.endsWith('.jsonl'))
+      } catch {
+        continue
+      }
+      for (const f of files) {
+        const full = join(dir, f)
+        try {
+          const mtimeMs = statSync(full).mtimeMs
+          if (!newest || mtimeMs > newest.mtimeMs) newest = { file: full, mtimeMs }
+        } catch {
+          continue
+        }
+      }
+    }
+    if (!newest) return cache(null)
+    const lines = readTail(newest.file, 262144).split('\n')
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!lines[i].trim()) continue
+      let o: Record<string, unknown>
+      try {
+        o = JSON.parse(lines[i])
+      } catch {
+        // truncated/partial line at the tail boundary — skip
+        continue
+      }
+      const msg = o.message as Record<string, unknown> | undefined
+      if (!msg || typeof msg !== 'object') continue
+      const model = msg.model
+      // Claude tags locally generated records (API errors, interrupts) with the
+      // placeholder `<synthetic>` — never a model the user chose.
+      if (typeof model !== 'string' || !model || model.startsWith('<')) continue
+      const usage = msg.usage as Record<string, unknown> | undefined
+      const ts = typeof o.timestamp === 'string' ? new Date(o.timestamp).getTime() : 0
+      return cache({
+        model,
+        speed: usage && typeof usage.speed === 'string' ? usage.speed : null,
+        at: ts || newest.mtimeMs
+      })
+    }
+    return cache(null)
   }
 
   // Pull the user-set "custom-title" out of a session's jsonl — used to reflect a

@@ -13,6 +13,7 @@ import { flattenTreeRows } from './components/project-tree.store'
 import { buildAppsSection } from './components/apps-section'
 import { buildFeaturesSection } from './components/features-section'
 import { buildRunCommandsSection } from './components/run-commands-section'
+import { buildWorktreeScriptsSection } from './components/worktree-scripts-section'
 import { buildIosConfigSection } from './components/ios-config-section'
 import ChipBar from './components/chip-bar'
 import ProjectTree from './components/project-tree'
@@ -166,6 +167,7 @@ class DetailCol extends Component {
         build: (host) => buildFeaturesSection({ projectId: p.id, parent: host, uid, renderTree: () => store.bump() })
       },
       { label: 'Run commands', build: (host) => buildRunCommandsSection({ projectId: p.id, parent: host, uid }) },
+      { label: 'Worktree', build: (host) => buildWorktreeScriptsSection(host, p.id) },
       { label: 'iOS', build: (host) => buildIosConfigSection(p.id, host) }
     ]
 
