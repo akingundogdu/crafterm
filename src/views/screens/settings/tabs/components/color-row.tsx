@@ -1,11 +1,16 @@
 import { Component } from '@geajs/core'
 import './color-row.css'
 import { toHex6 } from '../../shared'
+import { UITexts } from '@texts'
 
 export interface ColorRowProps {
   colorKey: string
   value: string
   onApply: (key: string, value: string) => void
+  // Hint shown in the hex input while the value is blank (e.g. "Default").
+  placeholder?: string
+  // When set, a reset button is rendered that clears the value back to blank.
+  onClear?: () => void
 }
 
 // One labeled color picker + hex input row. Rendered as a JSX child of the theme
@@ -25,12 +30,20 @@ export default class ColorRow extends Component {
     this.props.onApply(this.props.colorKey, v)
   }
 
+  // Blank both inputs and hand the reset to the owner (which stores '' — the
+  // "use the theme default" value — rather than a color).
+  private clear = (): void => {
+    if (this.colorEl) this.colorEl.value = toHex6('')
+    if (this.hexEl) this.hexEl.value = ''
+    this.props.onClear?.()
+  }
+
   onAfterRender(): void {
     if (this.colorEl) this.colorEl.value = toHex6(this.props.value)
     if (this.hexEl) this.hexEl.value = this.props.value
   }
 
-  template({ colorKey }: this['props']) {
+  template({ colorKey, placeholder, onClear }: this['props']) {
     return (
       <div class="color-row">
         <label>{colorKey}</label>
@@ -41,9 +54,15 @@ export default class ColorRow extends Component {
         />
         <input
           type="text"
+          placeholder={placeholder}
           ref={this.hexEl}
           onChange={(e: Event) => this.apply((e.currentTarget as HTMLInputElement).value)}
         />
+        {onClear ? (
+          <button type="button" class="color-row-reset" title={UITexts.Settings.appearance.resetToDefault} onClick={this.clear}>
+            {UITexts.Settings.appearance.reset}
+          </button>
+        ) : null}
       </div>
     )
   }

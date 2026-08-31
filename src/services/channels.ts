@@ -30,7 +30,8 @@ import type {
   ClaudeSessionStatus,
   ClaudeUsageSummary,
   ClaudeRealUsage,
-  ClaudeRealUsageOptions
+  ClaudeRealUsageOptions,
+  ClaudeLastModel
 } from './claude/claude.types'
 import type { NbNode } from './notebook/notebook.types'
 import type { PlanForBranch, PlanScanEntry } from './plans/plans.types'
@@ -56,6 +57,12 @@ import type { BuildInfo, RepoGit } from './app/app.types'
 import type { DeployResult } from './deploy/deploy.types'
 import type { ZshCommand } from './zsh/zsh.types'
 import type { BacklogFile } from './backlog/backlog.types'
+import type {
+  SystemMetrics,
+  ProcessListing,
+  QuitProcessRequest,
+  QuitProcessResult
+} from './system/system.types'
 import type { SavedState } from '@repositories/state.types'
 
 // ---- The channel names, grouped by domain ----
@@ -111,6 +118,7 @@ export const Channel = {
     ReadText: 'fs:readText',
     WriteMd: 'fs:writeMd',
     WriteText: 'fs:writeText',
+    WritePastedImage: 'fs:writePastedImage',
     CreateFile: 'fs:createFile',
     Mkdir: 'fs:mkdir',
     Rename: 'fs:rename',
@@ -138,7 +146,8 @@ export const Channel = {
     WatchSessions: 'claude:watchSessions',
     SessionsChanged: 'claude:sessionsChanged',
     UsageSummary: 'claude:usageSummary',
-    RealUsage: 'claude:realUsage'
+    RealUsage: 'claude:realUsage',
+    LastModel: 'claude:lastModel'
   },
   Notebook: {
     Tree: 'notebook:tree',
@@ -263,6 +272,11 @@ export const Channel = {
   Store: {
     Load: 'store:load',
     Save: 'store:save'
+  },
+  System: {
+    Metrics: 'system:metrics',
+    Processes: 'system:processes',
+    Quit: 'system:quit'
   }
 } as const
 
@@ -321,6 +335,14 @@ export const channels = {
   [Channel.Fs.ReadText]: rpc<{ path: string }, ReadTextResult>(),
   [Channel.Fs.WriteMd]: rpc<{ path: string; content: string }, boolean>(),
   [Channel.Fs.WriteText]: rpc<{ path: string; content: string }, boolean>(),
+  // `data` is the pasted image as base64, `name` the composer's own label for it
+  // (image-1, image-2, …) and `batch` the ticket it belongs to — together they make
+  // the filename. The reply is the absolute path it was written to (null when the
+  // write was refused).
+  [Channel.Fs.WritePastedImage]: rpc<
+    { data: string; ext: string; name: string; batch: string },
+    string | null
+  >(),
   [Channel.Fs.CreateFile]: rpc<{ path: string }, boolean>(),
   [Channel.Fs.Mkdir]: rpc<{ path: string }, boolean>(),
   [Channel.Fs.Rename]: rpc<{ from: string; to: string }, boolean>(),
@@ -351,6 +373,7 @@ export const channels = {
   [Channel.Claude.SessionsChanged]: evt<{ cwd: string }>(),
   [Channel.Claude.UsageSummary]: rpc<void, ClaudeUsageSummary>(),
   [Channel.Claude.RealUsage]: rpc<ClaudeRealUsageOptions, ClaudeRealUsage>(),
+  [Channel.Claude.LastModel]: rpc<void, ClaudeLastModel | null>(),
 
   // ── notebook ──
   [Channel.Notebook.Tree]: rpc<void, NbNode[]>(),
@@ -488,7 +511,12 @@ export const channels = {
 
   // ── store ──
   [Channel.Store.Load]: rpc<void, SavedState | null>(),
-  [Channel.Store.Save]: msg<SavedState>()
+  [Channel.Store.Save]: msg<SavedState>(),
+
+  // ── system resources ──
+  [Channel.System.Metrics]: rpc<void, SystemMetrics>(),
+  [Channel.System.Processes]: rpc<void, ProcessListing>(),
+  [Channel.System.Quit]: rpc<QuitProcessRequest, QuitProcessResult>()
 } as const
 
 export type Channels = typeof channels

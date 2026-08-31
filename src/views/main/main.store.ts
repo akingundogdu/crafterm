@@ -29,7 +29,8 @@ import {
   setPaneBackground,
   adjustActivePaneFontSize,
   resetActivePaneFontSize,
-  refreshPaneDailyTask
+  refreshPaneDailyTask,
+  createDocPane
 } from '@views/pane/pane'
 import { createSqlPane } from '../screens/db-pane/db-pane'
 import { createCodePane } from '../screens/code-pane/code-pane'
@@ -89,6 +90,7 @@ import { showStashManager, showBranchCheckout } from '../screens/pickers/git/git
 import { showGlobalSearch } from '../screens/pickers/global-search/global-search'
 import { showSpotlight } from '../screens/spotlight/spotlight'
 import { startWorktreeReconcile } from '@services/worktrees'
+import { normalizeWorktreeScripts } from '@services/domain/worktree-command'
 import { onProcessExit } from '@services/bgproc'
 import { startIosWorktreePoll } from '../screens/ios-worktree/ios-worktree'
 import { showImproveModal } from '../screens/improve-crafterm/improve-crafterm.store'
@@ -127,6 +129,21 @@ import {
   openCodeEditor,
   contextFolderId
 } from '@views/commands/commands'
+
+// How long the boot skeleton (index.html + app-shell/boot-skeleton.css) stays on
+// screen. Counted from navigation start, not from here, so a slow module load
+// eats into the wait instead of adding to it.
+const BOOT_SKELETON_MS = 3000
+
+// Swap the boot skeleton for the real shell. By the time this module is running,
+// every stylesheet the entry imports has been applied, so revealing #app can no
+// longer show unstyled markup. E2E (main passes ?e2e=1) reveals immediately —
+// the hold is cosmetic, and every spec waits for the shell to become visible.
+export function revealAppShell(): void {
+  const isE2E = new URLSearchParams(location.search).has('e2e')
+  const remaining = isE2E ? 0 : Math.max(0, BOOT_SKELETON_MS - performance.now())
+  setTimeout(() => document.body.classList.add('app-ready'), remaining)
+}
 
 // New terminals: if the selected container (project or folder) has a command
 // defined, open a terminal there and run it (project command runs in the
@@ -478,6 +495,10 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
       const codeId = createCodePane({ path: n.codePane.path, themeName: n.codePane.themeName })
       return { type: 'leaf', paneId: codeId }
     }
+    if (n.docPane) {
+      const docId = createDocPane(n.docPane.path, { absolute: n.docPane.absolute })
+      return { type: 'leaf', paneId: docId }
+    }
     // cwd-aware resume: if the saved cwd was lost (e.g. wiped by a transient lsof
     // failure before an older build's hard kill) but we still have the Claude
     // session id, recover the session's real cwd from its jsonl so the pane —
@@ -624,6 +645,7 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
             }
           : undefined,
         supportWorktree: n.supportWorktree,
+        worktreeScripts: n.worktreeScripts ? normalizeWorktreeScripts(n.worktreeScripts) : undefined,
         issueKeyPrefix: n.issueKeyPrefix
       })
     } else if (n.kind === 'worktree' || (n.kind === 'folder' && n.worktreePath)) {

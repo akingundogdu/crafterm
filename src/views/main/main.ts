@@ -12,11 +12,13 @@ import {
   installGlobalKeydown,
   startPolling,
   wireServiceWatchers,
+  revealAppShell,
   init
 } from './main.store'
 
 // Main-window entry: register all wiring in the same order as before, then boot.
 // The handler bodies + session-restore logic live in `main.state.ts`.
+revealAppShell()
 wireHooks()
 wirePaneActions()
 wirePtyStream()

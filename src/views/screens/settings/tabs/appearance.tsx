@@ -15,6 +15,10 @@ import {
   setDocFontSize,
   setEditorTheme,
   setSidebarSelectedColor,
+  setSidebarSelectedBg,
+  setSidebarSelectedText,
+  setSidebarActiveBg,
+  setSidebarActiveText,
   applyBackground,
   copyCurrentToCustom,
   setCustomColor
@@ -64,9 +68,45 @@ class AppearancePanel extends Component {
         />
         <div class="field">
           <ColorRow
+            colorKey={UITexts.Settings.appearance.sidebarActiveBackground}
+            value={settings.sidebarActiveBg}
+            placeholder={UITexts.Settings.appearance.themeDefault}
+            onApply={(_key: string, v: string) => setSidebarActiveBg(v)}
+            onClear={() => setSidebarActiveBg('')}
+          />
+        </div>
+        <div class="field">
+          <ColorRow
+            colorKey={UITexts.Settings.appearance.sidebarActiveText}
+            value={settings.sidebarActiveText}
+            placeholder={UITexts.Settings.appearance.themeDefault}
+            onApply={(_key: string, v: string) => setSidebarActiveText(v)}
+            onClear={() => setSidebarActiveText('')}
+          />
+        </div>
+        <div class="field">
+          <ColorRow
             colorKey={UITexts.Settings.appearance.sidebarSelectedBorder}
             value={settings.sidebarSelectedColor}
             onApply={(_key: string, v: string) => setSidebarSelectedColor(v)}
+          />
+        </div>
+        <div class="field">
+          <ColorRow
+            colorKey={UITexts.Settings.appearance.sidebarSelectedBackground}
+            value={settings.sidebarSelectedBg}
+            placeholder={UITexts.Settings.appearance.themeDefault}
+            onApply={(_key: string, v: string) => setSidebarSelectedBg(v)}
+            onClear={() => setSidebarSelectedBg('')}
+          />
+        </div>
+        <div class="field">
+          <ColorRow
+            colorKey={UITexts.Settings.appearance.sidebarSelectedText}
+            value={settings.sidebarSelectedText}
+            placeholder={UITexts.Settings.appearance.themeDefault}
+            onApply={(_key: string, v: string) => setSidebarSelectedText(v)}
+            onClear={() => setSidebarSelectedText('')}
           />
         </div>
         <div class="field">

@@ -168,6 +168,22 @@
   color: var(--text-mute);
 }
 
+/* issue-key badge on a task-bound terminal row (key stripped from the label) */
+.tab-ticket-badge {
+  font-size: 0.68em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 0px 5px;
+  white-space: nowrap;
+}
+.tab-item.active .tab-ticket-badge {
+  color: var(--text-dim);
+}
+
 /* Claude session status pill (sidebar terminal rows) */
 .claude-status {
   font-size: 0.62em;
@@ -390,8 +406,32 @@ body:not(.window-fullscreen) #app.sidebar-collapsed #content-statusbar {
   box-shadow: inset 0 0 0 1.5px rgba(76, 141, 255, 0.55);
 }
 
+/* Positioning context for the sticky ancestor path overlay, which must sit above the
+   scrolling list without taking layout space away from it. */
+#tab-list-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+#sidebar-sticky-path {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+/* a horizontal sidebar scrolls sideways — there is no top edge to pin a path to */
+.orient-top #sidebar-sticky-path {
+  display: none;
+}
+
 #tab-list {
   flex: 1;
+  min-height: 0;
   padding: 4px 0 8px;
   display: flex;
 }

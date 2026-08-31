@@ -6,9 +6,7 @@ import { state } from '@views/state/spine'
 import { dailyTaskRepo } from '@repositories'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { findProjectById } from '@views/catalog/catalog'
-import { openClaudeWithPrompt } from '@views/commands/commands'
-import { ensureWorktreeForBranch } from '@services/worktrees'
-import { showWorktreeProgress } from '@views/components/worktree-progress/worktree-progress'
+import { openClaudeWithPrompt, createWorktreeInTerminal } from '@views/commands/commands'
 import { createOverlay } from '@views/components/overlay/overlay'
 import {
   todayKey,
@@ -115,29 +113,28 @@ export async function openTaskInTerminal(
 
   if (useWorktree) {
     // Create (or reuse) a worktree whose branch == the issue key (optionally with
-    // the task's slug suffix), and run there (todo6). The terminal nests under that
-    // worktree node. The steps run behind a progress overlay: this used to happen
-    // silently after the modal closed, so a failure looked like nothing happening
-    // (todomr4q102cd9).
+    // the task's slug suffix), and run there (todo6). One terminal does the whole
+    // thing — the setup scripts and then Claude — and ends up nested under the
+    // worktree node once git reports it. The terminal carries the SAME name as the
+    // worktree (the branch, KEY[-slug]) so the sidebar reads as one unit; Claude's
+    // /rename can retitle it later. Auto-assigned to this task (todo50).
     const branch = worktreeBranchForTask(task, key)
-    const progress = showWorktreeProgress(UITexts.DailyPlan.worktreeProgress(branch))
-    const wt = await ensureWorktreeForBranch(project, branch, opts.base, progress.setStep)
-    if (!wt.ok) {
-      // The worktree never came up, so no work started — leave the ticket's status
-      // alone. It used to be flipped to In Progress before this point, which left a
-      // ticket claiming work had begun when nothing had (todomr4q102cd9).
-      await progress.fail(wt.error)
-      return
-    }
-    cwd = wt.path
-    parentId = wt.nodeId ?? project.id
-    progress.setStep('opening')
-    startWork(task, onChange)
-    // The terminal opens under the SAME name as the worktree (the branch, KEY[-slug])
-    // so the sidebar reads as one unit; Claude's /rename can retitle it later.
-    // Auto-assign to this task (full match — see todo50).
-    await openClaudeWithPrompt(parentId, cwd, prompt, branch, task.id, opts.isPlanMode)
-    progress.close()
+    await createWorktreeInTerminal({
+      project,
+      repoRoot: project.path,
+      branch,
+      base: opts.base ?? 'main',
+      placement: 'tab',
+      parentFolderId: project.id,
+      title: branch,
+      titleLocked: true,
+      claudePrompt: prompt,
+      isPlanMode: opts.isPlanMode,
+      dailyTaskId: task.id,
+      // The session is live as soon as the terminal is up; don't make the ticket
+      // wait out git + the setup scripts to move to In Progress.
+      onTerminalOpened: () => startWork(task, onChange)
+    })
     return
   }
 

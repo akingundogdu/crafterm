@@ -14,6 +14,7 @@ import {
   tabExpandable,
   plansForTab,
   claudeStatusOfTab,
+  tabIssueKey,
   tabTaskBadge,
   makeToggleDetails,
   makeProcessRowClick,
@@ -130,6 +131,14 @@ export function buildTrailing(node: SidebarNode): HTMLElement | null {
       )
     : null
 
+  // Issue key of a task-bound terminal, shown as a small badge; the key is
+  // stripped from the label so it isn't repeated inline (see stripIssuePrefix).
+  let ticketBadge: HTMLElement | null = null
+  if (node.kind === 'tab') {
+    const key = tabIssueKey(node)
+    if (key) ticketBadge = el('span', { class: 'tab-ticket-badge', title: key }, key)
+  }
+
   let statusPill: HTMLElement | null = null
   if (node.kind === 'tab') {
     // A code-review/test task overrides the Claude status pill with its badge.
@@ -165,6 +174,7 @@ export function buildTrailing(node: SidebarNode): HTMLElement | null {
     null,
     iosActions,
     newWorktreeBtn,
+    ticketBadge,
     statusPill,
     childCountBadge,
     node.pinned ? pinBadge() : null

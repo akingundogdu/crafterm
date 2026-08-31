@@ -7,7 +7,9 @@ import { join } from 'path'
 // stays on a temp dir (and records what would have been trashed).
 const trashed: string[] = []
 vi.mock('electron', () => ({
-  shell: { trashItem: vi.fn(async (p: string) => { trashed.push(p) }) }
+  shell: { trashItem: vi.fn(async (p: string) => { trashed.push(p) }) },
+  // Reached through paths.service (the pasted-images dir lives beside the state dir).
+  app: { isPackaged: false }
 }))
 
 import * as fsService from '@core/services/fs/fs.service'
@@ -117,5 +119,52 @@ describe('fs.service resolution', () => {
     expect(withSym).toEqual({ path: join(base, 'mod.ts'), line: 2 })
 
     expect(fsService.resolveImport(join(base, 'from.ts'), 'react')).toBeNull() // bare module
+  })
+})
+
+describe('fs.service pasted images', () => {
+  const batches: string[] = []
+
+  afterEach(() => {
+    batches.splice(0).forEach((b) => rmSync(join(tmpdir(), 'crafterm-pasted-images', b), { recursive: true, force: true }))
+  })
+
+  function write(data: string, ext: string, name = 'image-1', batch = 'batch1'): string | null {
+    if (!batches.includes(batch)) batches.push(batch)
+    return fsService.writePastedImage(data, ext, name, batch)
+  }
+
+  it('writes the base64 bytes out as <batch>/<name>.<ext> under the pasted-images dir', () => {
+    const path = write(Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64'), 'png', 'image-2', 'batch1')
+
+    expect(path).toBe(join(tmpdir(), 'crafterm-pasted-images', 'batch1', 'image-2.png'))
+    expect([...readFileSync(path!)]).toEqual([0x89, 0x50, 0x4e, 0x47])
+  })
+
+  it('keeps each batch in its own dir, so the same name in a later ticket is a new file', () => {
+    const first = write('AAAA', 'png', 'image-1', 'batch1')
+    const second = write('AAAA', 'png', 'image-1', 'batch2')
+
+    expect(first).not.toBe(second)
+    expect(existsSync(first!)).toBe(true)
+    expect(existsSync(second!)).toBe(true)
+  })
+
+  it('strips anything that could climb out of the dir from the name, batch and extension', () => {
+    const path = write('AAAA', '../../etc/passwd', '../../../evil', '../escape')
+
+    expect(path).toBe(join(tmpdir(), 'crafterm-pasted-images', 'escape', 'evil.png'))
+    batches.push('escape')
+  })
+
+  it('falls back when the name or batch strips down to nothing', () => {
+    expect(write('AAAA', 'png', '///', '...')).toBe(
+      join(tmpdir(), 'crafterm-pasted-images', 'batch', 'image.png')
+    )
+    batches.push('batch')
+  })
+
+  it('drops an empty payload', () => {
+    expect(fsService.writePastedImage('', 'png', 'image-1', 'batch1')).toBeNull()
   })
 })

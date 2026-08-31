@@ -18,7 +18,7 @@ import {
 import { persistence } from '@repositories/persistence.service'
 import { makeFolder, allTabs, projectOf } from '@views/tree/tree'
 import { flattenProjects } from '@views/catalog/catalog'
-import { archiveTab } from '@views/commands/commands'
+import { archiveTab, createWorktreeInTerminal } from '@views/commands/commands'
 import { runHiddenAndWait, removeProcess } from './bgproc'
 import { promptForm } from '@views/components/dialog/prompt-form'
 import { promptConfirm } from '@views/components/dialog/confirm'
@@ -186,10 +186,6 @@ export function reconcileWorktrees(): Promise<void> {
   return queued
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
 // Run once on load and then on a slow interval (only mutates when the git set
 // actually changed).
 export function startWorktreeReconcile(): void {
@@ -200,7 +196,7 @@ export function startWorktreeReconcile(): void {
 }
 
 // Find a materialized worktree node by its absolute path.
-function findWorktreeNodeByPath(path: string): WorktreeNode | null {
+export function findWorktreeNodeByPath(path: string): WorktreeNode | null {
   const target = norm(path)
   let hit: WorktreeNode | null = null
   const walk = (nodes: SidebarNode[]): void => {
@@ -250,52 +246,6 @@ export function worktreeForCwd(
 // background, so a failure looked like nothing happening.
 export type WorktreeStage = 'looking' | 'creating' | 'materializing'
 
-export type EnsureWorktreeResult =
-  | { ok: true; path: string; nodeId: string | null }
-  | { ok: false; error: string }
-
-// Ensure a worktree exists for `branch` (creating it off `base` when absent), then
-// return its path + materialized node id. Awaits creation. Used by "Run in
-// worktree" for a daily ticket — branch == issue key (todo6). Reports each step
-// through `onStage`, and hands git's own stderr back on failure so the caller can
-// show WHY it failed.
-export async function ensureWorktreeForBranch(
-  p: ProjectNode,
-  branch: string,
-  base = 'main',
-  onStage?: (stage: WorktreeStage) => void
-): Promise<EnsureWorktreeResult> {
-  if (!p.path) return { ok: false, error: `Project “${p.name}” has no path.` }
-  const repo = norm(p.path)
-  const worktreesDir = norm(
-    p.iosConfig?.worktreesDir?.trim() || `${repo.split('/').slice(0, -1).join('/')}/worktrees`
-  )
-  const path = `${worktreesDir}/${branch}`
-  onStage?.('looking')
-  const listing = await gitService.listWorktrees(repo)
-  const exists = (listing?.worktrees ?? []).some((w) => norm(w.path) === path)
-  if (!exists) {
-    onStage?.('creating')
-    const created = await gitService.worktreeAdd(repo, path, branch, base)
-    if (!created.ok) {
-      return { ok: false, error: created.error || `git could not create a worktree for ${branch}.` }
-    }
-  }
-  // Wait deterministically for the node to materialize: reconcile, then poll
-  // (git's worktree listing can lag a fresh add). Bounded so a failure can't hang
-  // the "Run in worktree" action — caller falls back to the project root.
-  onStage?.('materializing')
-  let node = findWorktreeNodeByPath(path)
-  const deadline = Date.now() + 3000
-  while (!node && Date.now() < deadline) {
-    await reconcileWorktrees()
-    node = findWorktreeNodeByPath(path)
-    if (node) break
-    await delay(50)
-  }
-  return { ok: true, path, nodeId: node?.id ?? null }
-}
-
 // Find the worktree node for a branch (e.g. an issue key) within a project, for
 // the "delete worktree on done?" prompt (todo7).
 export function worktreeNodeForBranch(p: ProjectNode, branch: string): WorktreeNode | null {
@@ -314,9 +264,9 @@ export function worktreeNodeForBranch(p: ProjectNode, branch: string): WorktreeN
   return hit
 }
 
-// Create a new worktree for a project: `git worktree add` runs as a hidden
-// background shell under the project node (a "creating…" row, no visible
-// terminal); on success a reconcile materializes the new worktree node.
+// Create a new worktree for a project (sidebar ⋯ → "New worktree"). Runs through
+// the shared terminal flow, so the creation + the configured pre/post scripts are
+// visible in a real terminal that ends up nested under the new worktree node.
 export async function newWorktree(p: ProjectNode): Promise<void> {
   if (!p.path) return
   const values = await promptForm({
@@ -329,27 +279,15 @@ export async function newWorktree(p: ProjectNode): Promise<void> {
   })
   const branch = (values?.branch || '').trim()
   if (!branch) return
-  const base = (values?.base || 'main').trim() || 'main'
-  const repo = norm(p.path)
-  const worktreesDir = norm(p.iosConfig?.worktreesDir?.trim() || `${repo.split('/').slice(0, -1).join('/')}/worktrees`)
-  const wtPath = `${worktreesDir}/${branch}`
-  const { stableId, code } = await runHiddenAndWait(p, {
-    title: `creating ${branch}…`,
-    command: `git worktree add ${shq(wtPath)} -b ${shq(branch)} ${shq(base)}`,
-    cwd: repo,
-    role: 'shell'
+  await createWorktreeInTerminal({
+    project: p,
+    repoRoot: norm(p.path),
+    branch,
+    base: (values?.base || 'main').trim() || 'main',
+    placement: 'tab',
+    parentFolderId: p.id,
+    title: branch
   })
-  removeProcess(stableId)
-  if (code === 0) {
-    await reconcileWorktrees()
-  } else {
-    pushNotification(
-      '',
-      'Worktree create failed',
-      'worktree',
-      `git worktree add for "${branch}" exited with code ${code}.`
-    )
-  }
 }
 
 // What the pre-check found, as the sentence the confirm dialog opens with. Empty

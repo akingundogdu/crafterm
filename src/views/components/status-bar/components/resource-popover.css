@@ -1,0 +1,126 @@
+/* Detail popover for the resource chip: CPU / memory / swap bars, the memory
+   split, and the heaviest applications. Anchored under the chip with fixed
+   positioning (top/left set inline from the chip's rect). */
+.resource-popover {
+  position: fixed;
+  z-index: 4000;
+  width: 380px;
+  background: rgba(18, 20, 26, 0.98);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+.resource-popover-head {
+  margin-bottom: 12px;
+}
+.resource-popover-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---- meters ---- */
+.resource-popover-meter {
+  margin-bottom: 10px;
+}
+.resource-popover-meter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.resource-popover-meter-head b {
+  font-size: 12px;
+  color: var(--text);
+}
+.resource-popover-meter-detail {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.resource-popover-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.resource-popover-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #58a6ff, #79c0ff);
+  transition: width 0.2s ease;
+}
+.resource-popover-bar-fill.warn {
+  background: linear-gradient(90deg, #d29922, #e3b341);
+}
+.resource-popover-bar-fill.high {
+  background: linear-gradient(90deg, #f85149, #ff7b72);
+}
+
+/* ---- memory split ---- */
+.resource-popover-breakdown {
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+  margin: 10px 0 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+}
+.resource-popover-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.resource-popover-breakdown-row > :last-child {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- sort tabs ---- */
+.resource-popover-sorts {
+  display: flex;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 8px;
+}
+.resource-popover-sort {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.resource-popover-sort:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.resource-popover-sort.active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ---- application list ---- */
+.resource-popover-rows {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+}
+.resource-popover-empty {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 10px;
+}
+.resource-popover-error {
+  margin-top: 8px;
+  color: #f85149;
+  font-size: 11px;
+}

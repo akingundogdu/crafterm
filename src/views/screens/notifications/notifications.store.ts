@@ -16,14 +16,7 @@ import { UITexts } from '@texts'
 import { showDailyPlanModal } from '@views/screens/daily-plan/daily-plan.entry'
 import { openMeetingNote } from '@views/screens/meeting-notes/meeting-notes.store'
 import type { AppNotification, ReminderPayload } from '@views/types/types'
-import type {
-  RealUsage,
-  UsageWindow,
-  NotifChip,
-  PayloadOpener,
-  NotifGroup,
-  NotifKindFilter
-} from './notifications.types'
+import type { RealUsage, UsageWindow, NotifChip, PayloadOpener, NotifGroup } from './notifications.types'
 
 // Down-chevron toggle on each card; rotates 180° via CSS when the card expands.
 export const CHEVRON_SVG =
@@ -167,14 +160,7 @@ export function resolvePayloadOpener(payload: ReminderPayload | undefined): Payl
   return null
 }
 
-// ---- Grouping + filtering --------------------------------------------------
-
-// Which filter chip a notification answers to: its status (reminder / question /
-// done) — the same reading `toneOf` gives the card's accent.
-export function kindOf(n: AppNotification): NotifKindFilter {
-  const tone = toneOf(n)
-  return tone === 'reminder' || tone === 'question' || tone === 'done' ? tone : 'all'
-}
+// ---- Grouping --------------------------------------------------------------
 
 // Collapse a TERMINAL's notifications into one group, newest group first
 // (todomr5sckyaei). The key is the terminal (its sidebar tab), not the pane: a split
@@ -234,49 +220,16 @@ export function groupNotifications(items: AppNotification[]): NotifGroup[] {
 class NotificationsStore extends Store {
   items: AppNotification[] = []
   expanded: Record<string, boolean> = {}
-  // Filter chips above the list (todomr9i30ytij): a project (folder/group name, ''
-  // = all) and a status kind.
-  projectFilter: string = ''
-  kindFilter: NotifKindFilter = 'all'
 
   // Mirror the repo into the reactive array and push the unread count to the badge.
   reload(): void {
     this.items = [...notificationRepo.getAll()]
     updateNotifBadge(notificationRepo.getAll().length)
-    // A filter whose last notification just went away would hide everything — drop it.
-    if (this.projectFilter && !this.items.some((n) => n.group === this.projectFilter)) {
-      this.projectFilter = ''
-    }
   }
 
-  // Notifications passing both chips, collapsed per terminal.
+  // Every notification, collapsed per terminal — the panel has no filters.
   get groups(): NotifGroup[] {
-    const visible = this.items
-      .filter((n) => !this.projectFilter || n.group === this.projectFilter)
-      .filter((n) => this.kindFilter === 'all' || kindOf(n) === this.kindFilter)
-    return groupNotifications(visible)
-  }
-
-  // Project chips (name + count), most notifications first. Counts respect the kind
-  // chip, so the two filters read together.
-  get projectChips(): { project: string; count: number }[] {
-    const counts = new Map<string, number>()
-    for (const n of this.items) {
-      if (!n.group) continue
-      if (this.kindFilter !== 'all' && kindOf(n) !== this.kindFilter) continue
-      counts.set(n.group, (counts.get(n.group) ?? 0) + 1)
-    }
-    return [...counts.entries()]
-      .map(([project, count]) => ({ project, count }))
-      .sort((a, b) => b.count - a.count || a.project.localeCompare(b.project))
-  }
-
-  setProjectFilter(project: string): void {
-    this.projectFilter = project
-  }
-
-  setKindFilter(kind: NotifKindFilter): void {
-    this.kindFilter = kind
+    return groupNotifications(this.items)
   }
 
   isExpanded(id: string): boolean {

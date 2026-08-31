@@ -40,6 +40,13 @@ export interface SavedLeaf {
     path: string
     themeName?: string
   }
+  // When set, this leaf is a markdown doc pane; restore re-opens the file from
+  // its path. `absolute` distinguishes a disk/plan file (read-only) from a
+  // relative notebook note (unsaved edits are not persisted).
+  docPane?: {
+    path: string
+    absolute: boolean
+  }
 }
 export interface SavedSplit {
   type: 'split'
@@ -93,6 +100,17 @@ export interface SavedProjectCommand {
   name: string
   command: string
 }
+// Shell commands run around a `git worktree add` — `pre` in the repo root before
+// the worktree exists, `post` inside the new worktree.
+export interface SavedWorktreeScript {
+  id: string
+  name: string
+  command: string
+}
+export interface SavedWorktreeScripts {
+  pre?: SavedWorktreeScript[]
+  post?: SavedWorktreeScript[]
+}
 // Per-project iOS worktree config (repo root = the project's `path`). Empty
 // fields are auto-detected by the bundled ios-worktree.sh script.
 export interface SavedIosConfig {
@@ -122,6 +140,7 @@ export interface SavedProject {
   features?: SavedFeature[]
   runCommands?: SavedProjectCommand[]
   supportWorktree?: boolean
+  worktreeScripts?: SavedWorktreeScripts
   iosApp?: boolean
   iosConfig?: SavedIosConfig
   issueKeyPrefix?: string
@@ -190,6 +209,7 @@ export interface SavedSidebar {
   collapsed?: boolean
   details: { status: boolean; git: boolean; panes: boolean; paneList?: boolean }
   groupByRecency?: boolean
+  newTree?: boolean
 }
 
 // Database tool: persisted connection tree (passwords plaintext, user's choice).
@@ -226,6 +246,10 @@ export interface SavedState {
   customTheme?: Record<string, string>
   bgColor?: string // user-chosen background color
   sidebarSelectedColor?: string // border color of the selected sidebar node
+  sidebarSelectedBg?: string // background of the selected sidebar node ('' = theme default)
+  sidebarSelectedText?: string // text color inside the selected sidebar node ('' = theme default)
+  sidebarActiveBg?: string // background of the active terminal's sidebar card ('' = theme default)
+  sidebarActiveText?: string // text color inside the active terminal's card ('' = theme default)
   editorTheme?: string // global Monaco theme name for the code + SQL editors
   docFontSize?: number // markdown doc font size
   codeRoot?: string // base folder for the Cmd+P folder picker
@@ -259,6 +283,8 @@ export interface SavedState {
   }[]
   // user-managed command palette entries (predefined + cheatsheets)
   paletteCommands?: { id: string; category: string; name: string; command: string }[]
+  // global pre/post shell commands run around every worktree creation
+  worktreeScripts?: SavedWorktreeScripts
   notifPanelSize?: number // right notification panel width (px)
   notifSound?: string // macOS system sound name played on notification
   reminders?: {

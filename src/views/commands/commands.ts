@@ -6,7 +6,8 @@ import type {
   FolderNode,
   ProjectNode,
   WorktreeNode,
-  Application
+  Application,
+  WorktreeScript
 } from '@views/types/types'
 import { MAX_FOLDER_DEPTH } from '@views/types/types'
 import { linkTargetKind } from './link-target'
@@ -28,7 +29,8 @@ import {
   updateActive,
   updatePaneActive,
   applyDocFont,
-  paneActions
+  paneActions,
+  pushNotification
 } from '@views/state/state'
 import { exitSideBySide, isTabTiled } from '@views/screens/content/content.store'
 import { persistence } from '@repositories/persistence.service'
@@ -72,8 +74,29 @@ import { promptText } from '@views/components/dialog/prompt-text'
 import { promptForm } from '@views/components/dialog/prompt-form'
 import { promptConfirm } from '@views/components/dialog/confirm'
 import { promptCloseActions } from '@views/components/dialog/prompt-close-actions'
-import { removeWorktree, worktreeForCwd } from '@services/worktrees'
-import { terminalService, fsService , paneService } from '@services'
+import {
+  removeWorktree,
+  worktreeForCwd,
+  findWorktreeNodeByPath,
+  worktreeNodeForBranch,
+  reconcileWorktrees
+} from '@services/worktrees'
+import { norm } from '@services/domain/worktree-path'
+import {
+  worktreePathFor,
+  buildWorktreeCommand,
+  buildExistingWorktreeCommand,
+  buildWorktreeSetupChain,
+  collectWorktreeScripts,
+  scriptStepId,
+  WORKTREE_STEP_OSC
+} from '@services/domain/worktree-command'
+import {
+  showWorktreeProgress,
+  type WorktreeProgressHandle
+} from '@views/components/worktree-progress/worktree-progress'
+import { CREATE_STEPS, type ProgressStep } from '@views/components/worktree-progress/worktree-progress.store'
+import { terminalService, fsService , paneService, gitService } from '@services'
 import { dailyTaskRepo } from '@repositories'
 import type { GitAction, DropMode } from './commands.types'
 import { createToastEl } from './toast'
@@ -204,7 +227,7 @@ async function createTab(
     cwd?: string
     dailyTaskId?: string
   }
-): Promise<void> {
+): Promise<{ tab: TabNode; paneId: string }> {
   const folder = parentFolderId ? folderNodeById(parentFolderId) : null
   let env = folder?.env ? parseEnvLines(folder.env) : undefined
   // Inside an iOS worktree, inject CRAFTERM_IOS_SCRIPT + IOSWT_* so terminals (and
@@ -290,6 +313,7 @@ async function createTab(
   const command = built ? withClaudeSessionId(built, paneId) : built
   // Let the login shell finish its init before injecting the command.
   if (command) setTimeout(() => terminalService.input(paneId, command + '\r'), 350)
+  return { tab, paneId }
 }
 
 function folderNodeById(id: string): FolderNode | ProjectNode | WorktreeNode | null {
@@ -526,7 +550,20 @@ export async function createFeature(
     // so each runs in order in the same shell.
     const dev = app.commands[env].trim()
     const parts: string[] = []
-    if (wantsWorktree) parts.push(`run-create-worktree ${shellQuote(branch)} ${shellQuote(base)}`)
+    // The worktree + its configured setup scripts run in a subshell, so this
+    // terminal keeps the app's own directory for `startup && dev`.
+    if (wantsWorktree) {
+      parts.push(
+        buildWorktreeSetupChain({
+          repoRoot: norm(project.path),
+          worktreePath: worktreePathFor(norm(project.path), branch),
+          branch,
+          base,
+          global: settings.worktreeScripts,
+          project: project.worktreeScripts
+        })
+      )
+    }
     if (startup) parts.push(startup)
     parts.push(dev)
     toRun.push({ paneId, cmd: parts.join(' && ') })
@@ -1411,8 +1448,272 @@ function paneInDirection(dir: 'left' | 'right' | 'up' | 'down'): string | null {
   return best?.id ?? null
 }
 
-// Pane menu → "Create worktree": runs the user's `run-create-worktree` shell
-// function in a new split terminal opened in this pane's directory.
+// ---- Worktree creation (the one path every entry point shares) ----
+
+export interface CreateWorktreeOptions {
+  // Owning project, when known: supplies its own pre/post scripts on top of the
+  // global ones. Null for a bare repo the sidebar has no project node for.
+  project: ProjectNode | null
+  repoRoot: string
+  branch: string
+  base: string
+  // 'split' drops the terminal beside the active pane (pane menu); 'tab' opens a
+  // new sidebar tab, which is then moved under the worktree node once it appears.
+  placement: 'split' | 'tab'
+  parentFolderId?: string | null
+  title?: string
+  // Command to run inside the worktree once the setup scripts are done (e.g. `claude …`).
+  trailing?: string
+  // Seed a Claude session in that same terminal instead of a raw `trailing`
+  // command — the daily plan's "Run in worktree" (setup + Claude in one pane).
+  claudePrompt?: string
+  isPlanMode?: boolean
+  claude?: boolean
+  titleLocked?: boolean
+  dailyTaskId?: string
+  // Fired once the terminal exists and the chain has been typed — before the
+  // worktree itself is confirmed. Lets a caller mark work as started without
+  // waiting out the git + setup time.
+  onTerminalOpened?: () => void
+}
+
+export interface CreateWorktreeOutcome {
+  worktreePath: string
+  nodeId: string | null
+  paneId: string | null
+  existed: boolean
+}
+
+// How long to wait for the new worktree to show up in `git worktree list` (the
+// progress overlay's last step). `git worktree add` fetches its base first, so
+// this is measured in seconds, not milliseconds.
+const WORKTREE_MATERIALIZE_TIMEOUT_MS = 60_000
+const WORKTREE_MATERIALIZE_POLL_MS = 800
+// Backstop for the setup scripts: if the terminal never reports the last one
+// finishing (a shell without the marker support, a script waiting on input), the
+// overlay closes on its own rather than sitting over the app forever.
+const WORKTREE_SCRIPTS_TIMEOUT_MS = 300_000
+
+// The overlay's rows for one creation: the fixed stages with the configured
+// scripts slotted into the order they actually run. Each script is listed by its
+// name (or its command when unnamed), with the command as the row detail.
+function worktreeCreateSteps(pre: WorktreeScript[], post: WorktreeScript[]): ProgressStep[] {
+  const row = (phase: 'pre' | 'post') => (s: WorktreeScript) => ({
+    id: scriptStepId(phase, s),
+    label: s.name.trim() || s.command.trim(),
+    detail: s.name.trim() ? s.command.trim() : undefined
+  })
+  return [
+    CREATE_STEPS[0], // looking for an existing worktree
+    ...pre.map(row('pre')),
+    CREATE_STEPS[1], // creating the worktree
+    CREATE_STEPS[2], // adding it to the sidebar
+    ...post.map(row('post'))
+  ]
+}
+
+// Listen for the chain's step markers on a pane's terminal and drive the overlay
+// from them. Returns a disposer plus a promise that settles when `lastStepId`
+// reports done (or the backstop fires) — nothing to await when no step is watched.
+function watchWorktreeSteps(
+  paneId: string,
+  progress: WorktreeProgressHandle,
+  lastStepId: string | null
+): { done: Promise<void>; dispose: () => void } {
+  const term = panes.get(paneId)?.term
+  if (!term) return { done: Promise.resolve(), dispose: () => {} }
+  let settle: (() => void) | null = null
+  const done = lastStepId
+    ? new Promise<void>((resolve) => {
+        settle = resolve
+      })
+    : Promise.resolve()
+
+  const handler = term.parser.registerOscHandler(WORKTREE_STEP_OSC, (data: string) => {
+    const [tag, id, event, code] = data.split(';')
+    if (tag !== 'wt' || !id) return false
+    if (event === 'start') progress.markStep(id, 'active')
+    else if (event === 'done') progress.markStep(id, code === '0' ? 'done' : 'failed')
+    if (event === 'done' && id === lastStepId) settle?.()
+    return true
+  })
+
+  const timer = lastStepId ? window.setTimeout(() => settle?.(), WORKTREE_SCRIPTS_TIMEOUT_MS) : null
+  return {
+    done,
+    dispose: () => {
+      handler.dispose()
+      if (timer) clearTimeout(timer)
+      settle?.()
+    }
+  }
+}
+
+// Create a worktree by running the user's `run-create-worktree` shell function in
+// a real terminal, wrapped in the configured pre/post scripts (Settings → global +
+// per project). Everything is one visible command chain so git and each setup step
+// are watchable; a failing script warns but never blocks the rest.
+//
+// This is the single implementation behind the pane menu, the sidebar's "New
+// worktree" and the daily plan's "Run in worktree" — they differ only in where the
+// terminal lands and what runs in it afterwards.
+export async function createWorktreeInTerminal(
+  opts: CreateWorktreeOptions
+): Promise<CreateWorktreeOutcome> {
+  const repoRoot = norm(opts.repoRoot)
+  const branch = opts.branch.trim()
+  const base = opts.base.trim() || 'main'
+  const worktreePath = worktreePathFor(repoRoot, branch)
+  const title = opts.title || branch
+  const trailing = opts.claudePrompt
+    ? `claude${opts.isPlanMode ? ' --permission-mode plan' : ''} ${shQuote(opts.claudePrompt)}`
+    : opts.trailing
+
+  // The overlay lists the configured scripts as their own rows, so the user sees
+  // WHICH setup step is running — each one reports its start/exit from the shell.
+  const pre = collectWorktreeScripts(settings.worktreeScripts, opts.project?.worktreeScripts, 'pre')
+  const post = collectWorktreeScripts(settings.worktreeScripts, opts.project?.worktreeScripts, 'post')
+  const progress = showWorktreeProgress(
+    `Creating worktree ${branch}`,
+    worktreeCreateSteps(pre, post)
+  )
+  progress.setStep('looking')
+  const listing = await gitService.listWorktrees(repoRoot)
+  // Match on the BRANCH as well as the path: git reports canonical paths (on
+  // macOS /var/… resolves to /private/var/…), so a path-only comparison can miss
+  // a worktree that is very much there and make the creation fail as "already
+  // exists". git's own path is then the one to `cd` into.
+  const existing = (listing?.worktrees ?? []).find(
+    (w) => w.branch === branch || norm(w.path) === worktreePath
+  )
+  const existed = !!existing
+  const targetPath = existing ? norm(existing.path) : worktreePath
+  // An existing worktree is entered, not rebuilt — the setup scripts belong to a
+  // FRESH worktree, so re-running them (a full re-index, a dependency install)
+  // would be wrong here.
+  const existingNode = existing ? findWorktreeNodeByPath(targetPath) : null
+  const command = existed
+    ? buildExistingWorktreeCommand(targetPath, trailing)
+    : buildWorktreeCommand({
+        repoRoot,
+        worktreePath,
+        branch,
+        base,
+        global: settings.worktreeScripts,
+        project: opts.project?.worktreeScripts,
+        trailing,
+        report: true
+      })
+
+  // No setStep here: from this point every step announces itself from the shell,
+  // so nudging the cursor forward would mark scripts done before they have run.
+  let paneId: string | null = null
+  let tabId: string | null = null
+  if (opts.placement === 'split') {
+    const newPaneId = await createPane(repoRoot)
+    if (!placeSplit(newPaneId, 'row')) {
+      progress.close()
+      return { worktreePath: targetPath, nodeId: existingNode?.id ?? null, paneId: null, existed }
+    }
+    paneId = newPaneId
+    focusActivePane()
+    const line = withClaudeSessionId(command, newPaneId)
+    setTimeout(() => terminalService.input(newPaneId, line + '\r'), 350)
+  } else {
+    // An existing worktree already has its node, so open the terminal there
+    // directly; a fresh one starts in the repo root and is moved once it appears.
+    const parentId = existingNode?.id ?? opts.parentFolderId ?? null
+    const created = await createTab(parentId, {
+      title,
+      titleLocked: opts.titleLocked,
+      command: existingNode ? trailing : command,
+      claude: opts.claude || !!opts.claudePrompt,
+      cwd: existingNode ? targetPath : repoRoot,
+      dailyTaskId: opts.dailyTaskId
+    })
+    paneId = created.paneId
+    tabId = created.tab.id
+  }
+  opts.onTerminalOpened?.()
+
+  if (existed) {
+    progress.close()
+    return { worktreePath: targetPath, nodeId: existingNode?.id ?? null, paneId, existed }
+  }
+
+  // Follow the chain's own step markers: each script flips its row to running and
+  // then to done/failed. The overlay stays up until the last one reports back.
+  const lastStep = post.length ? scriptStepId('post', post[post.length - 1]) : null
+  const watch = watchWorktreeSteps(paneId, progress, lastStep)
+
+  // Wait for git to report the worktree so the sidebar node exists; the post
+  // scripts keep running in the terminal meanwhile.
+  progress.setStep('materializing')
+  const node = await waitForWorktreeNode(worktreePath, branch, opts.project)
+  if (!node) {
+    watch.dispose()
+    progress.close()
+    pushNotification(
+      '',
+      'Worktree not listed yet',
+      'worktree',
+      `${branch} did not appear in git's worktree list — see the terminal for what happened.`
+    )
+    return { worktreePath, nodeId: null, paneId, existed }
+  }
+  progress.markStep('materializing', 'done')
+  if (tabId) moveTabUnder(tabId, node.id)
+  if (paneId) {
+    const p = panes.get(paneId)
+    // git's own path for the worktree — the chain `cd`s there, so keep the pane
+    // (and its restore) pointed at the same place.
+    if (p) p.cwd = node.worktreePath
+  }
+  persistence.save()
+  // The node is live from here on; the overlay only lingers for the post scripts.
+  await watch.done
+  watch.dispose()
+  progress.close()
+  return { worktreePath: node.worktreePath, nodeId: node.id, paneId, existed }
+}
+
+// Poll `git worktree list` (via reconcile) until the new worktree materializes as
+// a sidebar node, or the wait times out. The branch is the reliable key — the
+// predicted path can differ from git's canonical one (symlinked temp dirs, a
+// worktree the user placed elsewhere) — with the path as the fallback for a repo
+// that has no project node.
+async function waitForWorktreeNode(
+  worktreePath: string,
+  branch: string,
+  project: ProjectNode | null
+): Promise<WorktreeNode | null> {
+  const deadline = Date.now() + WORKTREE_MATERIALIZE_TIMEOUT_MS
+  for (;;) {
+    await reconcileWorktrees()
+    const node =
+      (project ? worktreeNodeForBranch(project, branch) : null) ?? findWorktreeNodeByPath(worktreePath)
+    if (node) return node
+    if (Date.now() >= deadline) return null
+    await new Promise((resolve) => setTimeout(resolve, WORKTREE_MATERIALIZE_POLL_MS))
+  }
+}
+
+// Re-parent a tab under the worktree node that now owns it (the terminal was
+// opened before the node existed).
+function moveTabUnder(tabId: string, targetFolderId: string): void {
+  const found = findById(state.tree, tabId)
+  const target = folderNodeById(targetFolderId)
+  if (!found || !target) return
+  const idx = found.parent.indexOf(found.node)
+  if (idx < 0) return
+  found.parent.splice(idx, 1)
+  target.children.push(found.node)
+  target.collapsed = false
+  requestSidebar()
+}
+
+// Pane menu → "Create worktree": asks for a name + base, then runs the shared
+// creation chain in a split terminal beside this pane.
 export async function createWorktreeFromPane(paneId: string): Promise<void> {
   const cwd = panes.get(paneId)?.cwd ?? undefined
   const form = await promptForm({
@@ -1424,21 +1725,34 @@ export async function createWorktreeFromPane(paneId: string): Promise<void> {
     confirmText: 'Create'
   })
   if (!form) return
+  const branch = form.name.trim()
+  if (!branch) return
+
+  // The pane may sit anywhere inside the repo; the worktree path is derived from
+  // the repo root, so resolve it before building the command.
+  const listing = await gitService.listWorktrees(cwd)
+  const repoRoot = listing?.root
+  if (!repoRoot) {
+    await promptConfirm({
+      title: 'Not a git repository',
+      message: 'This terminal is not inside a git repository.',
+      confirmText: 'OK'
+    })
+    return
+  }
 
   // make the source pane active so the split lands next to it
   state.activePaneId = paneId
   const owner = allTabs(state.tree).find((t) => layoutContains(t.root, paneId))
   if (owner) state.activeTabId = owner.id
 
-  const newPaneId = await createPane(cwd)
-  if (placeSplit(newPaneId, 'row')) {
-    focusActivePane()
-    const base = form.base || 'main'
-    setTimeout(
-      () => terminalService.input(newPaneId, `run-create-worktree ${shellQuote(form.name)} ${shellQuote(base)}\r`),
-      350
-    )
-  }
+  await createWorktreeInTerminal({
+    project: findProjectByPath(state.tree, repoRoot),
+    repoRoot,
+    branch,
+    base: form.base || 'main',
+    placement: 'split'
+  })
 }
 
 // Git quick-actions from the pane ⋯ menu. Each runs in a fresh split beside the

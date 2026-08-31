@@ -10,7 +10,7 @@ import { UITexts } from '@texts'
 import { openProcessView, killProcess } from '@services/bgproc'
 import { state, panes, settings, paneActions, renderContent, requestSidebar } from '@views/state/spine'
 import { setSideBySide, exitSideBySide } from '@views/screens/content/content.store'
-import { allTabs, panesInLayout, firstPaneOf, ancestorFolders } from '@views/tree/tree'
+import { allTabs, panesInLayout, firstPaneOf, ancestorFolders, isContainer } from '@views/tree/tree'
 import { paneStatus, isPlanOwnedByPane } from '@views/pane/pane'
 import {
   selectPane,
@@ -186,6 +186,16 @@ export function tabIssueKey(tab: TabNode): string | null {
   return null
 }
 
+// Drop a redundant leading issue-key prefix from a tab title so the row shows
+// the descriptive part (the key is surfaced separately as a badge). Worktree
+// branches are named `<KEY>-<slug>`, so the key duplicates in the label. Falls
+// back to the original title when stripping would leave it empty.
+export function stripIssuePrefix(title: string, key: string): string {
+  if (!title.toLowerCase().startsWith(key.toLowerCase())) return title
+  const rest = title.slice(key.length).replace(/^[-_/\s]+/, '')
+  return rest || title
+}
+
 // Claude session state for a tab: the most "active" status among its Claude panes.
 export function claudeStatusOfTab(node: TabNode): 'in-progress' | 'question' | 'idle' | null {
   let result: 'in-progress' | 'question' | 'idle' | null = null
@@ -240,7 +250,7 @@ export function stripPinned(nodes: SidebarNode[]): SidebarNode[] {
   const out: SidebarNode[] = []
   for (const n of nodes) {
     if (n.pinned) continue
-    if (n.kind === 'folder' || n.kind === 'project') out.push({ ...n, children: stripPinned(n.children) })
+    if (isContainer(n)) out.push({ ...n, children: stripPinned(n.children) })
     else out.push(n)
   }
   return out

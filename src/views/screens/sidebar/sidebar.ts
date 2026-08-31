@@ -1,6 +1,7 @@
 import type { SidebarNode } from '@views/types/types'
-import { state } from '@views/state/spine'
-import { createTreeView } from '@views/components/treeview/treeview'
+import { state, settings } from '@views/state/spine'
+import { createTreeView, type TreeView } from '@views/components/treeview/treeview'
+import { createSidebarTree } from './components/sidebar-tree'
 import { renderDatabase, dbApplyQuery } from '@views/screens/database/database'
 import { renderDocker, dockerApplyQuery } from '@views/screens/docker/docker'
 import { renderAccounts, accountsApplyQuery } from '@views/screens/accounts/accounts'
@@ -23,6 +24,7 @@ import {
 } from './components/keyboard-nav'
 import { applyTabDisplay, tabMeta } from './components/tab-display-control'
 import { createSidebarVisibility } from './components/sidebar-visibility'
+import { mountStickyPath } from './components/sticky-path'
 
 export { actionMenuSearchEntries }
 export { applyTabDisplay, tabMeta }
@@ -30,6 +32,7 @@ export { applyTabDisplay, tabMeta }
 const appEl = document.getElementById('app')!
 const sidebarEl = document.getElementById('sidebar')!
 const tabListEl = document.getElementById('tab-list')!
+const stickyPathEl = document.getElementById('sidebar-sticky-path')!
 const searchInputEl = document.getElementById('search-input') as HTMLInputElement
 
 const tabTerminalEl = document.getElementById('tab-terminal')!
@@ -77,16 +80,51 @@ export function toggleArchivedView(): void {
 // The terminal TreeView
 // ---------------------------------------------------------------------------
 
-const adapter = buildAdapter({
+const adapterCtx = {
   passesArchiveFilter,
   focusList,
-  beginRename: (id) => tree.beginRename(id),
+  beginRename: (id: string) => tree.beginRename(id),
   isArchivedView: () => showArchivedView,
   toggleArchivedView,
   renderSidebar: () => renderSidebar()
-})
+}
 
-const tree = createTreeView<SidebarNode>(tabListEl, adapter)
+// The modern data-driven gea tree (`components/tree`) behind an experimental
+// setting; the legacy `createTreeView` path is left untouched. Both return the
+// same `TreeView<SidebarNode>` handle, so everything downstream is identical.
+//
+// Creation is LAZY: this module is imported at app boot, before persisted
+// settings are loaded (`loadSettings` runs inside `init()`), so reading
+// `settings.sidebar.newTree` at module-eval time would always see the default.
+// The real tree is built on first use (first `renderSidebar`, which runs after
+// settings load); a forwarding proxy keeps every `tree.*` call site unchanged.
+let treeInstance: TreeView<SidebarNode> | null = null
+function getTree(): TreeView<SidebarNode> {
+  if (!treeInstance) {
+    treeInstance = settings.sidebar.newTree
+      ? createSidebarTree(tabListEl, adapterCtx)
+      : createTreeView<SidebarNode>(tabListEl, buildAdapter(adapterCtx))
+  }
+  return treeInstance
+}
+
+const tree: TreeView<SidebarNode> = {
+  get selectedId() {
+    return getTree().selectedId
+  },
+  set selectedId(v: string | null) {
+    getTree().selectedId = v
+  },
+  render: (roots) => getTree().render(roots),
+  renderSections: (sections) => getTree().renderSections(sections),
+  setFilter: (q) => getTree().setFilter(q),
+  handleKey: (e) => getTree().handleKey(e),
+  select: (id) => getTree().select(id),
+  selectFirst: () => getTree().selectFirst(),
+  beginRename: (id) => getTree().beginRename(id),
+  visibleNodes: () => getTree().visibleNodes(),
+  refreshDynamic: () => getTree().refreshDynamic()
+}
 
 // Drop on empty sidebar space -> move to root.
 tabListEl.addEventListener('dragover', (e) => e.preventDefault())
@@ -112,6 +150,10 @@ wireSearchInput({
 export function focusSearch(): void {
   focusSearchImpl(searchInputEl)
 }
+
+// The sticky ancestor path bar over the list ("Musicpal › backend › worktrees"). Only
+// the terminal mode's rows come from `state.tree`; the other modes own the list.
+mountStickyPath({ host: stickyPathEl, listEl: tabListEl, isEnabled: () => sidebarMode === 'terminal' })
 
 wireCollapseToggle()
 wireActionsMenu()
@@ -194,6 +236,14 @@ export function updateStatuses(): void {
 }
 
 export function updateActiveTab(): void {
+  // The new tree derives active/selected from the model — re-derive it reactively
+  // (its rows are `.crtree-card`, not the `.tab-item` the legacy fast-path toggles).
+  if (settings.sidebar.newTree) {
+    tree.selectedId = state.selectedNodeId
+    tree.refreshDynamic()
+    scrollSelectedIntoView(true)
+    return
+  }
   tabListEl.querySelectorAll<HTMLElement>('.tab-item[data-tree-id]').forEach((el) => {
     el.classList.toggle('active', el.dataset.treeId === state.activeTabId)
     el.classList.toggle('selected', el.dataset.treeId === state.selectedNodeId)

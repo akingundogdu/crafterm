@@ -29,3 +29,16 @@
   font-size: 12px;
   outline: none;
 }
+.color-row-reset {
+  background: transparent;
+  color: var(--text-mute);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.color-row-reset:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}

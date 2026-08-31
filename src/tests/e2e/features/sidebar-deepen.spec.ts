@@ -29,7 +29,7 @@ function project(id: string, name: string, group?: string): Record<string, any> 
   return { kind: 'project', id, name, color: null, collapsed: false, pinned: false, children: [], path: homedir(), ...(group ? { group } : {}) }
 }
 
-test('sidebar: a tab assigned to a task shows the issue-key suffix in its label', async () => {
+test('sidebar: a tab assigned to a task shows the issue key as a badge, not in the label', async () => {
   const dir = freshStateDir('crafterm-e2e-sbd-')
   writeState(dir, {
     tree: [boundTermTab('My Session', 't-1')],
@@ -37,7 +37,10 @@ test('sidebar: a tab assigned to a task shows the issue-key suffix in its label'
   })
   const { app, win } = await launchApp(dir)
   try {
-    await expect(win.locator('#tab-list .tab-item .tab-title', { hasText: 'My Session (CRF-12)' })).toBeVisible({ timeout: 12_000 })
+    const item = win.locator('#tab-list .tab-item', { hasText: 'My Session' })
+    await expect(item.locator('.tab-title', { hasText: 'My Session' })).toBeVisible({ timeout: 12_000 })
+    await expect(item.locator('.tab-title')).toHaveText('My Session')
+    await expect(item.locator('.tab-ticket-badge', { hasText: 'CRF-12' })).toBeVisible()
   } finally {
     await closeApp(app, dir)
   }

@@ -1,0 +1,72 @@
+/* The pasted-image strip inside the composer's prompt box: one square preview tile
+   per attachment, named image-1, image-2, … (the name is the filename too, so the
+   prompt can point at "image-2"). Sized in `em` like the rest of the composer, so
+   it scales with the doc font. The top padding leaves room for the remove badge,
+   which sits over the tile's corner. */
+.composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  padding-top: 0.35em;
+}
+/* Nothing pasted: the strip takes no room at all, so an untouched composer keeps
+   its original spacing (an empty flex row would still eat the box's gap). */
+.composer-attachments[data-empty='true'] {
+  display: none;
+}
+/* The whole tile is the remove target (the click is delegated from the strip), so
+   it reads as one clickable unit rather than a row with a hidden hit area. */
+.composer-attachments-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+  width: 4em;
+  cursor: pointer;
+}
+.composer-attachments-thumb {
+  width: 4em;
+  height: 4em;
+  border: 1px solid var(--border);
+  border-radius: 0.55em;
+  object-fit: cover;
+  background: var(--bg);
+}
+.composer-attachments-chip:hover .composer-attachments-thumb {
+  border-color: var(--accent, #4a9eff);
+}
+.composer-attachments-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: 0.7em;
+}
+.composer-attachments-chip:hover .composer-attachments-name {
+  color: var(--text);
+}
+/* A badge over the tile's top-right corner; it only shows on hover, but the click
+   lands on the tile either way. */
+.composer-attachments-remove {
+  position: absolute;
+  top: -0.35em;
+  right: -0.35em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-faint);
+  font-size: 0.85em;
+  line-height: 1;
+  opacity: 0;
+}
+.composer-attachments-chip:hover .composer-attachments-remove {
+  opacity: 1;
+  color: var(--text);
+}

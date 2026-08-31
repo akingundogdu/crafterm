@@ -87,3 +87,92 @@ describe('sidebarSelectedColor setting', () => {
     expect(document.documentElement.style.getPropertyValue('--sidebar-selected-border')).toBe('#123456')
   })
 })
+
+describe('sidebar selected background + text settings', () => {
+  it('loads saved background/text colors, blank included', () => {
+    loadSettings(saved({ sidebarSelectedBg: '#101827', sidebarSelectedText: '#f5f7fa' }))
+    expect(settings.sidebarSelectedBg).toBe('#101827')
+    expect(settings.sidebarSelectedText).toBe('#f5f7fa')
+    // Blank is a real value here — it means "fall back to the theme default".
+    loadSettings(saved({ sidebarSelectedBg: '', sidebarSelectedText: '' }))
+    expect(settings.sidebarSelectedBg).toBe('')
+    expect(settings.sidebarSelectedText).toBe('')
+  })
+
+  it('ignores missing or non-string background/text colors', () => {
+    settings.sidebarSelectedBg = '#101827'
+    settings.sidebarSelectedText = '#f5f7fa'
+    loadSettings(saved({}))
+    expect(settings.sidebarSelectedBg).toBe('#101827')
+    expect(settings.sidebarSelectedText).toBe('#f5f7fa')
+    loadSettings(
+      saved({
+        sidebarSelectedBg: 7 as unknown as string,
+        sidebarSelectedText: null as unknown as string
+      })
+    )
+    expect(settings.sidebarSelectedBg).toBe('#101827')
+    expect(settings.sidebarSelectedText).toBe('#f5f7fa')
+  })
+
+  it('applySidebarSelectedColor writes both variables when set', () => {
+    settings.sidebarSelectedBg = '#101827'
+    settings.sidebarSelectedText = '#f5f7fa'
+    applySidebarSelectedColor()
+    expect(document.documentElement.style.getPropertyValue('--sidebar-selected-bg')).toBe('#101827')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-selected-text')).toBe('#f5f7fa')
+  })
+
+  it('applySidebarSelectedColor removes a variable when its setting is blank', () => {
+    settings.sidebarSelectedBg = '#101827'
+    settings.sidebarSelectedText = '#f5f7fa'
+    applySidebarSelectedColor()
+    settings.sidebarSelectedBg = ''
+    settings.sidebarSelectedText = ''
+    applySidebarSelectedColor()
+    expect(document.documentElement.style.getPropertyValue('--sidebar-selected-bg')).toBe('')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-selected-text')).toBe('')
+    // The border color is unconditional and must survive a blank override.
+    expect(document.documentElement.style.getPropertyValue('--sidebar-selected-border')).toBeTruthy()
+  })
+})
+
+describe('active terminal card background + text settings', () => {
+  it('loads saved active colors, blank included', () => {
+    loadSettings(saved({ sidebarActiveBg: '#2b3a55', sidebarActiveText: '#eef3ff' }))
+    expect(settings.sidebarActiveBg).toBe('#2b3a55')
+    expect(settings.sidebarActiveText).toBe('#eef3ff')
+    loadSettings(saved({ sidebarActiveBg: '', sidebarActiveText: '' }))
+    expect(settings.sidebarActiveBg).toBe('')
+    expect(settings.sidebarActiveText).toBe('')
+  })
+
+  it('ignores missing or non-string active colors', () => {
+    settings.sidebarActiveBg = '#2b3a55'
+    settings.sidebarActiveText = '#eef3ff'
+    loadSettings(saved({}))
+    expect(settings.sidebarActiveBg).toBe('#2b3a55')
+    expect(settings.sidebarActiveText).toBe('#eef3ff')
+    loadSettings(
+      saved({
+        sidebarActiveBg: 9 as unknown as string,
+        sidebarActiveText: null as unknown as string
+      })
+    )
+    expect(settings.sidebarActiveBg).toBe('#2b3a55')
+    expect(settings.sidebarActiveText).toBe('#eef3ff')
+  })
+
+  it('applySidebarSelectedColor writes and clears the active variables', () => {
+    settings.sidebarActiveBg = '#2b3a55'
+    settings.sidebarActiveText = '#eef3ff'
+    applySidebarSelectedColor()
+    expect(document.documentElement.style.getPropertyValue('--sidebar-active-bg')).toBe('#2b3a55')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-active-text')).toBe('#eef3ff')
+    settings.sidebarActiveBg = ''
+    settings.sidebarActiveText = ''
+    applySidebarSelectedColor()
+    expect(document.documentElement.style.getPropertyValue('--sidebar-active-bg')).toBe('')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-active-text')).toBe('')
+  })
+})

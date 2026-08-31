@@ -43,6 +43,15 @@ export interface ClaudeUsageSummary {
   resetTimes: { day: number; week: number; month: number }
 }
 
+// The model actually in use, read from the most recently written session jsonl.
+// `model` is the raw id (e.g. claude-opus-4-5-20251101); `speed` is Claude's
+// output speed for that turn ('standard' | 'fast'); `at` is the message time.
+export interface ClaudeLastModel {
+  model: string
+  speed: string | null
+  at: number
+}
+
 export interface ClaudeRealUsageOptions {
   keychainService?: string
   fallbackToken?: string | null

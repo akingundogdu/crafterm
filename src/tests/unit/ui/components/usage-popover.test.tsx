@@ -4,7 +4,7 @@ import {
   createUsagePopover,
   renderUsagePopover
 } from '@views/components/status-bar/components/usage-popover'
-import type { RealUsage } from '@views/screens/notifications/notifications.types'
+import type { RealUsage, LastModel } from '@views/screens/notifications/notifications.types'
 
 // Regression: the status-bar Claude usage popover must render one progress bar per
 // available usage window, synchronously, through renderUsagePopover (the exact path
@@ -54,5 +54,37 @@ describe('usage popover', () => {
     renderUsagePopover(pop, null)
     expect(pop.querySelector('.usage-empty')?.textContent).toContain('Loading')
     expect(pop.querySelectorAll('.usage-bar-wrap').length).toBe(0)
+  })
+})
+
+// The heading names the model actually in use (read from the session logs); the
+// plan's headline model — all the usage endpoint knows — drops to the sub-line.
+describe('usage popover model heading', () => {
+  const model = (over: Partial<NonNullable<LastModel>> = {}): LastModel => ({
+    model: 'claude-sonnet-4-5-20250929',
+    speed: null,
+    at: Date.now(),
+    ...over
+  })
+
+  it('heads with the active model and moves the plan model to the sub-line', () => {
+    const pop = createUsagePopover()
+    renderUsagePopover(pop, usageWith({}), model())
+    expect(pop.querySelector('.usage-title')?.textContent).toContain('sonnet-4.5')
+    expect(pop.querySelector('.usage-sub')?.textContent).toContain('Plan Claude Opus 4.8')
+  })
+
+  it('shows the output speed beside the model when the session reports one', () => {
+    const pop = createUsagePopover()
+    renderUsagePopover(pop, usageWith({}), model({ speed: 'fast' }))
+    expect(pop.querySelector('.usage-speed')?.textContent).toBe('fast')
+  })
+
+  it('falls back to the plan model — with no duplicate sub-line entry — when no session model is known', () => {
+    const pop = createUsagePopover()
+    renderUsagePopover(pop, usageWith({}), null)
+    expect(pop.querySelector('.usage-title')?.textContent).toContain('Claude Opus 4.8')
+    expect(pop.querySelector('.usage-speed')).toBe(null)
+    expect(pop.querySelector('.usage-sub')?.textContent).not.toContain('Plan ')
   })
 })

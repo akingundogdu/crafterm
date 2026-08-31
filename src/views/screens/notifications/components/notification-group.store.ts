@@ -1,5 +1,5 @@
 import type { NotifGroup } from '../notifications.types'
-import { CHEVRON_SVG } from '../notifications.store'
+import store, { CHEVRON_SVG } from '../notifications.store'
 import { panes, poppedOut } from '@views/state/spine'
 import { selectPane } from '@views/commands/commands'
 import { terminalService } from '@services'
@@ -15,18 +15,14 @@ export function groupCountLabel(count: number): string {
   return `${count} ${count === 1 ? 'alert' : 'alerts'}`
 }
 
-// The line under the group title: the newest message, so the collapsed card still
-// says what happened without expanding it.
-export function groupSummary(group: NotifGroup): string {
-  return group.items.reduce((a, b) => (b.time > a.time ? b : a)).message
-}
-
-// Jump to the group's terminal — the same thing clicking a single card does. The
-// group used to only expand, so a terminal with more than one alert could not be
-// reached from the panel at all (todomr5sckyaei).
+// Jump to the group's terminal and clear it — exactly what clicking a single card
+// does. The group used to only expand, so a terminal with more than one alert could
+// not be reached from the panel at all (todomr5sckyaei); it also stayed in the list
+// after the jump, unlike every other card.
 export function goToGroup(group: NotifGroup): void {
   const paneId = group.paneId
   if (!paneId) return
   if (poppedOut.has(paneId)) terminalService.popoutFocus(paneId)
   else if (panes.has(paneId)) selectPane(paneId)
+  store.dismissGroup(group)
 }

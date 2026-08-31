@@ -77,6 +77,34 @@ export function setSidebarSelectedColor(v: string): void {
   persistence.save()
 }
 
+// Background + text of the selected sidebar row. A blank value is meaningful: it
+// stores "no override", so the stylesheet falls back to the theme default.
+export function setSidebarSelectedBg(v: string): void {
+  settings.sidebarSelectedBg = v.trim()
+  applySidebarSelectedColor()
+  persistence.save()
+}
+
+export function setSidebarSelectedText(v: string): void {
+  settings.sidebarSelectedText = v.trim()
+  applySidebarSelectedColor()
+  persistence.save()
+}
+
+// Background + text of the active (open) terminal's filled sidebar card. Blank
+// stores "no override", so the card falls back to the accent fill on white.
+export function setSidebarActiveBg(v: string): void {
+  settings.sidebarActiveBg = v.trim()
+  applySidebarSelectedColor()
+  persistence.save()
+}
+
+export function setSidebarActiveText(v: string): void {
+  settings.sidebarActiveText = v.trim()
+  applySidebarSelectedColor()
+  persistence.save()
+}
+
 export function setThemeName(name: string): void {
   settings.themeName = name
   applyAppearance()

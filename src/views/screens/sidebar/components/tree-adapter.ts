@@ -7,6 +7,7 @@ import {
   FOLDER_SVG,
   WORKTREE_SVG,
   tabIssueKey,
+  stripIssuePrefix,
   folderCrumb,
   isMultiSelected,
   toggleMultiSelect
@@ -28,7 +29,7 @@ export function buildAdapter(ctx: AdapterContext): TreeAdapter<SidebarNode> {
     label: (n) => {
       if (n.kind !== 'tab') return n.name
       const key = tabIssueKey(n)
-      return key ? `${n.title} (${key})` : n.title
+      return key ? stripIssuePrefix(n.title, key) : n.title
     },
     icon: (n) => {
       if (n.kind === 'project') return PROJECT_SVG

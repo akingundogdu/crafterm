@@ -10,6 +10,7 @@ import { promptConfirm } from '@views/components/dialog/confirm'
 import { newTab } from '@views/commands/commands'
 import { showSpotlight } from '@views/screens/spotlight/spotlight'
 import { gitService } from '@services'
+import attachmentsStore, { withAttachmentPaths } from './composer-attachments.store'
 import type { ComposerMode, SlashItem } from './agent-composer.types'
 
 // The agent composer — the content area's start screen, shown whenever no tab is
@@ -17,7 +18,9 @@ import type { ComposerMode, SlashItem } from './agent-composer.types'
 // pick the project, the base branch and where it runs, and Crafterm files it as a
 // Daily Plan ticket and starts a Claude terminal on it: in a fresh worktree named
 // after the issue key, or in the project itself. Below it sit the plain escape
-// hatches (New Terminal / Open Project). Model of the view; the view holds no logic.
+// hatches (New Terminal / Open Project). An image pasted into the prompt box is
+// written to a temp file and its path appended to what Claude receives (see
+// composer-attachments.store). Model of the view; the view holds no logic.
 
 export const DEFAULT_BASE = 'main'
 
@@ -32,7 +35,7 @@ export const MODES: { val: ComposerMode; label: string }[] = [
 ]
 
 export const COMPOSER_PLACEHOLDER = 'Describe the work — a ticket is filed and Claude picks it up'
-export const COMPOSER_HINT = '⌘↵ to start · / for projects, labels and modes'
+export const COMPOSER_HINT = '⌘↵ to start · / for projects, labels and modes · ⌘V an image to attach it'
 export const TITLE_PLACEHOLDER = 'Title'
 export const BRANCH_PLACEHOLDER = 'Branch name'
 
@@ -388,8 +391,8 @@ class AgentComposerStore extends Store {
   // Returns true when the ticket was filed (the prompt was consumed), so the view
   // knows to clear the textarea; a refused submit keeps the text for another try.
   async submit(text: string): Promise<boolean> {
-    const full = text.trim()
-    if (!full || this.isBusy) return false
+    const typed = text.trim()
+    if (!typed || this.isBusy) return false
     const project = this.selectedProject
     if (!project) {
       await showMessage('No project', 'Add a project to the sidebar first, then start work from here.')
@@ -412,7 +415,11 @@ class AgentComposerStore extends Store {
       // The title box (auto-filled from the prompt, hand-editable) labels the ticket;
       // the full prompt rides in the description so openTaskInTerminal still hands
       // Claude everything that was typed. An emptied title falls back to the prompt.
-      const title = getTitleDraft().trim() || full.slice(0, COMPOSER_TITLE_MAX)
+      const title = getTitleDraft().trim() || typed.slice(0, COMPOSER_TITLE_MAX)
+      // Pasted images are files on disk by now; their paths ride at the end of the
+      // description, which is how the Claude session gets at the pictures. The title
+      // is derived from the TYPED text only, so an attachment never leaks into it.
+      const full = withAttachmentPaths(typed, attachmentsStore.entries)
       const slug = sanitizeSlug(getBranchDraft())
       const task: DailyPlanTask = {
         id: uid('task'),
@@ -440,6 +447,7 @@ class AgentComposerStore extends Store {
       // launch (throw above) keeps the draft, so the prompt survives for a retry.
       setDraft('')
       resetTicketMeta()
+      attachmentsStore.clear()
       return true
     } finally {
       this.isBusy = false

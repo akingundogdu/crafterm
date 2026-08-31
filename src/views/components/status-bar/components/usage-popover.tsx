@@ -2,7 +2,7 @@ import { Component } from '@geajs/core'
 import { fmtResetTime, usageErrorLong } from '@services/domain/usage'
 import { shortModel } from '@views/screens/notifications/notif-format'
 import { UITexts } from '@texts'
-import type { RealUsage, UsageWindow } from '@views/screens/notifications/notifications.types'
+import type { RealUsage, UsageWindow, LastModel } from '@views/screens/notifications/notifications.types'
 
 // Floating Claude usage popover (today / week / month progress bars; mirrors
 // Claude's /usage TUI). The content is a gea Component built with JSX; the usage
@@ -11,12 +11,18 @@ import type { RealUsage, UsageWindow } from '@views/screens/notifications/notifi
 // signature so the usage-chip poller stays unchanged: it mounts the component into a
 // throwaway host and transplants the built children into the caller's popover
 // element, preserving the exact flat child structure.
+//
+// The heading names the model actually in use (from the session logs). The plan's
+// headline model — all the usage endpoint reports — moves to the sub-line, since the
+// limits below are the plan's, not the active model's.
 class UsagePopoverContent extends Component {
   private readonly usage: RealUsage | null
+  private readonly lastModel: LastModel
 
-  constructor(opts: { usage: RealUsage | null }) {
+  constructor(opts: { usage: RealUsage | null; lastModel?: LastModel }) {
     super()
     this.usage = opts.usage
+    this.lastModel = opts.lastModel ?? null
   }
 
   private openSettings = (e: MouseEvent): void => {
@@ -34,8 +40,17 @@ class UsagePopoverContent extends Component {
       )
     }
 
-    const model = shortModel(u.modelName) || UITexts.Notifications.claudeUsageFallback
-    const sub = 'Official limits · ' + fmtResetTime(u.fetchedAt).replace(/^Today /, 'updated ')
+    const planModel = shortModel(u.modelName)
+    const activeModel = shortModel(this.lastModel?.model ?? null)
+    const model = activeModel || planModel || UITexts.Notifications.claudeUsageFallback
+    const speed = this.lastModel?.speed ?? null
+    // The plan model only earns a slot once the heading is showing something else.
+    const subParts = [
+      activeModel && planModel ? UITexts.Notifications.usagePlanModel(planModel) : '',
+      'Official limits',
+      fmtResetTime(u.fetchedAt).replace(/^Today /, 'updated ')
+    ].filter(Boolean)
+    const sub = subParts.join(' · ')
     // Build the bar list as a literal-with-conditionals array, NOT an empty array
     // filled by `.push()`. gea's `.map()` transform only expands an array bound to a
     // literal; a `push()`-built binding compiles the map to a dead comment anchor and
@@ -49,7 +64,10 @@ class UsagePopoverContent extends Component {
     return (
       <div>
         <div class="usage-head">
-          <div class="usage-title">{model}</div>
+          <div class="usage-title">
+            {model}
+            {speed && <span class="usage-speed">{speed}</span>}
+          </div>
           <div class="usage-sub">{sub}</div>
         </div>
         {u.error && <div class="usage-empty">{usageErrorLong(u.error)}</div>}
@@ -89,9 +107,9 @@ export function createUsagePopover(): HTMLElement {
 // Fill an existing `.usage-popover` element with the current usage snapshot. Renders
 // the gea content into a throwaway host, then transplants its children so the
 // popover keeps its flat child structure and the caller's element reference stays valid.
-export function renderUsagePopover(pop: HTMLElement, u: RealUsage | null): void {
+export function renderUsagePopover(pop: HTMLElement, u: RealUsage | null, lastModel?: LastModel): void {
   const host = document.createElement('div')
-  new UsagePopoverContent({ usage: u }).render(host)
+  new UsagePopoverContent({ usage: u, lastModel }).render(host)
   const root = host.firstElementChild
   pop.replaceChildren(...(root ? Array.from(root.childNodes) : []))
 }

@@ -34,6 +34,7 @@ import { BacklogController } from '@services/backlog/backlog.main'
 import { ZshController } from '@services/zsh/zsh.main'
 import { IosController } from '@services/ios/ios.main'
 import { TerminalController } from '@services/terminal/terminal.main'
+import { SystemController } from '@services/system/system.main'
 import { emit, Channel } from '@services/channels.main'
 import {
   createMainWindow,
@@ -79,7 +80,8 @@ const services: BaseService[] = [
   new BacklogController(), // backlog:* — backlog file
   new ZshController(), // zsh:* — zsh aliases/functions
   new IosController(), // ios:* / iosWorktree:* — build/run + targets/schemes
-  new TerminalController() // pty:* / proc:* — terminal + background processes
+  new TerminalController(), // pty:* / proc:* — terminal + background processes
+  new SystemController() // system:* — machine CPU/memory + top processes
 ]
 for (const service of services) {
   service.setup?.()

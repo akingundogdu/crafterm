@@ -17,6 +17,11 @@ export class FsController extends BaseService {
     // Write any text file back to disk (code editor save). Only overwrites an
     // existing regular file — never creates new paths here.
     this.handle(Channel.Fs.WriteText, ({ path, content }) => fsModel.writeText(path, content))
+    // Write an image pasted into the agent composer to a temp file and hand its
+    // absolute path back, so the prompt can point Claude at it.
+    this.handle(Channel.Fs.WritePastedImage, ({ data, ext, name, batch }) =>
+      fsModel.writePastedImage(data, ext, name, batch)
+    )
     // Resolve a relative import specifier to an absolute source file (go-to-
     // definition for imports).
     this.handle(Channel.Fs.ResolveImport, ({ fromFile, spec, symbol }) =>
