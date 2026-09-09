@@ -398,6 +398,12 @@ export function clearMultiSelect(): void {
   multiSelected.clear()
 }
 
+// A terminal added to the tiled view from inside it: mark its row like the
+// Cmd+clicked ones so the sidebar keeps showing which terminals are on screen.
+export function markMultiSelected(id: string): void {
+  multiSelected.add(id)
+}
+
 // Show the marked terminals tiled in the content area. A VIEW: the terminals stay
 // where they are in the sidebar and in their tabs.
 export function showSideBySide(tabIds: string[]): void {

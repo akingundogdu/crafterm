@@ -11,7 +11,7 @@ import {
   poppedOut
 } from '@views/state/spine'
 import { buildContentBox } from './content-nodes'
-import { findTab, firstPaneOf } from '@views/tree/tree'
+import { findTab } from '@views/tree/tree'
 import { mountPanes } from '@views/pane/pane'
 import {
   tabContainers,
@@ -19,7 +19,8 @@ import {
   makePopoutFocus,
   persistResizedLayout,
   isSideBySide,
-  sideBySideTabs
+  sideBySideTabs,
+  sideBySideLayout
 } from './content.store'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 import { buildAgentComposer, refreshAgentComposer } from './components/agent-composer'
@@ -159,14 +160,14 @@ class ContentController {
     })
   }
 
-  // The Cmd+clicked terminals, tiled in one row. Their pane elements are BORROWED
-  // from their tab containers (never re-created, so the terminals keep running);
-  // leaving the view rebuilds those containers from their layouts.
+  // The Cmd+clicked terminals, tiled by the view's own split layout (one row until
+  // the user drags tiles into columns). Their pane elements are BORROWED from their
+  // tab containers (never re-created, so the terminals keep running); leaving the
+  // view rebuilds those containers from their layouts. The layout goes through the
+  // same buildNode as a tab's, so tiles get resizers and drop zones for free.
   private renderSideBySide = (): void => {
-    const tabs = sideBySideTabs()
-      .map((id) => findTab(state.tree, id))
-      .filter((t): t is NonNullable<typeof t> => !!t)
-    const paneIds = tabs.map((t) => firstPaneOf(t.root)).filter((id): id is string => !!id)
+    const count = sideBySideTabs().filter((id) => findTab(state.tree, id)).length
+    const root = sideBySideLayout()
 
     tabContainers.forEach((e) => (e.el.style.display = 'none'))
     this.toggleComposer(false)
@@ -177,17 +178,10 @@ class ContentController {
     }
     const host = this.sideBySideEl
     host.style.display = 'flex'
-    host.replaceChildren(buildSideBySideBar(tabs.length))
+    host.replaceChildren(buildSideBySideBar(count))
 
     const grid = buildContentBox('side-by-side-grid')
-    for (const paneId of paneIds) {
-      const paneEl = panes.get(paneId)?.el
-      if (!paneEl) continue
-      paneEl.style.flexGrow = '1'
-      paneEl.style.flexShrink = '1'
-      paneEl.style.flexBasis = '0'
-      grid.appendChild(paneEl)
-    }
+    if (root) grid.appendChild(this.buildNode(root))
     host.appendChild(grid)
     mountPanes()
     this.updatePaneHighlight()

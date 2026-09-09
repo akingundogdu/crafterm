@@ -51,6 +51,7 @@ const {
   multiSelectedIds,
   toggleMultiSelect,
   clearMultiSelect,
+  markMultiSelected,
   showSideBySide,
   clearSideBySideSelection
 } = await import('@views/screens/sidebar/sidebar.store')
@@ -70,6 +71,13 @@ describe('sidebar multi-select (todomraex8usk1)', () => {
     toggleMultiSelect('t1')
     expect(multiSelectedIds()).toEqual(['t2'])
     expect(isMultiSelected('t1')).toBe(false)
+  })
+
+  it('marks a terminal added from inside the view without toggling it off', () => {
+    markMultiSelected('t1')
+    markMultiSelected('t1')
+    expect(multiSelectedIds()).toEqual(['t1'])
+    expect(isMultiSelected('t1')).toBe(true)
   })
 
   it('hands the marked terminals to the content area', () => {

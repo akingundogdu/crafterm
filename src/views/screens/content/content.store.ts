@@ -1,7 +1,7 @@
-import type { LayoutNode } from '@views/types/types'
+import type { Dir, LayoutNode } from '@views/types/types'
 import { state, poppedOut } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
-import { findTab } from '@views/tree/tree'
+import { findTab, firstPaneOf, layoutContains, splitInLayout, movePaneInLayout } from '@views/tree/tree'
 import { terminalService } from '@services'
 
 // Each tab's layout lives in its own container that stays in the DOM; switching
@@ -36,10 +36,18 @@ export function persistResizedLayout(): void {
 // The terminals the user Cmd+clicked in the sidebar and asked to see together. A
 // VIEW only: the tabs and their layouts are untouched, the panes' DOM is borrowed
 // into a tiled container until the view is left (picking any terminal leaves it).
+// The tiles have their own split layout (`sideBySideRoot`, over the tabs' first
+// panes) so they can be dragged into rows/columns and resized like a tab's panes;
+// it starts as one row and lives only as long as the view.
 let sideBySideTabIds: string[] = []
+let sideBySideRoot: LayoutNode | null = null
 
 export function sideBySideTabs(): string[] {
   return sideBySideTabIds
+}
+
+export function sideBySideLayout(): LayoutNode | null {
+  return sideBySideRoot
 }
 
 export function isSideBySide(): boolean {
@@ -52,8 +60,62 @@ export function isTabTiled(tabId: string): boolean {
   return isSideBySide() && sideBySideTabIds.includes(tabId)
 }
 
+// The pane a tab contributes as its tile: the first one of its layout.
+function tilePaneOf(tabId: string): string | null {
+  return firstPaneOf(findTab(state.tree, tabId)?.root)
+}
+
+// One equal-width row of leaves — the layout every view starts from.
+export function rowOfPanes(paneIds: string[]): LayoutNode | null {
+  if (!paneIds.length) return null
+  if (paneIds.length === 1) return { type: 'leaf', paneId: paneIds[0] }
+  return {
+    type: 'split',
+    dir: 'row',
+    sizes: paneIds.map(() => 1),
+    children: paneIds.map((paneId) => ({ type: 'leaf', paneId }))
+  }
+}
+
 export function setSideBySide(tabIds: string[]): void {
   sideBySideTabIds = tabIds
+  sideBySideRoot = rowOfPanes(tabIds.map(tilePaneOf).filter((id): id is string => !!id))
+}
+
+// Grow the view by one tile (the strip's "+" buttons). A no-op unless the view is
+// on — the tiles are what the user marked, so nothing gets added behind their back.
+// The new tile lands to the right of `besidePaneId` (the tile that was active when
+// the button was pressed); without one, or if that tile is gone, at the row's end.
+export function addSideBySideTab(tabId: string, besidePaneId?: string | null): void {
+  if (!isSideBySide() || sideBySideTabIds.includes(tabId)) return
+  sideBySideTabIds = [...sideBySideTabIds, tabId]
+  const paneId = tilePaneOf(tabId)
+  if (!paneId) return
+  if (!sideBySideRoot) {
+    sideBySideRoot = { type: 'leaf', paneId }
+    return
+  }
+  if (besidePaneId && layoutContains(sideBySideRoot, besidePaneId)) {
+    sideBySideRoot = splitInLayout(sideBySideRoot, besidePaneId, paneId, 'row')
+    return
+  }
+  const leaf: LayoutNode = { type: 'leaf', paneId }
+  sideBySideRoot =
+    sideBySideRoot.type === 'split' && sideBySideRoot.dir === 'row'
+      ? { ...sideBySideRoot, sizes: [...sideBySideRoot.sizes, 1], children: [...sideBySideRoot.children, leaf] }
+      : { type: 'split', dir: 'row', sizes: [1, 1], children: [sideBySideRoot, leaf] }
+}
+
+// Drag-to-rearrange inside the view: drop `dragId` beside `targetId`. Both must be
+// tiles; the tabs' own layouts are never touched. False when nothing moved.
+export function moveSideBySidePane(dragId: string, targetId: string, dir: Dir, before: boolean): boolean {
+  const root = sideBySideRoot
+  if (!root || dragId === targetId) return false
+  if (!layoutContains(root, dragId) || !layoutContains(root, targetId)) return false
+  const next = movePaneInLayout(root, dragId, targetId, dir, before)
+  if (!next) return false
+  sideBySideRoot = next
+  return true
 }
 
 // Leaving the view: the borrowed pane elements went back to the tiled container, so
@@ -62,5 +124,6 @@ export function setSideBySide(tabIds: string[]): void {
 export function exitSideBySide(): void {
   if (!sideBySideTabIds.length) return
   sideBySideTabIds = []
+  sideBySideRoot = null
   for (const entry of tabContainers.values()) entry.sig = ''
 }

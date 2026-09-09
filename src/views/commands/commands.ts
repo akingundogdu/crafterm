@@ -32,7 +32,7 @@ import {
   paneActions,
   pushNotification
 } from '@views/state/state'
-import { exitSideBySide, isTabTiled } from '@views/screens/content/content.store'
+import { exitSideBySide, isTabTiled, isSideBySide, moveSideBySidePane } from '@views/screens/content/content.store'
 import { persistence } from '@repositories/persistence.service'
 import {
   firstPaneOf,
@@ -141,14 +141,20 @@ export function showStartScreen(): void {
 
 // ---- Creating ----
 
-export async function newTab(parentFolderId?: string | null, cwd?: string): Promise<void> {
+export async function newTab(
+  parentFolderId?: string | null,
+  cwd?: string
+): Promise<{ tab: TabNode; paneId: string }> {
   const n = allTabs(state.tree).length + 1
-  await createTab(parentFolderId, { title: 'zsh ' + n, cwd })
+  return createTab(parentFolderId, { title: 'zsh ' + n, cwd })
 }
 
 // A terminal that auto-runs the Claude Code CLI in its starting directory.
-export async function newClaudeTab(parentFolderId?: string | null, cwd?: string): Promise<void> {
-  await createTab(parentFolderId, {
+export async function newClaudeTab(
+  parentFolderId?: string | null,
+  cwd?: string
+): Promise<{ tab: TabNode; paneId: string }> {
+  return createTab(parentFolderId, {
     // 'Claude' is just the starting label; leave the tab unlocked so the Claude
     // session title (a /rename inside the session) drives the sidebar label. The
     // terminal's own OSC title can't clobber it — onPaneTitle ignores OSC titles
@@ -331,6 +337,20 @@ function parseEnvLines(raw: string): Record<string, string> | undefined {
     env[t.slice(0, eq).trim()] = t.slice(eq + 1).trim()
   }
   return Object.keys(env).length ? env : undefined
+}
+
+// A new terminal (or Claude session) that lands where the active terminal is: the
+// same sidebar group as its tab and the pane's live cwd. Used by the side-by-side
+// strip's "+" buttons to grow the tiled view. Null when no terminal is active.
+export async function newTabBesideActive(
+  claude: boolean
+): Promise<{ tab: TabNode; paneId: string } | null> {
+  const activeTab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
+  if (!activeTab) return null
+  const located = findById(state.tree, activeTab.id)
+  const folderId = located ? folderIdOfList(located.parent) : null
+  const cwd = await liveCwd(state.activePaneId)
+  return claude ? newClaudeTab(folderId, cwd) : newTab(folderId, cwd)
 }
 
 // Cmd+T: create the terminal inside the currently selected group. A folder
@@ -764,10 +784,18 @@ export async function splitProjectRight(
 
 // Drag-to-rearrange: drop `dragId` onto a zone of `targetId` to re-lay-out.
 export function movePaneByDrop(dragId: string, targetId: string, zone: string): void {
-  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, targetId))
-  if (!tab || dragId === targetId || !layoutContains(tab.root, dragId)) return
   const dir: Dir = zone === 'left' || zone === 'right' ? 'row' : 'col'
   const before = zone === 'left' || zone === 'top'
+  // In the side-by-side view the tiles come from different tabs, so the drop
+  // rearranges the view's own layout (todomraex8usk1) — never a tab's.
+  if (isSideBySide()) {
+    if (!moveSideBySidePane(dragId, targetId, dir, before)) return
+    renderContent()
+    selectPane(dragId)
+    return
+  }
+  const tab = allTabs(state.tree).find((t) => layoutContains(t.root, targetId))
+  if (!tab || dragId === targetId || !layoutContains(tab.root, dragId)) return
   const newRoot = movePaneInLayout(tab.root, dragId, targetId, dir, before)
   if (!newRoot) return
   tab.root = newRoot
