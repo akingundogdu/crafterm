@@ -22,7 +22,7 @@
   color: var(--text-dim);
   font-size: 11px;
 }
-.side-by-side-bar-exit {
+.side-by-side-bar-action {
   padding: 2px 10px;
   border: 1px solid var(--border);
   border-radius: 5px;
@@ -31,9 +31,13 @@
   font-size: 11px;
   cursor: pointer;
 }
-.side-by-side-bar-exit:hover {
+.side-by-side-bar-action:hover {
   border-color: var(--accent, #4a9eff);
   color: var(--text);
+}
+/* The way out sits apart from the two "+" buttons that grow the view. */
+.side-by-side-bar-exit {
+  margin-left: 6px;
 }
 .side-by-side-grid {
   flex: 1;
