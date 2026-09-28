@@ -3,16 +3,25 @@ import type { TreeSection } from '@views/components/treeview/treeview'
 import { UITexts } from '@texts'
 import { state, settings } from '@views/state/spine'
 import { collectPinnedRoots, isContainer } from '@views/tree/tree'
-import { recencyBucket, maxActivityOf, stripPinned } from '../sidebar.store'
+import { recencyBucket, maxActivityOf, stripPinned, splitPinnedByStatus } from '../sidebar.store'
 import { sectionLabel, groupHeader } from './section-label'
 
-// Build the section list: Pinned → Free → group buckets (or recency buckets).
+// Build the section list: Testing → Review → Pinned → Free → group buckets (or
+// recency buckets). Testing/Review hold the pinned-area tabs with that status.
 // `passesArchiveFilter` is injected by the shell (it owns the archived-view flag).
 export function buildSections(passesArchiveFilter: (n: SidebarNode) => boolean): TreeSection<SidebarNode>[] {
   const sections: TreeSection<SidebarNode>[] = []
 
-  const pinned = collectPinnedRoots(state.tree).filter(passesArchiveFilter)
-  if (pinned.length) sections.push({ header: sectionLabel(UITexts.Sidebar.sections.pinned), nodes: pinned })
+  const pinned = splitPinnedByStatus(collectPinnedRoots(state.tree).filter(passesArchiveFilter), passesArchiveFilter)
+  if (pinned.test.length) {
+    sections.push({ header: sectionLabel(UITexts.Sidebar.sections.testing), nodes: pinned.test, crumbs: true })
+  }
+  if (pinned.review.length) {
+    sections.push({ header: sectionLabel(UITexts.Sidebar.sections.review), nodes: pinned.review, crumbs: true })
+  }
+  if (pinned.rest.length) {
+    sections.push({ header: sectionLabel(UITexts.Sidebar.sections.pinned), nodes: pinned.rest })
+  }
 
   const main = stripPinned(state.tree).filter(passesArchiveFilter)
 

@@ -72,6 +72,30 @@
   opacity: 0.55;
 }
 
+/* Work status (consumer modifier): the whole card is tinted — green = waiting
+   to be tested, red-orange = waiting for code review. Placed after the colour-tag
+   and selection rules so the status tint wins; the active card keeps its fill
+   and shows the status as a left edge. */
+.crtree-work-test {
+  --crtree-work: var(--green);
+}
+.crtree-work-review {
+  --crtree-work: #f2643a;
+}
+.crtree-work-test:not(.crtree-active),
+.crtree-work-review:not(.crtree-active) {
+  background: color-mix(in srgb, var(--crtree-work) 20%, transparent);
+  border-color: color-mix(in srgb, var(--crtree-work) 45%, transparent);
+}
+.crtree-work-test:not(.crtree-active):hover,
+.crtree-work-review:not(.crtree-active):hover {
+  background: color-mix(in srgb, var(--crtree-work) 28%, transparent);
+}
+.crtree-work-test.crtree-active,
+.crtree-work-review.crtree-active {
+  box-shadow: inset 4px 0 0 0 var(--crtree-work);
+}
+
 /* indent guides (one thin vertical line per continuing ancestor level) */
 .crtree-guide {
   position: absolute;
@@ -228,12 +252,12 @@
   background: rgba(255, 255, 255, 0.05);
 }
 .crtree-status-review {
-  color: #c084fc;
-  background: rgba(168, 85, 247, 0.16);
+  color: #f2643a;
+  background: rgba(242, 100, 58, 0.16);
 }
 .crtree-status-test {
-  color: #2dd4bf;
-  background: rgba(45, 212, 191, 0.16);
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 16%, transparent);
 }
 .crtree-active .crtree-status {
   color: #fff;

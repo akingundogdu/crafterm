@@ -9,7 +9,7 @@ import type {
   SidebarNode
 } from '@views/types/types'
 import type { DailyRange } from '@views/screens/daily-plan/daily-plan.types'
-import { state } from '@views/state/spine'
+import { state, requestSidebar } from '@views/state/spine'
 import { dailyTaskRepo, dailyTagRepo } from '@repositories'
 import { findProjectById } from '@views/catalog/catalog'
 import { boardColumnOf, ymd, parseYmd, shiftDays } from '@views/screens/daily-plan/task-helpers'
@@ -357,6 +357,7 @@ class DailyPlanStore extends Store {
     reorderWithin(task, status, before)
     dailyTaskRepo.upsert(task)
     this.reload()
+    requestSidebar() // the ticket status tints/groups the tab's sidebar row
   }
 
   removeTask(id: string): void {

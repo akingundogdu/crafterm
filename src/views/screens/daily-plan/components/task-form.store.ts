@@ -6,6 +6,7 @@ import type {
 } from '@views/types/types'
 import { uid } from '@views/lib/uid'
 import { dailyTaskRepo } from '@repositories'
+import { requestSidebar } from '@views/state/spine'
 import { assignIssueKey, sanitizeSlug, nextOrder, taskById } from '@views/screens/daily-plan/daily-plan.store'
 
 // Reactive shell + commit logic for the gea create/edit task form. The form's
@@ -87,6 +88,7 @@ class TaskFormStore extends Store {
       existing.updatedAt = now
       assignIssueKey(existing)
       dailyTaskRepo.upsert(existing)
+      requestSidebar() // the ticket status tints/groups the tab's sidebar row
       return existing
     }
     const newTask: DailyPlanTask = {

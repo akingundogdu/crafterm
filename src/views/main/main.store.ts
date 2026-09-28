@@ -1,4 +1,4 @@
-import type { LayoutNode, SidebarNode, DiffPane, CodePane } from '@views/types/types'
+import type { LayoutNode, SidebarNode, DiffPane, CodePane, TabWorkStatus } from '@views/types/types'
 import type { SavedNode, SavedSidebarNode } from '@repositories/state.types'
 import {
   state,
@@ -127,7 +127,8 @@ import {
   gitActionFromPane,
   openMarkdownInGroup,
   openCodeEditor,
-  contextFolderId
+  contextFolderId,
+  setTabWorkStatus
 } from '@views/commands/commands'
 
 // How long the boot skeleton (index.html + app-shell/boot-skeleton.css) stays on
@@ -215,6 +216,7 @@ export function wirePaneActions(): void {
   paneActions.markTaskDone = (paneId) => markPaneTaskDone(paneId)
   paneActions.markTaskReview = (paneId) => markPaneTaskReview(paneId)
   paneActions.markTaskTest = (paneId) => markPaneTaskTest(paneId)
+  paneActions.setTabWorkStatus = (tabId, status) => setTabWorkStatus(tabId, status)
   paneActions.reactivateTab = (tabId) => void reactivateTab(tabId)
 }
 
@@ -577,6 +579,11 @@ async function reactivateTab(tabId: string): Promise<void> {
   persistence.save()
 }
 
+// Guard a persisted hand-set work status: anything but a known value drops it.
+function savedMarkedStatus(v: unknown): TabWorkStatus | undefined {
+  return v === 'review' || v === 'test' ? v : undefined
+}
+
 async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
   const out: SidebarNode[] = []
   for (const n of nodes) {
@@ -596,7 +603,8 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
           status: 'archived',
           dormantRoot: n.root,
           detailsOpen: !!n.detailsOpen,
-          archivedByWorktree: !!n.archivedByWorktree
+          archivedByWorktree: !!n.archivedByWorktree,
+          markedStatus: savedMarkedStatus(n.markedStatus)
         })
         continue
       }
@@ -609,7 +617,8 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         color: n.color ?? null,
         pinned: !!n.pinned,
         root,
-        detailsOpen: !!n.detailsOpen
+        detailsOpen: !!n.detailsOpen,
+        markedStatus: savedMarkedStatus(n.markedStatus)
       })
     } else if (n.kind === 'project') {
       const children = await buildSidebar(n.children)

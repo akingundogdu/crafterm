@@ -129,7 +129,8 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
       root: node.status === 'archived' && node.dormantRoot ? node.dormantRoot : serializeLayout(node.root),
       status: node.status ?? deriveTabStatus(node.root),
       ...(node.detailsOpen ? { detailsOpen: true } : {}),
-      ...(node.archivedByWorktree ? { archivedByWorktree: true } : {})
+      ...(node.archivedByWorktree ? { archivedByWorktree: true } : {}),
+      ...(node.markedStatus ? { markedStatus: node.markedStatus } : {})
     }
   }
   if (node.kind === 'project') {
