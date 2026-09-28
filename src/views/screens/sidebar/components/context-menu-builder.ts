@@ -14,7 +14,8 @@ import {
   newClaudeTab,
   newFolder,
   autoNameTab,
-  setNodeGroup
+  setNodeGroup,
+  setTabWorkStatus
 } from '@views/commands/commands'
 import { showRunApps, showFeatureSetup, showRunCommand } from '@views/screens/pickers/project/project'
 import { promptText } from '@views/components/dialog/prompt-text'
@@ -69,6 +70,16 @@ export function buildMenu(node: SidebarNode, ctx: MenuContext): ContextMenuItem[
     items.push({ label: UITexts.Sidebar.menu.rename, run: () => ctx.beginRename(node.id) })
     if (node.titleLocked) items.push({ label: UITexts.Sidebar.menu.autoName, run: () => autoNameTab(node.id) })
     items.push({ label: node.pinned ? 'Unpin' : 'Pin', run: () => togglePin(node.id) })
+    // Hand-set work status (no ticket needed): tints the row, groups it in Pinned.
+    if (node.markedStatus !== 'test') {
+      items.push({ label: 'Mark as testing', run: () => setTabWorkStatus(node.id, 'test') })
+    }
+    if (node.markedStatus !== 'review') {
+      items.push({ label: 'Mark as review', run: () => setTabWorkStatus(node.id, 'review') })
+    }
+    if (node.markedStatus) {
+      items.push({ label: 'Clear status', run: () => setTabWorkStatus(node.id, null) })
+    }
     // Cmd+click marks extra terminals; with more than one marked, show them tiled
     // in the content area (todomraex8usk1). A view only — nothing moves.
     const marked = multiSelectedIds()

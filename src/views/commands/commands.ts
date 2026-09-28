@@ -7,7 +7,8 @@ import type {
   ProjectNode,
   WorktreeNode,
   Application,
-  WorktreeScript
+  WorktreeScript,
+  TabWorkStatus
 } from '@views/types/types'
 import { MAX_FOLDER_DEPTH } from '@views/types/types'
 import { linkTargetKind } from './link-target'
@@ -1893,6 +1894,16 @@ export function togglePin(id: string): void {
   const r = findById(state.tree, id)
   if (!r) return
   r.node.pinned = !r.node.pinned
+  requestSidebar()
+  persistence.save()
+}
+
+// Hand-set (or clear, with null) a tab's work status — no ticket needed.
+export function setTabWorkStatus(tabId: string, status: TabWorkStatus | null): void {
+  const tab = findTab(state.tree, tabId)
+  if (!tab) return
+  if (status) tab.markedStatus = status
+  else delete tab.markedStatus
   requestSidebar()
   persistence.save()
 }

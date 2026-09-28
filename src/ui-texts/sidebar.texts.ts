@@ -13,7 +13,9 @@ export const Sidebar = {
   groupWorkspace: 'Group / workspace',
   sections: {
     pinned: 'Pinned',
-    free: 'Free'
+    free: 'Free',
+    testing: 'Testing',
+    review: 'Review'
   },
   tabs: {
     terminal: 'Terminal',

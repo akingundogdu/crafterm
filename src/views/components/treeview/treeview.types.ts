@@ -12,6 +12,7 @@ export type TreeMenuItem = ContextMenuItem
 export interface TreeSection<T> {
   header?: HTMLElement | null
   nodes: T[]
+  crumbs?: boolean // show each top-level row's folder path above it
 }
 
 export interface TreeAdapter<T> {

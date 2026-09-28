@@ -1,4 +1,4 @@
-import type { SidebarNode, TabNode, WorktreeNode, ProjectNode } from '@views/types/types'
+import type { SidebarNode, TabNode, WorktreeNode, ProjectNode, TabWorkStatus } from '@views/types/types'
 import type { TreeView, TreeSection } from '@views/components/treeview/treeview'
 import { UITexts } from '@texts'
 import { state, settings, panes } from '@views/state/spine'
@@ -10,7 +10,7 @@ import {
   tabDetail,
   plansForTab,
   claudeStatusOfTab,
-  tabTaskBadge,
+  tabWorkStatus,
   folderCrumb,
   isMultiSelected,
   CLAUDE_STATUS_LABEL,
@@ -41,17 +41,31 @@ function iconOf(n: SidebarNode): TreeIcon {
   return 'terminal'
 }
 
+// Tooltip of a work-status pill: hand-set vs. derived from the tab's ticket.
+function workStatusTitle(n: TabNode, work: TabWorkStatus): string {
+  if (n.markedStatus) return work === 'review' ? 'Marked for code review' : 'Marked for test'
+  return work === 'review' ? 'Ticket is in code review' : 'Ticket is in test'
+}
+
+// Row modifier: a tab with a work status is tinted with its status colour.
+function extraClassOf(n: SidebarNode): string | undefined {
+  if (n.kind === 'worktree' && n.archiving) return 'crtree-archiving'
+  if (n.kind !== 'tab') return undefined
+  const work = tabWorkStatus(n)
+  return work ? 'crtree-work-' + work : undefined
+}
+
 // Trailing badges: Claude/task status pill, folder child-count, pin dot.
 function badgesOf(n: SidebarNode): Badge[] {
   const out: Badge[] = []
   if (n.kind === 'tab') {
-    const task = tabTaskBadge(n)
-    if (task) {
+    const work = tabWorkStatus(n)
+    if (work) {
       out.push({
         kind: 'status',
-        text: task,
-        tone: task,
-        title: task === 'review' ? 'Ticket is in code review' : 'Ticket is in test'
+        text: work,
+        tone: work,
+        title: workStatusTitle(n, work)
       })
     } else {
       const cs = claudeStatusOfTab(n)
@@ -129,10 +143,12 @@ export function createSidebarTree(host: HTMLElement, ctx: SidebarTreeContext): T
 
   const node = (id: string): SidebarNode | undefined => nodeById.get(id)
 
-  const toRow = (n: SidebarNode): TreeRow => {
+  // `withCrumb`: a top-level row of a section that shows folder paths (the
+  // Testing/Review groups, whose tabs may come from inside a pinned worktree).
+  const toRow = (n: SidebarNode, withCrumb = false): TreeRow => {
     nodeById.set(n.id, n)
     const container = n.kind === 'folder' || n.kind === 'project' || n.kind === 'worktree'
-    const children = container ? n.children.filter(ctx.passesArchiveFilter).map(toRow) : undefined
+    const children = container ? n.children.filter(ctx.passesArchiveFilter).map((c) => toRow(c)) : undefined
     return {
       id: n.id,
       label: adapter.label(n),
@@ -145,13 +161,13 @@ export function createSidebarTree(host: HTMLElement, ctx: SidebarTreeContext): T
       active: n.kind === 'tab' && n.id === state.activeTabId,
       multiSelected: n.kind === 'tab' && isMultiSelected(n.id),
       color: n.color ?? null,
-      crumb: n.pinned ? folderCrumb(n.id) : null,
+      crumb: n.pinned || withCrumb ? folderCrumb(n.id) : null,
       badges: badgesOf(n),
       actions: actionsOf(n),
       detail: detailOf(n),
       draggable: true,
       renamable: true,
-      extraClass: n.kind === 'worktree' && n.archiving ? 'crtree-archiving' : undefined
+      extraClass: extraClassOf(n)
     }
   }
 
@@ -166,7 +182,7 @@ export function createSidebarTree(host: HTMLElement, ctx: SidebarTreeContext): T
         label,
         group,
         ungrouped: group && label === 'Ungrouped',
-        rows: s.nodes.map(toRow)
+        rows: s.nodes.map((n) => toRow(n, !!s.crumbs))
       }
     })
   }

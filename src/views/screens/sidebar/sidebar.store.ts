@@ -4,7 +4,8 @@ import type {
   ProjectNode,
   PaneStatus,
   PlanEntry,
-  ActionMenuItem
+  ActionMenuItem,
+  TabWorkStatus
 } from '@views/types/types'
 import { UITexts } from '@texts'
 import { openProcessView, killProcess } from '@services/bgproc'
@@ -221,6 +222,51 @@ export function tabTaskBadge(node: TabNode): 'review' | 'test' | null {
     if (s === 'test') test = true
   }
   return test ? 'test' : null
+}
+
+// Effective work status of a tab: a hand-set status wins over its ticket's.
+export function tabWorkStatus(node: TabNode): TabWorkStatus | null {
+  return node.markedStatus ?? tabTaskBadge(node)
+}
+
+export interface PinnedStatusSplit {
+  test: TabNode[]
+  review: TabNode[]
+  rest: SidebarNode[]
+}
+
+// Split the Pinned area by work status: every tab with a status — pinned itself
+// or anywhere inside a pinned container — moves to its status group; the pinned
+// containers keep their remaining children (copies, the live tree is untouched).
+export function splitPinnedByStatus(
+  pinned: SidebarNode[],
+  keep: (n: SidebarNode) => boolean
+): PinnedStatusSplit {
+  const out: PinnedStatusSplit = { test: [], review: [], rest: [] }
+  const pull = (n: SidebarNode): SidebarNode | null => {
+    if (n.kind === 'tab') {
+      const status = tabWorkStatus(n)
+      if (!status) return n
+      out[status].push(n)
+      return null
+    }
+    if (!isContainer(n)) return n
+    const children: SidebarNode[] = []
+    for (const c of n.children) {
+      if (!keep(c)) {
+        children.push(c)
+        continue
+      }
+      const kept = pull(c)
+      if (kept) children.push(kept)
+    }
+    return { ...n, children }
+  }
+  for (const n of pinned) {
+    const kept = pull(n)
+    if (kept) out.rest.push(kept)
+  }
+  return out
 }
 
 // Group path of a node ("Movve / Mobil") — shown in the Pinned section.

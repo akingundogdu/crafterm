@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm'
-import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, CodePane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, ReminderDefaults, TimeEntry, DbNode, ActionMenuItem, Bookmark, DailyPlanData, DailyPlanTask, DailyPlanTag, MeetingNote, AccountEntry, WorktreeScripts } from '@views/types/types'
+import type { Pane, BrowserPane, DocPane, SqlPane, DiffPane, FilePane, CodePane, SidebarNode, FolderNode, ProjectNode, Application, Feature, Font, SidebarPrefs, SshConnection, PaletteCommand, AppNotification, Reminder, ReminderDefaults, TimeEntry, DbNode, ActionMenuItem, Bookmark, DailyPlanData, DailyPlanTask, DailyPlanTag, MeetingNote, AccountEntry, WorktreeScripts, TabWorkStatus } from '@views/types/types'
 import { themes, defaultThemeName, withSelection, SELECTION_BACKGROUND, SELECTION_FOREGROUND } from '@views/themes/themes'
 import { PALETTE_SEED } from '@views/palette-seed/palette-seed'
 import { allTabs } from '@views/tree/tree'
@@ -259,6 +259,8 @@ export const paneActions = {
   markTaskDone: (_paneId: string) => {},
   markTaskReview: (_paneId: string) => {},
   markTaskTest: (_paneId: string) => {},
+  // Hand-set a tab's work status (no ticket). Wired in main.ts to commands.ts.
+  setTabWorkStatus: (_tabId: string, _status: TabWorkStatus | null) => {},
   // Reactivate an archived session: rebuild its dormant layout (panes + PTYs) and
   // clear the archived status. Wired in main.ts (needs buildLayout).
   reactivateTab: (_tabId: string) => {}

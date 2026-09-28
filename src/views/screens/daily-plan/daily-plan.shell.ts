@@ -1,5 +1,5 @@
 import type { DailyPlanStatus, DailyPlanTask } from '@views/types/types'
-import { state, panes } from '@views/state/state'
+import { state, panes, requestSidebar } from '@views/state/state'
 import { dailyTaskRepo } from '@repositories'
 import { findProjectById } from '@views/catalog/catalog'
 import { worktreeNodeForBranch, removeWorktree } from '@services/worktrees'
@@ -54,6 +54,7 @@ export function markPaneTaskDone(paneId: string): void {
   dailyTaskRepo.upsert(t)
   refreshPaneDailyTask(paneId)
   triggerActiveDailyRerender()
+  requestSidebar() // the ticket status tints/groups the tab's sidebar row
   void offerDeleteTaskWorktree(t) // todo7
 }
 
@@ -68,6 +69,7 @@ export function markPaneTaskReview(paneId: string): void {
   dailyTaskRepo.upsert(t)
   refreshPaneDailyTask(paneId)
   triggerActiveDailyRerender()
+  requestSidebar() // the ticket status tints/groups the tab's sidebar row
 }
 
 // Mark this pane's assigned task as test without closing the terminal.
@@ -81,6 +83,7 @@ export function markPaneTaskTest(paneId: string): void {
   dailyTaskRepo.upsert(t)
   refreshPaneDailyTask(paneId)
   triggerActiveDailyRerender()
+  requestSidebar() // the ticket status tints/groups the tab's sidebar row
 }
 
 // When a ticket is marked done from its terminal, offer to remove its worktree

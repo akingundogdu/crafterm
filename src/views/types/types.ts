@@ -196,6 +196,10 @@ export interface CodePane {
 
 export type NodeColor = string | null
 
+// Work status of a terminal session: 'test' = waiting to be tested, 'review' =
+// waiting for code review. Set by hand on a tab, or derived from its ticket.
+export type TabWorkStatus = 'review' | 'test'
+
 // A terminal session shown as one row in the sidebar.
 export interface TabNode {
   kind: 'tab'
@@ -217,6 +221,9 @@ export interface TabNode {
   // missing (not a user close). If the worktree reappears, un-archive reactivates
   // exactly these tabs — user-closed tabs (flag absent) stay archived.
   archivedByWorktree?: boolean
+  // Work status set by hand (no ticket needed); tints the sidebar row and groups
+  // the row under its status header in the Pinned area. Wins over a ticket status.
+  markedStatus?: TabWorkStatus
 }
 
 // A grouping folder in the sidebar (can nest up to MAX_FOLDER_DEPTH). A folder
