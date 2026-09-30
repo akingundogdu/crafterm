@@ -1,3 +1,12 @@
+// DEPRECATED for the terminal sidebar. The sidebar now always renders the
+// data-driven tree in `@views/components/tree` (built in
+// screens/sidebar/components/sidebar-tree.ts) — nothing in THIS folder runs for it
+// any more, so reading TreeViewController / syncDom / syncSlot to reason about
+// sidebar behaviour or performance gives the wrong answer.
+//
+// It is still the live implementation for Notebook, Database and Explorer, which is
+// why it is kept: migrate those three consumers to `components/tree` before
+// removing anything here.
 // A reusable sidebar tree: nesting + expand/collapse, inline rename, right-click
 // context menu (the SHARED sidebar menu, so it matches the terminal exactly),
 // color tagging, drag-drop reorder/nesting (before / after / inside), search

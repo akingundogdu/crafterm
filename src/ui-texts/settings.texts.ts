@@ -174,8 +174,7 @@ export const Settings = {
     showGitBranch: 'Show git branch',
     showPaneCount: 'Show pane count',
     showPanesUnderTerminal: 'Show panes under terminal',
-    groupByRecency: 'Group by recency (Today / Yesterday / Earlier)',
-    newTree: 'Use the new tree design (restart to apply)'
+    groupByRecency: 'Group by recency (Today / Yesterday / Earlier)'
   },
   systemUpdate: {
     heading: 'System update',

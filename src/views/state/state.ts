@@ -143,7 +143,7 @@ export const settings = {
     collapsed: false,
     details: { status: true, git: true, panes: true, paneList: false },
     groupByRecency: false,
-    newTree: false
+    newTree: true
   } as SidebarPrefs
 }
 

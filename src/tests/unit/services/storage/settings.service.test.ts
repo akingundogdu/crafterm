@@ -163,6 +163,15 @@ describe('active terminal card background + text settings', () => {
     expect(settings.sidebarActiveText).toBe('#eef3ff')
   })
 
+  // The sidebar has one tree now: the data-driven `components/tree`. The settings
+  // toggle that used to pick between it and the legacy treeview is gone, so a state
+  // file that predates the flag has to land on the new tree rather than the
+  // deprecated one.
+  it('keeps sidebar.newTree on for a state file that omits the flag', () => {
+    loadSettings(saved({ sidebar: { size: 300 } as SavedState['sidebar'] }))
+    expect(settings.sidebar.newTree).toBe(true)
+  })
+
   it('applySidebarSelectedColor writes and clears the active variables', () => {
     settings.sidebarActiveBg = '#2b3a55'
     settings.sidebarActiveText = '#eef3ff'
