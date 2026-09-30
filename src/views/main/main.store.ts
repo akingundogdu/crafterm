@@ -38,6 +38,7 @@ import { setEditorOpenHandler } from '@views/editor/code-editor/code-editor'
 import { applyTheme } from '../editor/monaco/monaco-setup'
 import { renderContent, updatePaneHighlight } from '../screens/content/content'
 import { initNotifications, renderNotifications, toggleNotifPanel } from '../screens/notifications/notifications.shell'
+import { sectionEnd, sectionStart } from '@services/profiler/profiler.counters'
 import { mountStatusBar } from '@views/components/status-bar/status-bar'
 import { mountSidebarFooters } from '../screens/sidebar/components/sidebar-footers'
 import { initAccounts } from '../screens/accounts/accounts.shell'
@@ -228,7 +229,11 @@ export function wirePtyStream(): void {
   terminalService.onData((id, data) => {
     const p = panes.get(id)
     if (!p) return
+    // The hottest path in the app: one call per PTY chunk, across every streaming
+    // pane. Never measured until now, and xterm parses the whole chunk inline.
+    const started = sectionStart()
     p.term.write(data)
+    sectionEnd('term.write', started)
     // Keep a rolling ANSI-stripped tail of recent output for Claude panes only —
     // used to tell "task done" apart from "Claude is waiting on a question" when
     // the idle timer fires. Capped at a few KB to keep memory predictable.

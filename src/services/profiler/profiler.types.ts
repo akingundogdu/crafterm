@@ -60,10 +60,37 @@ export interface MainSample {
   slowestIpc: string | null
 }
 
+// One instrumented call that took long enough to be worth naming on its own. This
+// is what the Long Task API cannot give: a long task says the main thread blocked,
+// this says which of our own chokepoints was inside it.
+export interface SlowCallRecord {
+  kind: 'slow'
+  t: number
+  label: string
+  ms: number
+}
+
+// Per-chokepoint totals for the interval. Volume matters as much as duration: a
+// chokepoint called 400 times at 2ms costs more than one 40ms call.
+export interface SectionEntry {
+  label: string
+  calls: number
+  ms: number
+  maxMs: number
+}
+
+export interface SectionSample {
+  kind: 'sections'
+  t: number
+  entries: SectionEntry[]
+}
+
 export type ProfilerRecord =
   | LongTaskRecord
   | InputRecord
   | ErrorRecord
+  | SlowCallRecord
+  | SectionSample
   | RendererSample
   | MainSample
 

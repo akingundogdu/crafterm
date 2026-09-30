@@ -1,6 +1,11 @@
 import { panes } from '@views/state/spine'
 import { profilerService } from '@services'
-import { drainCounters, setCountersEnabled } from '@services/profiler/profiler.counters'
+import {
+  drainCounters,
+  drainSections,
+  drainSlowCalls,
+  setCountersEnabled
+} from '@services/profiler/profiler.counters'
 import type { ProfilerRecord } from '@services/profiler/profiler.types'
 
 // The profiler's renderer half. It answers the question a DevTools recording
@@ -12,6 +17,8 @@ import type { ProfilerRecord } from '@services/profiler/profiler.types'
 // - input timing: the measured form of "my keystroke took seconds to appear"
 // - heap: growth that never comes back down is the shape behind slow GC pauses
 // - uncaught errors, deduplicated: a total that climbs with uptime is a leak
+// - instrumented chokepoints: which of OUR functions was inside a long task, which
+//   is the part the Long Task API cannot attribute on its own
 // - renderer counters: which subsystem the work belongs to
 //
 // Nothing is observed until startProfiler() runs, so the hooks in hot paths cost a
@@ -76,6 +83,26 @@ const onRejection = (e: PromiseRejectionEvent): void => {
 
 function flush(): void {
   const counters = drainCounters()
+
+  // Named slow calls first, so reading the log top-down gives the culprit before
+  // the totals that quantify it.
+  for (const call of drainSlowCalls()) {
+    pending.push({ kind: 'slow', t: call.at - startedAt, label: call.label, ms: Math.round(call.ms) })
+  }
+  const sections = drainSections()
+  if (sections.length) {
+    pending.push({
+      kind: 'sections',
+      t: now(),
+      entries: sections.map(({ label, totals }) => ({
+        label,
+        calls: totals.calls,
+        ms: Math.round(totals.ms),
+        maxMs: Math.round(totals.maxMs)
+      }))
+    })
+  }
+
   let errors = 0
   for (const [message, count] of errorDeltas) {
     errors += count

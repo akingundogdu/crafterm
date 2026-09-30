@@ -1,6 +1,7 @@
 import type { LayoutNode, NodeStatus, SidebarNode, AppNotification } from '@views/types/types'
 import type { SavedState, SavedSidebarNode, SavedNode } from '@repositories/state.types'
 import { panesInLayout } from '@views/tree/tree'
+import { sectionEnd, sectionStart } from '@services/profiler/profiler.counters'
 import {
   panes,
   docs,
@@ -200,7 +201,11 @@ function serializeNode(node: SidebarNode): SavedSidebarNode {
 // before loading any state whose schemaVersion is below this (migrate-on-load).
 const SCHEMA_VERSION = 4
 
+// Timed for the profiler: this walks the tree into a fresh SavedState and hands
+// roughly a megabyte to main, and the state file grows over a session — so the cost
+// is both unmeasured and of a shape that worsens with uptime.
 function persist(): void {
+  const started = sectionStart()
   const data: SavedState = {
     schemaVersion: SCHEMA_VERSION,
     tree: state.tree.map(serializeNode),
@@ -254,6 +259,7 @@ function persist(): void {
     notifications: serializeNotifications()
   }
   storeService.save(data)
+  sectionEnd('persist', started)
   saveStatus.pending = false
   saveStatus.lastSavedAt = Date.now()
   emitSaveStatus()

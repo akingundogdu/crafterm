@@ -23,7 +23,11 @@ export const isCountersEnabled = (): boolean => enabled
 
 export function setCountersEnabled(value: boolean): void {
   enabled = value
-  if (!value) drainCounters()
+  if (!value) {
+    drainCounters()
+    sections.clear()
+    slowCalls = []
+  }
 }
 
 // One renderer→main IPC round-trip, timed in channels.client's `call`.
@@ -40,6 +44,53 @@ export function noteTreeRebuild(ms: number, rows: number): void {
   counters.rebuilds++
   counters.rebuildMs += ms
   counters.treeRows = rows
+}
+
+// A single call slower than this gets its own log line; everything else is only
+// counted. 30ms is roughly two dropped frames — below it, a call is not what the
+// user felt.
+const SLOW_CALL_MS = 30
+
+export interface SectionTotals {
+  calls: number
+  ms: number
+  maxMs: number
+}
+
+const sections = new Map<string, SectionTotals>()
+let slowCalls: { label: string; ms: number; at: number }[] = []
+
+// Timing primitive for the instrumented chokepoints. Deliberately NOT a
+// `measure(label, fn)` wrapper: the hottest site is one xterm write per PTY chunk,
+// and a callback wrapper would allocate a closure per call even with profiling off.
+// This costs one boolean check and returns 0 as the "not timing" sentinel.
+export const sectionStart = (): number => (enabled ? performance.now() : 0)
+
+export function sectionEnd(label: string, started: number): void {
+  if (!enabled || started === 0) return
+  const ms = performance.now() - started
+  const totals = sections.get(label)
+  if (totals) {
+    totals.calls++
+    totals.ms += ms
+    if (ms > totals.maxMs) totals.maxMs = ms
+  } else {
+    sections.set(label, { calls: 1, ms, maxMs: ms })
+  }
+  if (ms >= SLOW_CALL_MS) slowCalls.push({ label, ms, at: Date.now() })
+}
+
+// Read and reset, like drainCounters: each sample covers one interval.
+export function drainSections(): { label: string; totals: SectionTotals }[] {
+  const out = [...sections].map(([label, totals]) => ({ label, totals }))
+  sections.clear()
+  return out
+}
+
+export function drainSlowCalls(): { label: string; ms: number; at: number }[] {
+  const out = slowCalls
+  slowCalls = []
+  return out
 }
 
 // Read and reset: each sample records the interval since the previous one. The row

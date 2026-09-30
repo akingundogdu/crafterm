@@ -8,6 +8,7 @@ import { notificationRepo } from '@repositories/notification.repository'
 // reload() at the render chokepoints below; the cross-tree cycle is runtime-only
 // (shell.store reads `state` only inside reload()), so module evaluation is safe.
 import shellStore from '@views/state/shell.store'
+import { sectionEnd, sectionStart } from '@services/profiler/profiler.counters'
 
 // ---- Live state (mutated in place; modules import these singletons) ----
 
@@ -218,17 +219,23 @@ export function pushNotification(
   meta: import('@views/types/types').NotificationMeta = {}
 ): void {
   notificationRepo.add({ id: uid('n'), paneId, title, group, message, time: Date.now(), ...meta })
+  const started = sectionStart()
   hooks.renderNotifications()
+  sectionEnd('renderNotifications', started)
 }
 
 export function updateActive(): void {
   shellStore.reload()
+  const started = sectionStart()
   hooks.updateActive()
+  sectionEnd('updateActive', started)
 }
 
 export function updatePaneActive(): void {
   shellStore.reload()
+  const started = sectionStart()
   hooks.updatePaneHighlight()
+  sectionEnd('updatePaneHighlight', started)
 }
 
 // Pane UI -> command dispatch (wired in main.ts to avoid import cycles).
@@ -282,7 +289,9 @@ export function requestSidebar(): void {
   requestAnimationFrame(() => {
     sbPending = false
     shellStore.reload()
+    const started = sectionStart()
     hooks.renderSidebar()
+    sectionEnd('renderSidebar', started)
   })
 }
 export function requestStatuses(): void {
@@ -296,13 +305,17 @@ export function requestStatuses(): void {
       stPending = false
       stLastRun = Date.now()
       shellStore.reload()
+      const started = sectionStart()
       hooks.updateStatuses()
+      sectionEnd('updateStatuses', started)
     })
   }, wait)
 }
 export function renderContent(): void {
   shellStore.reload()
+  const started = sectionStart()
   hooks.renderContent()
+  sectionEnd('renderContent', started)
 }
 
 export function activeTabsCount(): number {
