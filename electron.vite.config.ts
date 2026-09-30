@@ -41,6 +41,10 @@ export default defineConfig({
     resolve: { alias },
     esbuild: { jsx: 'automatic', jsxImportSource: '@views' },
     build: {
+      // Opt-in sourcemaps so a packaged build can be debugged with readable stack
+      // frames and profiler names: `CRAFTERM_SOURCEMAP=1 npm run dist:dir`. Off by
+      // default so release builds don't ship maps.
+      sourcemap: !!process.env.CRAFTERM_SOURCEMAP,
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/views/index.html'),
