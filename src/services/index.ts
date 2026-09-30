@@ -30,6 +30,7 @@ export { backlogService } from './backlog/backlog.client'
 export { soundService } from './sound/sound.client'
 export { storeService } from './store/store.client'
 export { systemService } from './system/system.client'
+export { profilerService } from './profiler/profiler.client'
 
 // Renderer-only preload utility (not an IPC channel): resolves a dropped File
 // to its absolute path via webUtils.getPathForFile in the preload.

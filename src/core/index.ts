@@ -35,6 +35,7 @@ import { ZshController } from '@services/zsh/zsh.main'
 import { IosController } from '@services/ios/ios.main'
 import { TerminalController } from '@services/terminal/terminal.main'
 import { SystemController } from '@services/system/system.main'
+import { ProfilerController } from '@services/profiler/profiler.main'
 import { emit, Channel } from '@services/channels.main'
 import {
   createMainWindow,
@@ -81,7 +82,8 @@ const services: BaseService[] = [
   new ZshController(), // zsh:* — zsh aliases/functions
   new IosController(), // ios:* / iosWorktree:* — build/run + targets/schemes
   new TerminalController(), // pty:* / proc:* — terminal + background processes
-  new SystemController() // system:* — machine CPU/memory + top processes
+  new SystemController(), // system:* — machine CPU/memory + top processes
+  new ProfilerController() // profiler:* — performance log for a long session
 ]
 for (const service of services) {
   service.setup?.()

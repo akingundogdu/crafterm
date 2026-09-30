@@ -25,6 +25,7 @@ import {
 } from '../sidebar.store'
 import { buildAdapter, type AdapterContext } from './tree-adapter'
 import { mountTree } from '@views/components/tree/tree'
+import { isCountersEnabled, noteTreeRebuild } from '@services/profiler/profiler.counters'
 import type { TreeRow, TreeSectionData, DetailRow, Badge, RowAction, TreeIcon } from '@views/components/tree/tree'
 
 // The bridge from the sidebar's `SidebarNode` model to the modern, data-driven
@@ -257,13 +258,13 @@ export function createSidebarTree(host: HTMLElement, ctx: SidebarTreeContext): T
   // it. Delete this block and the wrapper below once the numbers are settled.
   let stats = newStats(0)
   const rebuild = (): void => {
-    if (!window.__CRTREE_PERF) {
-      panel.setSections(toSections(lastRaw))
-      return
-    }
     const started = performance.now()
     panel.setSections(toSections(lastRaw))
     const elapsed = performance.now() - started
+    // Guarded rather than unconditional: counting visible rows allocates, so it is
+    // skipped unless a profiler session is running.
+    if (isCountersEnabled()) noteTreeRebuild(elapsed, panel.visibleIds().length)
+    if (!window.__CRTREE_PERF) return
     if (!stats.since) stats = newStats(started)
     stats.runs++
     stats.totalMs += elapsed

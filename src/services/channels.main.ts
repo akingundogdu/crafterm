@@ -5,18 +5,29 @@ import type { ChannelName, ReqOf, ResOf, PayloadOf, RpcChannel, MsgChannel, EvtC
 // Re-export the channel-name namespace so main-side modules import their handlers
 // and the channel constants from one place.
 export { Channel } from './channels'
+import { noteIpc, isRunning } from '@core/services/profiler/profiler.service'
 
 // MAIN-side typed IPC wrappers, generic over the channel registry. Each `*.main.ts`
 // registers handlers through these instead of touching `ipcMain` with raw channel
 // strings, so the request/response types are checked against channels.ts and can't
 // drift from the renderer's `call`/`send`/`listen`.
 
-// Request/response (invoke ↔ handle).
+// Request/response (invoke ↔ handle). Timed for the profiler — a no-op unless a
+// session is running — so a slow handler shows up as itself instead of as an
+// unexplained gap in the renderer's timeline.
 export function handle<C extends RpcChannel>(
   channel: C,
   handler: (req: ReqOf<C>, event: IpcMainInvokeEvent) => ResOf<C> | Promise<ResOf<C>>
 ): void {
-  ipcMain.handle(channel, (event, payload) => handler(payload as ReqOf<C>, event))
+  ipcMain.handle(channel, async (event, payload) => {
+    if (!isRunning()) return handler(payload as ReqOf<C>, event)
+    const started = Date.now()
+    try {
+      return await handler(payload as ReqOf<C>, event)
+    } finally {
+      noteIpc(channel, Date.now() - started)
+    }
+  })
 }
 
 // Renderer→main one-way (send ↔ on).
