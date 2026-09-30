@@ -131,6 +131,7 @@ export function createPaneState(args: {
     lastClaudeTitle: null,
     bgColor: null,
     fontSize: null,
+    autoFontSize: null,
     trackProjectPath: null,
     trackFeatureId: null,
     projectId: null,
@@ -268,9 +269,29 @@ export function makeSelectPane(id: string): () => void {
 }
 
 // ---- font sizing ----
-// Apply one pane's effective font size (its override, else the global default).
+// A tiled terminal aims to keep at least this many columns readable; below it the
+// font is shrunk to fit rather than clipping the content the way a wide user font
+// (e.g. 30px) does when six terminals share the width.
+export const TILE_TARGET_COLS = 80
+const MIN_FONT = 6
+
+// The size actually rendered: an active side-by-side fit wins, then the user's
+// per-pane override, then the global default.
+export function effectiveFontSize(p: Pane): number {
+  return p.autoFontSize ?? p.fontSize ?? settings.font.size
+}
+
+// Pure size math (unit-tested): given the columns a tile shows at `base`, the
+// largest font <= base whose columns reach `target`. Linear because a monospace
+// glyph's width scales with the font size. Returns base unchanged when it fits.
+export function scaledFontForCols(base: number, currentCols: number, target: number): number {
+  if (currentCols <= 0 || currentCols >= target) return base
+  return Math.max(MIN_FONT, Math.floor((base * currentCols) / target))
+}
+
+// Apply one pane's effective font size (auto-fit, else override, else global).
 function applyPaneFont(p: Pane): void {
-  p.term.options.fontSize = p.fontSize ?? settings.font.size
+  p.term.options.fontSize = effectiveFontSize(p)
   try {
     p.fit.fit()
     pushResize(p)
@@ -279,12 +300,46 @@ function applyPaneFont(p: Pane): void {
   }
 }
 
+// Shrink a tiled terminal's font so it keeps ~TILE_TARGET_COLS columns. Measures
+// at the user's own size first and only shrinks from there, so a tile that is
+// already wide enough is left at the user's chosen size. Never touches
+// pane.fontSize — clearAutoFitFont restores the user's size on the way out.
+export function autoFitTileFont(p: Pane): void {
+  const base = p.fontSize ?? settings.font.size
+  p.autoFontSize = null
+  p.term.options.fontSize = base
+  let cols = 0
+  try {
+    cols = p.fit.proposeDimensions()?.cols ?? 0
+  } catch {
+    /* ignore — leave at base */
+  }
+  const scaled = scaledFontForCols(base, cols, TILE_TARGET_COLS)
+  p.autoFontSize = scaled < base ? scaled : null
+  p.term.options.fontSize = effectiveFontSize(p)
+  try {
+    p.fit.fit()
+    pushResize(p)
+  } catch {
+    /* ignore */
+  }
+}
+
+// Drop a pane's transient tile fit and return it to the user's size. No-op (and no
+// reflow) when nothing was fitted, so it is safe to call over every pane on exit.
+export function clearAutoFitFont(p: Pane): void {
+  if (p.autoFontSize === null) return
+  p.autoFontSize = null
+  applyPaneFont(p)
+}
+
 // Cmd +/- with a terminal focused: zoom only the active pane, not every pane.
 export function adjustActivePaneFontSize(delta: number): void {
   const p = state.activePaneId ? panes.get(state.activePaneId) : null
   if (!p) return
   const cur = p.fontSize ?? settings.font.size
   p.fontSize = Math.max(6, Math.min(40, cur + delta))
+  p.autoFontSize = null // a manual zoom takes over from the tile auto-fit
   applyPaneFont(p)
 }
 
@@ -300,7 +355,7 @@ export function applyAppearance(): void {
   panes.forEach((p) => {
     applyPaneTheme(p) // keeps each pane's own background override
     p.term.options.fontFamily = settings.font.family
-    p.term.options.fontSize = p.fontSize ?? settings.font.size // keep per-pane size
+    p.term.options.fontSize = effectiveFontSize(p) // keep per-pane / tile size
     try {
       p.fit.fit()
       pushResize(p)
