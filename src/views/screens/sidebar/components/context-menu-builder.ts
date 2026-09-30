@@ -21,7 +21,13 @@ import { showRunApps, showFeatureSetup, showRunCommand } from '@views/screens/pi
 import { promptText } from '@views/components/dialog/prompt-text'
 import { promptSelect } from '@views/components/dialog/prompt-select'
 import { type ContextMenuItem } from '@views/components/context-menu/context-menu'
-import { multiSelectedIds, showSideBySide, clearSideBySideSelection } from '../sidebar.store'
+import {
+  multiSelectedIds,
+  showSideBySide,
+  clearSideBySideSelection,
+  pinnedTabsWithStatus,
+  showTabsSideBySide
+} from '../sidebar.store'
 import { iosWorktreeMenuItems } from '@views/screens/ios-worktree/ios-worktree'
 import { isWorktreeFolder, isWorktreeContainer, worktreeProjectOf, newWorktree, removeWorktree } from '@services/worktrees'
 import { shellService } from '@services'
@@ -77,6 +83,9 @@ export function buildMenu(node: SidebarNode, ctx: MenuContext): ContextMenuItem[
     if (node.markedStatus !== 'review') {
       items.push({ label: 'Mark as review', run: () => setTabWorkStatus(node.id, 'review') })
     }
+    if (node.markedStatus !== 'progress') {
+      items.push({ label: 'Mark as in progress', run: () => setTabWorkStatus(node.id, 'progress') })
+    }
     if (node.markedStatus) {
       items.push({ label: 'Clear status', run: () => setTabWorkStatus(node.id, null) })
     }
@@ -89,6 +98,14 @@ export function buildMenu(node: SidebarNode, ctx: MenuContext): ContextMenuItem[
         run: () => showSideBySide(marked)
       })
       items.push({ label: 'Clear selection', run: () => clearSideBySideSelection() })
+    }
+    // A row of the pinned "In progress" section: tile that whole section at once.
+    const inProgress = pinnedTabsWithStatus('progress').map((t) => t.id)
+    if (inProgress.length > 1 && inProgress.includes(node.id)) {
+      items.push({
+        label: `View ${inProgress.length} terminals in progress`,
+        run: () => showTabsSideBySide(inProgress)
+      })
     }
     items.push({ label: UITexts.Sidebar.menu.closeTab, run: () => closeTab(node.id), danger: true })
   } else if (isWorktreeFolder(node)) {

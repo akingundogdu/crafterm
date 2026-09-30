@@ -20,7 +20,8 @@ import {
   persistResizedLayout,
   isSideBySide,
   sideBySideTabs,
-  sideBySideLayout
+  sideBySideLayout,
+  pruneSideBySide
 } from './content.store'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 import { buildAgentComposer, refreshAgentComposer } from './components/agent-composer'
@@ -195,6 +196,8 @@ class ContentController {
         tabContainers.delete(id)
       }
     }
+    // A closed tile's slot goes away and the rest re-tile (or the view ends).
+    pruneSideBySide()
     if (isSideBySide()) {
       this.renderSideBySide()
       return

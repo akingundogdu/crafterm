@@ -11,7 +11,15 @@ import { UITexts } from '@texts'
 import { openProcessView, killProcess } from '@services/bgproc'
 import { state, panes, settings, paneActions, renderContent, requestSidebar } from '@views/state/spine'
 import { setSideBySide, exitSideBySide } from '@views/screens/content/content.store'
-import { allTabs, panesInLayout, firstPaneOf, ancestorFolders, isContainer } from '@views/tree/tree'
+import {
+  allTabs,
+  panesInLayout,
+  firstPaneOf,
+  ancestorFolders,
+  isContainer,
+  findTab,
+  collectPinnedRoots
+} from '@views/tree/tree'
 import { paneStatus, isPlanOwnedByPane } from '@views/pane/pane'
 import {
   selectPane,
@@ -70,6 +78,17 @@ export const CLAUDE_STATUS_TITLE: Record<'in-progress' | 'question' | 'idle', st
   'in-progress': 'Claude is working',
   question: 'Claude is waiting on you',
   idle: 'Claude is idle'
+}
+
+// Work-status pill text and tooltips (hand-set vs. derived from the tab's ticket).
+export const WORK_STATUS_LABEL: Record<TabWorkStatus, string> = {
+  review: 'review',
+  test: 'test',
+  progress: 'in progress'
+}
+export const WORK_STATUS_TITLE: Record<'marked' | 'ticket', Record<TabWorkStatus, string>> = {
+  marked: { review: 'Marked for code review', test: 'Marked for test', progress: 'Marked as in progress' },
+  ticket: { review: 'Ticket is in code review', test: 'Ticket is in test', progress: 'Ticket is in progress' }
 }
 
 export const TAB_ICON: Record<string, string> = {
@@ -211,17 +230,20 @@ export function claudeStatusOfTab(node: TabNode): 'in-progress' | 'question' | '
   return result
 }
 
-// The intermediate daily-task status (review/test) of any pane in the tab, if any.
-export function tabTaskBadge(node: TabNode): 'review' | 'test' | null {
+// The intermediate daily-task status (review/test/wip) of any pane in the tab,
+// if any — review wins over test, test over wip ('progress').
+export function tabTaskBadge(node: TabNode): TabWorkStatus | null {
   let test = false
+  let progress = false
   for (const id of panesInLayout(node.root)) {
     const taskId = panes.get(id)?.dailyTaskId
     if (!taskId) continue
     const s = paneActions.dailyTaskStatus(taskId)
     if (s === 'review') return 'review'
     if (s === 'test') test = true
+    else if (s === 'wip') progress = true
   }
-  return test ? 'test' : null
+  return test ? 'test' : progress ? 'progress' : null
 }
 
 // Effective work status of a tab: a hand-set status wins over its ticket's.
@@ -232,6 +254,7 @@ export function tabWorkStatus(node: TabNode): TabWorkStatus | null {
 export interface PinnedStatusSplit {
   test: TabNode[]
   review: TabNode[]
+  progress: TabNode[]
   rest: SidebarNode[]
 }
 
@@ -242,7 +265,7 @@ export function splitPinnedByStatus(
   pinned: SidebarNode[],
   keep: (n: SidebarNode) => boolean
 ): PinnedStatusSplit {
-  const out: PinnedStatusSplit = { test: [], review: [], rest: [] }
+  const out: PinnedStatusSplit = { test: [], review: [], progress: [], rest: [] }
   const pull = (n: SidebarNode): SidebarNode | null => {
     if (n.kind === 'tab') {
       const status = tabWorkStatus(n)
@@ -430,8 +453,13 @@ export function isMultiSelected(id: string): boolean {
   return multiSelected.has(id)
 }
 
+// The marked terminals that can still be shown — a marked one closed since
+// (archived or gone) drops out, so "View N terminals" counts only real tiles.
 export function multiSelectedIds(): string[] {
-  return [...multiSelected]
+  return [...multiSelected].filter((id) => {
+    const tab = findTab(state.tree, id)
+    return !!tab && tab.status !== 'archived'
+  })
 }
 
 // Cmd/Ctrl+click on a terminal row: add or remove it from the marked set.
@@ -456,6 +484,22 @@ export function showSideBySide(tabIds: string[]): void {
   setSideBySide(tabIds)
   renderContent()
   requestSidebar()
+}
+
+// Pinned-area terminals with this work status — the rows of its section (e.g.
+// "In progress"). Live sessions only: an archived one has nothing to show.
+export function pinnedTabsWithStatus(status: TabWorkStatus): TabNode[] {
+  const live = (n: SidebarNode): boolean => n.kind !== 'tab' || n.status !== 'archived'
+  return splitPinnedByStatus(collectPinnedRoots(state.tree).filter(live), live)[status]
+}
+
+// Tile a whole status section at once ("View 5 terminals in progress"). Its rows
+// get marked like Cmd+clicked ones — the marks say which terminals are on screen —
+// so any earlier marks give way.
+export function showTabsSideBySide(tabIds: string[]): void {
+  multiSelected.clear()
+  for (const id of tabIds) multiSelected.add(id)
+  showSideBySide(tabIds)
 }
 
 export function clearSideBySideSelection(): void {

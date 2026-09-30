@@ -1,7 +1,15 @@
 import type { Dir, LayoutNode } from '@views/types/types'
 import { state, poppedOut } from '@views/state/spine'
 import { persistence } from '@repositories/persistence.service'
-import { findTab, firstPaneOf, layoutContains, splitInLayout, movePaneInLayout } from '@views/tree/tree'
+import {
+  findTab,
+  firstPaneOf,
+  layoutContains,
+  splitInLayout,
+  movePaneInLayout,
+  panesInLayout,
+  removePaneFromLayout
+} from '@views/tree/tree'
 import { terminalService } from '@services'
 
 // Each tab's layout lives in its own container that stays in the DOM; switching
@@ -116,6 +124,46 @@ export function moveSideBySidePane(dragId: string, targetId: string, dir: Dir, b
   if (!next) return false
   sideBySideRoot = next
   return true
+}
+
+// Closing a tile's terminal (its session archived, or the pane itself closed)
+// must shrink the view, not leave a dead slot: drop every tile whose pane no
+// longer lives in a tiled, live tab, then the tabs left without a tile. When the
+// active terminal was the one closed, focus moves to the first remaining tile;
+// down to a single tile the view ends and that terminal is shown on its own.
+export function pruneSideBySide(): void {
+  if (!sideBySideTabIds.length) return
+  const liveRoots = new Map<string, LayoutNode>()
+  for (const id of sideBySideTabIds) {
+    const tab = findTab(state.tree, id)
+    if (tab && tab.status !== 'archived') liveRoots.set(id, tab.root)
+  }
+  const ownerOf = (paneId: string): string | null => {
+    for (const [id, root] of liveRoots) if (layoutContains(root, paneId)) return id
+    return null
+  }
+  let root = sideBySideRoot
+  const tiled = new Set<string>()
+  for (const paneId of root ? panesInLayout(root) : []) {
+    const owner = ownerOf(paneId)
+    if (owner) tiled.add(owner)
+    else root = root && removePaneFromLayout(root, paneId)
+  }
+  const kept = sideBySideTabIds.filter((id) => tiled.has(id))
+  if (kept.length === sideBySideTabIds.length) return
+  const firstPane = firstPaneOf(root)
+  const firstTab = firstPane ? ownerOf(firstPane) : null
+  if (firstTab && (!state.activeTabId || !tiled.has(state.activeTabId))) {
+    state.activeTabId = firstTab
+    state.selectedNodeId = firstTab
+    state.activePaneId = firstPane
+  }
+  if (kept.length > 1) {
+    sideBySideTabIds = kept
+    sideBySideRoot = root
+    return
+  }
+  exitSideBySide()
 }
 
 // Leaving the view: the borrowed pane elements went back to the tiled container, so

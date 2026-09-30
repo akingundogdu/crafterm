@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs'
 import * as terminal from '@core/services/terminal.manager/terminal.manager.service'
 import * as git from '@core/services/git/git.service'
 import { paneCwd } from '@core/services/exec/exec.service'
-import { lastCmdDir } from '@core/services/paths/paths.service'
+import { lastCmdDir, claudeSessionMapDir } from '@core/services/paths/paths.service'
 import type { PaneInfo } from './pane.types'
 
 // Pane info domain logic (pane:*): a pane's cwd (pid → lsof), git branch/worktree,
@@ -26,14 +26,30 @@ export class PaneService {
     }
   }
 
+  // The pane's live Claude session id as recorded by the SessionStart hook
+  // (<stateDir>/claude-session/<CRAFTERM_PANE_ID>). This is the authoritative id:
+  // it is rewritten on every session start, so it follows a /clear or compact roll
+  // that the launch-time --session-id cannot. Null when nothing was recorded.
+  private readClaudeSessionId(stableId: string): string | null {
+    try {
+      const f = join(claudeSessionMapDir(), stableId)
+      if (!existsSync(f)) return null
+      const s = readFileSync(f, 'utf8').trim()
+      return s || null
+    } catch {
+      return null
+    }
+  }
+
   async info(id: string, stableId?: string): Promise<PaneInfo> {
     const lastCommand = stableId ? this.readLastCommand(stableId) : null
+    const claudeSessionId = stableId ? this.readClaudeSessionId(stableId) : null
     const p = terminal.get(id)
-    if (!p) return { cwd: null, branch: null, worktree: null, lastCommand }
+    if (!p) return { cwd: null, branch: null, worktree: null, lastCommand, claudeSessionId }
     const cwd = await paneCwd(p.pid)
     const [branch, worktree] = cwd
       ? await Promise.all([git.currentBranch(cwd), git.worktreeName(cwd)])
       : [null, null]
-    return { cwd, branch, worktree, lastCommand }
+    return { cwd, branch, worktree, lastCommand, claudeSessionId }
   }
 }

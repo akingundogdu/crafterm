@@ -145,6 +145,19 @@ export async function refreshPaneInfo(pane: Pane): Promise<void> {
   }
   if (info.lastCommand) pane.lastCommand = info.lastCommand
   updatePaneStatus(pane)
+  // The SessionStart hook records this pane's CURRENT Claude session id (rewritten
+  // on launch, /clear and compact). It is authoritative: it follows a session-id
+  // roll that the locked launch-time id cannot. Adopt it whenever it changes so the
+  // sidebar keeps reading the LIVE session's jsonl — otherwise a /clear freezes the
+  // label on the pre-clear title (the new /rename lands in a file we never read).
+  if (pane.claude && info.claudeSessionId && info.claudeSessionId !== pane.claudeSessionId) {
+    pane.claudeSessionId = info.claudeSessionId
+    pane.claudeSessionLocked = true
+    // Force a title re-read against the new session (its /rename record lives
+    // there, not in the id we were reading before).
+    pane.lastClaudeTitle = null
+    persistence.save()
+  }
   // Plan files for this branch (docs/plans/<branch>-*.md). We fetch every tick
   // (cheap — main reads a single directory) so new files appear without
   // needing a cwd/branch change. The fs.watch broadcast covers the live case.

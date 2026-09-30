@@ -22,6 +22,13 @@ export const statePath = (): string => join(stateDir(), 'crafterm-state.json')
 export const lastCmdDir = (): string => join(stateDir(), 'last-cmd')
 export const zdotDir = (): string => join(stateDir(), 'zdotdir')
 
+// Pane -> Claude session id map. A SessionStart hook records each pane's CURRENT
+// session id to <stateDir>/claude-session/<CRAFTERM_PANE_ID>. Unlike the launch-
+// time `--session-id`, this follows a /clear or compact roll (Claude moves the
+// conversation to a new session id), so the sidebar keeps reading the live
+// session's title instead of the stale launch-time file.
+export const claudeSessionMapDir = (): string => join(stateDir(), 'claude-session')
+
 // Notebook tree root: a free-form folder/.md tree under <stateDir>/notebooks.
 export const notebooksDir = (): string => join(stateDir(), 'notebooks')
 

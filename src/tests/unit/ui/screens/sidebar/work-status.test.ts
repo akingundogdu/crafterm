@@ -83,12 +83,45 @@ describe('tabWorkStatus', () => {
   it('returns the hand-set status', () => {
     expect(tabWorkStatus(tab('a', { marked: 'test' }))).toBe('test')
     expect(tabWorkStatus(tab('b', { marked: 'review' }))).toBe('review')
+    expect(tabWorkStatus(tab('c', { marked: 'progress' }))).toBe('progress')
   })
 
   it('falls back to the ticket status of a pane in the tab', () => {
     spine.panes.set('p-a', { dailyTaskId: 'task-1' })
     spine.taskStatus.set('task-1', 'test')
     expect(tabWorkStatus(tab('a'))).toBe('test')
+  })
+
+  it('maps a wip ticket to in progress', () => {
+    spine.panes.set('p-a', { dailyTaskId: 'task-1' })
+    spine.taskStatus.set('task-1', 'wip')
+    expect(tabWorkStatus(tab('a'))).toBe('progress')
+  })
+
+  it('ranks ticket statuses review over test over wip', () => {
+    const multi = (id: string): TabNode => ({
+      ...tab(id),
+      root: {
+        type: 'split',
+        dir: 'row',
+        sizes: [50, 50],
+        children: [
+          { type: 'leaf', paneId: 'p-' + id + '-1' },
+          { type: 'leaf', paneId: 'p-' + id + '-2' }
+        ]
+      }
+    })
+    spine.panes.set('p-a-1', { dailyTaskId: 'wip-task' })
+    spine.panes.set('p-a-2', { dailyTaskId: 'test-task' })
+    spine.taskStatus.set('wip-task', 'wip')
+    spine.taskStatus.set('test-task', 'test')
+    expect(tabWorkStatus(multi('a'))).toBe('test')
+  })
+
+  it('ignores ticket statuses outside review/test/wip', () => {
+    spine.panes.set('p-a', { dailyTaskId: 'task-1' })
+    spine.taskStatus.set('task-1', 'todo')
+    expect(tabWorkStatus(tab('a'))).toBeNull()
   })
 
   it('prefers the hand-set status over the ticket status', () => {
@@ -101,11 +134,17 @@ describe('tabWorkStatus', () => {
 describe('splitPinnedByStatus', () => {
   it('moves pinned tabs with a status into their group', () => {
     const split = splitPinnedByStatus(
-      [tab('t', { pinned: true, marked: 'test' }), tab('r', { pinned: true, marked: 'review' }), tab('x', { pinned: true })],
+      [
+        tab('t', { pinned: true, marked: 'test' }),
+        tab('r', { pinned: true, marked: 'review' }),
+        tab('p', { pinned: true, marked: 'progress' }),
+        tab('x', { pinned: true })
+      ],
       keepAll
     )
     expect(ids(split.test)).toEqual(['t'])
     expect(ids(split.review)).toEqual(['r'])
+    expect(ids(split.progress)).toEqual(['p'])
     expect(ids(split.rest)).toEqual(['x'])
   })
 
@@ -147,5 +186,12 @@ describe('splitPinnedByStatus', () => {
     spine.taskStatus.set('task-1', 'review')
     const split = splitPinnedByStatus([tab('a', { pinned: true })], keepAll)
     expect(ids(split.review)).toEqual(['a'])
+  })
+
+  it('groups a pinned tab with a wip ticket under in progress', () => {
+    spine.panes.set('p-a', { dailyTaskId: 'task-1' })
+    spine.taskStatus.set('task-1', 'wip')
+    const split = splitPinnedByStatus([tab('a', { pinned: true })], keepAll)
+    expect(ids(split.progress)).toEqual(['a'])
   })
 })

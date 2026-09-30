@@ -8,7 +8,7 @@ import type { ContextMenuItem } from '@views/components/context-menu/context-men
 export type TreeIcon = 'project' | 'worktree' | 'folder' | 'terminal'
 
 // Claude/session status pill tone (mirrors the legacy `.claude-*` colours).
-export type StatusTone = 'in-progress' | 'question' | 'idle' | 'review' | 'test'
+export type StatusTone = 'in-progress' | 'question' | 'idle' | 'review' | 'test' | 'progress'
 
 // Leading activity dot on a terminal row.
 export type StatusDot = 'idle' | 'running' | 'attention'

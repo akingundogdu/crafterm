@@ -11,6 +11,8 @@ import {
   plansForTab,
   claudeStatusOfTab,
   tabWorkStatus,
+  WORK_STATUS_LABEL,
+  WORK_STATUS_TITLE,
   folderCrumb,
   isMultiSelected,
   CLAUDE_STATUS_LABEL,
@@ -43,8 +45,7 @@ function iconOf(n: SidebarNode): TreeIcon {
 
 // Tooltip of a work-status pill: hand-set vs. derived from the tab's ticket.
 function workStatusTitle(n: TabNode, work: TabWorkStatus): string {
-  if (n.markedStatus) return work === 'review' ? 'Marked for code review' : 'Marked for test'
-  return work === 'review' ? 'Ticket is in code review' : 'Ticket is in test'
+  return WORK_STATUS_TITLE[n.markedStatus ? 'marked' : 'ticket'][work]
 }
 
 // Row modifier: a tab with a work status is tinted with its status colour.
@@ -63,7 +64,7 @@ function badgesOf(n: SidebarNode): Badge[] {
     if (work) {
       out.push({
         kind: 'status',
-        text: work,
+        text: WORK_STATUS_LABEL[work],
         tone: work,
         title: workStatusTitle(n, work)
       })

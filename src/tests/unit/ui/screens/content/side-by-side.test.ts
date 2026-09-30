@@ -4,12 +4,20 @@ import type { LayoutNode } from '@views/types/types'
 
 // Tabs the view can tile: each contributes its first pane (a split tab's root
 // still yields one tile). Kept as a mutable map so a test can seed its own tabs.
-const tabs: Record<string, { id: string; root: LayoutNode }> = {}
+const tabs: Record<string, { id: string; root: LayoutNode; status?: 'archived' }> = {}
 const tab = (id: string, paneId: string): void => {
   tabs[id] = { id, root: { type: 'leaf', paneId } }
 }
 
-vi.mock('@views/state/spine', () => ({ state: { tree: [] }, poppedOut: new Map() }))
+const spine = vi.hoisted(() => ({
+  state: { tree: [], activeTabId: null, activePaneId: null, selectedNodeId: null } as {
+    tree: never[]
+    activeTabId: string | null
+    activePaneId: string | null
+    selectedNodeId: string | null
+  }
+}))
+vi.mock('@views/state/spine', () => ({ state: spine.state, poppedOut: new Map() }))
 vi.mock('@repositories/persistence.service', () => ({ persistence: { save: () => {} } }))
 vi.mock('@views/tree/tree', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@views/tree/tree')>()),
@@ -27,6 +35,7 @@ const {
   exitSideBySide,
   addSideBySideTab,
   moveSideBySidePane,
+  pruneSideBySide,
   rowOfPanes
 } = await import('@views/screens/content/content.store')
 
@@ -145,5 +154,98 @@ describe('side-by-side view state', () => {
     expect(rowOfPanes([])).toBeNull()
     expect(paneIdsOf(rowOfPanes(['p1']))).toBe('p1')
     expect(paneIdsOf(rowOfPanes(['p1', 'p2']))).toEqual({ row: ['p1', 'p2'] })
+  })
+
+  describe('closing a tile', () => {
+    beforeEach(() => {
+      tab('t4', 'p4')
+      tab('t5', 'p5')
+      spine.state.activeTabId = null
+      spine.state.activePaneId = null
+      spine.state.selectedNodeId = null
+    })
+
+    it('drops the closed terminal’s slot so the rest re-tile', () => {
+      setSideBySide(['t1', 't2', 't3', 't4', 't5'])
+      tabs.t3.status = 'archived'
+
+      pruneSideBySide()
+
+      expect(sideBySideTabs()).toEqual(['t1', 't2', 't4', 't5'])
+      expect(paneIdsOf(sideBySideLayout())).toEqual({ row: ['p1', 'p2', 'p4', 'p5'] })
+      expect(isTabTiled('t3')).toBe(false)
+    })
+
+    it('drops a tile whose pane was closed out of a still-open tab', () => {
+      tabs.t2.root = { type: 'leaf', paneId: 'p2b' }
+      setSideBySide(['t1', 't2', 't3'])
+      tabs.t2.root = { type: 'leaf', paneId: 'p2c' }
+
+      pruneSideBySide()
+
+      expect(sideBySideTabs()).toEqual(['t1', 't3'])
+      expect(paneIdsOf(sideBySideLayout())).toEqual({ row: ['p1', 'p3'] })
+    })
+
+    it('keeps a dragged arrangement, only removing the closed tile', () => {
+      setSideBySide(['t1', 't2', 't3'])
+      moveSideBySidePane('p3', 'p1', 'col', false)
+      delete tabs.t1
+
+      pruneSideBySide()
+
+      expect(paneIdsOf(sideBySideLayout())).toEqual({ row: ['p3', 'p2'] })
+    })
+
+    it('moves focus to the first remaining tile when the active one was closed', () => {
+      setSideBySide(['t1', 't2', 't3'])
+      spine.state.activeTabId = 't1'
+      spine.state.activePaneId = 'p1'
+      tabs.t1.status = 'archived'
+
+      pruneSideBySide()
+
+      expect(spine.state.activeTabId).toBe('t2')
+      expect(spine.state.activePaneId).toBe('p2')
+      expect(spine.state.selectedNodeId).toBe('t2')
+    })
+
+    it('leaves focus alone when another tile was closed', () => {
+      setSideBySide(['t1', 't2', 't3'])
+      spine.state.activeTabId = 't3'
+      spine.state.activePaneId = 'p3'
+      tabs.t1.status = 'archived'
+
+      pruneSideBySide()
+
+      expect(spine.state.activeTabId).toBe('t3')
+      expect(spine.state.activePaneId).toBe('p3')
+    })
+
+    it('ends the view and shows the last terminal on its own when one tile is left', () => {
+      tabContainers.set('t2', { el: document.createElement('div'), sig: 'sig-2' })
+      setSideBySide(['t1', 't2'])
+      spine.state.activeTabId = 't1'
+      tabs.t1.status = 'archived'
+
+      pruneSideBySide()
+
+      expect(isSideBySide()).toBe(false)
+      expect(sideBySideLayout()).toBeNull()
+      expect(spine.state.activeTabId).toBe('t2')
+      expect(spine.state.activePaneId).toBe('p2')
+      expect(tabContainers.get('t2')?.sig).toBe('')
+    })
+
+    it('changes nothing while every tile is still open', () => {
+      setSideBySide(['t1', 't2'])
+      moveSideBySidePane('p2', 'p1', 'col', false)
+      const before = sideBySideLayout()
+
+      pruneSideBySide()
+
+      expect(sideBySideLayout()).toBe(before)
+      expect(sideBySideTabs()).toEqual(['t1', 't2'])
+    })
   })
 })

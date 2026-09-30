@@ -1,7 +1,7 @@
 import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'path'
 import { loadScript } from './services/scripts/scripts.service'
-import { lastCmdDir, zdotDir, runtimeDir } from './services/paths/paths.service'
+import { lastCmdDir, zdotDir, runtimeDir, claudeSessionMapDir } from './services/paths/paths.service'
 import { hydrateEnvPath } from './services/exec/exec.service'
 import * as terminal from './services/terminal.manager/terminal.manager.service'
 import * as plansWatcher from './services/plans.watcher/plans.watcher.service'
@@ -106,6 +106,8 @@ let shellIntegrationReady = false
 function setupShellIntegration(): void {
   try {
     mkdirSync(lastCmdDir(), { recursive: true })
+    // Where the SessionStart hook records each pane's live Claude session id.
+    mkdirSync(claudeSessionMapDir(), { recursive: true })
     const dir = zdotDir()
     mkdirSync(dir, { recursive: true })
     const templates = join(runtimeDir(), 'templates')

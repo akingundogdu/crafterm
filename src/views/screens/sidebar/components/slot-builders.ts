@@ -16,6 +16,8 @@ import {
   claudeStatusOfTab,
   tabIssueKey,
   tabTaskBadge,
+  WORK_STATUS_LABEL,
+  WORK_STATUS_TITLE,
   makeToggleDetails,
   makeProcessRowClick,
   makeKillProcess,
@@ -141,16 +143,16 @@ export function buildTrailing(node: SidebarNode): HTMLElement | null {
 
   let statusPill: HTMLElement | null = null
   if (node.kind === 'tab') {
-    // A code-review/test task overrides the Claude status pill with its badge.
+    // A code-review/test/wip task overrides the Claude status pill with its badge.
     const taskBadge = tabTaskBadge(node)
     if (taskBadge) {
       statusPill = el(
         'span',
         {
           class: 'claude-status claude-' + taskBadge,
-          title: taskBadge === 'review' ? 'Ticket is in code review' : 'Ticket is in test'
+          title: WORK_STATUS_TITLE.ticket[taskBadge]
         },
-        taskBadge
+        WORK_STATUS_LABEL[taskBadge]
       )
     } else {
       const cs = claudeStatusOfTab(node)

@@ -196,9 +196,10 @@ export interface CodePane {
 
 export type NodeColor = string | null
 
-// Work status of a terminal session: 'test' = waiting to be tested, 'review' =
-// waiting for code review. Set by hand on a tab, or derived from its ticket.
-export type TabWorkStatus = 'review' | 'test'
+// Work status of a terminal session: 'progress' = being worked on, 'test' =
+// waiting to be tested, 'review' = waiting for code review. Set by hand on a
+// tab, or derived from its ticket.
+export type TabWorkStatus = 'review' | 'test' | 'progress'
 
 // A terminal session shown as one row in the sidebar.
 export interface TabNode {

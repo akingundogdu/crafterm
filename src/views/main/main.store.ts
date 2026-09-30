@@ -581,7 +581,7 @@ async function reactivateTab(tabId: string): Promise<void> {
 
 // Guard a persisted hand-set work status: anything but a known value drops it.
 function savedMarkedStatus(v: unknown): TabWorkStatus | undefined {
-  return v === 'review' || v === 'test' ? v : undefined
+  return v === 'review' || v === 'test' || v === 'progress' ? v : undefined
 }
 
 async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
