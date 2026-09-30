@@ -268,6 +268,14 @@ export const paneActions = {
 
 let sbPending = false
 let stPending = false
+// Status refreshes ride on terminal output: markBusy() fires for every PTY data
+// chunk, so a bare rAF coalesce still reconciles the whole tree up to 60 times a
+// second while panes stream. Cap the rate instead — the first request still lands
+// on the next frame, and a burst collapses into one run per window, which leaves
+// the main thread free for keystrokes and xterm writes. The status dots are a
+// glanceable signal, not something that has to be frame-accurate.
+const STATUS_MIN_INTERVAL_MS = 300
+let stLastRun = 0
 export function requestSidebar(): void {
   if (sbPending) return
   sbPending = true
@@ -280,11 +288,17 @@ export function requestSidebar(): void {
 export function requestStatuses(): void {
   if (stPending) return
   stPending = true
-  requestAnimationFrame(() => {
-    stPending = false
-    shellStore.reload()
-    hooks.updateStatuses()
-  })
+  // Never run synchronously: callers mutate more state right after asking, and the
+  // rAF hop is what lets gea commit its rows before the reconcile reads the DOM.
+  const wait = Math.max(0, STATUS_MIN_INTERVAL_MS - (Date.now() - stLastRun))
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      stPending = false
+      stLastRun = Date.now()
+      shellStore.reload()
+      hooks.updateStatuses()
+    })
+  }, wait)
 }
 export function renderContent(): void {
   shellStore.reload()
