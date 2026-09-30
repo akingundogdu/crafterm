@@ -29,6 +29,9 @@ export interface ErrorRecord {
   message: string
   count: number
   total: number
+  // The first stack seen for this message, attached only to that first record so
+  // the log is not one stack per error. With sourcemaps on it reads as real frames.
+  stack?: string
 }
 
 // Periodic renderer snapshot. Counters are deltas since the previous sample.

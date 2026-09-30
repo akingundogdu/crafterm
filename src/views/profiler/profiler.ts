@@ -44,6 +44,10 @@ let pending: ProfilerRecord[] = []
 let longTasks = 0
 const errorTotals = new Map<string, number>()
 const errorDeltas = new Map<string, number>()
+// First stack per message, and the set of messages whose stack has already been
+// written — so a 400-times-a-session error contributes exactly one stack.
+const errorStacks = new Map<string, string>()
+const stackLogged = new Set<string>()
 
 export const isProfilerRunning = (): boolean => running
 export const profilerLogPath = (): string => logPath
@@ -68,17 +72,19 @@ function observe(type: string, onEntry: (entry: PerformanceEntry) => void, extra
   }
 }
 
-function noteError(message: string): void {
+function noteError(message: string, stack?: string): void {
   errorTotals.set(message, (errorTotals.get(message) ?? 0) + 1)
   errorDeltas.set(message, (errorDeltas.get(message) ?? 0) + 1)
+  if (stack && !errorStacks.has(message)) errorStacks.set(message, stack.slice(0, 4000))
 }
 
 const onWindowError = (e: ErrorEvent): void => {
-  noteError(e.message || 'unknown error')
+  noteError(e.message || 'unknown error', e.error?.stack)
 }
 
 const onRejection = (e: PromiseRejectionEvent): void => {
-  noteError(`unhandled rejection: ${String(e.reason).slice(0, 200)}`)
+  const reason = e.reason as { stack?: string } | undefined
+  noteError(`unhandled rejection: ${String(e.reason).slice(0, 200)}`, reason?.stack)
 }
 
 function flush(): void {
@@ -106,12 +112,15 @@ function flush(): void {
   let errors = 0
   for (const [message, count] of errorDeltas) {
     errors += count
+    const stack = !stackLogged.has(message) ? errorStacks.get(message) : undefined
+    if (stack) stackLogged.add(message)
     pending.push({
       kind: 'error',
       t: now(),
       message: message.slice(0, 300),
       count,
-      total: errorTotals.get(message) ?? count
+      total: errorTotals.get(message) ?? count,
+      ...(stack ? { stack } : {})
     })
   }
   errorDeltas.clear()
@@ -177,6 +186,8 @@ export async function stopProfiler(): Promise<void> {
   setCountersEnabled(false)
   errorTotals.clear()
   errorDeltas.clear()
+  errorStacks.clear()
+  stackLogged.clear()
   longTasks = 0
   running = false
   await profilerService.stop()
