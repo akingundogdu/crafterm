@@ -3,5 +3,9 @@ if [ -n "$CRAFTERM_PANE_ID" ]; then
   crafterm_preexec() { print -r -- "$1" > "{{cmdDir}}/$CRAFTERM_PANE_ID" 2>/dev/null }
   typeset -ag preexec_functions
   preexec_functions+=(crafterm_preexec)
+  crafterm_chpwd() { print -r -- "$PWD" > "{{cwdDir}}/$CRAFTERM_PANE_ID" 2>/dev/null }
+  typeset -ag chpwd_functions
+  chpwd_functions+=(crafterm_chpwd)
+  crafterm_chpwd
 fi
 ZDOTDIR="${USER_ZDOTDIR:-$HOME}"

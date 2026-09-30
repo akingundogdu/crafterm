@@ -1,9 +1,9 @@
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import * as terminal from '@core/services/terminal.manager/terminal.manager.service'
-import * as git from '@core/services/git/git.service'
 import { paneCwd } from '@core/services/exec/exec.service'
-import { lastCmdDir, claudeSessionMapDir } from '@core/services/paths/paths.service'
+import * as gitCache from '@core/services/git/git-cache.service'
+import { lastCmdDir, paneCwdDir, claudeSessionMapDir } from '@core/services/paths/paths.service'
 import type { PaneInfo } from './pane.types'
 
 // Pane info domain logic (pane:*): a pane's cwd (pid → lsof), git branch/worktree,
@@ -21,6 +21,22 @@ export class PaneService {
       // run every line but the last, defeating the type-but-don't-run safety intent.
       if (!s || s.includes('\n')) return null
       return s
+    } catch {
+      return null
+    }
+  }
+
+  // The pane's live cwd, as recorded by the shim's chpwd hook
+  // (<stateDir>/pane-cwd/<CRAFTERM_PANE_ID>). Reading it is a plain fs read; it
+  // replaces spawning lsof on every pane every tick. Null when the file is absent —
+  // a shell that never sourced our shim (nested shell, ssh, a non-zsh login) — and
+  // the caller then falls back to lsof.
+  private readShimCwd(stableId: string): string | null {
+    try {
+      const f = join(paneCwdDir(), stableId)
+      if (!existsSync(f)) return null
+      const s = readFileSync(f, 'utf8').trim()
+      return s || null
     } catch {
       return null
     }
@@ -46,10 +62,13 @@ export class PaneService {
     const claudeSessionId = stableId ? this.readClaudeSessionId(stableId) : null
     const p = terminal.get(id)
     if (!p) return { cwd: null, branch: null, worktree: null, lastCommand, claudeSessionId }
-    const cwd = await paneCwd(p.pid)
-    const [branch, worktree] = cwd
-      ? await Promise.all([git.currentBranch(cwd), git.worktreeName(cwd)])
-      : [null, null]
+    // Prefer the shim-written cwd (fs read); only spawn lsof when it is absent.
+    const cwd = (stableId ? this.readShimCwd(stableId) : null) ?? (await paneCwd(p.pid))
+    // Branch + worktree come from the cache, which spawns git only when this cwd's
+    // HEAD has actually moved (see git-cache.service).
+    const { branch, worktree } = cwd
+      ? await gitCache.facts(cwd)
+      : { branch: null, worktree: null }
     return { cwd, branch, worktree, lastCommand, claudeSessionId }
   }
 }
