@@ -30,24 +30,6 @@ import type { TreeRow, TreeSectionData, DetailRow, Badge, RowAction, TreeIcon } 
 
 // The bridge from the sidebar's `SidebarNode` model to the modern, data-driven
 // `components/tree`. It builds each node's row DATA (icon / badges / detail /
-declare global {
-  interface Window {
-    // Set from the DevTools console to log tree rebuild counts and timings.
-    __CRTREE_PERF?: boolean
-  }
-}
-
-const PERF_WINDOW_MS = 2000
-
-interface RebuildStats {
-  runs: number
-  totalMs: number
-  maxMs: number
-  since: number
-}
-
-const newStats = (since: number): RebuildStats => ({ runs: 0, totalMs: 0, maxMs: 0, since })
-
 // colour) — mirroring the legacy `slot-builders.ts`, but returning plain data
 // instead of `HTMLElement`s — and reuses the existing `tree-adapter` for row
 // BEHAVIOUR (select / activate / click / rename / move / colour / menu). The
@@ -249,35 +231,12 @@ export function createSidebarTree(host: HTMLElement, ctx: SidebarTreeContext): T
     numbered: false
   })
 
-  // Diagnostic for the rebuild cost, off unless the DevTools console sets
-  // `window.__CRTREE_PERF = true`. It aggregates into one line every couple of
-  // seconds because logging per call would itself dominate at the rates this is
-  // meant to measure. requestStatuses() is capped at one run per 300ms, so only a
-  // handful of the runs in a window can come from terminal output — a much higher
-  // count means the selection path (selectPane / selectNode / selectTab) is driving
-  // it. Delete this block and the wrapper below once the numbers are settled.
-  let stats = newStats(0)
   const rebuild = (): void => {
     const started = performance.now()
     panel.setSections(toSections(lastRaw))
-    const elapsed = performance.now() - started
-    // Guarded rather than unconditional: counting visible rows allocates, so it is
-    // skipped unless a profiler session is running.
-    if (isCountersEnabled()) noteTreeRebuild(elapsed, panel.visibleIds().length)
-    if (!window.__CRTREE_PERF) return
-    if (!stats.since) stats = newStats(started)
-    stats.runs++
-    stats.totalMs += elapsed
-    stats.maxMs = Math.max(stats.maxMs, elapsed)
-    const span = performance.now() - stats.since
-    if (span < PERF_WINDOW_MS) return
-    const share = Math.round((stats.totalMs / span) * 100)
-    console.log(
-      `[crafterm tree] ${(span / 1000).toFixed(1)}s runs=${stats.runs} ` +
-        `totalMs=${Math.round(stats.totalMs)} (${share}% of main thread) ` +
-        `maxMs=${stats.maxMs.toFixed(1)} rows=${panel.visibleIds().length}`
-    )
-    stats = newStats(performance.now())
+    // Feed the profiler's rebuild timing (a no-op unless a session is running).
+    // Counting visible rows allocates, so it is guarded behind the same flag.
+    if (isCountersEnabled()) noteTreeRebuild(performance.now() - started, panel.visibleIds().length)
   }
 
   return {
