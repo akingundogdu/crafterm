@@ -6,6 +6,7 @@ import * as pty from 'node-pty'
 import { Channel } from '@services/channels'
 import { env as appEnv, ENV_NAMES } from '@configs/environment-variables'
 import { resolveShell } from '../shell-resolver/shell-resolver.service'
+import { claudeSessionMapDir } from '../paths/paths.service'
 import type { TerminalManagerDeps } from './terminal.manager.types'
 
 // One real PTY (zsh) per terminal pane, keyed by an id we hand back to the renderer.
@@ -64,6 +65,10 @@ export function create(
   // CRAFTERM_PANE_ID always reflects the pane that owns this PTY.
   const env = { ...process.env, ...(opts?.env ?? {}) }
   if (opts?.env?.[ENV_NAMES.PaneId]) env[ENV_NAMES.PaneId] = opts.env[ENV_NAMES.PaneId]
+  // Point the SessionStart hook at the pane->session map dir so it records this
+  // pane's CURRENT Claude session id (following /clear + compact rolls). Paths
+  // stay in main; the hook reads this env var and writes <dir>/<CRAFTERM_PANE_ID>.
+  env[ENV_NAMES.SessionMapDir] = claudeSessionMapDir()
   // Route zsh through our ZDOTDIR shim so a preexec hook records the last
   // command for this pane (restored as pre-typed text). USER_ZDOTDIR points the
   // shim at the user's real rc dir so their config still loads.

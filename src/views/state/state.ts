@@ -8,6 +8,7 @@ import { notificationRepo } from '@repositories/notification.repository'
 // reload() at the render chokepoints below; the cross-tree cycle is runtime-only
 // (shell.store reads `state` only inside reload()), so module evaluation is safe.
 import shellStore from '@views/state/shell.store'
+import { sectionEnd, sectionStart } from '@services/profiler/profiler.counters'
 
 // ---- Live state (mutated in place; modules import these singletons) ----
 
@@ -143,7 +144,7 @@ export const settings = {
     collapsed: false,
     details: { status: true, git: true, panes: true, paneList: false },
     groupByRecency: false,
-    newTree: false
+    newTree: true
   } as SidebarPrefs
 }
 
@@ -218,17 +219,23 @@ export function pushNotification(
   meta: import('@views/types/types').NotificationMeta = {}
 ): void {
   notificationRepo.add({ id: uid('n'), paneId, title, group, message, time: Date.now(), ...meta })
+  const started = sectionStart()
   hooks.renderNotifications()
+  sectionEnd('renderNotifications', started)
 }
 
 export function updateActive(): void {
   shellStore.reload()
+  const started = sectionStart()
   hooks.updateActive()
+  sectionEnd('updateActive', started)
 }
 
 export function updatePaneActive(): void {
   shellStore.reload()
+  const started = sectionStart()
   hooks.updatePaneHighlight()
+  sectionEnd('updatePaneHighlight', started)
 }
 
 // Pane UI -> command dispatch (wired in main.ts to avoid import cycles).
@@ -268,27 +275,47 @@ export const paneActions = {
 
 let sbPending = false
 let stPending = false
+// Status refreshes ride on terminal output: markBusy() fires for every PTY data
+// chunk, so a bare rAF coalesce still reconciles the whole tree up to 60 times a
+// second while panes stream. Cap the rate instead — the first request still lands
+// on the next frame, and a burst collapses into one run per window, which leaves
+// the main thread free for keystrokes and xterm writes. The status dots are a
+// glanceable signal, not something that has to be frame-accurate.
+const STATUS_MIN_INTERVAL_MS = 300
+let stLastRun = 0
 export function requestSidebar(): void {
   if (sbPending) return
   sbPending = true
   requestAnimationFrame(() => {
     sbPending = false
     shellStore.reload()
+    const started = sectionStart()
     hooks.renderSidebar()
+    sectionEnd('renderSidebar', started)
   })
 }
 export function requestStatuses(): void {
   if (stPending) return
   stPending = true
-  requestAnimationFrame(() => {
-    stPending = false
-    shellStore.reload()
-    hooks.updateStatuses()
-  })
+  // Never run synchronously: callers mutate more state right after asking, and the
+  // rAF hop is what lets gea commit its rows before the reconcile reads the DOM.
+  const wait = Math.max(0, STATUS_MIN_INTERVAL_MS - (Date.now() - stLastRun))
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      stPending = false
+      stLastRun = Date.now()
+      shellStore.reload()
+      const started = sectionStart()
+      hooks.updateStatuses()
+      sectionEnd('updateStatuses', started)
+    })
+  }, wait)
 }
 export function renderContent(): void {
   shellStore.reload()
+  const started = sectionStart()
   hooks.renderContent()
+  sectionEnd('renderContent', started)
 }
 
 export function activeTabsCount(): number {

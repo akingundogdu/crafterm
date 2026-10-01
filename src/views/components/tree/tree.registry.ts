@@ -1,5 +1,5 @@
 import type { TreeStore } from './tree.store'
-import type { TreeCallbacks, TreeRow, TreeSectionData } from './tree.types'
+import type { FlatItem, TreeCallbacks, TreeRow, TreeSectionData } from './tree.types'
 
 // Per-instance render runtime, looked up by a string `treeId` so a gea child
 // Component can reach the genuine reactive store proxy (tracking fires on the
@@ -8,6 +8,13 @@ import type { TreeCallbacks, TreeRow, TreeSectionData } from './tree.types'
 // indirection the legacy treeview uses; the maps here hold ROW DATA, not DOM.
 export interface TreeRuntime {
   store: TreeStore
+  // The flattened render list, kept as PLAIN data here rather than read off the
+  // reactive store in the list view. The list is re-mounted on every structural
+  // change (see mountTree's applyView), so a reactive subscription on store.flat
+  // would race that re-mount — setFlat would re-render the just-replaced view
+  // against a transiently inconsistent list, throwing on it.row/it.section. Reading
+  // this plain field instead makes the "re-mount, don't subscribe" intent real.
+  flat: FlatItem[]
   callbacks: TreeCallbacks
   host: HTMLElement
   rowById: Map<string, TreeRow>

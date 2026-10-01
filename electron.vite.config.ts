@@ -23,6 +23,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
+      sourcemap: true,
       rollupOptions: { input: resolve(__dirname, 'src/core/index.ts') }
     }
   },
@@ -30,6 +31,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
+      sourcemap: true,
       rollupOptions: { input: resolve(__dirname, 'src/core/bridge/index.ts') }
     }
   },
@@ -41,6 +43,11 @@ export default defineConfig({
     resolve: { alias },
     esbuild: { jsx: 'automatic', jsxImportSource: '@views' },
     build: {
+      // Sourcemaps ship in every build. This is a local developer tool, so there is
+      // nothing to hide, and without them a packaged stack trace or profile names
+      // only minified chunks — which is useless for diagnosing a real session. No
+      // runtime cost: Chromium fetches a map only while DevTools is open.
+      sourcemap: true,
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/views/index.html'),

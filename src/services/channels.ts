@@ -63,6 +63,7 @@ import type {
   QuitProcessRequest,
   QuitProcessResult
 } from './system/system.types'
+import type { ProfilerRecord, ProfilerSession } from './profiler/profiler.types'
 import type { SavedState } from '@repositories/state.types'
 
 // ---- The channel names, grouped by domain ----
@@ -277,6 +278,11 @@ export const Channel = {
     Metrics: 'system:metrics',
     Processes: 'system:processes',
     Quit: 'system:quit'
+  },
+  Profiler: {
+    Start: 'profiler:start',
+    Stop: 'profiler:stop',
+    Append: 'profiler:append'
   }
 } as const
 
@@ -516,7 +522,12 @@ export const channels = {
   // ── system resources ──
   [Channel.System.Metrics]: rpc<void, SystemMetrics>(),
   [Channel.System.Processes]: rpc<void, ProcessListing>(),
-  [Channel.System.Quit]: rpc<QuitProcessRequest, QuitProcessResult>()
+  [Channel.System.Quit]: rpc<QuitProcessRequest, QuitProcessResult>(),
+
+  // ── profiler ──
+  [Channel.Profiler.Start]: rpc<void, ProfilerSession>(),
+  [Channel.Profiler.Stop]: rpc<void, void>(),
+  [Channel.Profiler.Append]: msg<{ records: ProfilerRecord[] }>()
 } as const
 
 export type Channels = typeof channels

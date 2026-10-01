@@ -20,7 +20,19 @@ export const statePath = (): string => join(stateDir(), 'crafterm-state.json')
 
 // Last-command capture (zsh preexec) + the ZDOTDIR shim that installs it.
 export const lastCmdDir = (): string => join(stateDir(), 'last-cmd')
+
+// Live cwd per pane, written by the shim's chpwd hook. Reading this file is a plain
+// fs read; it replaces spawning `lsof` on every pane on every poll tick, which was
+// the heaviest per-tick cost and got slower as the machine filled with children.
+export const paneCwdDir = (): string => join(stateDir(), 'pane-cwd')
 export const zdotDir = (): string => join(stateDir(), 'zdotdir')
+
+// Pane -> Claude session id map. A SessionStart hook records each pane's CURRENT
+// session id to <stateDir>/claude-session/<CRAFTERM_PANE_ID>. Unlike the launch-
+// time `--session-id`, this follows a /clear or compact roll (Claude moves the
+// conversation to a new session id), so the sidebar keeps reading the live
+// session's title instead of the stale launch-time file.
+export const claudeSessionMapDir = (): string => join(stateDir(), 'claude-session')
 
 // Notebook tree root: a free-form folder/.md tree under <stateDir>/notebooks.
 export const notebooksDir = (): string => join(stateDir(), 'notebooks')

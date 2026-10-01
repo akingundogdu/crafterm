@@ -94,16 +94,21 @@ describe('golden: claude shim files are byte-identical to the old setupShellInte
     expect(loadScript(TEMPLATES, 'claude-shim.zprofile.tmpl')).toBe(sourceUser('.zprofile'))
   })
 
-  it('.zshrc (with the escaped cmdDir interpolated)', () => {
+  it('.zshrc (preexec + chpwd hooks, escaped dirs interpolated)', () => {
     const cmdDir = '/Users/me/.crafterm/last-cmd'
+    const cwdDir = '/Users/me/.crafterm/pane-cwd'
     const expected =
       sourceUser('.zshrc') +
       'if [ -n "$CRAFTERM_PANE_ID" ]; then\n' +
       `  crafterm_preexec() { print -r -- "$1" > "${cmdDir}/$CRAFTERM_PANE_ID" 2>/dev/null }\n` +
       '  typeset -ag preexec_functions\n' +
       '  preexec_functions+=(crafterm_preexec)\n' +
+      `  crafterm_chpwd() { print -r -- "$PWD" > "${cwdDir}/$CRAFTERM_PANE_ID" 2>/dev/null }\n` +
+      '  typeset -ag chpwd_functions\n' +
+      '  chpwd_functions+=(crafterm_chpwd)\n' +
+      '  crafterm_chpwd\n' +
       'fi\n' +
       'ZDOTDIR="${USER_ZDOTDIR:-$HOME}"\n'
-    expect(loadScript(TEMPLATES, 'claude-shim.zshrc.tmpl', { cmdDir })).toBe(expected)
+    expect(loadScript(TEMPLATES, 'claude-shim.zshrc.tmpl', { cmdDir, cwdDir })).toBe(expected)
   })
 })

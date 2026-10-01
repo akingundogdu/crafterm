@@ -15,7 +15,8 @@ export const Sidebar = {
     pinned: 'Pinned',
     free: 'Free',
     testing: 'Testing',
-    review: 'Review'
+    review: 'Review',
+    inProgress: 'In progress'
   },
   tabs: {
     terminal: 'Terminal',

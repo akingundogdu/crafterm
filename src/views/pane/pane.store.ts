@@ -122,6 +122,9 @@ export function buildPaneMenu(
         section('Status')
         if (tab.markedStatus !== 'test') item('Mark as testing', () => paneActions.setTabWorkStatus(tab.id, 'test'))
         if (tab.markedStatus !== 'review') item('Mark as review', () => paneActions.setTabWorkStatus(tab.id, 'review'))
+        if (tab.markedStatus !== 'progress') {
+          item('Mark as in progress', () => paneActions.setTabWorkStatus(tab.id, 'progress'))
+        }
         if (tab.markedStatus) item('Clear status', () => paneActions.setTabWorkStatus(tab.id, null))
       }
     }

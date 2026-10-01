@@ -23,5 +23,8 @@ export const env = {
 export const ENV_NAMES = {
   PaneId: 'CRAFTERM_PANE_ID',
   UserZdotdir: 'USER_ZDOTDIR',
-  Zdotdir: 'ZDOTDIR'
+  Zdotdir: 'ZDOTDIR',
+  // Dir where a SessionStart hook records each pane's CURRENT Claude session id
+  // (keyed by CRAFTERM_PANE_ID), so the sidebar follows a /clear or compact roll.
+  SessionMapDir: 'CRAFTERM_SESSION_MAP_DIR'
 } as const

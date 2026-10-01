@@ -1,3 +1,5 @@
+// DEPRECATED for the terminal sidebar — see the note in treeview.ts. This
+// controller now drives only Notebook, Database and Explorer.
 import { uid } from '@views/state/spine'
 import type { TreeAdapter, TreeView, TreeSection, TreeContext, LiveRow } from './treeview.types'
 import { TreeStore } from './treeview.store'

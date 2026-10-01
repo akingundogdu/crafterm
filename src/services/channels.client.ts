@@ -3,6 +3,7 @@ import type { ReqOf, ResOf, PayloadOf, RpcChannel, MsgChannel, EvtChannel } from
 // Re-export the channel-name namespace so renderer wrappers import their helpers
 // and the channel constants from one place.
 export { Channel } from './channels'
+import { isCountersEnabled, noteIpcCall } from './profiler/profiler.counters'
 
 // RENDERER-side typed IPC wrappers, generic over the channel registry. The
 // `*.client.ts` domain wrappers call through these instead of touching
@@ -29,11 +30,19 @@ declare global {
 }
 
 // Request/response: await a reply. Channels whose request is `void` take no payload.
+// Timed for the profiler (a no-op unless a session is running) because per-pane
+// polling makes IPC volume, not any single call, the thing worth watching.
 export function call<C extends RpcChannel>(
   channel: C,
   ...args: ReqOf<C> extends void ? [] : [req: ReqOf<C>]
 ): Promise<ResOf<C>> {
-  return window.crafterm.invoke(channel, args[0]) as Promise<ResOf<C>>
+  // With no session running this is the original one-liner — same value, same
+  // promise identity, no wrapper. The timing path is only built while profiling.
+  if (!isCountersEnabled()) return window.crafterm.invoke(channel, args[0]) as Promise<ResOf<C>>
+  const started = performance.now()
+  return Promise.resolve(window.crafterm.invoke(channel, args[0])).finally(() =>
+    noteIpcCall(performance.now() - started)
+  ) as Promise<ResOf<C>>
 }
 
 // Fire-and-forget renderer→main message.

@@ -67,7 +67,7 @@ export interface SavedTabNode {
   detailsOpen?: boolean
   status?: NodeStatus // derived from child panes; 'archived' when closed
   archivedByWorktree?: boolean // archived by worktree-reconcile (not a user close)
-  markedStatus?: 'review' | 'test' // hand-set work status (sidebar tint + Pinned grouping)
+  markedStatus?: 'review' | 'test' | 'progress' // hand-set work status (sidebar tint + Pinned grouping)
 }
 export interface SavedFolder {
   kind: 'folder'

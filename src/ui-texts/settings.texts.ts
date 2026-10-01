@@ -174,8 +174,15 @@ export const Settings = {
     showGitBranch: 'Show git branch',
     showPaneCount: 'Show pane count',
     showPanesUnderTerminal: 'Show panes under terminal',
-    groupByRecency: 'Group by recency (Today / Yesterday / Earlier)',
-    newTree: 'Use the new tree design (restart to apply)'
+    groupByRecency: 'Group by recency (Today / Yesterday / Earlier)'
+  },
+  profiler: {
+    heading: 'Performance log',
+    start: 'Start profiler',
+    stop: 'Stop profiler',
+    idleHint:
+      'Records long tasks, input latency, heap growth, uncaught errors and per-subsystem counters to a log file. Leave it running until the slowdown appears, then stop it and the file can be read back.',
+    runningHint: 'Recording. Stop it once the slowdown has appeared; the log is at:'
   },
   systemUpdate: {
     heading: 'System update',

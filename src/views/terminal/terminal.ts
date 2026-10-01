@@ -9,6 +9,7 @@ import { onPaneTitle, applyPaneRenameToTab } from './osc-title'
 import { onBell } from './activity-detection'
 import { refreshPaneInfo } from './pane-info'
 import { setupPaneDnd } from '@views/pane/pane'
+import { isPaneTiled } from '@views/screens/content/content.store'
 import { createPaneHeader } from './components/pane-header'
 import type { CreatePaneOptions } from './terminal.types'
 import {
@@ -16,6 +17,7 @@ import {
   applyPaneTheme,
   makeLinkProvider,
   createPaneState,
+  autoFitTileFont,
   makeCustomKeyHandler,
   makeDataHandler,
   makeTaskChipClick,
@@ -86,8 +88,16 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
   const ro = new ResizeObserver(() => {
     if (!host.isConnected || host.clientWidth === 0) return
     try {
-      fit.fit()
-      pushResize(pane)
+      // A tiled terminal re-fits its FONT to the new width (dragging the splitter
+      // or resizing the window), not just its column count — otherwise the font
+      // computed at first tile-up stays and the content clips. autoFitTileFont
+      // also grows back toward the user's size when the tile widens. A normal
+      // (non-tiled) pane keeps the plain column fit.
+      if (isPaneTiled(id)) autoFitTileFont(pane)
+      else {
+        fit.fit()
+        pushResize(pane)
+      }
     } catch {
       /* ignore */
     }

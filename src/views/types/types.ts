@@ -76,6 +76,7 @@ export interface Pane {
   lastClaudeTitle: string | null
   bgColor: string | null // per-pane background override (null = global default)
   fontSize: number | null // per-pane font-size override (null = global default)
+  autoFontSize: number | null // transient side-by-side fit size (not persisted)
   trackProjectPath: string | null // time-tracking: project this terminal logs to
   trackFeatureId: string | null // time-tracking: feature this terminal logs to
   // Pane provenance: which sidebar project / application opened this terminal.
@@ -196,9 +197,10 @@ export interface CodePane {
 
 export type NodeColor = string | null
 
-// Work status of a terminal session: 'test' = waiting to be tested, 'review' =
-// waiting for code review. Set by hand on a tab, or derived from its ticket.
-export type TabWorkStatus = 'review' | 'test'
+// Work status of a terminal session: 'progress' = being worked on, 'test' =
+// waiting to be tested, 'review' = waiting for code review. Set by hand on a
+// tab, or derived from its ticket.
+export type TabWorkStatus = 'review' | 'test' | 'progress'
 
 // A terminal session shown as one row in the sidebar.
 export interface TabNode {

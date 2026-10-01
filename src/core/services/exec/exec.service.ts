@@ -1,4 +1,6 @@
 import { execFile, execFileSync } from 'child_process'
+import { basename } from 'path'
+import { noteSpawn } from '@core/services/profiler/profiler.service'
 import { BIN } from './exec.types'
 import {
   resolveBin,
@@ -41,8 +43,12 @@ export function hydrateEnvPath(): void {
 // Run a command and capture stdout. Resolves null on any error / non-zero exit.
 // 2s timeout — these back quick metadata queries (git, lsof), not long jobs.
 export function run(cmd: string, args: string[]): Promise<string | null> {
+  const started = Date.now()
   return new Promise((resolve) => {
     execFile(cmd, args, { timeout: 2000 }, (err, stdout) => {
+      // Pane polling spawns one of these per pane per tick, so the profiler counts
+      // them by binary name: the volume is the interesting number, not one call.
+      noteSpawn(basename(cmd), Date.now() - started)
       resolve(err ? null : stdout)
     })
   })

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { SidebarNode, TabNode, TabWorkStatus, WorktreeNode } from '@views/types/types'
 
 const setSideBySide = vi.fn()
 const exitSideBySide = vi.fn()
@@ -9,8 +10,10 @@ vi.mock('@views/screens/content/content.store', () => ({
   setSideBySide: (ids: string[]) => setSideBySide(ids),
   exitSideBySide: () => exitSideBySide()
 }))
+const spine = vi.hoisted(() => ({ state: { tree: [] as SidebarNode[] } }))
+
 vi.mock('@views/state/spine', () => ({
-  state: { tree: [] },
+  state: spine.state,
   panes: new Map(),
   settings: {},
   paneActions: {},
@@ -18,10 +21,8 @@ vi.mock('@views/state/spine', () => ({
   requestSidebar: () => requestSidebar()
 }))
 vi.mock('@services/bgproc', () => ({ openProcessView: () => {}, killProcess: () => {} }))
-vi.mock('@views/tree/tree', () => ({
-  allTabs: () => [],
-  panesInLayout: () => [],
-  firstPaneOf: () => null,
+vi.mock('@views/tree/tree', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@views/tree/tree')>()),
   ancestorFolders: () => []
 }))
 vi.mock('@views/pane/pane', () => ({ paneStatus: () => 'idle', isPlanOwnedByPane: () => false }))
@@ -53,13 +54,40 @@ const {
   clearMultiSelect,
   markMultiSelected,
   showSideBySide,
-  clearSideBySideSelection
+  clearSideBySideSelection,
+  pinnedTabsWithStatus,
+  showTabsSideBySide
 } = await import('@views/screens/sidebar/sidebar.store')
+
+const tab = (id: string, opts: { pinned?: boolean; marked?: TabWorkStatus; archived?: boolean } = {}): TabNode => ({
+  kind: 'tab',
+  id,
+  title: id,
+  titleLocked: false,
+  color: null,
+  pinned: !!opts.pinned,
+  root: { type: 'leaf', paneId: 'p-' + id },
+  ...(opts.marked ? { markedStatus: opts.marked } : {}),
+  ...(opts.archived ? { status: 'archived' as const } : {})
+})
+
+const worktree = (id: string, children: SidebarNode[], pinned = false): WorktreeNode => ({
+  kind: 'worktree',
+  id,
+  name: id,
+  branch: id,
+  worktreePath: '/repo/worktrees/' + id,
+  color: null,
+  collapsed: false,
+  pinned,
+  children
+})
 
 describe('sidebar multi-select (todomraex8usk1)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearMultiSelect()
+    spine.state.tree = [tab('t1'), tab('t2'), tab('t3')]
   })
 
   it('marks and unmarks a terminal', () => {
@@ -99,5 +127,47 @@ describe('sidebar multi-select (todomraex8usk1)', () => {
     expect(multiSelectedIds()).toEqual([])
     expect(exitSideBySide).toHaveBeenCalledTimes(1)
     expect(renderContent).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops counting a marked terminal once it is closed', () => {
+    toggleMultiSelect('t1')
+    toggleMultiSelect('t2')
+    toggleMultiSelect('t3')
+    spine.state.tree = [tab('t1'), tab('t2', { archived: true })]
+
+    expect(multiSelectedIds()).toEqual(['t1'])
+  })
+})
+
+describe('viewing a status section side by side', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearMultiSelect()
+  })
+
+  it('lists the live pinned terminals in progress, including ones inside a pinned worktree', () => {
+    spine.state.tree = [
+      tab('a', { pinned: true, marked: 'progress' }),
+      tab('b', { pinned: true, marked: 'review' }),
+      tab('c', { pinned: true }),
+      tab('d', { marked: 'progress' }),
+      tab('e', { pinned: true, marked: 'progress', archived: true }),
+      worktree('wt', [tab('f', { marked: 'progress' }), tab('g')], true)
+    ]
+
+    expect(pinnedTabsWithStatus('progress').map((t) => t.id)).toEqual(['a', 'f'])
+  })
+
+  it('tiles the section and marks exactly its rows', () => {
+    toggleMultiSelect('t3')
+
+    showTabsSideBySide(['t1', 't2'])
+
+    expect(setSideBySide).toHaveBeenCalledWith(['t1', 't2'])
+    expect(renderContent).toHaveBeenCalledTimes(1)
+    expect(requestSidebar).toHaveBeenCalledTimes(1)
+    spine.state.tree = [tab('t1'), tab('t2'), tab('t3')]
+    expect(multiSelectedIds()).toEqual(['t1', 't2'])
+    expect(isMultiSelected('t3')).toBe(false)
   })
 })

@@ -1,3 +1,6 @@
+// DEPRECATED for the terminal sidebar — see the note in treeview.ts. The sidebar's
+// status refresh no longer passes through here; it rebuilds the row model in
+// screens/sidebar/components/sidebar-tree.ts instead.
 import type { TreeContext } from '../treeview.types'
 import type { TreeStore } from '../treeview.store'
 import { CHEVRON, applyRowColor } from '../treeview.store'

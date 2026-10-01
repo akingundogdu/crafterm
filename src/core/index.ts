@@ -1,7 +1,7 @@
 import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'path'
 import { loadScript } from './services/scripts/scripts.service'
-import { lastCmdDir, zdotDir, runtimeDir } from './services/paths/paths.service'
+import { lastCmdDir, paneCwdDir, zdotDir, runtimeDir, claudeSessionMapDir } from './services/paths/paths.service'
 import { hydrateEnvPath } from './services/exec/exec.service'
 import * as terminal from './services/terminal.manager/terminal.manager.service'
 import * as plansWatcher from './services/plans.watcher/plans.watcher.service'
@@ -35,6 +35,7 @@ import { ZshController } from '@services/zsh/zsh.main'
 import { IosController } from '@services/ios/ios.main'
 import { TerminalController } from '@services/terminal/terminal.main'
 import { SystemController } from '@services/system/system.main'
+import { ProfilerController } from '@services/profiler/profiler.main'
 import { emit, Channel } from '@services/channels.main'
 import {
   createMainWindow,
@@ -81,7 +82,8 @@ const services: BaseService[] = [
   new ZshController(), // zsh:* — zsh aliases/functions
   new IosController(), // ios:* / iosWorktree:* — build/run + targets/schemes
   new TerminalController(), // pty:* / proc:* — terminal + background processes
-  new SystemController() // system:* — machine CPU/memory + top processes
+  new SystemController(), // system:* — machine CPU/memory + top processes
+  new ProfilerController() // profiler:* — performance log for a long session
 ]
 for (const service of services) {
   service.setup?.()
@@ -106,6 +108,10 @@ let shellIntegrationReady = false
 function setupShellIntegration(): void {
   try {
     mkdirSync(lastCmdDir(), { recursive: true })
+    // Where the shim's chpwd hook records each pane's live cwd (replaces lsof).
+    mkdirSync(paneCwdDir(), { recursive: true })
+    // Where the SessionStart hook records each pane's live Claude session id.
+    mkdirSync(claudeSessionMapDir(), { recursive: true })
     const dir = zdotDir()
     mkdirSync(dir, { recursive: true })
     const templates = join(runtimeDir(), 'templates')
@@ -113,8 +119,10 @@ function setupShellIntegration(): void {
     // shim snapshots the shim dir first and reasserts it afterwards (see template).
     writeFileSync(join(dir, '.zshenv'), loadScript(templates, 'claude-shim.zshenv.tmpl'))
     writeFileSync(join(dir, '.zprofile'), loadScript(templates, 'claude-shim.zprofile.tmpl'))
-    const cmdDir = lastCmdDir().replace(/(["\\$`])/g, '\\$1')
-    writeFileSync(join(dir, '.zshrc'), loadScript(templates, 'claude-shim.zshrc.tmpl', { cmdDir }))
+    const escape = (path: string): string => path.replace(/(["\\$`])/g, '\\$1')
+    const cmdDir = escape(lastCmdDir())
+    const cwdDir = escape(paneCwdDir())
+    writeFileSync(join(dir, '.zshrc'), loadScript(templates, 'claude-shim.zshrc.tmpl', { cmdDir, cwdDir }))
     shellIntegrationReady = true
   } catch {
     shellIntegrationReady = false

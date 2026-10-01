@@ -2,6 +2,7 @@ import { settings } from '@views/state/spine'
 import { UITexts } from '@texts'
 import { labeledInput } from '../shared'
 import { makeSaveRepoPath, makeSaveUpdateCommand } from './system-update.store'
+import { buildProfilerSection } from './components/profiler-section'
 
 export function buildSystemUpdatePanel(panel: HTMLElement): void {
   panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.systemUpdate.heading}</h3>`)
@@ -25,4 +26,7 @@ export function buildSystemUpdatePanel(panel: HTMLElement): void {
     'beforeend',
     '<div class="field-hint">Shell command run in the codebase path. Must produce <code>dist/Crafterm.app</code>. Defaults to <code>run-crafterm-deploy</code>.</div>'
   )
+
+  panel.insertAdjacentHTML('beforeend', `<h3>${UITexts.Settings.profiler.heading}</h3>`)
+  buildProfilerSection(panel)
 }

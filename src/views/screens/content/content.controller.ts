@@ -11,8 +11,9 @@ import {
   poppedOut
 } from '@views/state/spine'
 import { buildContentBox } from './content-nodes'
-import { findTab } from '@views/tree/tree'
+import { findTab, panesInLayout } from '@views/tree/tree'
 import { mountPanes } from '@views/pane/pane'
+import { autoFitTileFont, clearAutoFitFont } from '@views/terminal/terminal.store'
 import {
   tabContainers,
   layoutSig,
@@ -20,7 +21,8 @@ import {
   persistResizedLayout,
   isSideBySide,
   sideBySideTabs,
-  sideBySideLayout
+  sideBySideLayout,
+  pruneSideBySide
 } from './content.store'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 import { buildAgentComposer, refreshAgentComposer } from './components/agent-composer'
@@ -184,6 +186,16 @@ class ContentController {
     if (root) grid.appendChild(this.buildNode(root))
     host.appendChild(grid)
     mountPanes()
+    if (root) {
+      const tileIds = panesInLayout(root)
+      requestAnimationFrame(() => {
+        if (!isSideBySide()) return // view left before the frame ran; nothing to fit
+        for (const id of tileIds) {
+          const pane = panes.get(id)
+          if (pane) autoFitTileFont(pane)
+        }
+      })
+    }
     this.updatePaneHighlight()
   }
 
@@ -195,11 +207,14 @@ class ContentController {
         tabContainers.delete(id)
       }
     }
+    // A closed tile's slot goes away and the rest re-tile (or the view ends).
+    pruneSideBySide()
     if (isSideBySide()) {
       this.renderSideBySide()
       return
     }
     if (this.sideBySideEl) this.sideBySideEl.style.display = 'none'
+    panes.forEach(clearAutoFitFont) // tiles return to the user's font outside the view
     const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
     if (!tab) {
       tabContainers.forEach((e) => (e.el.style.display = 'none'))

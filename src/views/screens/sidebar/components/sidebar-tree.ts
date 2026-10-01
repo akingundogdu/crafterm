@@ -11,6 +11,8 @@ import {
   plansForTab,
   claudeStatusOfTab,
   tabWorkStatus,
+  WORK_STATUS_LABEL,
+  WORK_STATUS_TITLE,
   folderCrumb,
   isMultiSelected,
   CLAUDE_STATUS_LABEL,
@@ -23,6 +25,7 @@ import {
 } from '../sidebar.store'
 import { buildAdapter, type AdapterContext } from './tree-adapter'
 import { mountTree } from '@views/components/tree/tree'
+import { isCountersEnabled, noteTreeRebuild } from '@services/profiler/profiler.counters'
 import type { TreeRow, TreeSectionData, DetailRow, Badge, RowAction, TreeIcon } from '@views/components/tree/tree'
 
 // The bridge from the sidebar's `SidebarNode` model to the modern, data-driven
@@ -43,8 +46,7 @@ function iconOf(n: SidebarNode): TreeIcon {
 
 // Tooltip of a work-status pill: hand-set vs. derived from the tab's ticket.
 function workStatusTitle(n: TabNode, work: TabWorkStatus): string {
-  if (n.markedStatus) return work === 'review' ? 'Marked for code review' : 'Marked for test'
-  return work === 'review' ? 'Ticket is in code review' : 'Ticket is in test'
+  return WORK_STATUS_TITLE[n.markedStatus ? 'marked' : 'ticket'][work]
 }
 
 // Row modifier: a tab with a work status is tinted with its status colour.
@@ -63,7 +65,7 @@ function badgesOf(n: SidebarNode): Badge[] {
     if (work) {
       out.push({
         kind: 'status',
-        text: work,
+        text: WORK_STATUS_LABEL[work],
         tone: work,
         title: workStatusTitle(n, work)
       })
@@ -229,7 +231,13 @@ export function createSidebarTree(host: HTMLElement, ctx: SidebarTreeContext): T
     numbered: false
   })
 
-  const rebuild = (): void => panel.setSections(toSections(lastRaw))
+  const rebuild = (): void => {
+    const started = performance.now()
+    panel.setSections(toSections(lastRaw))
+    // Feed the profiler's rebuild timing (a no-op unless a session is running).
+    // Counting visible rows allocates, so it is guarded behind the same flag.
+    if (isCountersEnabled()) noteTreeRebuild(performance.now() - started, panel.visibleIds().length)
+  }
 
   return {
     get selectedId() {
