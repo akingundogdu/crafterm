@@ -189,6 +189,7 @@ class ContentController {
     if (root) {
       const tileIds = panesInLayout(root)
       requestAnimationFrame(() => {
+        if (!isSideBySide()) return // view left before the frame ran; nothing to fit
         for (const id of tileIds) {
           const pane = panes.get(id)
           if (pane) autoFitTileFont(pane)

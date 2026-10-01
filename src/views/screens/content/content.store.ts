@@ -58,6 +58,13 @@ export function sideBySideLayout(): LayoutNode | null {
   return sideBySideRoot
 }
 
+// Is this PANE one of the tiles currently on screen? (isTabTiled is tab-level; the
+// ResizeObserver only has the pane.) Used to decide whether a resize should re-fit
+// the tile font rather than just the column count.
+export function isPaneTiled(paneId: string): boolean {
+  return isSideBySide() && sideBySideRoot !== null && layoutContains(sideBySideRoot, paneId)
+}
+
 export function isSideBySide(): boolean {
   return sideBySideTabIds.length > 1
 }

@@ -19,6 +19,10 @@ interface CacheEntry extends GitFacts {
   headMtimeMs: number
 }
 
+// Bounded so a long session that visits many directories cannot grow the cache
+// without limit. Map keeps insertion order, so the oldest key is first; evicting it
+// is a cheap LRU-ish bound (re-set on hit below keeps hot cwds from being evicted).
+const CACHE_CAP = 256
 const cache = new Map<string, CacheEntry>()
 
 // Resolve the HEAD file that moves when this cwd's branch changes, WITHOUT a spawn.
@@ -66,13 +70,25 @@ function headMtime(headPath: string | null): number {
 // miss or when HEAD's mtime changed.
 export async function facts(cwd: string): Promise<GitFacts> {
   const cached = cache.get(cwd)
-  const headPath = cached?.headPath ?? resolveHeadPath(cwd)
+  // Re-resolve the HEAD path each call — it is a spawn-free fs walk, and doing so
+  // picks up a `git init` that turned a non-repo cwd into a repo.
+  const headPath = resolveHeadPath(cwd)
+  // No repo here (headPath null → mtime 0): there is nothing for git to report, so
+  // skip the two spawns entirely instead of running them every tick for a null
+  // result — that per-tick spawn was exactly what this cache exists to remove.
+  if (!headPath) {
+    cache.delete(cwd)
+    return { branch: null, worktree: null }
+  }
   const mtime = headMtime(headPath)
   if (cached && cached.headPath === headPath && cached.headMtimeMs === mtime && mtime !== 0) {
+    cache.delete(cwd)
+    cache.set(cwd, cached) // mark as most-recently-used
     return { branch: cached.branch, worktree: cached.worktree }
   }
   const [branch, worktree] = await Promise.all([git.currentBranch(cwd), git.worktreeName(cwd)])
   cache.set(cwd, { branch, worktree, headPath, headMtimeMs: mtime })
+  if (cache.size > CACHE_CAP) cache.delete(cache.keys().next().value as string)
   return { branch, worktree }
 }
 

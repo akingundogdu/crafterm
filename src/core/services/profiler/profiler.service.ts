@@ -47,7 +47,7 @@ export function noteIpc(name: string, ms: number): void {
 }
 
 function writeRecords(records: ProfilerRecord[]): void {
-  if (!file || !records.length) return
+  if (!file || !Array.isArray(records) || !records.length) return
   try {
     appendFileSync(file, records.map((r) => JSON.stringify(r)).join('\n') + '\n')
   } catch {
@@ -99,6 +99,14 @@ export function start(): ProfilerSession {
   file = join(dir, `${stamp}.jsonl`)
   lastCpu = process.cpuUsage()
   lastSampleAt = startedAt
+  // Start clean: a prior session may have left deltas between its last sample and
+  // its stop(), and those must not bleed into this session's first sample.
+  spawns = 0
+  spawnMs = 0
+  slowestSpawn = null
+  ipcHandled = 0
+  ipcMs = 0
+  slowestIpc = null
   timer = setInterval(sampleMain, SAMPLE_MS)
   return { path: file, startedAt }
 }

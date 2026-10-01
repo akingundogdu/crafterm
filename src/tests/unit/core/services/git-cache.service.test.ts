@@ -64,14 +64,32 @@ describe('git-cache facts', () => {
     expect(currentBranch).toHaveBeenCalledTimes(2) // invalidated, refetched
   })
 
-  it('does not cache when cwd is not in a repo (no HEAD to key on)', async () => {
-    root = mkdtempSync(join(tmpdir(), 'crafterm-norepo-'))
+  it('never spawns git for a non-repo cwd (the per-tick storm fix)', async () => {
+    root = mkdtempSync(join(tmpdir(), 'crafterm-norepo2-'))
 
-    await facts(root)
-    await facts(root)
+    const a = await facts(root)
+    const b = await facts(root)
 
-    // With mtime 0 (no HEAD), the entry is never trusted — each lookup refetches
-    // rather than pinning a possibly-wrong answer forever.
-    expect(currentBranch).toHaveBeenCalledTimes(2)
+    // No HEAD to key on → return null WITHOUT running git, every time. The earlier
+    // version spawned currentBranch+worktreeName per call for a guaranteed-null
+    // result, which is exactly the fan-out this cache exists to remove.
+    expect(a).toEqual({ branch: null, worktree: null })
+    expect(b).toEqual({ branch: null, worktree: null })
+    expect(currentBranch).not.toHaveBeenCalled()
+    expect(worktreeName).not.toHaveBeenCalled()
   })
+
+  it('picks up a git init that turns a non-repo cwd into a repo', async () => {
+    root = mkdtempSync(join(tmpdir(), 'crafterm-init-'))
+    await facts(root) // non-repo: no git
+    expect(currentBranch).not.toHaveBeenCalled()
+
+    mkdirSync(join(root, '.git'))
+    writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
+    const after = await facts(root)
+
+    expect(after.branch).toBe('main') // HEAD now resolves → git runs
+    expect(currentBranch).toHaveBeenCalledTimes(1)
+  })
+
 })
