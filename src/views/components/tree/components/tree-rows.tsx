@@ -13,8 +13,7 @@ export default class TreeRows extends Component {
   declare props: { treeId: string }
 
   template({ treeId }: this['props']) {
-    const { store, getFilter } = getTreeRuntime(treeId)
-    const items = store.flat
+    const { flat: items, getFilter } = getTreeRuntime(treeId)
     return (
       <div class="crtree-rows" style={{ display: 'contents' }}>
         {items.map((it) =>
