@@ -1,5 +1,6 @@
 import { Channel } from '@services/channels.main'
 import { BaseService } from '@services/base.service'
+import { claudeWaitingDir } from '@core/services/paths/paths.service'
 import { ClaudeService } from './claude.service'
 
 // Claude IPC adapter (claude:*). Thin: maps each channel to a ClaudeService method;
@@ -21,6 +22,7 @@ export class ClaudeController extends BaseService {
     this.handle(Channel.Claude.SessionCwd, ({ sessionId }) => this.service.sessionCwd(sessionId))
     this.handle(Channel.Claude.Sessions, () => this.service.sessions())
     this.handle(Channel.Claude.WatchSessions, ({ cwd }) => this.service.watchSessions(cwd))
+    this.service.watchWaiting(claudeWaitingDir())
   }
 
   dispose(): void {

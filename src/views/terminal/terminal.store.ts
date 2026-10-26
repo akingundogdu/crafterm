@@ -5,6 +5,7 @@ import { panes, opened, settings, resolveTheme, paneActions, state } from '@view
 import { persistence, recordCommand } from '@repositories/persistence.service'
 import { terminalService, pathForFile } from '@services'
 import { commandRunsClaude } from './activity-detection'
+import { setWaitingFlash } from './waiting-flash'
 import { showPaneMenu } from '@views/pane/pane'
 
 // Push the pane's current geometry to the PTY, but only when it actually changed.
@@ -216,6 +217,7 @@ export function makeDataHandler(pane: Pane, id: string): (data: string) => void 
   return (data) => {
     terminalService.input(id, data)
     pane.lastActivity = Date.now() // keystrokes count as activity (idle detection)
+    setWaitingFlash(pane, false) // typing answers whatever Claude was waiting on
     if (data.startsWith('\x1b')) return // skip arrow/nav/escape sequences
     for (const ch of data) {
       if (ch === '\r' || ch === '\n') {

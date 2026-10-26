@@ -26,5 +26,8 @@ export const ENV_NAMES = {
   Zdotdir: 'ZDOTDIR',
   // Dir where a SessionStart hook records each pane's CURRENT Claude session id
   // (keyed by CRAFTERM_PANE_ID), so the sidebar follows a /clear or compact roll.
-  SessionMapDir: 'CRAFTERM_SESSION_MAP_DIR'
+  SessionMapDir: 'CRAFTERM_SESSION_MAP_DIR',
+  // Dir where the waiting hook marks a pane (keyed by CRAFTERM_PANE_ID) while its
+  // Claude session waits on the user, so the pane can flash.
+  WaitingDir: 'CRAFTERM_WAITING_DIR'
 } as const
