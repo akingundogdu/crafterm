@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { existsSync, readdirSync, statSync, watch as fsWatch, type FSWatcher } from 'fs'
+import { existsSync, mkdirSync, readdirSync, statSync, watch as fsWatch, type FSWatcher } from 'fs'
 import { newSummary, applyJsonlLine } from '@core/services/claude-usage/claude-usage.service'
 import type { ClaudeUsageSummary } from '@core/services/claude-usage/claude-usage.types'
 import * as claudeAccount from '@core/services/claude-account/claude-account.service'
@@ -9,7 +9,9 @@ import {
   claudeProjectsDir,
   readHead,
   readTail,
-  broadcastClaudeSessionsChanged
+  broadcastClaudeSessionsChanged,
+  broadcastClaudeWaitingChanged,
+  scanWaitingDir
 } from './claude.utils'
 
 // Claude usage + session domain logic (claude:*). Pure logic + per-session caches +
@@ -32,6 +34,11 @@ export class ClaudeService {
   // poll. Keyed by cwd so the renderer can match only its own panes.
   private readonly watchers = new Map<string, FSWatcher>()
   private readonly broadcastTimers = new Map<string, NodeJS.Timeout>()
+  // The waiting dir's watcher (see watchWaiting), its debounce timer, and the
+  // pane files it saw on the last scan (name -> mtimeMs).
+  private waitingWatcher: FSWatcher | null = null
+  private waitingTimer: NodeJS.Timeout | null = null
+  private waitingSeen = new Map<string, number>()
 
   // Aggregate Claude token usage across every session under
   // `~/.claude/projects/**/*.jsonl` for three periods (today, this week, this
@@ -403,10 +410,52 @@ export class ClaudeService {
     }
   }
 
+  // Watch the waiting dir, where the waiting hook keeps one file per pane
+  // (<dir>/<CRAFTERM_PANE_ID>) while that pane's Claude session waits on the user.
+  // Each change rescans the dir rather than trusting the event's file name (macOS
+  // coalesces near-simultaneous writes and reports only one name), then broadcasts
+  // `claude:waitingChanged`: true for a new or rewritten file (Claude stopped
+  // again), false for a removed one. Files already there at start are left alone.
+  watchWaiting(dir: string): boolean {
+    if (this.waitingWatcher) return true
+    try {
+      mkdirSync(dir, { recursive: true })
+      this.waitingSeen = scanWaitingDir(dir)
+      const watcher = fsWatch(dir, { persistent: false }, () => {
+        // Debounce: one write fires 2+ events on macOS.
+        if (this.waitingTimer) clearTimeout(this.waitingTimer)
+        this.waitingTimer = setTimeout(() => {
+          this.waitingTimer = null
+          const next = scanWaitingDir(dir)
+          for (const [paneStableId, mtimeMs] of next) {
+            if (this.waitingSeen.get(paneStableId) !== mtimeMs) broadcastClaudeWaitingChanged(paneStableId, true)
+          }
+          for (const paneStableId of this.waitingSeen.keys()) {
+            if (!next.has(paneStableId)) broadcastClaudeWaitingChanged(paneStableId, false)
+          }
+          this.waitingSeen = next
+        }, 50)
+      })
+      watcher.on('error', () => {
+        watcher.close()
+        this.waitingWatcher = null
+      })
+      this.waitingWatcher = watcher
+      return true
+    } catch {
+      // The dir may not be creatable (read-only fs); panes then just never flash.
+      return false
+    }
+  }
+
   // Close live fs watchers + pending broadcast timers on app quit.
   dispose(): void {
     for (const t of this.broadcastTimers.values()) clearTimeout(t)
     this.broadcastTimers.clear()
+    if (this.waitingTimer) clearTimeout(this.waitingTimer)
+    this.waitingTimer = null
+    this.waitingWatcher?.close()
+    this.waitingWatcher = null
     for (const w of this.watchers.values()) {
       try {
         w.close()

@@ -2,7 +2,7 @@ import { BrowserWindow } from 'electron'
 import { emit, Channel } from '@services/channels.main'
 import { join } from 'path'
 import { homedir } from 'os'
-import { statSync, openSync, readSync, closeSync } from 'fs'
+import { statSync, openSync, readSync, closeSync, readdirSync } from 'fs'
 
 // Claude encodes a project's cwd into the dir name by replacing "/" and "." with "-".
 export function encodeClaudeCwd(cwd: string): string {
@@ -46,6 +46,35 @@ export function readTail(path: string, bytes = 16384): string {
     return ''
   } finally {
     if (fd !== null) closeSync(fd)
+  }
+}
+
+// The pane files in the waiting dir (name -> mtimeMs). Hidden files (.DS_Store)
+// are not panes; an entry removed mid-scan is skipped.
+export function scanWaitingDir(dir: string): Map<string, number> {
+  const out = new Map<string, number>()
+  let names: string[]
+  try {
+    names = readdirSync(dir)
+  } catch {
+    return out
+  }
+  for (const name of names) {
+    if (name.startsWith('.')) continue
+    try {
+      out.set(name, statSync(join(dir, name)).mtimeMs)
+    } catch {
+      // removed between readdir and stat
+    }
+  }
+  return out
+}
+
+export function broadcastClaudeWaitingChanged(paneStableId: string, isWaiting: boolean): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+      emit(win.webContents, Channel.Claude.WaitingChanged, { paneStableId, isWaiting })
+    }
   }
 }
 

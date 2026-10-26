@@ -16,3 +16,29 @@
 .pane-box.active {
   border-color: rgba(76, 141, 255, 0.55);
 }
+
+/* Claude is waiting on the user in this pane and nobody is looking at it: the
+   whole pane pulses amber until the user switches to it or types
+   (terminal/waiting-flash.ts). Above the terminal and the note panel (6), below
+   the drag overlay (.pane-drop, 20); never takes a click. */
+.pane-box.pane-box-waiting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  background: var(--amber);
+  opacity: 0;
+  animation: pane-box-waiting-pulse 1.2s ease-in-out infinite;
+}
+@keyframes pane-box-waiting-pulse {
+  50% {
+    opacity: 0.22;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane-box.pane-box-waiting::after {
+    animation: none;
+    opacity: 0.14;
+  }
+}

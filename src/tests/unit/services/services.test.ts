@@ -118,6 +118,7 @@ const ENTRIES: Entry[] = [
   { ns: 'claude', method: 'permissionMode', kind: 'invoke', channel: 'claude:permissionMode', args: ['cwd', 's'], payload: { cwd: 'cwd', sessionId: 's' } },
   { ns: 'claude', method: 'watchSessions', kind: 'invoke', channel: 'claude:watchSessions', args: ['cwd'], payload: { cwd: 'cwd' } },
   { ns: 'claude', method: 'onSessionsChanged', kind: 'listen', channel: 'claude:sessionsChanged', args: [cb] },
+  { ns: 'claude', method: 'onWaitingChanged', kind: 'listen', channel: 'claude:waitingChanged', args: [cb] },
   { ns: 'claude', method: 'usageSummary', kind: 'invoke', channel: 'claude:usageSummary', args: [], payload: undefined },
   { ns: 'claude', method: 'realUsage', kind: 'invoke', channel: 'claude:realUsage', args: [{ force: true }], payload: { force: true } },
   { ns: 'claude', method: 'lastModel', kind: 'invoke', channel: 'claude:lastModel', args: [], payload: undefined },

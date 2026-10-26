@@ -17,6 +17,8 @@ class ClaudeClient extends BaseClient {
   watchSessions = (cwd: string) => this.call(Channel.Claude.WatchSessions, { cwd })
   onSessionsChanged = (cb: (cwd: string) => void) =>
     this.listen(Channel.Claude.SessionsChanged, (p) => cb(p.cwd))
+  onWaitingChanged = (cb: (paneStableId: string, isWaiting: boolean) => void) =>
+    this.listen(Channel.Claude.WaitingChanged, (p) => cb(p.paneStableId, p.isWaiting))
   usageSummary = () => this.call(Channel.Claude.UsageSummary)
   realUsage = (opts: ClaudeRealUsageOptions) => this.call(Channel.Claude.RealUsage, opts)
   lastModel = () => this.call(Channel.Claude.LastModel)

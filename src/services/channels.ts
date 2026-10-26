@@ -146,6 +146,7 @@ export const Channel = {
     PermissionMode: 'claude:permissionMode',
     WatchSessions: 'claude:watchSessions',
     SessionsChanged: 'claude:sessionsChanged',
+    WaitingChanged: 'claude:waitingChanged',
     UsageSummary: 'claude:usageSummary',
     RealUsage: 'claude:realUsage',
     LastModel: 'claude:lastModel'
@@ -377,6 +378,7 @@ export const channels = {
   [Channel.Claude.PermissionMode]: rpc<{ cwd: string; sessionId: string }, string | null>(),
   [Channel.Claude.WatchSessions]: rpc<{ cwd: string }, boolean>(),
   [Channel.Claude.SessionsChanged]: evt<{ cwd: string }>(),
+  [Channel.Claude.WaitingChanged]: evt<{ paneStableId: string; isWaiting: boolean }>(),
   [Channel.Claude.UsageSummary]: rpc<void, ClaudeUsageSummary>(),
   [Channel.Claude.RealUsage]: rpc<ClaudeRealUsageOptions, ClaudeRealUsage>(),
   [Channel.Claude.LastModel]: rpc<void, ClaudeLastModel | null>(),
