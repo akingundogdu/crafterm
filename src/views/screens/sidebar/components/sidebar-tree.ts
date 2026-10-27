@@ -12,6 +12,7 @@ import {
   claudeStatusOfTab,
   tabWorkStatus,
   tabPoppedOut,
+  makeDockTabClick,
   WORK_STATUS_LABEL,
   WORK_STATUS_TITLE,
   folderCrumb,
@@ -83,8 +84,12 @@ function badgesOf(n: SidebarNode): Badge[] {
   return out
 }
 
-// Hover actions: a worktrees container's quick "+ new worktree".
+// Hover actions: a popped-out terminal's "bring back", a worktrees container's
+// quick "+ new worktree".
 function actionsOf(n: SidebarNode): RowAction[] {
+  if (n.kind === 'tab') {
+    return tabPoppedOut(n) ? [{ glyph: '↩', title: UITexts.Sidebar.dockBackTitle, run: makeDockTabClick(n) }] : []
+  }
   if (!isWorktreeContainer(n)) return []
   const proj = worktreeProjectOf(n)
   if (!proj) return []

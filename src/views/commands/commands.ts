@@ -101,6 +101,7 @@ import { terminalService, fsService , paneService, gitService } from '@services'
 import { dailyTaskRepo } from '@repositories'
 import type { GitAction, DropMode } from './commands.types'
 import { createToastEl } from './toast'
+import { refitDockedPane } from '@views/terminal/popout-geometry'
 
 function focusActivePane(): void {
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
@@ -1159,6 +1160,19 @@ export function popOutPane(paneId: string): void {
   void terminalService.popoutOpen(paneId, p.title || 'Terminal')
   renderContent()
   requestSidebar() // the tab's row shows the pop-out mark
+}
+
+// Bring a popped-out pane back into the main window: close its pop-out window
+// (the PTY keeps running) and show the pane again in its place in the layout.
+export function dockPane(paneId: string): void {
+  if (!poppedOut.has(paneId)) return
+  poppedOut.delete(paneId)
+  terminalService.popoutDock(paneId)
+  renderContent() // put the pane back in the DOM before selectPane focuses it
+  selectPane(paneId)
+  requestSidebar() // the tab's row drops its pop-out mark
+  const p = panes.get(paneId)
+  if (p) requestAnimationFrame(() => refitDockedPane(p)) // once the pane has its box again
 }
 
 // The pop-out window confirmed its close: drop the placeholder and kill the pane.

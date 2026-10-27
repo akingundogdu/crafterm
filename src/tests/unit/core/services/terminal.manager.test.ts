@@ -126,6 +126,47 @@ describe('terminal.manager bookkeeping', () => {
     expect(mainWc.send).toHaveBeenCalledWith('pty:data', { id: 'orphan-id', data: 'y' })
   })
 
+  it('sendOutput mirrors a popped-out pane to the main window, but never doubles a docked one', () => {
+    const mainWc = { id: 1, send: vi.fn(), isDestroyed: () => false }
+    const mainWindow = { isDestroyed: () => false, webContents: mainWc }
+    terminal.init({
+      getMainWindow: () => mainWindow as AnyWc,
+      isShellIntegrationReady: () => false,
+      getZdotDir: () => ''
+    })
+
+    const { id: docked } = mk(mainWc)
+    terminal.sendOutput(docked, 'a')
+    expect(mainWc.send).toHaveBeenCalledTimes(1)
+
+    const { id: popped } = mk(mainWc)
+    const popoutWc = { id: 2, send: vi.fn(), isDestroyed: () => false }
+    terminal.adopt(popped, popoutWc as AnyWc)
+    terminal.sendOutput(popped, 'b')
+    expect(popoutWc.send).toHaveBeenCalledWith('pty:data', { id: popped, data: 'b' })
+    expect(mainWc.send).toHaveBeenLastCalledWith('pty:data', { id: popped, data: 'b' })
+    expect(mainWc.send).toHaveBeenCalledTimes(2)
+  })
+
+  it('resize tells the main window the new grid only while the pane is popped out', () => {
+    const mainWc = { id: 1, send: vi.fn(), isDestroyed: () => false }
+    const mainWindow = { isDestroyed: () => false, webContents: mainWc }
+    terminal.init({
+      getMainWindow: () => mainWindow as AnyWc,
+      isShellIntegrationReady: () => false,
+      getZdotDir: () => ''
+    })
+    const { id } = mk(mainWc)
+
+    terminal.resize(id, 100, 30)
+    expect(mainWc.send).not.toHaveBeenCalled()
+
+    terminal.setPopout(id, {} as AnyWc)
+    terminal.resize(id, 90, 25)
+    expect(mainWc.send).toHaveBeenCalledWith('popout:resized', { id, cols: 90, rows: 25 })
+    terminal.deletePopout(id)
+  })
+
   it('drain resolves once every pty has exited', async () => {
     mk()
     const p = spawned[spawned.length - 1]

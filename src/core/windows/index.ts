@@ -189,6 +189,14 @@ export function registerWindowIpc(): void {
     terminal.sendToRenderer(Channel.Popout.Killed, { id })
   })
 
+  // The main window docked the pane back: close its window without the kill
+  // confirm. The PTY keeps running; closing drops the pop-out as its owner, so
+  // the output flows to the main window again.
+  on(Channel.Popout.Dock, ({ id }) => {
+    allowClose.add(id)
+    terminal.getPopout(id)?.close()
+  })
+
   on(Channel.Popout.Focus, ({ id }) => {
     const win = terminal.getPopout(id)
     if (win && !win.isDestroyed()) win.focus()
