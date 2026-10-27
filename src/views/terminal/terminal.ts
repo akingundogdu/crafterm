@@ -22,6 +22,7 @@ import {
   makeDataHandler,
   makeTaskChipClick,
   makeMenuClick,
+  makePopOutClick,
   makeCloseClick,
   makeSelectPane,
   makeFileDrop
@@ -61,6 +62,7 @@ export async function createPane(cwd?: string, opts?: CreatePaneOptions): Promis
   const { header, htitle } = createPaneHeader({
     onTaskChipClick: makeTaskChipClick(id),
     onMenuClick: makeMenuClick(id),
+    onPopOutClick: makePopOutClick(id),
     onCloseClick: makeCloseClick(id)
   })
 

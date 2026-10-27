@@ -198,6 +198,34 @@
   color: var(--text);
   background: rgba(255, 255, 255, 0.08);
 }
+/* Pop-out button — hidden on normal panes (the ⋯ menu covers those); revealed on
+   each side-by-side tile so a tiled terminal can be detached into its own window.
+   Its own class (not .pane-btn) so selectors targeting the ⋯ options button stay
+   unambiguous. */
+.pane-popout {
+  display: none;
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  padding: 0 3px;
+  border-radius: 4px;
+  transition: color 0.13s ease, background 0.13s ease;
+}
+.pane-popout svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+.pane-popout:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+.side-by-side-grid .pane-popout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .pane-web {
   flex: 1;
   min-height: 0;

@@ -22,7 +22,8 @@ import {
   isSideBySide,
   sideBySideTabs,
   sideBySideLayout,
-  pruneSideBySide
+  pruneSideBySide,
+  isFullyPoppedOut
 } from './content.store'
 import { buildPoppedOutPlaceholder } from './components/popped-out-placeholder'
 import { buildAgentComposer, refreshAgentComposer } from './components/agent-composer'
@@ -94,15 +95,28 @@ class ContentController {
       return leafEl
     }
     const container = buildContentBox('split ' + node.dir)
+    // Skip children fully in a pop-out window: the remaining panes/tiles flex into
+    // the space those windows freed. Each kept child remembers its ORIGINAL index so
+    // its resizer still edits the right entries in node.sizes.
+    const visible: { el: HTMLElement; idx: number }[] = []
     node.children.forEach((child, i) => {
+      if (isFullyPoppedOut(child)) return
       const childEl = this.buildNode(child)
       childEl.style.flexGrow = String(node.sizes[i] ?? 1)
       childEl.style.flexShrink = '1'
       childEl.style.flexBasis = '0'
-      container.appendChild(childEl)
-      if (i < node.children.length - 1) {
+      visible.push({ el: childEl, idx: i })
+    })
+    // Whole subtree popped out (e.g. a side-by-side view with every tile detached):
+    // nothing to show here. A tab collapsing to this falls back to the empty state
+    // in renderContent before buildNode is reached.
+    if (visible.length === 0) return container
+    visible.forEach((v, k) => {
+      container.appendChild(v.el)
+      if (k < visible.length - 1) {
+        const next = visible[k + 1]
         const rz = buildContentBox('resizer ' + node.dir)
-        this.attachResizer(rz, container, node, i)
+        this.attachResizer(rz, node, v.el, next.el, v.idx, next.idx)
         container.appendChild(rz)
       }
     })
@@ -111,21 +125,22 @@ class ContentController {
 
   private attachResizer = (
     rz: HTMLElement,
-    container: HTMLElement,
     node: Extract<LayoutNode, { type: 'split' }>,
-    i: number
+    elA: HTMLElement,
+    elB: HTMLElement,
+    idxA: number,
+    idxB: number
   ): void => {
     rz.addEventListener('mousedown', (e) => {
       e.preventDefault()
       const horizontal = node.dir === 'row'
+      const container = rz.parentElement as HTMLElement
       const rect = container.getBoundingClientRect()
       const total = horizontal ? rect.width : rect.height
       const startPos = horizontal ? e.clientX : e.clientY
-      const a0 = node.sizes[i]
-      const b0 = node.sizes[i + 1]
+      const a0 = node.sizes[idxA]
+      const b0 = node.sizes[idxB]
       const sum = a0 + b0
-      const elA = container.children[i * 2] as HTMLElement
-      const elB = container.children[i * 2 + 2] as HTMLElement
       // A <webview> captures pointer events, so once the cursor crosses into a
       // browser pane the document stops receiving mousemove/mouseup and the drag
       // freezes. A full-screen transparent overlay above the webviews keeps the
@@ -138,10 +153,10 @@ class ContentController {
         const pos = horizontal ? ev.clientX : ev.clientY
         let f = a0 / sum + (pos - startPos) / total
         f = Math.max(0.1, Math.min(0.9, f))
-        node.sizes[i] = f * sum
-        node.sizes[i + 1] = (1 - f) * sum
-        elA.style.flexGrow = String(node.sizes[i])
-        elB.style.flexGrow = String(node.sizes[i + 1])
+        node.sizes[idxA] = f * sum
+        node.sizes[idxB] = (1 - f) * sum
+        elA.style.flexGrow = String(node.sizes[idxA])
+        elB.style.flexGrow = String(node.sizes[idxB])
       }
       const onUp = (): void => {
         document.removeEventListener('mousemove', onMove)
@@ -187,7 +202,8 @@ class ContentController {
     host.appendChild(grid)
     mountPanes()
     if (root) {
-      const tileIds = panesInLayout(root)
+      // Popped-out tiles are not on screen — skip their font auto-fit.
+      const tileIds = panesInLayout(root).filter((id) => !poppedOut.has(id))
       requestAnimationFrame(() => {
         if (!isSideBySide()) return // view left before the frame ran; nothing to fit
         for (const id of tileIds) {
@@ -216,7 +232,10 @@ class ContentController {
     if (this.sideBySideEl) this.sideBySideEl.style.display = 'none'
     panes.forEach(clearAutoFitFont) // tiles return to the user's font outside the view
     const tab = state.activeTabId ? findTab(state.tree, state.activeTabId) : null
-    if (!tab) {
+    // No tab, or every pane of the active tab is in a pop-out window: there is
+    // nothing to dock here, so show the empty/composer state instead of a
+    // space-filling placeholder.
+    if (!tab || isFullyPoppedOut(tab.root)) {
       tabContainers.forEach((e) => (e.el.style.display = 'none'))
       this.toggleComposer(true)
       return
