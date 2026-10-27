@@ -1158,6 +1158,7 @@ export function popOutPane(paneId: string): void {
   poppedOut.add(paneId)
   void terminalService.popoutOpen(paneId, p.title || 'Terminal')
   renderContent()
+  requestSidebar() // the tab's row shows the pop-out mark
 }
 
 // The pop-out window confirmed its close: drop the placeholder and kill the pane.

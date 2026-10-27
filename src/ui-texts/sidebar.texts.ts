@@ -7,6 +7,7 @@ export const Sidebar = {
   stopProcess: 'Stop process',
   newWorktreeTitle: 'New worktree',
   pinnedTitle: 'pinned',
+  poppedOutTitle: 'Open in a separate window',
   commandPlaceholder: 'command',
   showActiveItems: 'Show active items',
   showArchivedItems: 'Show archived items',

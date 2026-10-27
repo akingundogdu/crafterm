@@ -16,7 +16,7 @@ export type StatusDot = 'idle' | 'running' | 'attention'
 export type DropPos = 'before' | 'after' | 'inside'
 
 export interface Badge {
-  kind: 'count' | 'status' | 'pin' | 'order'
+  kind: 'count' | 'status' | 'pin' | 'order' | 'popout'
   text?: string // count value / status label / order number
   tone?: StatusTone // status pill colour
   title?: string

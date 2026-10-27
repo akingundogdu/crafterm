@@ -9,7 +9,7 @@ import type {
 } from '@views/types/types'
 import { UITexts } from '@texts'
 import { openProcessView, killProcess } from '@services/bgproc'
-import { state, panes, settings, paneActions, renderContent, requestSidebar } from '@views/state/spine'
+import { state, panes, poppedOut, settings, paneActions, renderContent, requestSidebar } from '@views/state/spine'
 import { setSideBySide, exitSideBySide } from '@views/screens/content/content.store'
 import {
   allTabs,
@@ -244,6 +244,11 @@ export function tabTaskBadge(node: TabNode): TabWorkStatus | null {
     else if (s === 'wip') progress = true
   }
   return test ? 'test' : progress ? 'progress' : null
+}
+
+// Whether any pane of the tab lives in a pop-out window (marked in the sidebar).
+export function tabPoppedOut(node: TabNode): boolean {
+  return panesInLayout(node.root).some((id) => poppedOut.has(id))
 }
 
 // Effective work status of a tab: a hand-set status wins over its ticket's.
