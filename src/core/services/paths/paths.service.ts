@@ -34,6 +34,12 @@ export const zdotDir = (): string => join(stateDir(), 'zdotdir')
 // session's title instead of the stale launch-time file.
 export const claudeSessionMapDir = (): string => join(stateDir(), 'claude-session')
 
+// Panes whose Claude session is waiting on the user. The waiting hook creates
+// <stateDir>/claude-waiting/<CRAFTERM_PANE_ID> when Claude stops or asks for
+// input, and removes it once the user answers; main watches the dir so the pane
+// can flash while nobody is looking at it.
+export const claudeWaitingDir = (): string => join(stateDir(), 'claude-waiting')
+
 // Notebook tree root: a free-form folder/.md tree under <stateDir>/notebooks.
 export const notebooksDir = (): string => join(stateDir(), 'notebooks')
 

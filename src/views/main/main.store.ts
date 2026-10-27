@@ -37,6 +37,7 @@ import { createCodePane } from '../screens/code-pane/code-pane'
 import { setEditorOpenHandler } from '@views/editor/code-editor/code-editor'
 import { applyTheme } from '../editor/monaco/monaco-setup'
 import { renderContent, updatePaneHighlight } from '../screens/content/content'
+import { onClaudeWaitingChanged, acknowledgeActivePane } from '@views/terminal/waiting-flash'
 import { initNotifications, renderNotifications, toggleNotifPanel } from '../screens/notifications/notifications.shell'
 import { sectionEnd, sectionStart } from '@services/profiler/profiler.counters'
 import { mountStatusBar } from '@views/components/status-bar/status-bar'
@@ -182,7 +183,10 @@ export function wireHooks(): void {
   hooks.updateStatuses = updateStatuses
   hooks.updateActive = updateActiveTab
   hooks.renderContent = renderContent
-  hooks.updatePaneHighlight = updatePaneHighlight
+  hooks.updatePaneHighlight = () => {
+    updatePaneHighlight()
+    acknowledgeActivePane() // switching to a waiting pane stops its flash
+  }
   hooks.renderNotifications = renderNotifications
   // Let the spotlight's Shortcuts tab run any editable keybinding by id without
   // importing main.ts (avoids an import cycle).
@@ -484,6 +488,9 @@ export function wireServiceWatchers(): void {
   plansService.onChanged(() => {
     panes.forEach((p) => void refreshPanePlans(p))
   })
+  // Claude started/stopped waiting on the user in a pane: flash it while unattended.
+  claudeService.onWaitingChanged(onClaudeWaitingChanged)
+  window.addEventListener('focus', acknowledgeActivePane)
 }
 
 // ---- Rebuild live tree from saved state (re-spawns shells) ----
