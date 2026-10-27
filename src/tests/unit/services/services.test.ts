@@ -69,7 +69,7 @@ const ENTRIES: Entry[] = [
   { ns: 'pane', method: 'info', kind: 'invoke', channel: 'pane:info', args: ['id', 's'], payload: { id: 'id', stableId: 's' } },
   { ns: 'terminal', method: 'onCloseActivePane', kind: 'listen', channel: 'menu:close-pane', args: [cb] },
   { ns: 'pane', method: 'onFocusPane', kind: 'listen', channel: 'focus-pane', args: [cb] },
-  { ns: 'terminal', method: 'popoutOpen', kind: 'invoke', channel: 'popout:open', args: ['p', 't'], payload: { paneId: 'p', title: 't' } },
+  { ns: 'terminal', method: 'popoutOpen', kind: 'invoke', channel: 'popout:open', args: ['p', 't', 's'], payload: { paneId: 'p', title: 't', stableId: 's' } },
   { ns: 'terminal', method: 'popoutConfirmClose', kind: 'send', channel: 'popout:close-confirmed', args: ['id'], payload: { id: 'id' } },
   { ns: 'terminal', method: 'popoutFocus', kind: 'send', channel: 'popout:focus', args: ['id'], payload: { id: 'id' } },
   { ns: 'terminal', method: 'popoutDock', kind: 'send', channel: 'popout:dock', args: ['id'], payload: { id: 'id' } },

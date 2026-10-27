@@ -310,7 +310,7 @@ export const channels = {
   [Channel.Pane.Info]: rpc<{ id: string; stableId?: string }, PaneInfo>(),
   [Channel.Menu.ClosePane]: evt<void>(),
   [Channel.Pane.Focus]: evt<{ id: string }>(),
-  [Channel.Popout.Open]: rpc<{ paneId: string; title?: string }, void>(),
+  [Channel.Popout.Open]: rpc<{ paneId: string; title?: string; stableId?: string }, void>(),
   [Channel.Popout.CloseConfirmed]: msg<{ id: string }>(),
   [Channel.Popout.Focus]: msg<{ id: string }>(),
   [Channel.Popout.Dock]: msg<{ id: string }>(),

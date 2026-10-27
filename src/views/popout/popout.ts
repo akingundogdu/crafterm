@@ -6,13 +6,15 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { settings, resolveTheme, applyBgColor } from '@views/state/state'
 import { loadSettings } from '@repositories/settings.service'
-import { terminalService, storeService } from '@services'
-import { makeCustomKeyHandler, makeConfirmClose } from './popout.store'
+import { terminalService, storeService, claudeService } from '@services'
+import { makeCustomKeyHandler, makeConfirmClose, makeWaitingFlash } from './popout.store'
 
 // A pop-out window hosts a single terminal pane. The PTY already exists in the
 // main process (created by the main window); we adopt it so its output streams
 // here, and render a fresh xterm bound to the same id.
-const id = new URLSearchParams(location.search).get('id') || ''
+const params = new URLSearchParams(location.search)
+const id = params.get('id') || ''
+const stableId = params.get('stableId') || ''
 
 async function main(): Promise<void> {
   const saved = await storeService.load()
@@ -42,7 +44,13 @@ async function main(): Promise<void> {
     term.write(data)
     lastData = Date.now()
   })
-  term.onData((d) => terminalService.input(id, d))
+  const waitingFlash = makeWaitingFlash(stableId, document.getElementById('popout')!)
+  claudeService.onWaitingChanged(waitingFlash.onWaitingChanged)
+  window.addEventListener('focus', waitingFlash.acknowledge)
+  term.onData((d) => {
+    waitingFlash.acknowledge() // typing answers whatever Claude was waiting on
+    terminalService.input(id, d)
+  })
   term.onTitleChange((t) => {
     if (t) document.title = t
   })

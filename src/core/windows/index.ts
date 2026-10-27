@@ -81,7 +81,9 @@ export function createMainWindow(): void {
 }
 
 // --- Pop-out windows: host a single pane's terminal in its own window ---
-function createPopoutWindow(paneId: string, title?: string): void {
+// `stableId` is the pane's CRAFTERM_PANE_ID, which the pop-out needs to match
+// `claude:waitingChanged` events to its pane.
+function createPopoutWindow(paneId: string, title?: string, stableId?: string): void {
   const existing = terminal.getPopout(paneId)
   if (existing && !existing.isDestroyed()) {
     existing.focus()
@@ -100,7 +102,7 @@ function createPopoutWindow(paneId: string, title?: string): void {
   })
   hardenWindow(win.webContents)
 
-  const qs = `id=${encodeURIComponent(paneId)}`
+  const qs = new URLSearchParams({ id: paneId, ...(stableId ? { stableId } : {}) }).toString()
   const devUrl = env.rendererUrl()
   if (devUrl) {
     win.loadURL(`${devUrl}/${RENDERER_HTML.popout}?${qs}`)
@@ -177,8 +179,8 @@ export function buildAppMenu(): void {
 // Window bridge: pop-out windows (popout:*), the detached Improve panel
 // (improve-window:*), and native notifications (notify).
 export function registerWindowIpc(): void {
-  handle(Channel.Popout.Open, ({ paneId, title }) => {
-    createPopoutWindow(paneId, title)
+  handle(Channel.Popout.Open, ({ paneId, title, stableId }) => {
+    createPopoutWindow(paneId, title, stableId)
   })
 
   // The pop-out renderer confirmed the kill: close its window and tell the main

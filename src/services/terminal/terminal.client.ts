@@ -13,7 +13,8 @@ class TerminalClient extends BaseClient {
   onExit = (cb: (id: string) => void) => this.listen(Channel.Pty.Exit, (p) => cb(p.id))
   adoptPane = (id: string) => this.send(Channel.Pty.Adopt, { id })
   onCloseActivePane = (cb: () => void) => this.listen(Channel.Menu.ClosePane, () => cb())
-  popoutOpen = (paneId: string, title?: string) => this.call(Channel.Popout.Open, { paneId, title })
+  popoutOpen = (paneId: string, title?: string, stableId?: string) =>
+    this.call(Channel.Popout.Open, { paneId, title, stableId })
   popoutConfirmClose = (id: string) => this.send(Channel.Popout.CloseConfirmed, { id })
   popoutFocus = (id: string) => this.send(Channel.Popout.Focus, { id })
   popoutDock = (id: string) => this.send(Channel.Popout.Dock, { id })

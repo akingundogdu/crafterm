@@ -1157,7 +1157,7 @@ export function popOutPane(paneId: string): void {
   if (!panes.has(paneId) || poppedOut.has(paneId)) return
   const p = panes.get(paneId)!
   poppedOut.add(paneId)
-  void terminalService.popoutOpen(paneId, p.title || 'Terminal')
+  void terminalService.popoutOpen(paneId, p.title || 'Terminal', p.stableId)
   renderContent()
   requestSidebar() // the tab's row shows the pop-out mark
 }
