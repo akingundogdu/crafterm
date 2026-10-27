@@ -49,6 +49,32 @@ export function readTail(path: string, bytes = 16384): string {
   }
 }
 
+const LIST_ITEM = /^\s*(?:\d+[.)]|[-*+])\s/
+const TRAILING_MARKUP = /[*_`\s]+$/
+
+const endsOnQuestionMark = (line: string): boolean => line.replace(TRAILING_MARKUP, '').endsWith('?')
+
+// Does Claude's final text hand the turn back with a question? Either the text
+// itself ends on a '?', or it ends on an options list whose lead-in line does
+// ("How should we proceed?" followed by "1. … 2. …"). Trailing markdown emphasis
+// (`**…?**`) is ignored.
+export function endsWithQuestion(text: string): boolean {
+  if (endsOnQuestionMark(text)) return true
+  const lines = text.split('\n')
+  let hasList = false
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]
+    if (!line.trim()) continue
+    // A list item, or an indented continuation / nested line of one.
+    if (LIST_ITEM.test(line) || /^\s/.test(line)) {
+      hasList ||= LIST_ITEM.test(line)
+      continue
+    }
+    return hasList && endsOnQuestionMark(line)
+  }
+  return false
+}
+
 // The pane files in the waiting dir (name -> mtimeMs). Hidden files (.DS_Store)
 // are not panes; an entry removed mid-scan is skipped.
 export function scanWaitingDir(dir: string): Map<string, number> {

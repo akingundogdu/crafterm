@@ -11,7 +11,8 @@ import {
   readTail,
   broadcastClaudeSessionsChanged,
   broadcastClaudeWaitingChanged,
-  scanWaitingDir
+  scanWaitingDir,
+  endsWithQuestion
 } from './claude.utils'
 
 // Claude usage + session domain logic (claude:*). Pure logic + per-session caches +
@@ -193,7 +194,8 @@ export class ClaudeService {
   }
 
   // Coarse Claude session state from the session JSONL tail: 'in-progress' (user/
-  // tool turn or unresolved tool_use), 'question' (assistant ended on a '?'), or
+  // tool turn or unresolved tool_use), 'question' (assistant ended on a '?', or on
+  // an options list after a '?' lead-in — see endsWithQuestion), or
   // 'idle' (assistant ended normally).
   sessionStatus(cwd: string, sessionId: string): ClaudeSessionStatus | null {
     if (!cwd || !sessionId) return null
@@ -229,7 +231,7 @@ export class ClaudeService {
       lastText = content
     }
     if (hasToolUse || msg.stop_reason === 'tool_use') return 'in-progress'
-    if (lastText.trim().endsWith('?')) return 'question'
+    if (endsWithQuestion(lastText)) return 'question'
     return 'idle'
   }
 

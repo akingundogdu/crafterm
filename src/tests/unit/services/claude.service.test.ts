@@ -175,3 +175,103 @@ describe('ClaudeService.lastModel', () => {
     expect(service.lastModel()?.model).toBe('claude-opus-4-5')
   })
 })
+
+const { endsWithQuestion } = await import('@services/claude/claude.utils')
+
+// endsWithQuestion decides whether Claude's final text hands the turn back with a
+// question — including the common "question, then a numbered options list" shape.
+describe('endsWithQuestion', () => {
+  it('detects text that ends on a question mark', () => {
+    expect(endsWithQuestion('Should I continue?')).toBe(true)
+    expect(endsWithQuestion('Should I continue?  \n\n')).toBe(true)
+  })
+
+  it('ignores trailing markdown emphasis around the question mark', () => {
+    expect(endsWithQuestion('**Which one should we pick?**')).toBe(true)
+  })
+
+  it('detects a question followed by a numbered options list', () => {
+    const text = [
+      'My recommendation: 1 + 2.',
+      '',
+      'How should we proceed?',
+      '1. Check the prod flag.',
+      '2. Prepare the admin PR.',
+      '3. Both.',
+      '4. Neither for now.'
+    ].join('\n')
+    expect(endsWithQuestion(text)).toBe(true)
+  })
+
+  it('detects a question followed by a bulleted list with wrapped and nested lines', () => {
+    const text = [
+      'Which option do you want?',
+      '',
+      '- **Option A.** Keeps the code as is,',
+      '  but costs extra credits.',
+      '  - nested detail',
+      '* Option B.'
+    ].join('\n')
+    expect(endsWithQuestion(text)).toBe(true)
+  })
+
+  it('does not treat a list after a plain statement as a question', () => {
+    expect(endsWithQuestion('Changes made:\n1. Fixed the parser.\n2. Added tests.')).toBe(false)
+  })
+
+  it('does not treat a question earlier in the text as the final one', () => {
+    expect(endsWithQuestion('Why did it fail?\n\nThe parser skipped the last line.')).toBe(false)
+  })
+
+  it('does not treat a lone indented block without list items as a list', () => {
+    expect(endsWithQuestion('Is this right?\n\n    const x = 1')).toBe(false)
+  })
+
+  it('returns false for empty text', () => {
+    expect(endsWithQuestion('')).toBe(false)
+  })
+})
+
+// sessionStatus reads the session jsonl tail and classifies the last turn.
+describe('ClaudeService.sessionStatus', () => {
+  const cwd = '/w/proj'
+  let root: string
+  const service = new ClaudeService()
+
+  const writeSession = (lines: unknown[]): void => {
+    const dir = join(root, '-w-proj')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'session.jsonl'), lines.map((l) => JSON.stringify(l)).join('\n'))
+  }
+  const assistantText = (text: string): unknown => ({
+    type: 'assistant',
+    message: { content: [{ type: 'text', text }], stop_reason: 'end_turn' }
+  })
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'crafterm-claude-status-'))
+    process.env.CRAFTERM_CLAUDE_DIR = root
+  })
+
+  afterEach(() => {
+    delete process.env.CRAFTERM_CLAUDE_DIR
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('reports a question when the reply ends on an options list after a question', () => {
+    writeSession([assistantText('How should we proceed?\n1. Option A.\n2. Option B.')])
+    expect(service.sessionStatus(cwd, 'session')).toBe('question')
+  })
+
+  it('reports idle when the reply ends on a plain statement', () => {
+    writeSession([assistantText('Done. All tests pass.')])
+    expect(service.sessionStatus(cwd, 'session')).toBe('idle')
+  })
+
+  it('reports in-progress while a tool call is unresolved', () => {
+    writeSession([
+      { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash' }], stop_reason: 'tool_use' } }
+    ])
+    expect(service.sessionStatus(cwd, 'session')).toBe('in-progress')
+  })
+})
