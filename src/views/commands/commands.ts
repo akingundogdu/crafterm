@@ -1159,10 +1159,17 @@ export function popOutPane(paneId: string): void {
   if (!panes.has(paneId) || poppedOut.has(paneId)) return
   const p = panes.get(paneId)!
   poppedOut.add(paneId)
-  void terminalService.popoutOpen(paneId, p.title || 'Terminal', p.stableId, p.popoutBounds)
+  openPopoutWindow(paneId)
   renderContent()
   requestSidebar() // the tab's row shows the pop-out mark
   persistence.save() // the leaf is now saved as popped out
+}
+
+// Open (or focus) the pop-out window of a pane, at its remembered bounds.
+export function openPopoutWindow(paneId: string): void {
+  const p = panes.get(paneId)
+  if (!p) return
+  void terminalService.popoutOpen(paneId, p.title || 'Terminal', p.stableId, p.popoutBounds)
 }
 
 // A pop-out window moved or resized: remember where it is so a restart (or the
@@ -1200,6 +1207,11 @@ export function killPoppedPane(paneId: string): void {
 // the node in the tree with status 'archived' (hidden from the sidebar). The live
 // root becomes an empty placeholder until the session is reactivated.
 export function archiveTab(tab: TabNode): void {
+  // A closed session does not keep its pop-out windows: close them first, so the
+  // dormant layout is saved docked and reactivating it opens no windows.
+  panesInLayout(tab.root).forEach((id) => {
+    if (poppedOut.delete(id)) terminalService.popoutDock(id)
+  })
   tab.dormantRoot = persistence.serializeLayout(tab.root)
   panesInLayout(tab.root).forEach((id) => {
     destroyPane(id)

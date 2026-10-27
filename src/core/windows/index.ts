@@ -117,8 +117,9 @@ function createPopoutWindow(paneId: string, title?: string, stableId?: string, b
   terminal.setPopout(paneId, win)
   // Report the window's position + size (once now, then after every move/resize)
   // so the main window persists it and reopens the pop-out in place on restart.
+  // Normal bounds: a fullscreen or maximized pop-out reopens at its windowed size.
   const reportBounds = (): void => {
-    if (!win.isDestroyed()) terminal.sendToRenderer(Channel.Popout.Bounds, { id: paneId, bounds: win.getBounds() })
+    if (!win.isDestroyed()) terminal.sendToRenderer(Channel.Popout.Bounds, { id: paneId, bounds: win.getNormalBounds() })
   }
   win.on(Events.Window.Moved, reportBounds)
   win.on(Events.Window.Resized, reportBounds)

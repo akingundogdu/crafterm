@@ -50,27 +50,34 @@ export function readTail(path: string, bytes = 16384): string {
 }
 
 const LIST_ITEM = /^\s*(?:\d+[.)]|[-*+])\s/
+// A `---` / `* * *` divider is not a list item, even though `* ` looks like one.
+const THEMATIC_BREAK = /^\s*([-*_])(?:\s*\1){2,}\s*$/
+const HEADING = /^\s*#{1,6}\s/
 const TRAILING_MARKUP = /[*_`\s]+$/
 
 const endsOnQuestionMark = (line: string): boolean => line.replace(TRAILING_MARKUP, '').endsWith('?')
 
 // Does Claude's final text hand the turn back with a question? Either the text
 // itself ends on a '?', or it ends on an options list whose lead-in line does
-// ("How should we proceed?" followed by "1. … 2. …"). Trailing markdown emphasis
-// (`**…?**`) is ignored.
+// ("How should we proceed?" followed by "1. … 2. …"). A heading lead-in
+// ("## What changed?" + bullets) is a summary, not a question. Trailing markdown
+// emphasis (`**…?**`) is ignored.
 export function endsWithQuestion(text: string): boolean {
-  if (endsOnQuestionMark(text)) return true
   const lines = text.split('\n')
   let hasList = false
+  let isLastLine = true
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]
     if (!line.trim()) continue
+    if (THEMATIC_BREAK.test(line)) return false
+    if (isLastLine && endsOnQuestionMark(line)) return true
+    isLastLine = false
     // A list item, or an indented continuation / nested line of one.
     if (LIST_ITEM.test(line) || /^\s/.test(line)) {
       hasList ||= LIST_ITEM.test(line)
       continue
     }
-    return hasList && endsOnQuestionMark(line)
+    return hasList && !HEADING.test(line) && endsOnQuestionMark(line)
   }
   return false
 }

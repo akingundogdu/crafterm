@@ -1,5 +1,5 @@
 import type { Pane } from '@views/types/types'
-import { panes, state } from '@views/state/spine'
+import { panes, poppedOut, state } from '@views/state/spine'
 
 // While Claude waits on the user in a pane nobody is looking at, the pane pulses
 // (pane-box.css). The waiting hook marks the pane when Claude stops or asks for
@@ -18,10 +18,15 @@ export function setWaitingFlash(pane: Pane, isFlashing: boolean): void {
 }
 
 // Claude started or stopped waiting in the pane with `paneStableId`. A pane the
-// user is already looking at does not flash.
+// user is already looking at does not flash, and neither does the hidden main-
+// window copy of a popped-out pane (its pop-out window flashes instead).
 export function onClaudeWaitingChanged(paneStableId: string, isWaiting: boolean): void {
   for (const pane of panes.values()) {
     if (pane.stableId !== paneStableId) continue
+    if (poppedOut.has(pane.id)) {
+      setWaitingFlash(pane, false)
+      continue
+    }
     const isAttended = isPaneAttended(pane.id, state.activePaneId, document.hasFocus())
     setWaitingFlash(pane, isWaiting && !isAttended)
   }

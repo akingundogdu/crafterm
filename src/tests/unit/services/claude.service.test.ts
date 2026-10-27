@@ -223,6 +223,15 @@ describe('endsWithQuestion', () => {
     expect(endsWithQuestion('Why did it fail?\n\nThe parser skipped the last line.')).toBe(false)
   })
 
+  it('does not treat a heading lead-in before a list as a question', () => {
+    expect(endsWithQuestion('## What changed?\n- Added the parser.\n- Fixed the tests.')).toBe(false)
+  })
+
+  it('does not treat a thematic break as a list item', () => {
+    expect(endsWithQuestion('Should I continue?\n\n* * *')).toBe(false)
+    expect(endsWithQuestion('Should I continue?\n\n---')).toBe(false)
+  })
+
   it('does not treat a lone indented block without list items as a list', () => {
     expect(endsWithQuestion('Is this right?\n\n    const x = 1')).toBe(false)
   })

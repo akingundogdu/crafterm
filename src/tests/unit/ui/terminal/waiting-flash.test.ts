@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { panes, state } from '@views/state/spine'
+import { panes, poppedOut, state } from '@views/state/spine'
 import {
   WAITING_FLASH_CLASS,
   isPaneAttended,
@@ -100,6 +100,16 @@ describe('waiting flash', () => {
     onClaudeWaitingChanged('stable-1', true)
     acknowledgeActivePane() // the active pane is `other`
     expect(isFlashing(waiting)).toBe(true)
+  })
+
+  it('does not flash the hidden main-window copy of a popped-out pane', () => {
+    poppedOut.add(waiting.id)
+    try {
+      onClaudeWaitingChanged('stable-1', true)
+      expect(isFlashing(waiting)).toBe(false)
+    } finally {
+      poppedOut.delete(waiting.id)
+    }
   })
 
   it('setWaitingFlash(false) stops the flash, as a keystroke does', () => {
