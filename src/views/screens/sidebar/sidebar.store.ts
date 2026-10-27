@@ -9,7 +9,7 @@ import type {
 } from '@views/types/types'
 import { UITexts } from '@texts'
 import { openProcessView, killProcess } from '@services/bgproc'
-import { state, panes, settings, paneActions, renderContent, requestSidebar } from '@views/state/spine'
+import { state, panes, poppedOut, settings, paneActions, renderContent, requestSidebar } from '@views/state/spine'
 import { setSideBySide, exitSideBySide } from '@views/screens/content/content.store'
 import {
   allTabs,
@@ -27,7 +27,8 @@ import {
   toggleTabDetails,
   openTerminalRunning,
   contextFolderId,
-  runInSplit
+  runInSplit,
+  dockPane
 } from '@views/commands/commands'
 import { showProjectPicker } from '@views/screens/pickers/project/project'
 import { runUpdate } from '@views/screens/pickers/update/update'
@@ -244,6 +245,18 @@ export function tabTaskBadge(node: TabNode): TabWorkStatus | null {
     else if (s === 'wip') progress = true
   }
   return test ? 'test' : progress ? 'progress' : null
+}
+
+// Whether any pane of the tab lives in a pop-out window (marked in the sidebar).
+export function tabPoppedOut(node: TabNode): boolean {
+  return panesInLayout(node.root).some((id) => poppedOut.has(id))
+}
+
+// The row action of a popped-out terminal: bring its panes back into Crafterm.
+export function makeDockTabClick(node: TabNode): () => void {
+  return () => {
+    for (const id of panesInLayout(node.root)) if (poppedOut.has(id)) dockPane(id)
+  }
 }
 
 // Effective work status of a tab: a hand-set status wins over its ticket's.

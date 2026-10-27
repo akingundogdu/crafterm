@@ -237,6 +237,15 @@
   border-radius: 50%;
   background: var(--amber);
 }
+/* a terminal with a pane in its own pop-out window */
+.crtree-popout {
+  color: var(--accent);
+  font-size: 0.85em;
+  line-height: 1;
+}
+.crtree-active .crtree-popout {
+  color: #fff;
+}
 .crtree-status {
   padding: 1px 6px;
   border-radius: 6px;

@@ -90,6 +90,8 @@ export const Channel = {
     Open: 'popout:open',
     CloseConfirmed: 'popout:close-confirmed',
     Focus: 'popout:focus',
+    Dock: 'popout:dock',
+    Resized: 'popout:resized',
     Killed: 'popout:killed',
     ConfirmClose: 'popout:confirm-close'
   },
@@ -311,6 +313,8 @@ export const channels = {
   [Channel.Popout.Open]: rpc<{ paneId: string; title?: string }, void>(),
   [Channel.Popout.CloseConfirmed]: msg<{ id: string }>(),
   [Channel.Popout.Focus]: msg<{ id: string }>(),
+  [Channel.Popout.Dock]: msg<{ id: string }>(),
+  [Channel.Popout.Resized]: evt<{ id: string; cols: number; rows: number }>(),
   [Channel.Popout.Killed]: evt<{ id: string }>(),
   [Channel.Popout.ConfirmClose]: evt<{ id: string }>(),
   [Channel.Proc.Start]: rpc<ProcStartOptions, string>(),

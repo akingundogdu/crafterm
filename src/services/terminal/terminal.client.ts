@@ -16,6 +16,9 @@ class TerminalClient extends BaseClient {
   popoutOpen = (paneId: string, title?: string) => this.call(Channel.Popout.Open, { paneId, title })
   popoutConfirmClose = (id: string) => this.send(Channel.Popout.CloseConfirmed, { id })
   popoutFocus = (id: string) => this.send(Channel.Popout.Focus, { id })
+  popoutDock = (id: string) => this.send(Channel.Popout.Dock, { id })
+  onPopoutResized = (cb: (id: string, cols: number, rows: number) => void) =>
+    this.listen(Channel.Popout.Resized, (p) => cb(p.id, p.cols, p.rows))
   onPopoutKilled = (cb: (id: string) => void) => this.listen(Channel.Popout.Killed, (p) => cb(p.id))
   onPopoutConfirmClose = (cb: (id: string) => void) =>
     this.listen(Channel.Popout.ConfirmClose, (p) => cb(p.id))

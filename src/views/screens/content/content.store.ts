@@ -29,6 +29,15 @@ export function makePopoutFocus(paneId: string): () => void {
   return () => terminalService.popoutFocus(paneId)
 }
 
+// A layout node with nothing left to show in the main window: a popped-out leaf, or
+// a split whose every descendant leaf is popped out. Such a node is dropped from the
+// rendered layout so the remaining panes/tiles fill the space its window freed; when
+// a whole tab/view collapses to this, the content area falls back to the empty state.
+export function isFullyPoppedOut(node: LayoutNode): boolean {
+  if (node.type === 'leaf') return poppedOut.has(node.paneId)
+  return node.children.every(isFullyPoppedOut)
+}
+
 // After a resizer drag mutated node.sizes + the DOM directly (no rebuild), the
 // cached layout signature is stale. Refresh it — otherwise a later equalize/
 // render computing the same sig is skipped and the dragged sizes stay stuck —

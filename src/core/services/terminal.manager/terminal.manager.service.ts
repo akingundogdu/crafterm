@@ -49,6 +49,17 @@ export function sendToOwner(id: string, channel: string, payload: unknown): void
   sendToRenderer(channel, payload)
 }
 
+// A pane's output goes to the window that owns it. A popped-out pane's output
+// also reaches the main window, whose xterm stays alive behind the placeholder,
+// so docking the pane back shows everything that ran while it was out.
+export function sendOutput(id: string, data: string): void {
+  sendToOwner(id, Channel.Pty.Data, { id, data })
+  const wc = owners.get(id)
+  const mainWindow = deps.getMainWindow()
+  if (!wc || wc.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return
+  if (wc.id !== mainWindow.webContents.id) sendToRenderer(Channel.Pty.Data, { id, data })
+}
+
 // --- PTY bridge: this is where "web" reaches the real shell, via the Node main process ---
 
 export function create(
@@ -93,7 +104,7 @@ export function create(
   // So every callback body must be wrapped to never throw back into native code.
   p.onData((data) => {
     try {
-      sendToOwner(id, Channel.Pty.Data, { id, data })
+      sendOutput(id, data)
     } catch {
       /* renderer gone / frame disposed — never let it reach node-pty */
     }
@@ -127,6 +138,9 @@ export function resize(id: string, cols: number, rows: number): void {
   } catch {
     /* resize can throw if the pty just died — safe to ignore */
   }
+  // A popped-out pane's main-window xterm follows its window's grid, so the
+  // output mirrored to it (see sendOutput) draws on a grid of the same size.
+  if (popouts.has(id)) sendToRenderer(Channel.Popout.Resized, { id, cols, rows })
 }
 
 export function kill(id: string): void {

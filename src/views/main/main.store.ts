@@ -38,6 +38,7 @@ import { setEditorOpenHandler } from '@views/editor/code-editor/code-editor'
 import { applyTheme } from '../editor/monaco/monaco-setup'
 import { renderContent, updatePaneHighlight } from '../screens/content/content'
 import { onClaudeWaitingChanged, acknowledgeActivePane } from '@views/terminal/waiting-flash'
+import { mirrorPopoutSize } from '@views/terminal/popout-geometry'
 import { initNotifications, renderNotifications, toggleNotifPanel } from '../screens/notifications/notifications.shell'
 import { sectionEnd, sectionStart } from '@services/profiler/profiler.counters'
 import { mountStatusBar } from '@views/components/status-bar/status-bar'
@@ -272,6 +273,8 @@ export function wirePtyStream(): void {
   })
   // A pop-out window confirmed its close: kill the pane and drop its placeholder.
   terminalService.onPopoutKilled((id) => killPoppedPane(id))
+  // A pop-out window resized its PTY: keep the pane's main-window xterm on the same grid.
+  terminalService.onPopoutResized(mirrorPopoutSize)
   // Cmd+W comes from a menu accelerator so it also works while a browser pane is focused.
   terminalService.onCloseActivePane(() => {
     if (state.activePaneId) void confirmAndClosePane(state.activePaneId)

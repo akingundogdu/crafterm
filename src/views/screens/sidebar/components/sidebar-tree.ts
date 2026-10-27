@@ -11,6 +11,8 @@ import {
   plansForTab,
   claudeStatusOfTab,
   tabWorkStatus,
+  tabPoppedOut,
+  makeDockTabClick,
   WORK_STATUS_LABEL,
   WORK_STATUS_TITLE,
   folderCrumb,
@@ -57,7 +59,7 @@ function extraClassOf(n: SidebarNode): string | undefined {
   return work ? 'crtree-work-' + work : undefined
 }
 
-// Trailing badges: Claude/task status pill, folder child-count, pin dot.
+// Trailing badges: Claude/task status pill, pop-out mark, folder child-count, pin dot.
 function badgesOf(n: SidebarNode): Badge[] {
   const out: Badge[] = []
   if (n.kind === 'tab') {
@@ -73,6 +75,7 @@ function badgesOf(n: SidebarNode): Badge[] {
       const cs = claudeStatusOfTab(n)
       if (cs) out.push({ kind: 'status', text: CLAUDE_STATUS_LABEL[cs], tone: cs, title: CLAUDE_STATUS_TITLE[cs] })
     }
+    if (tabPoppedOut(n)) out.push({ kind: 'popout', text: '⧉', title: UITexts.Sidebar.poppedOutTitle })
   }
   if (n.kind === 'folder' || n.kind === 'project') {
     out.push({ kind: 'count', text: String(allTabs([n]).length), title: 'terminals in here' })
@@ -81,8 +84,12 @@ function badgesOf(n: SidebarNode): Badge[] {
   return out
 }
 
-// Hover actions: a worktrees container's quick "+ new worktree".
+// Hover actions: a popped-out terminal's "bring back", a worktrees container's
+// quick "+ new worktree".
 function actionsOf(n: SidebarNode): RowAction[] {
+  if (n.kind === 'tab') {
+    return tabPoppedOut(n) ? [{ glyph: '↩', title: UITexts.Sidebar.dockBackTitle, run: makeDockTabClick(n) }] : []
+  }
   if (!isWorktreeContainer(n)) return []
   const proj = worktreeProjectOf(n)
   if (!proj) return []

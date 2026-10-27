@@ -259,6 +259,15 @@ export function makeMenuClick(id: string): (e: MouseEvent) => void {
   }
 }
 
+// The side-by-side tile's pop-out button: detach this terminal into its own window
+// (same action as the ⋯ menu's "Pop out to window" entry).
+export function makePopOutClick(id: string): (e: MouseEvent) => void {
+  return (e) => {
+    e.stopPropagation()
+    paneActions.popOut(id)
+  }
+}
+
 export function makeCloseClick(id: string): (e: MouseEvent) => void {
   return (e) => {
     e.stopPropagation()
