@@ -13,7 +13,8 @@ import type {
   PtyCreateOptions,
   ProcStartOptions,
   PtyDataEvent,
-  ProcExitEvent
+  ProcExitEvent,
+  PopoutBounds
 } from './pty/pty.types'
 import type { PaneInfo } from './pane/pane.types'
 import type { DirListing } from './dir/dir.types'
@@ -92,6 +93,7 @@ export const Channel = {
     Focus: 'popout:focus',
     Dock: 'popout:dock',
     Resized: 'popout:resized',
+    Bounds: 'popout:bounds',
     Killed: 'popout:killed',
     ConfirmClose: 'popout:confirm-close'
   },
@@ -310,11 +312,12 @@ export const channels = {
   [Channel.Pane.Info]: rpc<{ id: string; stableId?: string }, PaneInfo>(),
   [Channel.Menu.ClosePane]: evt<void>(),
   [Channel.Pane.Focus]: evt<{ id: string }>(),
-  [Channel.Popout.Open]: rpc<{ paneId: string; title?: string }, void>(),
+  [Channel.Popout.Open]: rpc<{ paneId: string; title?: string; stableId?: string; bounds?: PopoutBounds }, void>(),
   [Channel.Popout.CloseConfirmed]: msg<{ id: string }>(),
   [Channel.Popout.Focus]: msg<{ id: string }>(),
   [Channel.Popout.Dock]: msg<{ id: string }>(),
   [Channel.Popout.Resized]: evt<{ id: string; cols: number; rows: number }>(),
+  [Channel.Popout.Bounds]: evt<{ id: string; bounds: PopoutBounds }>(),
   [Channel.Popout.Killed]: evt<{ id: string }>(),
   [Channel.Popout.ConfirmClose]: evt<{ id: string }>(),
   [Channel.Proc.Start]: rpc<ProcStartOptions, string>(),

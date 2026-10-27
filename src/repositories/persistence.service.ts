@@ -7,6 +7,7 @@ import {
   docs,
   sqlPanes,
   codePanes,
+  poppedOut,
   state,
   settings,
   notifications,
@@ -86,6 +87,7 @@ export function serializeLayout(node: LayoutNode): SavedNode {
     // Persisted as the multi-valued tickets[]; the single in-memory dailyTaskId
     // is the current source until the multi-ticket UI (todo14).
     if (p?.dailyTaskId) leaf.tickets = [p.dailyTaskId]
+    if (poppedOut.has(node.paneId)) leaf.popout = p?.popoutBounds ? { bounds: p.popoutBounds } : {}
     return leaf
   }
   return {

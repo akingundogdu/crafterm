@@ -21,7 +21,8 @@ export const filePanes = new Map<string, FilePane>() // file viewer panes (trans
 export const codePanes = new Map<string, CodePane>() // editable code editor panes
 export const opened = new Set<string>()
 // Pane ids currently shown in a separate pop-out window (rendered as a
-// placeholder in the main layout; runtime only, never persisted).
+// placeholder in the main layout). Persisted per leaf as `popout`, so a restart
+// reopens the pop-out windows.
 export const poppedOut = new Set<string>()
 
 // Right notification panel: live cards. The last 24h of cards are persisted to

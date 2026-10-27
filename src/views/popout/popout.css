@@ -2,6 +2,7 @@
 #popout {
   display: flex;
   flex-direction: column;
+  position: relative;
   height: 100vh;
   background: var(--bg, #000);
 }
@@ -34,4 +35,28 @@
 }
 .pane-popped .settings-inline-btn {
   margin: 0;
+}
+
+/* Claude waits on the user in this pop-out (popout.store.ts makeWaitingFlash).
+   Same amber pulse as a docked pane (pane-box.css); never takes a click. */
+#popout.popout-waiting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  background: var(--amber);
+  opacity: 0;
+  animation: popout-waiting-pulse 1.2s ease-in-out infinite;
+}
+@keyframes popout-waiting-pulse {
+  50% {
+    opacity: 0.22;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #popout.popout-waiting::after {
+    animation: none;
+    opacity: 0.14;
+  }
 }

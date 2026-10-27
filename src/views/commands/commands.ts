@@ -35,6 +35,7 @@ import {
 } from '@views/state/state'
 import { exitSideBySide, isTabTiled, isSideBySide, moveSideBySidePane } from '@views/screens/content/content.store'
 import { persistence } from '@repositories/persistence.service'
+import type { PopoutBounds } from '@services/pty/pty.types'
 import {
   firstPaneOf,
   panesInLayout,
@@ -1150,16 +1151,34 @@ export async function confirmAndClosePane(paneId: string): Promise<void> {
 }
 
 // Move a terminal pane into its own window. The leaf stays in the layout tree
-// (shown as a placeholder) so it re-docks on restart; the live xterm lives in
-// the pop-out window, which adopts the same PTY. Pop-out only supports plain
-// terminal panes (not browser/doc panes).
+// (shown as a placeholder) and is saved as popped out, so a restart reopens the
+// pop-out at its last position; the live xterm lives in the pop-out window,
+// which adopts the same PTY. Pop-out only supports plain terminal panes (not
+// browser/doc panes).
 export function popOutPane(paneId: string): void {
   if (!panes.has(paneId) || poppedOut.has(paneId)) return
   const p = panes.get(paneId)!
   poppedOut.add(paneId)
-  void terminalService.popoutOpen(paneId, p.title || 'Terminal')
+  openPopoutWindow(paneId)
   renderContent()
   requestSidebar() // the tab's row shows the pop-out mark
+  persistence.save() // the leaf is now saved as popped out
+}
+
+// Open (or focus) the pop-out window of a pane, at its remembered bounds.
+export function openPopoutWindow(paneId: string): void {
+  const p = panes.get(paneId)
+  if (!p) return
+  void terminalService.popoutOpen(paneId, p.title || 'Terminal', p.stableId, p.popoutBounds)
+}
+
+// A pop-out window moved or resized: remember where it is so a restart (or the
+// next pop-out of this pane) reopens it in the same place.
+export function rememberPopoutBounds(paneId: string, bounds: PopoutBounds): void {
+  const p = panes.get(paneId)
+  if (!p) return
+  p.popoutBounds = bounds
+  if (poppedOut.has(paneId)) persistence.save()
 }
 
 // Bring a popped-out pane back into the main window: close its pop-out window
@@ -1168,6 +1187,7 @@ export function dockPane(paneId: string): void {
   if (!poppedOut.has(paneId)) return
   poppedOut.delete(paneId)
   terminalService.popoutDock(paneId)
+  persistence.save() // the leaf is no longer saved as popped out
   renderContent() // put the pane back in the DOM before selectPane focuses it
   selectPane(paneId)
   requestSidebar() // the tab's row drops its pop-out mark
@@ -1187,6 +1207,11 @@ export function killPoppedPane(paneId: string): void {
 // the node in the tree with status 'archived' (hidden from the sidebar). The live
 // root becomes an empty placeholder until the session is reactivated.
 export function archiveTab(tab: TabNode): void {
+  // A closed session does not keep its pop-out windows: close them first, so the
+  // dormant layout is saved docked and reactivating it opens no windows.
+  panesInLayout(tab.root).forEach((id) => {
+    if (poppedOut.delete(id)) terminalService.popoutDock(id)
+  })
   tab.dormantRoot = persistence.serializeLayout(tab.root)
   panesInLayout(tab.root).forEach((id) => {
     destroyPane(id)

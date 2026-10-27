@@ -1,6 +1,6 @@
 import { Channel } from '../channels.client'
 import { BaseClient } from '../base.client'
-import type { PtyCreateOptions, ProcStartOptions } from '../pty/pty.types'
+import type { PtyCreateOptions, ProcStartOptions, PopoutBounds } from '../pty/pty.types'
 
 // Terminal/PTY + pop-out + background-process IPC. The only caller of the
 // pty:*/popout:*/proc:* channels.
@@ -13,12 +13,15 @@ class TerminalClient extends BaseClient {
   onExit = (cb: (id: string) => void) => this.listen(Channel.Pty.Exit, (p) => cb(p.id))
   adoptPane = (id: string) => this.send(Channel.Pty.Adopt, { id })
   onCloseActivePane = (cb: () => void) => this.listen(Channel.Menu.ClosePane, () => cb())
-  popoutOpen = (paneId: string, title?: string) => this.call(Channel.Popout.Open, { paneId, title })
+  popoutOpen = (paneId: string, title?: string, stableId?: string, bounds?: PopoutBounds) =>
+    this.call(Channel.Popout.Open, { paneId, title, stableId, bounds })
   popoutConfirmClose = (id: string) => this.send(Channel.Popout.CloseConfirmed, { id })
   popoutFocus = (id: string) => this.send(Channel.Popout.Focus, { id })
   popoutDock = (id: string) => this.send(Channel.Popout.Dock, { id })
   onPopoutResized = (cb: (id: string, cols: number, rows: number) => void) =>
     this.listen(Channel.Popout.Resized, (p) => cb(p.id, p.cols, p.rows))
+  onPopoutBounds = (cb: (id: string, bounds: PopoutBounds) => void) =>
+    this.listen(Channel.Popout.Bounds, (p) => cb(p.id, p.bounds))
   onPopoutKilled = (cb: (id: string) => void) => this.listen(Channel.Popout.Killed, (p) => cb(p.id))
   onPopoutConfirmClose = (cb: (id: string) => void) =>
     this.listen(Channel.Popout.ConfirmClose, (p) => cb(p.id))

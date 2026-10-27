@@ -3,6 +3,7 @@ import type { SavedNode, SavedSidebarNode } from '@repositories/state.types'
 import {
   state,
   panes,
+  poppedOut,
   docs,
   diffPanes,
   codePanes,
@@ -17,7 +18,7 @@ import {
 import { persistence } from '@repositories/persistence.service'
 import { loadSettings, migrateLegacyState, seedActionMenu } from '@repositories/settings.service'
 import { actionMenuRepo } from '@repositories'
-import { firstPaneOf, findById } from '@views/tree/tree'
+import { firstPaneOf, findById, allTabs, layoutContains } from '@views/tree/tree'
 import { flattenProjects } from '@views/catalog/catalog'
 import {
   createPane,
@@ -117,7 +118,9 @@ import {
   closePane,
   confirmAndClosePane,
   popOutPane,
+  openPopoutWindow,
   killPoppedPane,
+  rememberPopoutBounds,
   selectPane,
   cyclePane,
   openLink,
@@ -133,6 +136,7 @@ import {
   contextFolderId,
   setTabWorkStatus
 } from '@views/commands/commands'
+import type { PopoutBounds } from '@services/pty/pty.types'
 
 // How long the boot skeleton (index.html + app-shell/boot-skeleton.css) stays on
 // screen. Counted from navigation start, not from here, so a slow module load
@@ -272,9 +276,15 @@ export function wirePtyStream(): void {
     setTimeout(() => panes.get(id)?.term.focus(), 80)
   })
   // A pop-out window confirmed its close: kill the pane and drop its placeholder.
-  terminalService.onPopoutKilled((id) => killPoppedPane(id))
+  terminalService.onPopoutKilled((id) => {
+    // While quitting, every PTY is killed and each pop-out confirms its close;
+    // closing the pane then would overwrite the flushed state and lose it.
+    if (!quitting) killPoppedPane(id)
+  })
   // A pop-out window resized its PTY: keep the pane's main-window xterm on the same grid.
   terminalService.onPopoutResized(mirrorPopoutSize)
+  // A pop-out window moved or resized: persist its bounds for the next restart.
+  terminalService.onPopoutBounds(rememberPopoutBounds)
   // Cmd+W comes from a menu accelerator so it also works while a browser pane is focused.
   terminalService.onCloseActivePane(() => {
     if (state.activePaneId) void confirmAndClosePane(state.activePaneId)
@@ -497,7 +507,10 @@ export function wireServiceWatchers(): void {
 }
 
 // ---- Rebuild live tree from saved state (re-spawns shells) ----
-async function buildLayout(n: SavedNode): Promise<LayoutNode> {
+// `popouts` collects the panes restored as popped out: buildLayout marks them in
+// poppedOut (so the first render already shows them as popped) and the caller
+// opens their windows once the rebuilt tree is in place (openRestoredPopouts).
+async function buildLayout(n: SavedNode, popouts: string[]): Promise<LayoutNode> {
   if (n.type === 'leaf') {
     if (n.sqlPane) {
       const sqlId = createSqlPane({
@@ -560,6 +573,11 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
       // normalize to idle; archived/done persist as-is.
       if (n.status) p.status = n.status === 'running' || n.status === 'waiting' ? 'idle' : n.status
       if (n.role) p.role = n.role
+      if (n.popout) {
+        p.popoutBounds = savedPopoutBounds(n.popout.bounds)
+        poppedOut.add(id)
+        popouts.push(id)
+      }
       // tickets[] is canonical; fall back to the legacy single dailyTaskId.
       const ticket = n.tickets?.[0] ?? n.dailyTaskId
       if (ticket) {
@@ -570,7 +588,7 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
     return { type: 'leaf', paneId: id }
   }
   const children: LayoutNode[] = []
-  for (const c of n.children) children.push(await buildLayout(c))
+  for (const c of n.children) children.push(await buildLayout(c, popouts))
   const sizes = n.sizes && n.sizes.length === children.length ? n.sizes.slice() : children.map(() => 1)
   return { type: 'split', dir: n.dir, sizes, children }
 }
@@ -582,7 +600,8 @@ async function reactivateTab(tabId: string): Promise<void> {
   if (!found || found.node.kind !== 'tab') return
   const tab = found.node
   if (tab.status !== 'archived' || !tab.dormantRoot) return
-  const root = await buildLayout(tab.dormantRoot)
+  const popouts: string[] = []
+  const root = await buildLayout(tab.dormantRoot, popouts)
   tab.root = root
   tab.dormantRoot = undefined
   tab.status = 'idle'
@@ -590,8 +609,30 @@ async function reactivateTab(tabId: string): Promise<void> {
   state.activePaneId = firstPaneOf(root)
   renderSidebar()
   renderContent()
+  openRestoredPopouts(popouts)
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
   persistence.save()
+}
+
+// Open the pop-out windows of the panes just restored as popped out. A pane that
+// did not make it into the tree (a restore that failed midway) gets none.
+function openRestoredPopouts(popouts: string[]): void {
+  const tabs = allTabs(state.tree)
+  for (const id of popouts) {
+    if (tabs.some((t) => layoutContains(t.root, id))) openPopoutWindow(id)
+    else poppedOut.delete(id)
+  }
+}
+
+// Guard persisted pop-out bounds: anything but four finite numbers with a
+// positive size drops them (the pop-out then opens at its default position).
+function savedPopoutBounds(v: unknown): PopoutBounds | undefined {
+  if (!v || typeof v !== 'object') return undefined
+  const { x, y, width, height } = v as Record<string, unknown>
+  const values = [x, y, width, height]
+  if (!values.every((n) => typeof n === 'number' && Number.isFinite(n))) return undefined
+  if ((width as number) <= 0 || (height as number) <= 0) return undefined
+  return { x: x as number, y: y as number, width: width as number, height: height as number }
 }
 
 // Guard a persisted hand-set work status: anything but a known value drops it.
@@ -599,7 +640,7 @@ function savedMarkedStatus(v: unknown): TabWorkStatus | undefined {
   return v === 'review' || v === 'test' || v === 'progress' ? v : undefined
 }
 
-async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
+async function buildSidebar(nodes: SavedSidebarNode[], popouts: string[]): Promise<SidebarNode[]> {
   const out: SidebarNode[] = []
   for (const n of nodes) {
     if (n.kind === 'tab') {
@@ -623,7 +664,7 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         })
         continue
       }
-      const root = await buildLayout(n.root)
+      const root = await buildLayout(n.root, popouts)
       out.push({
         kind: 'tab',
         id: uid('t'),
@@ -636,7 +677,7 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         markedStatus: savedMarkedStatus(n.markedStatus)
       })
     } else if (n.kind === 'project') {
-      const children = await buildSidebar(n.children)
+      const children = await buildSidebar(n.children, popouts)
       out.push({
         kind: 'project',
         // Reuse the persisted primary key so daily-task → project links survive a
@@ -674,7 +715,7 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
       })
     } else if (n.kind === 'worktree' || (n.kind === 'folder' && n.worktreePath)) {
       // First-class worktree node — or migrate an old folder-with-worktreePath.
-      const children = await buildSidebar(n.children)
+      const children = await buildSidebar(n.children, popouts)
       const branch = n.kind === 'worktree' ? n.branch : n.feature || n.name || ''
       out.push({
         kind: 'worktree',
@@ -695,7 +736,7 @@ async function buildSidebar(nodes: SavedSidebarNode[]): Promise<SidebarNode[]> {
         shell: n.shell
       })
     } else {
-      const children = await buildSidebar(n.children)
+      const children = await buildSidebar(n.children, popouts)
       out.push({
         kind: 'folder',
         id: uid('f'),
@@ -748,13 +789,14 @@ export async function init(): Promise<void> {
 
   // Restore the saved session tree. Guard it so a single failure can't leave the
   // app blank — we still fall back to whatever rebuilt, or a fresh terminal.
+  const popouts: string[] = []
   try {
     if (saved?.tree?.length) {
-      state.tree = await buildSidebar(saved.tree)
+      state.tree = await buildSidebar(saved.tree, popouts)
     } else if (saved?.tabs?.length) {
       // migrate legacy flat tab list
       for (const t of saved.tabs) {
-        const root = await buildLayout(t.root)
+        const root = await buildLayout(t.root, popouts)
         state.tree.push({
           kind: 'tab',
           id: uid('t'),
@@ -783,6 +825,7 @@ export async function init(): Promise<void> {
   state.activePaneId = null
   renderSidebar()
   renderContent()
+  openRestoredPopouts(popouts)
   persistence.save()
 
   // Worktree manager: materialize git worktrees into sidebar nodes (generic) and

@@ -12,7 +12,9 @@ export const Events = {
     EnterFullScreen: 'enter-full-screen',
     LeaveFullScreen: 'leave-full-screen',
     Close: 'close',
-    Closed: 'closed'
+    Closed: 'closed',
+    Moved: 'moved',
+    Resized: 'resized'
   },
   WebContents: {
     DidFinishLoad: 'did-finish-load',

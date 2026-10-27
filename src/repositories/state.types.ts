@@ -1,3 +1,5 @@
+import type { PopoutBounds } from '@services/pty/pty.types'
+
 // ---- Unified node status / pane role (the stableId-keyed data model) ----
 // Every persisted node carries a lifecycle status; panes additionally carry a
 // role. Nodes are never deleted — closing/removal flips status to 'archived'.
@@ -27,6 +29,9 @@ export interface SavedLeaf {
   role?: PaneRole // pane role (claude/app/build/shell)
   tickets?: string[] // daily-task ids this terminal is assigned to (multi)
   dailyTaskId?: string // deprecated single-ticket field; migrated into tickets[]
+  // Set while the pane is popped out to its own window; restore reopens the
+  // pop-out (at `bounds` when that spot is still on a connected display).
+  popout?: { bounds?: PopoutBounds }
   // When set, this leaf is a SQL pane (not a terminal); restore creates a SqlPane.
   sqlPane?: {
     connId: string | null

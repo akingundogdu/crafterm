@@ -44,3 +44,23 @@ export function makeConfirmClose(
     terminalService.popoutConfirmClose(id)
   }
 }
+
+// While Claude waits on the user in the popped-out pane, the window pulses (the
+// pop-out twin of terminal/waiting-flash.ts). The pop-out hosts a single pane, so
+// the user is looking at it exactly when its window has focus.
+export const POPOUT_WAITING_CLASS = 'popout-waiting'
+
+export function makeWaitingFlash(
+  stableId: string,
+  el: HTMLElement,
+  hasFocus: () => boolean = () => document.hasFocus()
+): { onWaitingChanged: (paneStableId: string, isWaiting: boolean) => void; acknowledge: () => void } {
+  return {
+    onWaitingChanged: (paneStableId, isWaiting) => {
+      if (!stableId || paneStableId !== stableId) return
+      el.classList.toggle(POPOUT_WAITING_CLASS, isWaiting && !hasFocus())
+    },
+    // The window gained focus or the user typed into it: stop the flash.
+    acknowledge: () => el.classList.remove(POPOUT_WAITING_CLASS)
+  }
+}

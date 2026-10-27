@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Notification, Menu } from 'electron'
+import { app, BrowserWindow, Notification, Menu, screen } from 'electron'
 import { handle, on, emit, Channel } from '@services/channels.main'
 import * as terminal from '../services/terminal.manager/terminal.manager.service'
 import { APP_NAME } from '../constants/constants'
@@ -6,6 +6,8 @@ import { Events } from '../events/events'
 import { env } from '@configs/environment-variables'
 import { preloadPath, rendererHtmlPath, RENDERER_HTML } from './window-paths'
 import { hardenWindow } from './window-security'
+import { visiblePopoutBounds } from './popout-bounds'
+import type { PopoutBounds } from '@services/pty/pty.types'
 import { UITexts } from '@texts'
 
 let mainWindow: BrowserWindow | null = null
@@ -81,15 +83,20 @@ export function createMainWindow(): void {
 }
 
 // --- Pop-out windows: host a single pane's terminal in its own window ---
-function createPopoutWindow(paneId: string, title?: string): void {
+// `stableId` is the pane's CRAFTERM_PANE_ID, which the pop-out needs to match
+// `claude:waitingChanged` events to its pane. `bounds` reopens a restored pop-out
+// where it was, when that spot is still on a connected display.
+function createPopoutWindow(paneId: string, title?: string, stableId?: string, bounds?: PopoutBounds): void {
   const existing = terminal.getPopout(paneId)
   if (existing && !existing.isDestroyed()) {
     existing.focus()
     return
   }
+  const restored = bounds ? visiblePopoutBounds(bounds, screen.getAllDisplays().map((d) => d.workArea)) : null
   const win = new BrowserWindow({
-    width: 720,
-    height: 480,
+    width: restored?.width ?? 720,
+    height: restored?.height ?? 480,
+    ...(restored ? { x: restored.x, y: restored.y } : {}),
     backgroundColor: '#0d1117',
     title: title || APP_NAME,
     titleBarStyle: 'hiddenInset',
@@ -100,7 +107,7 @@ function createPopoutWindow(paneId: string, title?: string): void {
   })
   hardenWindow(win.webContents)
 
-  const qs = `id=${encodeURIComponent(paneId)}`
+  const qs = new URLSearchParams({ id: paneId, ...(stableId ? { stableId } : {}) }).toString()
   const devUrl = env.rendererUrl()
   if (devUrl) {
     win.loadURL(`${devUrl}/${RENDERER_HTML.popout}?${qs}`)
@@ -108,6 +115,15 @@ function createPopoutWindow(paneId: string, title?: string): void {
     win.loadFile(rendererHtmlPath('popout'), { search: qs })
   }
   terminal.setPopout(paneId, win)
+  // Report the window's position + size (once now, then after every move/resize)
+  // so the main window persists it and reopens the pop-out in place on restart.
+  // Normal bounds: a fullscreen or maximized pop-out reopens at its windowed size.
+  const reportBounds = (): void => {
+    if (!win.isDestroyed()) terminal.sendToRenderer(Channel.Popout.Bounds, { id: paneId, bounds: win.getNormalBounds() })
+  }
+  win.on(Events.Window.Moved, reportBounds)
+  win.on(Events.Window.Resized, reportBounds)
+  reportBounds()
   // The native close button needs a running-process confirm (done in the
   // pop-out renderer). Intercept unless we're quitting or the kill is confirmed.
   win.on(Events.Window.Close, (e) => {
@@ -177,8 +193,8 @@ export function buildAppMenu(): void {
 // Window bridge: pop-out windows (popout:*), the detached Improve panel
 // (improve-window:*), and native notifications (notify).
 export function registerWindowIpc(): void {
-  handle(Channel.Popout.Open, ({ paneId, title }) => {
-    createPopoutWindow(paneId, title)
+  handle(Channel.Popout.Open, ({ paneId, title, stableId, bounds }) => {
+    createPopoutWindow(paneId, title, stableId, bounds)
   })
 
   // The pop-out renderer confirmed the kill: close its window and tell the main
