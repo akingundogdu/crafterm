@@ -1,6 +1,7 @@
 import type { Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { NodeStatus, PaneRole, SavedNode } from '@repositories/state.types'
+import type { PopoutBounds } from '@services/pty/pty.types'
 export type { NodeStatus, PaneRole } from '@repositories/state.types'
 
 export type Dir = 'row' | 'col'
@@ -106,6 +107,9 @@ export interface Pane {
   // Claude panes; used to distinguish "task done" from "Claude is waiting on a
   // question" when the idle-timer fires.
   outputTail: string
+  // Last position + size of this pane's pop-out window (reported by main); kept
+  // after docking so the next pop-out of the pane reopens in the same place.
+  popoutBounds?: PopoutBounds
   // True once refreshPanePlans has populated `plans` at least once — guards the
   // auto-open so existing plans aren't re-opened on every launch.
   plansSynced?: boolean

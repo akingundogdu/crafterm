@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { persistence, serializeLayout, recordCommand } from '@repositories/persistence.service'
-import { settings, state, notifications, commandHistory, docs } from '@views/state/state'
+import { settings, state, notifications, commandHistory, docs, panes, poppedOut } from '@views/state/state'
 import { bookmarks, setBookmarks } from '@models/bookmark'
-import type { LayoutNode } from '@views/types/types'
+import type { LayoutNode, Pane } from '@views/types/types'
 
 // persistence.service owns the renderer's serialize pipeline + debounced save.
 // We capture writes by mocking the generic bridge `send` that storeService.save
@@ -61,6 +61,34 @@ describe('serialize / persist', () => {
     expect(serializeLayout({ type: 'leaf', paneId: 'd1' } as LayoutNode)).toEqual({
       type: 'leaf',
       docPane: { path: '/repo/docs/plans/branch-plan.md', absolute: true }
+    })
+  })
+
+  describe('popped-out panes', () => {
+    const bounds = { x: 100, y: 120, width: 720, height: 480 }
+    const leafOf = (id: string): Record<string, unknown> =>
+      serializeLayout({ type: 'leaf', paneId: id } as LayoutNode) as Record<string, unknown>
+
+    afterEach(() => {
+      panes.delete('p1')
+      poppedOut.clear()
+    })
+
+    it('saves a popped-out pane with its pop-out window bounds', () => {
+      panes.set('p1', { id: 'p1', stableId: 's1', popoutBounds: bounds } as unknown as Pane)
+      poppedOut.add('p1')
+      expect(leafOf('p1').popout).toEqual({ bounds })
+    })
+
+    it('saves a popped-out pane whose bounds are not reported yet without bounds', () => {
+      panes.set('p1', { id: 'p1', stableId: 's1' } as unknown as Pane)
+      poppedOut.add('p1')
+      expect(leafOf('p1').popout).toEqual({})
+    })
+
+    it('does not mark a docked pane as popped out, even with remembered bounds', () => {
+      panes.set('p1', { id: 'p1', stableId: 's1', popoutBounds: bounds } as unknown as Pane)
+      expect(leafOf('p1')).not.toHaveProperty('popout')
     })
   })
 })

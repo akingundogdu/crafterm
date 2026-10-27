@@ -118,6 +118,7 @@ import {
   confirmAndClosePane,
   popOutPane,
   killPoppedPane,
+  rememberPopoutBounds,
   selectPane,
   cyclePane,
   openLink,
@@ -133,6 +134,7 @@ import {
   contextFolderId,
   setTabWorkStatus
 } from '@views/commands/commands'
+import type { PopoutBounds } from '@services/pty/pty.types'
 
 // How long the boot skeleton (index.html + app-shell/boot-skeleton.css) stays on
 // screen. Counted from navigation start, not from here, so a slow module load
@@ -275,6 +277,8 @@ export function wirePtyStream(): void {
   terminalService.onPopoutKilled((id) => killPoppedPane(id))
   // A pop-out window resized its PTY: keep the pane's main-window xterm on the same grid.
   terminalService.onPopoutResized(mirrorPopoutSize)
+  // A pop-out window moved or resized: persist its bounds for the next restart.
+  terminalService.onPopoutBounds(rememberPopoutBounds)
   // Cmd+W comes from a menu accelerator so it also works while a browser pane is focused.
   terminalService.onCloseActivePane(() => {
     if (state.activePaneId) void confirmAndClosePane(state.activePaneId)
@@ -497,6 +501,10 @@ export function wireServiceWatchers(): void {
 }
 
 // ---- Rebuild live tree from saved state (re-spawns shells) ----
+// Panes restored as popped out. buildLayout only collects them: the pop-out
+// windows open once the rebuilt tree is in place (openRestoredPopouts).
+const restoredPopouts: string[] = []
+
 async function buildLayout(n: SavedNode): Promise<LayoutNode> {
   if (n.type === 'leaf') {
     if (n.sqlPane) {
@@ -560,6 +568,10 @@ async function buildLayout(n: SavedNode): Promise<LayoutNode> {
       // normalize to idle; archived/done persist as-is.
       if (n.status) p.status = n.status === 'running' || n.status === 'waiting' ? 'idle' : n.status
       if (n.role) p.role = n.role
+      if (n.popout) {
+        p.popoutBounds = savedPopoutBounds(n.popout.bounds)
+        restoredPopouts.push(id)
+      }
       // tickets[] is canonical; fall back to the legacy single dailyTaskId.
       const ticket = n.tickets?.[0] ?? n.dailyTaskId
       if (ticket) {
@@ -590,8 +602,24 @@ async function reactivateTab(tabId: string): Promise<void> {
   state.activePaneId = firstPaneOf(root)
   renderSidebar()
   renderContent()
+  openRestoredPopouts()
   if (state.activePaneId) panes.get(state.activePaneId)?.term.focus()
   persistence.save()
+}
+
+// Reopen the pop-out windows of the panes just restored as popped out.
+function openRestoredPopouts(): void {
+  for (const id of restoredPopouts.splice(0)) popOutPane(id)
+}
+
+// Guard persisted pop-out bounds: anything but four finite numbers drops them
+// (the pop-out then opens at its default position).
+function savedPopoutBounds(v: unknown): PopoutBounds | undefined {
+  if (!v || typeof v !== 'object') return undefined
+  const { x, y, width, height } = v as Record<string, unknown>
+  const values = [x, y, width, height]
+  if (!values.every((n) => typeof n === 'number' && Number.isFinite(n))) return undefined
+  return { x: x as number, y: y as number, width: width as number, height: height as number }
 }
 
 // Guard a persisted hand-set work status: anything but a known value drops it.
@@ -783,6 +811,7 @@ export async function init(): Promise<void> {
   state.activePaneId = null
   renderSidebar()
   renderContent()
+  openRestoredPopouts()
   persistence.save()
 
   // Worktree manager: materialize git worktrees into sidebar nodes (generic) and

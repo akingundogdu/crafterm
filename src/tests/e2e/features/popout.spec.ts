@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { freshStateDir, launchApp, openTerminal, closeApp } from '../_harness.js'
+import { freshStateDir, launchApp, openTerminal, readState, closeApp } from '../_harness.js'
 
 // Pop-out windows (§2): popping a pane opens a 2nd BrowserWindow (popout.html?id).
 // A popped-out pane leaves the main-window layout entirely so it frees its space —
@@ -67,6 +67,49 @@ test('pop-out: a side-by-side tile pops out via its header button', async () => 
     await test.step('the popped tile frees its slot — the remaining tile fills, no placeholder', async () => {
       await expect(win.locator('.side-by-side-grid .pane-popped')).toHaveCount(0)
       await expect(win.locator('.side-by-side-grid .pane-box')).toHaveCount(1)
+    })
+  } finally {
+    await closeApp(app, dir)
+  }
+})
+
+// A popped-out pane is saved as popped out with its window bounds, so a restart
+// reopens the pop-out window in the same place.
+test('pop-out: a popped-out pane reopens in its window, in place, after a restart', async () => {
+  const dir = freshStateDir('crafterm-e2e-pop-restore-')
+  let { app, win } = await launchApp(dir)
+  const savedPopout = (): { bounds?: { x: number; y: number; width: number; height: number } } | null => {
+    const walk = (n: any): any[] => (!n ? [] : n.type === 'leaf' ? [n] : (n.children ?? []).flatMap(walk))
+    const tabs = (nodes: any[]): any[] => (nodes ?? []).flatMap((n) => (n.kind === 'tab' ? [n] : tabs(n.children)))
+    const leaf = tabs(readState(dir)?.tree ?? [])
+      .flatMap((t) => walk(t.root))
+      .find((l) => l.popout)
+    return leaf?.popout ?? null
+  }
+  try {
+    await openTerminal(win)
+    await win.locator('.pane-box.active .pane-btn').click()
+    const popoutOpened = app.waitForEvent('window')
+    await win.locator('.context-menu').getByRole('button', { name: 'Pop out to window', exact: true }).click()
+    await popoutOpened
+
+    let saved: { x: number; y: number; width: number; height: number } | undefined
+    await test.step('the leaf is saved as popped out, with the window bounds', async () => {
+      await expect.poll(() => savedPopout()?.bounds ?? null, { timeout: 5_000 }).not.toBe(null)
+      saved = savedPopout()!.bounds
+    })
+
+    await test.step('a relaunch reopens the pop-out window at the saved bounds', async () => {
+      await app.close()
+      ;({ app, win } = await launchApp(dir))
+      await expect.poll(() => app.windows().length, { timeout: 20_000 }).toBe(2)
+      const popout = app.windows().find((w) => w.url().includes('popout'))!
+      await expect(popout.locator('#popout-term .xterm')).toBeAttached({ timeout: 20_000 })
+      const bounds = await app.evaluate(({ BrowserWindow }) => {
+        const w = BrowserWindow.getAllWindows().find((b) => b.webContents.getURL().includes('popout'))
+        return w?.getBounds() ?? null
+      })
+      expect(bounds).toEqual(saved)
     })
   } finally {
     await closeApp(app, dir)

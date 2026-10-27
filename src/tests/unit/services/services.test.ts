@@ -74,6 +74,7 @@ const ENTRIES: Entry[] = [
   { ns: 'terminal', method: 'popoutFocus', kind: 'send', channel: 'popout:focus', args: ['id'], payload: { id: 'id' } },
   { ns: 'terminal', method: 'popoutDock', kind: 'send', channel: 'popout:dock', args: ['id'], payload: { id: 'id' } },
   { ns: 'terminal', method: 'onPopoutResized', kind: 'listen', channel: 'popout:resized', args: [cb] },
+  { ns: 'terminal', method: 'onPopoutBounds', kind: 'listen', channel: 'popout:bounds', args: [cb] },
   { ns: 'terminal', method: 'onPopoutKilled', kind: 'listen', channel: 'popout:killed', args: [cb] },
   { ns: 'terminal', method: 'onPopoutConfirmClose', kind: 'listen', channel: 'popout:confirm-close', args: [cb] },
   { ns: 'terminal', method: 'procStart', kind: 'invoke', channel: 'proc:start', args: [{ stableId: 's', command: 'c' }], payload: { stableId: 's', command: 'c' } },

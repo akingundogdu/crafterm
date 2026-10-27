@@ -17,6 +17,15 @@ export interface ProcStartOptions {
   env?: Record<string, string>
 }
 
+// A pop-out window's position + size in screen coordinates (Electron window
+// bounds). Persisted with the pane so the pop-out reopens in place on restart.
+export interface PopoutBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 // main → renderer push payloads.
 export interface PtyDataEvent {
   id: string
